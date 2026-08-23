@@ -27,8 +27,6 @@ if ($actualDll -ne $DllSha) { throw "WinDivert.dll SHA-256 mismatch: $actualDll"
 if ($actualSys -ne $SysSha) { throw "WinDivert64.sys SHA-256 mismatch: $actualSys" }
 
 # Rebuild the user-supplied LetsDoThis alert from exact, ordered base64 chunks.
-# Small fixed-size chunks avoid accidental truncation/corruption when storing
-# the compact audio source as text in GitHub.
 $SoundDestination = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\LetsDoThis.wav'
 $AudioSourceDir = Join-Path $Root 'assets-src'
 $Mp3Temp = Join-Path $env:TEMP 'BPSR-ReadyAlert-LetsDoThis.mp3'
@@ -39,14 +37,13 @@ $chunks = @(
         Where-Object { $_.Name -match '^LetsDoThis\.user\.mp3\.b64\.\d{3}$' } |
         Sort-Object Name
 )
-if ($chunks.Count -ne 11) {
-    throw "Expected 11 bundled LetsDoThis audio chunks, found $($chunks.Count)."
+if ($chunks.Count -ne 13) {
+    throw "Expected 13 bundled LetsDoThis audio chunks, found $($chunks.Count)."
 }
 
 Write-Host "Reconstructing bundled user-supplied LetsDoThis sound from $($chunks.Count) chunks..."
 $encoded = ($chunks | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ''
 $encoded = $encoded -replace '\s', ''
-
 if ($encoded.Length -ne 10812) {
     throw "Bundled LetsDoThis base64 length mismatch: expected 10812, got $($encoded.Length)."
 }
@@ -88,5 +85,4 @@ if ([Text.Encoding]::ASCII.GetString($header) -ne 'RIFF') {
 }
 $actualSound = (Get-FileHash $SoundDestination -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "Bundled alert WAV prepared. SHA-256: $actualSound"
-
 Write-Host 'WinDivert 2.2.2 + bundled LetsDoThis alert prepared and verified.' -ForegroundColor Green
