@@ -34,7 +34,11 @@ $AudioSourceDir = Join-Path $Root 'assets-src'
 $Mp3Temp = Join-Path $env:TEMP 'BPSR-ReadyAlert-LetsDoThis.mp3'
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SoundDestination) | Out-Null
 
-$chunks = @(Get-ChildItem -Path $AudioSourceDir -Filter 'LetsDoThis.user.mp3.b64.*' -File | Sort-Object Name)
+$chunks = @(
+    Get-ChildItem -Path $AudioSourceDir -File |
+        Where-Object { $_.Name -match '^LetsDoThis\.user\.mp3\.b64\.\d{3}$' } |
+        Sort-Object Name
+)
 if ($chunks.Count -ne 11) {
     throw "Expected 11 bundled LetsDoThis audio chunks, found $($chunks.Count)."
 }
