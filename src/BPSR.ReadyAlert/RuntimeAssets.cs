@@ -7,7 +7,6 @@ internal static class RuntimeAssets
 {
     private const string WinDivertDllSha256 = "c1e060ee19444a259b2162f8af0f3fe8c4428a1c6f694dce20de194ac8d7d9a2";
     private const string WinDivertDriverSha256 = "8da085332782708d8767bcace5327a6ec7283c17cfb85e40b03cd2323a90ddc2";
-    private const string AlertSoundSha256 = "0befc4c0b6a40ef374fb75c6f4c658850439ee43fa9a3c0d74d904c76627048a";
 
     internal static void Ensure(AppPaths paths)
     {
@@ -26,7 +25,7 @@ internal static class RuntimeAssets
         EnsureResource(
             "BPSR.ReadyAlert.Assets.LetsDoThis.wav",
             paths.AlertSoundPath,
-            AlertSoundSha256);
+            expectedSha256: null);
     }
 
     private static void EnsureResource(string resourceName, string destination, string? expectedSha256)
