@@ -37,7 +37,15 @@ if (-not (Test-Path $AudioSource)) {
 }
 
 Write-Host 'Reconstructing bundled user-supplied LetsDoThis sound...'
-$encoded = (Get-Content $AudioSource -Raw) -replace '\s', ''
+$encoded = (Get-Content $AudioSource -Raw) -replace '[^A-Za-z0-9+/=]', ''
+# Normalize padding so a line-ending or contents-API edit cannot break decoding.
+$encoded = $encoded -replace '=', ''
+switch ($encoded.Length % 4) {
+    0 { }
+    2 { $encoded += '==' }
+    3 { $encoded += '=' }
+    1 { throw "Bundled LetsDoThis base64 has an impossible length ($($encoded.Length))." }
+}
 try {
     $mp3Bytes = [Convert]::FromBase64String($encoded)
 } catch {
