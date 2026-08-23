@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>BPSR-ReadyAlert</AssemblyName>
+    <RootNamespace>BPSR.ReadyAlert</RootNamespace>
+    <Version>0.3.0</Version>
+    <Authors>Zudin987</Authors>
+    <Description>Portable matchmaking and Ready Check alerts for Blue Protocol: Star Resonance.</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\LetsDoThis.wav" LogicalName="BPSR.ReadyAlert.Assets.LetsDoThis.wav" />
+    <EmbeddedResource Include="vendor\WinDivert\WinDivert.dll" LogicalName="BPSR.ReadyAlert.WinDivert.WinDivert.dll" />
+    <EmbeddedResource Include="vendor\WinDivert\WinDivert64.sys" LogicalName="BPSR.ReadyAlert.WinDivert.WinDivert64.sys" />
+    <EmbeddedResource Include="vendor\WinDivert\LICENSE" LogicalName="BPSR.ReadyAlert.WinDivert.LICENSE" />
+  </ItemGroup>
+
+  <Target Name="RequireWinDivertBuildInputs" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('vendor\WinDivert\WinDivert.dll')" Text="Missing vendor/WinDivert/WinDivert.dll. Run scripts/prepare-windivert.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('vendor\WinDivert\WinDivert64.sys')" Text="Missing vendor/WinDivert/WinDivert64.sys. Run scripts/prepare-windivert.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('vendor\WinDivert\LICENSE')" Text="Missing vendor/WinDivert/LICENSE. Run scripts/prepare-windivert.ps1 or use the GitHub Actions build." />
+  </Target>
+</Project>

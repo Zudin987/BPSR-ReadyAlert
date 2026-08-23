@@ -1,0 +1,10 @@
+bin/
+obj/
+dist/
+.vs/
+*.user
+*.suo
+src/BPSR.ReadyAlert/vendor/WinDivert/WinDivert.dll
+src/BPSR.ReadyAlert/vendor/WinDivert/WinDivert64.sys
+src/BPSR.ReadyAlert/vendor/WinDivert/LICENSE
+src/BPSR.ReadyAlert/Assets/LetsDoThis.wav

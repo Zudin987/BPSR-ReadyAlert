@@ -1,0 +1,86 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Prepare and verify embedded runtime assets
+        shell: pwsh
+        run: ./scripts/prepare-build-assets.ps1
+
+      - name: Restore
+        run: dotnet restore src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj
+
+      - name: Publish single-file EXE
+        run: >-
+          dotnet publish src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:PublishTrimmed=false
+          -p:EnableCompressionInSingleFile=true
+          -o dist
+
+      - name: Keep release files only
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | Where-Object { $_.Name -ne 'BPSR-ReadyAlert.exe' } | Remove-Item -Force
+          $hash = (Get-FileHash dist/BPSR-ReadyAlert.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  BPSR-ReadyAlert.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          Get-ChildItem dist | Format-Table Name,Length
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BPSR-ReadyAlert-win-x64
+          path: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Update Latest Build release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            Automatic Windows x64 build from the latest `main` branch.
+
+            Download `BPSR-ReadyAlert.exe`, place it anywhere, and run it. The app is self-contained and requires no .NET installation.
+
+      - name: Create versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
