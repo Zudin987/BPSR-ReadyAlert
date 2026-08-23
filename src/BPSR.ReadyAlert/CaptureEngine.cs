@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Runtime.InteropServices;
 using ZstdSharp;
 
@@ -10,16 +11,20 @@ internal sealed class CaptureEngine : IDisposable
 {
     private const ulong WorldNtfService = 1_664_308_034UL;
     private const ulong MatchNtfService = 822_849_903UL;
+    private const ulong GrpcTeamNtfService = 966_773_353UL;
+
     private const uint NotifyAllMemberReady = 0x46;
+    private const uint NotifyCaptainReady = 0x47;
     private const uint EnterMatchResult = 0x04;
 
     private const int MaxInitialFrame = 512 * 1024;
     private const int MaxGameFrame = 2 * 1024 * 1024;
     private const int MaxPending = 2 * 1024 * 1024;
-    private const int MaxFlows = 512;
+    private const int MaxFlows = 768;
 
     private readonly ConcurrentQueue<AlertEvent> _events;
     private readonly Dictionary<string, FlowState> _flows = new();
+    private readonly HashSet<(ulong Service, uint Method)> _seenNotifyKeys = new();
     private readonly Decompressor _zstd = new();
     private Thread? _thread;
     private volatile bool _stopping;
@@ -49,9 +54,9 @@ internal sealed class CaptureEngine : IDisposable
         {
             while (!_stopping)
             {
-                AppLog.Write("capture: opening WinDivert sniff handle priority=-1000");
+                AppLog.Write("capture: opening WinDivert sniff handle priority=-1000 filter=tcp (IPv4+IPv6, both directions)");
                 _handle = NativeMethods.WinDivertOpen(
-                    "inbound && !loopback && ip && tcp",
+                    "!loopback && tcp",
                     layer: 0,
                     priority: -1000,
                     flags: NativeMethods.WinDivertFlagSniff | NativeMethods.WinDivertFlagRecvOnly);
@@ -114,25 +119,19 @@ internal sealed class CaptureEngine : IDisposable
 
     private void ProcessIpPacket(byte[] packet, int length)
     {
-        if (length < 40 || (packet[0] >> 4) != 4) return;
+        if (!TryLocateTcp(packet, length, out var tcp, out var packetEnd, out var flowPrefix)) return;
+        if (packetEnd < tcp + 20) return;
 
-        var ipHeader = (packet[0] & 0x0F) * 4;
-        if (ipHeader < 20 || length < ipHeader + 20 || packet[9] != 6) return;
-
-        var ipTotal = ReadU16BE(packet, 2);
-        if (ipTotal >= 20 && ipTotal < length) length = ipTotal;
-
-        var tcp = ipHeader;
         var tcpHeader = ((packet[tcp + 12] >> 4) & 0x0F) * 4;
-        if (tcpHeader < 20 || length < tcp + tcpHeader) return;
+        if (tcpHeader < 20 || packetEnd < tcp + tcpHeader) return;
 
         var payloadOffset = tcp + tcpHeader;
-        var payloadLen = length - payloadOffset;
+        var payloadLen = packetEnd - payloadOffset;
         var flags = packet[tcp + 13];
         var seq = ReadU32BE(packet, tcp + 4);
-
-        var key = $"{packet[12]}.{packet[13]}.{packet[14]}.{packet[15]}:{ReadU16BE(packet, tcp)}>" +
-                  $"{packet[16]}.{packet[17]}.{packet[18]}.{packet[19]}:{ReadU16BE(packet, tcp + 2)}";
+        var sourcePort = ReadU16BE(packet, tcp);
+        var destPort = ReadU16BE(packet, tcp + 2);
+        var key = $"{flowPrefix}:{sourcePort}>{destPort}";
 
         if (!_flows.TryGetValue(key, out var flow))
         {
@@ -151,6 +150,84 @@ internal sealed class CaptureEngine : IDisposable
             _lastCleanupUtc = DateTime.UtcNow;
             CleanupFlows(aggressive: false);
         }
+    }
+
+    private static bool TryLocateTcp(byte[] packet, int length, out int tcp, out int packetEnd, out string flowPrefix)
+    {
+        tcp = 0;
+        packetEnd = length;
+        flowPrefix = string.Empty;
+        if (length < 1) return false;
+
+        var version = packet[0] >> 4;
+        if (version == 4)
+        {
+            if (length < 40) return false;
+            var ipHeader = (packet[0] & 0x0F) * 4;
+            if (ipHeader < 20 || length < ipHeader + 20 || packet[9] != 6) return false;
+
+            var total = ReadU16BE(packet, 2);
+            if (total >= ipHeader && total < packetEnd) packetEnd = total;
+            tcp = ipHeader;
+            flowPrefix = $"v4:{packet[12]}.{packet[13]}.{packet[14]}.{packet[15]}>" +
+                         $"{packet[16]}.{packet[17]}.{packet[18]}.{packet[19]}";
+            return true;
+        }
+
+        if (version != 6 || length < 60) return false;
+
+        var payloadLength = ReadU16BE(packet, 4);
+        if (payloadLength != 0)
+        {
+            var total = 40 + payloadLength;
+            if (total < packetEnd) packetEnd = total;
+        }
+
+        byte next = packet[6];
+        var cursor = 40;
+        while (next != 6)
+        {
+            if (cursor + 2 > packetEnd) return false;
+            switch (next)
+            {
+                case 0:
+                case 43:
+                case 60:
+                {
+                    next = packet[cursor];
+                    var extLength = (packet[cursor + 1] + 1) * 8;
+                    if (extLength < 8 || cursor + extLength > packetEnd) return false;
+                    cursor += extLength;
+                    break;
+                }
+                case 44:
+                {
+                    if (cursor + 8 > packetEnd) return false;
+                    next = packet[cursor];
+                    var fragmentOffset = (ushort)(ReadU16BE(packet, cursor + 2) & 0xFFF8);
+                    if (fragmentOffset != 0) return false;
+                    cursor += 8;
+                    break;
+                }
+                case 51:
+                {
+                    next = packet[cursor];
+                    var extLength = (packet[cursor + 1] + 2) * 4;
+                    if (extLength < 8 || cursor + extLength > packetEnd) return false;
+                    cursor += extLength;
+                    break;
+                }
+                default:
+                    return false;
+            }
+        }
+
+        if (cursor + 20 > packetEnd) return false;
+        tcp = cursor;
+        var source = new IPAddress(packet.AsSpan(8, 16)).ToString();
+        var dest = new IPAddress(packet.AsSpan(24, 16)).ToString();
+        flowPrefix = $"v6:[{source}]>[{dest}]";
+        return true;
     }
 
     private void CleanupFlows(bool aggressive)
@@ -324,19 +401,29 @@ internal sealed class CaptureEngine : IDisposable
         var protoStart = start + 16;
         var protoLength = end - protoStart;
 
-        if (service == WorldNtfService && method == NotifyAllMemberReady)
+        if (_seenNotifyKeys.Add((service, method)))
+            AppLog.Write($"probe: notify service={service} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
+
+        if (service == WorldNtfService && method is NotifyAllMemberReady or NotifyCaptainReady)
         {
-            AppLog.Write($"event: ready-check notify compressed={compressed}");
+            AppLog.Write($"event: ready-check notify method=0x{method:X} compressed={compressed}");
             var now = DateTime.UtcNow;
             if ((now - _lastReadyAlertUtc).TotalSeconds >= 3)
             {
                 _lastReadyAlertUtc = now;
                 _events.Enqueue(new AlertEvent("ready", "BPSR Ready Check", "Party Ready Check started."));
+                AppLog.Write("alert: enqueued kind=ready");
             }
             return;
         }
 
-        if (service != MatchNtfService || method != EnterMatchResult) return;
+        if (service == GrpcTeamNtfService && method is 0x12 or 0x13 or 0x14 or 0x1F)
+            AppLog.Write($"probe: GrpcTeamNtf matchmaking-related method=0x{method:X} compressed={compressed} protoLen={protoLength}");
+
+        if (service != MatchNtfService) return;
+
+        AppLog.Write($"probe: MatchNtf method=0x{method:X} compressed={compressed} protoLen={protoLength}");
+        if (method != EnterMatchResult) return;
 
         byte[] payload;
         try
@@ -352,23 +439,20 @@ internal sealed class CaptureEngine : IDisposable
 
         if (!TryParseMatchStatus(payload, 0, payload.Length, out var status))
         {
-            AppLog.Write("event: match EnterMatchResult payload could not be parsed");
+            AppLog.Write($"event: match EnterMatchResult payload could not be parsed len={payload.Length}");
             return;
         }
 
         AppLog.Write($"event: match EnterMatchResult status={status} compressed={compressed}");
-        if (status != 2) return; // EMatchStatus.WaitReady
+        if (status != 2) return;
 
         var alertNow = DateTime.UtcNow;
         if ((alertNow - _lastQueueAlertUtc).TotalSeconds < 5) return;
         _lastQueueAlertUtc = alertNow;
         _events.Enqueue(new AlertEvent("queue", "BPSR Match Found", "Matchmaking is waiting for acceptance."));
+        AppLog.Write("alert: enqueued kind=queue");
     }
 
-    // MatchNtf.EnterMatchResultNtf:
-    // field 1 = vRequest (message)
-    // EnterMatchResultNtfRequest field 2 = matchInfo (message)
-    // MatchInfo field 2 = matchStatus (enum); WaitReady == 2.
     private static bool TryParseMatchStatus(byte[] data, int offset, int length, out int status)
     {
         status = -1;
@@ -379,13 +463,7 @@ internal sealed class CaptureEngine : IDisposable
         return true;
     }
 
-    private static bool TryGetLengthField(
-        byte[] data,
-        int offset,
-        int length,
-        int wantedField,
-        out int valueOffset,
-        out int valueLength)
+    private static bool TryGetLengthField(byte[] data, int offset, int length, int wantedField, out int valueOffset, out int valueLength)
     {
         valueOffset = 0;
         valueLength = 0;
@@ -418,12 +496,7 @@ internal sealed class CaptureEngine : IDisposable
         return false;
     }
 
-    private static bool TryGetVarintField(
-        byte[] data,
-        int offset,
-        int length,
-        int wantedField,
-        out ulong value)
+    private static bool TryGetVarintField(byte[] data, int offset, int length, int wantedField, out ulong value)
     {
         value = 0;
         var p = offset;
