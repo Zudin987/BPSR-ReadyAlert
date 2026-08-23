@@ -27,8 +27,8 @@ if ($actualDll -ne $DllSha) { throw "WinDivert.dll SHA-256 mismatch: $actualDll"
 if ($actualSys -ne $SysSha) { throw "WinDivert64.sys SHA-256 mismatch: $actualSys" }
 
 # Rebuild the user-supplied LetsDoThis alert from the repository itself.
-# Each repository chunk is independently base64-encoded, so decode each chunk
-# first and concatenate the decoded bytes (do not concatenate padded base64).
+# The files are sequential slices of one base64 stream. Join them, discard
+# whitespace/padding artifacts, restore the final base64 padding, then decode.
 $SoundDestination = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\LetsDoThis.wav'
 $AudioSourceDir = Join-Path $Root 'assets-src'
 $Mp3Temp = Join-Path $env:TEMP 'BPSR-ReadyAlert-LetsDoThis.mp3'
@@ -40,21 +40,23 @@ if ($chunks.Count -eq 0) {
 }
 
 Write-Host "Reconstructing bundled LetsDoThis sound from $($chunks.Count) chunks..."
-$memory = [IO.MemoryStream]::new()
-try {
-    foreach ($chunk in $chunks) {
-        $encoded = (Get-Content $chunk.FullName -Raw) -replace '\s', ''
-        try {
-            $bytes = [Convert]::FromBase64String($encoded)
-        } catch {
-            throw "Bundled audio chunk '$($chunk.Name)' is not valid base64: $($_.Exception.Message)"
-        }
-        $memory.Write($bytes, 0, $bytes.Length)
-    }
-    [IO.File]::WriteAllBytes($Mp3Temp, $memory.ToArray())
-} finally {
-    $memory.Dispose()
+$encoded = ($chunks | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+$encoded = $encoded -replace '[^A-Za-z0-9+/=]', ''
+$encoded = $encoded -replace '=', ''
+
+switch ($encoded.Length % 4) {
+    0 { }
+    2 { $encoded += '==' }
+    3 { $encoded += '=' }
+    1 { throw "Bundled LetsDoThis base64 has an impossible length ($($encoded.Length)); a source chunk is incomplete." }
 }
+
+try {
+    $mp3Bytes = [Convert]::FromBase64String($encoded)
+} catch {
+    throw "Bundled LetsDoThis audio is not valid base64: $($_.Exception.Message)"
+}
+[IO.File]::WriteAllBytes($Mp3Temp, $mp3Bytes)
 
 if ((Get-Item $Mp3Temp).Length -lt 1024) {
     throw 'Bundled LetsDoThis audio is unexpectedly small.'
