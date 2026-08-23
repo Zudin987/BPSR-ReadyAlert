@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Drawing;
 using System.Media;
 using System.Windows.Forms;
 
@@ -16,6 +17,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ConcurrentQueue<AlertEvent> _events = new();
     private readonly CaptureEngine _engine;
     private readonly SoundPlayer _player;
+    private readonly Icon _appIcon;
 
     internal TrayApplicationContext(
         AppPaths paths,
@@ -30,23 +32,47 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _player = new SoundPlayer(_paths.AlertSoundPath);
         try { _player.Load(); } catch (Exception ex) { AppLog.Write("audio: preload failed " + ex.Message); }
 
+        _appIcon = LoadApplicationIcon();
         var menu = BuildMenu();
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Information,
+            Icon = _appIcon,
             Text = "BPSR Ready Alert - Monitoring",
             ContextMenuStrip = menu,
             Visible = true
         };
 
+        AppLog.Write(
+            $"settings: queue={_settings.QueuePopAlert} ready={_settings.ReadyCheckAlert} " +
+            $"notification={_settings.DesktopNotification} autoLaunch={_settings.AutoLaunchResonanceLogs}");
+
         _engine = new CaptureEngine(_events);
         _engine.Start();
 
-        _timer = new System.Windows.Forms.Timer { Interval = 200 };
+        _timer = new System.Windows.Forms.Timer { Interval = 100 };
         _timer.Tick += (_, _) => DrainEvents();
         _timer.Start();
 
         AppLog.Write("tray: running");
+    }
+
+    private static Icon LoadApplicationIcon()
+    {
+        try
+        {
+            var path = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                var icon = Icon.ExtractAssociatedIcon(path);
+                if (icon is not null) return icon;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("icon: extract failed " + ex.Message);
+        }
+
+        return (Icon)SystemIcons.Application.Clone();
     }
 
     private ContextMenuStrip BuildMenu()
@@ -62,6 +88,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _settings.QueuePopAlert = queueItem.Checked;
             _settingsStore.Save(_settings);
+            AppLog.Write("settings: QueuePopAlert=" + _settings.QueuePopAlert);
         };
 
         var readyItem = new ToolStripMenuItem("Ready Check Alert")
@@ -73,6 +100,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _settings.ReadyCheckAlert = readyItem.Checked;
             _settingsStore.Save(_settings);
+            AppLog.Write("settings: ReadyCheckAlert=" + _settings.ReadyCheckAlert);
         };
 
         var notificationItem = new ToolStripMenuItem("Desktop Notification")
@@ -104,7 +132,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
 
         var test = new ToolStripMenuItem("Test Alert Sound");
-        test.Click += (_, _) => PlayAlert();
+        test.Click += (_, _) => PlayAlert("test");
         menu.Items.Add(test);
 
         var launch = new ToolStripMenuItem("Launch Resonance Logs CN");
@@ -151,11 +179,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         while (_events.TryDequeue(out var evt))
         {
-            if (evt.Kind == "queue" && !_settings.QueuePopAlert) continue;
-            if (evt.Kind == "ready" && !_settings.ReadyCheckAlert) continue;
+            var enabled = evt.Kind switch
+            {
+                "queue" => _settings.QueuePopAlert,
+                "ready" => _settings.ReadyCheckAlert,
+                _ => true
+            };
+
+            AppLog.Write($"dispatch: kind={evt.Kind} enabled={enabled}");
+            if (!enabled)
+            {
+                AppLog.Write($"dispatch: skipped kind={evt.Kind} because its alert toggle is OFF");
+                continue;
+            }
 
             if (evt.Kind is "queue" or "ready")
-                PlayAlert();
+                PlayAlert(evt.Kind);
 
             if (_settings.DesktopNotification || evt.Kind == "error")
             {
@@ -168,12 +207,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
-    private void PlayAlert()
+    private void PlayAlert(string reason)
     {
         try
         {
+            AppLog.Write($"audio: play requested reason={reason} file={_paths.AlertSoundPath}");
             _player.Stop();
             _player.Play();
+            AppLog.Write($"audio: play submitted reason={reason}");
         }
         catch (Exception ex)
         {
@@ -214,6 +255,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _player.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
+        _appIcon.Dispose();
         AppLog.Write("shutdown: normal");
         base.ExitThreadCore();
     }
