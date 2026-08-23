@@ -26,36 +26,39 @@ $actualSys = (Get-FileHash (Join-Path $Destination 'WinDivert64.sys') -Algorithm
 if ($actualDll -ne $DllSha) { throw "WinDivert.dll SHA-256 mismatch: $actualDll" }
 if ($actualSys -ne $SysSha) { throw "WinDivert64.sys SHA-256 mismatch: $actualSys" }
 
-# Rebuild the user-supplied LetsDoThis alert from a compact base64 MP3 source.
+# Rebuild the user-supplied LetsDoThis alert from exact, ordered base64 chunks.
+# Small fixed-size chunks avoid accidental truncation/corruption when storing
+# the compact audio source as text in GitHub.
 $SoundDestination = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\LetsDoThis.wav'
-$AudioSource = Join-Path $Root 'assets-src\LetsDoThis.user.mp3.b64'
+$AudioSourceDir = Join-Path $Root 'assets-src'
 $Mp3Temp = Join-Path $env:TEMP 'BPSR-ReadyAlert-LetsDoThis.mp3'
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SoundDestination) | Out-Null
 
-if (-not (Test-Path $AudioSource)) {
-    throw 'Bundled user-supplied LetsDoThis audio source is missing.'
+$chunks = @(Get-ChildItem -Path $AudioSourceDir -Filter 'LetsDoThis.user.mp3.b64.*' -File | Sort-Object Name)
+if ($chunks.Count -ne 11) {
+    throw "Expected 11 bundled LetsDoThis audio chunks, found $($chunks.Count)."
 }
 
-Write-Host 'Reconstructing bundled user-supplied LetsDoThis sound...'
-$encoded = (Get-Content $AudioSource -Raw) -replace '[^A-Za-z0-9+/=]', ''
-# Normalize padding so a line-ending or contents-API edit cannot break decoding.
-$encoded = $encoded -replace '=', ''
-switch ($encoded.Length % 4) {
-    0 { }
-    2 { $encoded += '==' }
-    3 { $encoded += '=' }
-    1 { throw "Bundled LetsDoThis base64 has an impossible length ($($encoded.Length))." }
+Write-Host "Reconstructing bundled user-supplied LetsDoThis sound from $($chunks.Count) chunks..."
+$encoded = ($chunks | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ''
+$encoded = $encoded -replace '\s', ''
+
+if ($encoded.Length -ne 10812) {
+    throw "Bundled LetsDoThis base64 length mismatch: expected 10812, got $($encoded.Length)."
 }
+if (($encoded.Length % 4) -ne 0) {
+    throw "Bundled LetsDoThis base64 length is not divisible by 4: $($encoded.Length)."
+}
+
 try {
     $mp3Bytes = [Convert]::FromBase64String($encoded)
 } catch {
     throw "Bundled LetsDoThis audio is not valid base64: $($_.Exception.Message)"
 }
-[IO.File]::WriteAllBytes($Mp3Temp, $mp3Bytes)
-
-if ((Get-Item $Mp3Temp).Length -lt 1024) {
-    throw 'Bundled LetsDoThis audio is unexpectedly small.'
+if ($mp3Bytes.Length -ne 8108) {
+    throw "Bundled LetsDoThis MP3 length mismatch: expected 8108 bytes, got $($mp3Bytes.Length)."
 }
+[IO.File]::WriteAllBytes($Mp3Temp, $mp3Bytes)
 
 $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
 if (-not $ffmpeg) {
