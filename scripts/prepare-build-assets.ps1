@@ -26,31 +26,18 @@ $actualSys = (Get-FileHash (Join-Path $Destination 'WinDivert64.sys') -Algorithm
 if ($actualDll -ne $DllSha) { throw "WinDivert.dll SHA-256 mismatch: $actualDll" }
 if ($actualSys -ne $SysSha) { throw "WinDivert64.sys SHA-256 mismatch: $actualSys" }
 
-# Rebuild the user-supplied LetsDoThis alert from the repository itself.
-# The files are sequential slices of one base64 stream. Join them, discard
-# whitespace/padding artifacts, restore the final base64 padding, then decode.
+# Rebuild the user-supplied LetsDoThis alert from a compact base64 MP3 source.
 $SoundDestination = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\LetsDoThis.wav'
-$AudioSourceDir = Join-Path $Root 'assets-src'
+$AudioSource = Join-Path $Root 'assets-src\LetsDoThis.user.mp3.b64'
 $Mp3Temp = Join-Path $env:TEMP 'BPSR-ReadyAlert-LetsDoThis.mp3'
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SoundDestination) | Out-Null
 
-$chunks = @(Get-ChildItem -Path $AudioSourceDir -Filter 'LetsDoThis.mp3.b64.*' -File | Sort-Object Name)
-if ($chunks.Count -eq 0) {
-    throw 'Bundled LetsDoThis audio chunks were not found under assets-src.'
+if (-not (Test-Path $AudioSource)) {
+    throw 'Bundled user-supplied LetsDoThis audio source is missing.'
 }
 
-Write-Host "Reconstructing bundled LetsDoThis sound from $($chunks.Count) chunks..."
-$encoded = ($chunks | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
-$encoded = $encoded -replace '[^A-Za-z0-9+/=]', ''
-$encoded = $encoded -replace '=', ''
-
-switch ($encoded.Length % 4) {
-    0 { }
-    2 { $encoded += '==' }
-    3 { $encoded += '=' }
-    1 { throw "Bundled LetsDoThis base64 has an impossible length ($($encoded.Length)); a source chunk is incomplete." }
-}
-
+Write-Host 'Reconstructing bundled user-supplied LetsDoThis sound...'
+$encoded = (Get-Content $AudioSource -Raw) -replace '\s', ''
 try {
     $mp3Bytes = [Convert]::FromBase64String($encoded)
 } catch {
