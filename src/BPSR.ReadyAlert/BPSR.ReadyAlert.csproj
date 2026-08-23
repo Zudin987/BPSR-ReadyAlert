@@ -33,8 +33,8 @@
   </ItemGroup>
 
   <Target Name="RequireWinDivertBuildInputs" BeforeTargets="BeforeBuild">
-    <Error Condition="!Exists('vendor\WinDivert\WinDivert.dll')" Text="Missing vendor/WinDivert/WinDivert.dll. Run scripts/prepare-windivert.ps1 or use the GitHub Actions build." />
-    <Error Condition="!Exists('vendor\WinDivert\WinDivert64.sys')" Text="Missing vendor/WinDivert/WinDivert64.sys. Run scripts/prepare-windivert.ps1 or use the GitHub Actions build." />
-    <Error Condition="!Exists('vendor\WinDivert\LICENSE')" Text="Missing vendor/WinDivert/LICENSE. Run scripts/prepare-windivert.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('vendor\WinDivert\WinDivert.dll')" Text="Missing vendor/WinDivert/WinDivert.dll. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('vendor\WinDivert\WinDivert64.sys')" Text="Missing vendor/WinDivert/WinDivert64.sys. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('vendor\WinDivert\LICENSE')" Text="Missing vendor/WinDivert/LICENSE. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
   </Target>
 </Project>
