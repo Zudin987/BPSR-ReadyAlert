@@ -7,10 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BPSR-ReadyAlert</AssemblyName>
     <RootNamespace>BPSR.ReadyAlert</RootNamespace>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <Authors>Zudin987</Authors>
     <Description>Portable matchmaking and Ready Check alerts for Blue Protocol: Star Resonance.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\App.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
@@ -33,6 +34,7 @@
   </ItemGroup>
 
   <Target Name="RequireWinDivertBuildInputs" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('Assets\App.ico')" Text="Missing Assets/App.ico." />
     <Error Condition="!Exists('vendor\WinDivert\WinDivert.dll')" Text="Missing vendor/WinDivert/WinDivert.dll. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
     <Error Condition="!Exists('vendor\WinDivert\WinDivert64.sys')" Text="Missing vendor/WinDivert/WinDivert64.sys. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
     <Error Condition="!Exists('vendor\WinDivert\LICENSE')" Text="Missing vendor/WinDivert/LICENSE. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
