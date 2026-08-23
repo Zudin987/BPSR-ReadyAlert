@@ -27,8 +27,8 @@ if ($actualDll -ne $DllSha) { throw "WinDivert.dll SHA-256 mismatch: $actualDll"
 if ($actualSys -ne $SysSha) { throw "WinDivert64.sys SHA-256 mismatch: $actualSys" }
 
 # Rebuild the user-supplied LetsDoThis alert from the repository itself.
-# This deliberately avoids downloading BPSR-ZDPS's copy because upstream may
-# replace that audio at any time, which previously broke reproducible builds.
+# Each repository chunk is independently base64-encoded, so decode each chunk
+# first and concatenate the decoded bytes (do not concatenate padded base64).
 $SoundDestination = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\LetsDoThis.wav'
 $AudioSourceDir = Join-Path $Root 'assets-src'
 $Mp3Temp = Join-Path $env:TEMP 'BPSR-ReadyAlert-LetsDoThis.mp3'
@@ -40,14 +40,22 @@ if ($chunks.Count -eq 0) {
 }
 
 Write-Host "Reconstructing bundled LetsDoThis sound from $($chunks.Count) chunks..."
-$encoded = ($chunks | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
-$encoded = $encoded -replace '\s', ''
+$memory = [IO.MemoryStream]::new()
 try {
-    $mp3Bytes = [Convert]::FromBase64String($encoded)
-} catch {
-    throw "Bundled LetsDoThis audio is not valid base64: $($_.Exception.Message)"
+    foreach ($chunk in $chunks) {
+        $encoded = (Get-Content $chunk.FullName -Raw) -replace '\s', ''
+        try {
+            $bytes = [Convert]::FromBase64String($encoded)
+        } catch {
+            throw "Bundled audio chunk '$($chunk.Name)' is not valid base64: $($_.Exception.Message)"
+        }
+        $memory.Write($bytes, 0, $bytes.Length)
+    }
+    [IO.File]::WriteAllBytes($Mp3Temp, $memory.ToArray())
+} finally {
+    $memory.Dispose()
 }
-[IO.File]::WriteAllBytes($Mp3Temp, $mp3Bytes)
+
 if ((Get-Item $Mp3Temp).Length -lt 1024) {
     throw 'Bundled LetsDoThis audio is unexpectedly small.'
 }
