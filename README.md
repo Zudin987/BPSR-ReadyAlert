@@ -10,7 +10,7 @@ It is designed to run beside the official **Resonance Logs CN** DPS meter withou
 
 ## Download / use
 
-1. Open **Releases** and download `BPSR-ReadyAlert.exe` from **Latest Build**.
+1. Open **Releases** and download `BPSR-ReadyAlert.exe` from the latest stable release. **Latest Build** is also available for the newest validated `main` build.
 2. Put the EXE anywhere you want to keep it.
 3. Make sure **Npcap** is installed. If you already use Resonance Logs CN with Npcap, there is normally nothing extra to install.
 4. Run `BPSR-ReadyAlert.exe`.
@@ -70,16 +70,23 @@ The app passively captures TCP traffic through Npcap and performs TCP/game-frame
 
 The default sound is the user-selected `LetsDoThis` alert bundled into the EXE at build time.
 
+## Icons
+
+The application icon is built from the user-supplied exact ICO frames without resizing or re-rendering:
+
+- **16x16** is explicitly requested for the system tray and is also the Small/Details Explorer frame.
+- **48x48** is the normal Explorer application frame.
+
 ## Build
 
-GitHub Actions builds the self-contained Windows x64 EXE. Local build requires the .NET 8 SDK:
+GitHub Actions builds the self-contained Windows x64 EXE. Local build requires the **.NET 10 SDK**:
 
 ```powershell
 ./scripts/prepare-build-assets.ps1
 dotnet publish src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj -c Release -r win-x64 --self-contained true -o dist
 ```
 
-`prepare-build-assets.ps1` reconstructs the bundled alert WAV and validates/repairs the bundled application ICO before compilation. Npcap is intentionally not downloaded or redistributed by the build.
+`prepare-build-assets.ps1` reconstructs the bundled alert WAV and rebuilds `App.ico` from the exact committed 16x16 and 48x48 user-supplied icon payloads. It does not resize, crop, pad, or re-render the artwork. Npcap is intentionally not downloaded or redistributed by the build.
 
 ## Notes
 

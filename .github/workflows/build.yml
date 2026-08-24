@@ -134,6 +134,35 @@ jobs:
 
             Please live-test Ready Check, matchmaking queue popup, adapter switching, alert volume, tray/Explorer icon, and normal exit before v1.0.0.
 
+      - name: Create v1.0.0 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.0.0]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: BPSR Ready Alert v1.0.0
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            First stable release of BPSR Ready Alert.
+
+            Highlights:
+            - Ready Check and matchmaking / party-confirm sound alerts;
+            - bundled LetsDoThis alert sound with app-local volume control;
+            - Npcap capture with Resonance Logs CN adapter reuse and manual adapter selection;
+            - optional desktop notifications;
+            - auto-launch of Resonance Logs CN;
+            - Start Menu shortcut support;
+            - self-contained Windows x64 single EXE on .NET 10;
+            - exact user-supplied 16x16 icon frame explicitly used by the system tray and Small/Details views;
+            - exact user-supplied 48x48 frame used for normal Explorer icon views.
+
+            Requires Npcap to be installed.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
