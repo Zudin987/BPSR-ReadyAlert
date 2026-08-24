@@ -41,6 +41,16 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o dist
 
+      - name: Stamp Explorer EXE icon
+        shell: pwsh
+        run: ./scripts/stamp-exe-icon.ps1 -ExePath ./dist/BPSR-ReadyAlert.exe -IconPath ./src/BPSR.ReadyAlert/Assets/App.ico
+
+      - name: Smoke-test stamped single-file EXE
+        shell: pwsh
+        run: |
+          & ./dist/BPSR-ReadyAlert.exe --build-smoke-test
+          if ($LASTEXITCODE -ne 0) { throw "Stamped EXE smoke test failed with exit code $LASTEXITCODE" }
+
       - name: Keep release files only
         shell: pwsh
         run: |
