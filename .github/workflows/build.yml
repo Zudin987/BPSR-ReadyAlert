@@ -132,7 +132,32 @@ jobs:
             - repaired the application icon source;
             - tightened GitHub Actions release permissions and added a 55 MiB size regression guard.
 
-            Please live-test Ready Check, matchmaking queue popup, adapter switching, alert volume, tray/Explorer icon, and normal exit before v1.0.0.
+      - name: Create v1.0.0 release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.0.0]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: BPSR Ready Alert v1.0.0
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            First stable release of BPSR Ready Alert.
+
+            Highlights:
+            - Ready Check and matchmaking/party-confirm sound alerts using the bundled LetsDoThis sound;
+            - Npcap capture with Resonance Logs CN adapter reuse plus manual adapter selection;
+            - auto-launch of Resonance Logs CN;
+            - tray volume control and optional desktop notifications;
+            - Start Menu shortcut support;
+            - self-contained Windows x64 single EXE on .NET 10;
+            - final multi-resolution application icon rebuilt directly from the user-provided PNG master.
+
+            Requires Npcap to be installed.
 
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
