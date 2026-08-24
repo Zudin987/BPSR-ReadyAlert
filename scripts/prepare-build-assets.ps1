@@ -62,10 +62,8 @@ if ([Text.Encoding]::ASCII.GetString($header) -ne 'RIFF') {
 $actualSound = (Get-FileHash $SoundDestination -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "Bundled alert WAV prepared. SHA-256: $actualSound"
 
-# Repair the historical App.ico if its directory advertises a truncated image.
-# WinForms was tolerant enough to use the early frames for the tray, but Windows
-# Explorer rejects the malformed ICO as an application icon. Keep every complete
-# image entry and rebuild a clean ICO directory with corrected offsets.
+# First repair any historical malformed ICO directory so System.Drawing can safely
+# open the source artwork. WinForms tolerated the early frames, while Explorer did not.
 $IconPath = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\App.ico'
 $ico = [IO.File]::ReadAllBytes($IconPath)
 if ($ico.Length -lt 22 -or [BitConverter]::ToUInt16($ico, 0) -ne 0 -or [BitConverter]::ToUInt16($ico, 2) -ne 1) {
@@ -108,5 +106,111 @@ if ($valid.Count -ne $declaredCount) {
 } else {
     Write-Host "App.ico validation passed with $declaredCount image entries."
 }
+
+# Rebuild a clean multi-resolution ICO for Explorer. The artwork gets a small
+# transparent safety margin (8 px on the 256 px master) so Windows medium/large
+# icon views cannot clip the face at the image edge. Explicitly writing every
+# common size avoids Explorer selecting/scaling a bad or incomplete ICO frame.
+Add-Type -AssemblyName System.Drawing
+
+$sourceIcon = $null
+$sourceBitmap = $null
+$master = $null
+try {
+    $sourceIcon = [System.Drawing.Icon]::new($IconPath, 256, 256)
+    $sourceBitmap = $sourceIcon.ToBitmap()
+    $master = [System.Drawing.Bitmap]::new(256, 256, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+
+    $graphics = [System.Drawing.Graphics]::FromImage($master)
+    try {
+        $graphics.Clear([System.Drawing.Color]::Transparent)
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $graphics.DrawImage($sourceBitmap, 8, 8, 240, 240)
+    } finally {
+        $graphics.Dispose()
+    }
+
+    $sizes = @(16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
+    $pngFrames = New-Object System.Collections.Generic.List[byte[]]
+
+    foreach ($dimension in $sizes) {
+        $frame = [System.Drawing.Bitmap]::new($dimension, $dimension, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $frameGraphics = [System.Drawing.Graphics]::FromImage($frame)
+        try {
+            $frameGraphics.Clear([System.Drawing.Color]::Transparent)
+            $frameGraphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $frameGraphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+            $frameGraphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+            $frameGraphics.DrawImage($master, 0, 0, $dimension, $dimension)
+
+            $memory = [IO.MemoryStream]::new()
+            try {
+                $frame.Save($memory, [System.Drawing.Imaging.ImageFormat]::Png)
+                $pngFrames.Add($memory.ToArray())
+            } finally {
+                $memory.Dispose()
+            }
+        } finally {
+            $frameGraphics.Dispose()
+            $frame.Dispose()
+        }
+    }
+
+    $tempIcon = $IconPath + '.new'
+    $stream = [IO.File]::Open($tempIcon, [IO.FileMode]::Create, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    $writer = [IO.BinaryWriter]::new($stream)
+    try {
+        $writer.Write([uint16]0)
+        $writer.Write([uint16]1)
+        $writer.Write([uint16]$sizes.Count)
+
+        $dataOffset = 6 + (16 * $sizes.Count)
+        for ($i = 0; $i -lt $sizes.Count; $i++) {
+            $dimension = $sizes[$i]
+            $dimensionByte = if ($dimension -eq 256) { [byte]0 } else { [byte]$dimension }
+            $bytes = $pngFrames[$i]
+
+            $writer.Write($dimensionByte)
+            $writer.Write($dimensionByte)
+            $writer.Write([byte]0)
+            $writer.Write([byte]0)
+            $writer.Write([uint16]1)
+            $writer.Write([uint16]32)
+            $writer.Write([uint32]$bytes.Length)
+            $writer.Write([uint32]$dataOffset)
+            $dataOffset += $bytes.Length
+        }
+
+        foreach ($bytes in $pngFrames) {
+            $writer.Write($bytes)
+        }
+    } finally {
+        $writer.Dispose()
+        $stream.Dispose()
+    }
+
+    Move-Item -Force $tempIcon $IconPath
+    Write-Host "Rebuilt App.ico with padded artwork and $($sizes.Count) explicit icon sizes."
+} finally {
+    if ($master) { $master.Dispose() }
+    if ($sourceBitmap) { $sourceBitmap.Dispose() }
+    if ($sourceIcon) { $sourceIcon.Dispose() }
+}
+
+# Final ICO directory validation: every declared image must be fully contained.
+$finalIco = [IO.File]::ReadAllBytes($IconPath)
+$finalCount = [BitConverter]::ToUInt16($finalIco, 4)
+if ($finalCount -ne 10) { throw "Rebuilt App.ico expected 10 image entries, found $finalCount." }
+for ($i = 0; $i -lt $finalCount; $i++) {
+    $entryOffset = 6 + (16 * $i)
+    $size = [BitConverter]::ToUInt32($finalIco, $entryOffset + 8)
+    $dataOffset = [BitConverter]::ToUInt32($finalIco, $entryOffset + 12)
+    if ($size -le 0 -or ([uint64]$dataOffset + [uint64]$size) -gt [uint64]$finalIco.Length) {
+        throw "Rebuilt App.ico entry #$i is invalid (offset=$dataOffset size=$size)."
+    }
+}
+Write-Host "App.ico final validation passed with $finalCount complete image entries."
 
 Write-Host 'Build assets prepared. Npcap is an external runtime dependency and is not redistributed.' -ForegroundColor Green
