@@ -37,7 +37,7 @@ internal static class Program
             if (settings.AutoLaunchResonanceLogs)
                 launcher.EnsureRunningInteractive();
 
-            var capturePlan = NpcapDeviceSelector.SelectPlan();
+            var capturePlan = NpcapDeviceSelector.SelectPlan(settings);
             Application.Run(new TrayApplicationContext(paths, settings, settingsStore, launcher, capturePlan));
         }
         catch (DllNotFoundException ex)
