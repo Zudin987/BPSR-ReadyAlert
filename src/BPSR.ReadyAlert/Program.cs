@@ -33,12 +33,12 @@ internal static class Program
             var settings = settingsStore.Load();
             var launcher = new ResonanceLogsLauncher(settings, settingsStore);
 
-            StartMenuShortcut.TryCreateOrRefresh();
+            StartMenuShortcut.TryCreateOrRefresh(paths.AppIconPath);
             if (settings.AutoLaunchResonanceLogs)
                 launcher.EnsureRunningInteractive();
 
-            var captureSelection = NpcapDeviceSelector.Select();
-            Application.Run(new TrayApplicationContext(paths, settings, settingsStore, launcher, captureSelection));
+            var capturePlan = NpcapDeviceSelector.SelectPlan();
+            Application.Run(new TrayApplicationContext(paths, settings, settingsStore, launcher, capturePlan));
         }
         catch (DllNotFoundException ex)
         {

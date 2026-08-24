@@ -4,7 +4,7 @@ namespace BPSR.ReadyAlert;
 
 internal static class StartMenuShortcut
 {
-    internal static bool TryCreateOrRefresh()
+    internal static bool TryCreateOrRefresh(string? iconPath = null)
     {
         object? shell = null;
         object? shortcut = null;
@@ -16,6 +16,13 @@ internal static class StartMenuShortcut
             var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
             Directory.CreateDirectory(programs);
             var shortcutPath = Path.Combine(programs, "BPSR Ready Alert.lnk");
+
+            // Recreate the shortcut rather than editing it in place. Together with the
+            // versioned icon file this avoids Windows keeping the old cached icon.
+            if (File.Exists(shortcutPath))
+            {
+                try { File.Delete(shortcutPath); } catch { }
+            }
 
             var shellType = Type.GetTypeFromProgID("WScript.Shell");
             if (shellType is null) return false;
@@ -29,9 +36,11 @@ internal static class StartMenuShortcut
             dynamicShortcut.TargetPath = exe;
             dynamicShortcut.WorkingDirectory = Path.GetDirectoryName(exe) ?? string.Empty;
             dynamicShortcut.Description = "BPSR Ready Alert";
-            dynamicShortcut.IconLocation = exe + ",0";
+            dynamicShortcut.IconLocation = !string.IsNullOrWhiteSpace(iconPath) && File.Exists(iconPath)
+                ? iconPath + ",0"
+                : exe + ",0";
             dynamicShortcut.Save();
-            AppLog.Write("shortcut: refreshed " + shortcutPath);
+            AppLog.Write($"shortcut: refreshed {shortcutPath} icon={dynamicShortcut.IconLocation}");
             return true;
         }
         catch (Exception ex)

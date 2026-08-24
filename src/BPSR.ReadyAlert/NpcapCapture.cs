@@ -116,7 +116,9 @@ internal sealed class NpcapCapture : IDisposable
     {
         CheckPreActivate(Native.pcap_set_snaplen(handle, 65_536), "pcap_set_snaplen", handle);
         CheckPreActivate(Native.pcap_set_promisc(handle, 1), "pcap_set_promisc", handle);
-        CheckPreActivate(Native.pcap_set_timeout(handle, 250), "pcap_set_timeout", handle);
+        // Keep a short fallback timeout because v0.4.1 may scan several adapters.
+        // On normal Npcap builds immediate mode makes reads return promptly anyway.
+        CheckPreActivate(Native.pcap_set_timeout(handle, 50), "pcap_set_timeout", handle);
         CheckPreActivate(Native.pcap_set_buffer_size(handle, 16 * 1024 * 1024), "pcap_set_buffer_size", handle);
 
         try
