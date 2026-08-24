@@ -19,13 +19,14 @@ internal sealed class CaptureEngine : IDisposable
     private const int MaxInitialFrame = 512 * 1024;
     private const int MaxGameFrame = 2 * 1024 * 1024;
     private const int MaxPending = 2 * 1024 * 1024;
-    private const int MaxFlows = 768;
+    private const int MaxFlows = 2048;
 
     private readonly ConcurrentQueue<AlertEvent> _events;
-    private readonly NpcapSelection _selection;
+    private readonly NpcapCapturePlan _plan;
     private readonly Dictionary<string, FlowState> _flows = new();
-    private readonly HashSet<(ulong Service, uint Method)> _seenNotifyKeys = new();
-    private readonly HashSet<int> _unsupportedDatalinks = new();
+    private readonly Dictionary<string, CaptureStats> _stats = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<(string Device, ulong Service, uint Method)> _seenNotifyKeys = new();
+    private readonly HashSet<(string Device, int Datalink)> _unsupportedDatalinks = new();
     private readonly Decompressor _zstd = new();
     private Thread? _thread;
     private volatile bool _stopping;
@@ -33,11 +34,14 @@ internal sealed class CaptureEngine : IDisposable
     private DateTime _lastQueueAlertUtc = DateTime.MinValue;
     private DateTime _lastCaptureErrorNoticeUtc = DateTime.MinValue;
     private DateTime _lastCleanupUtc = DateTime.MinValue;
+    private DateTime _lastStatsUtc = DateTime.MinValue;
 
-    internal CaptureEngine(ConcurrentQueue<AlertEvent> events, NpcapSelection selection)
+    internal CaptureEngine(ConcurrentQueue<AlertEvent> events, NpcapCapturePlan plan)
     {
         _events = events;
-        _selection = selection;
+        _plan = plan;
+        foreach (var candidate in plan.Candidates)
+            _stats[candidate.DeviceName] = new CaptureStats(candidate);
     }
 
     internal void Start()
@@ -54,32 +58,104 @@ internal sealed class CaptureEngine : IDisposable
     {
         while (!_stopping)
         {
+            var captures = new List<OpenedCapture>();
             try
             {
-                AppLog.Write($"capture: opening Npcap device={_selection.DeviceName} source={_selection.Source}");
-                using var capture = new NpcapCapture(_selection.DeviceName);
-                AppLog.Write($"capture: started backend=Npcap datalink={capture.DataLink} device={capture.DeviceName}");
-
-                while (!_stopping)
+                foreach (var candidate in _plan.Candidates)
                 {
-                    if (capture.TryRead(out var packet) && packet is not null)
-                        ProcessCapturedPacket(packet, capture.DataLink);
+                    if (_stopping) break;
+                    try
+                    {
+                        AppLog.Write($"capture: opening Npcap device={candidate.DeviceName} source={candidate.Source}");
+                        var capture = new NpcapCapture(candidate.DeviceName);
+                        captures.Add(new OpenedCapture(candidate, capture));
+                        AppLog.Write($"capture: opened backend=Npcap datalink={capture.DataLink} device={candidate.DeviceName} description={candidate.Description} source={candidate.Source}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLog.Write($"capture: adapter open failed device={candidate.DeviceName} description={candidate.Description}: {ex.Message}");
+                    }
+                }
+
+                if (captures.Count == 0)
+                {
+                    const string error = "Npcap could not open any capture adapter.";
+                    AppLog.Write("capture: " + error);
+                    NotifyCaptureErrorThrottled(error);
+                    SleepWhileRunning(1500);
+                    continue;
+                }
+
+                AppLog.Write($"capture: started backend=Npcap adapters={captures.Count}");
+                _lastStatsUtc = DateTime.UtcNow;
+
+                while (!_stopping && captures.Count > 0)
+                {
+                    var sawPacket = false;
+
+                    for (var i = captures.Count - 1; i >= 0; i--)
+                    {
+                        var opened = captures[i];
+                        try
+                        {
+                            if (!opened.Capture.TryRead(out var packet) || packet is null)
+                                continue;
+
+                            sawPacket = true;
+                            ProcessCapturedPacket(packet, opened.Capture.DataLink, opened.Candidate);
+                        }
+                        catch (Exception ex)
+                        {
+                            AppLog.Write($"capture: adapter read failed device={opened.Candidate.DeviceName}: {ex.Message}");
+                            opened.Dispose();
+                            captures.RemoveAt(i);
+                        }
+                    }
+
+                    if ((DateTime.UtcNow - _lastStatsUtc).TotalSeconds >= 15)
+                    {
+                        _lastStatsUtc = DateTime.UtcNow;
+                        LogCaptureStats();
+                    }
+
+                    if (!sawPacket)
+                        Thread.Sleep(1);
+                }
+
+                if (!_stopping && captures.Count == 0)
+                {
+                    NotifyCaptureErrorThrottled("All Npcap capture adapters stopped.");
+                    SleepWhileRunning(1000);
                 }
             }
             catch (Exception ex)
             {
                 if (_stopping) break;
-                AppLog.Write("capture: Npcap error " + ex);
+                AppLog.Write("capture: Npcap fatal " + ex);
                 NotifyCaptureErrorThrottled(ex.Message);
                 SleepWhileRunning(1500);
             }
             finally
             {
+                foreach (var opened in captures)
+                    opened.Dispose();
                 _flows.Clear();
             }
         }
 
         AppLog.Write("capture: stopped");
+    }
+
+    private void LogCaptureStats()
+    {
+        foreach (var candidate in _plan.Candidates)
+        {
+            if (!_stats.TryGetValue(candidate.DeviceName, out var stats)) continue;
+            AppLog.Write(
+                $"capture: stats device={candidate.Description} source={candidate.Source} " +
+                $"packets={stats.Packets} tcpPayload={stats.TcpPayloadPackets} " +
+                $"gameFrames={stats.GameFrames} notifyFrames={stats.NotifyFrames}");
+        }
     }
 
     private void NotifyCaptureErrorThrottled(string error)
@@ -93,8 +169,15 @@ internal sealed class CaptureEngine : IDisposable
             "Npcap capture is unavailable: " + error));
     }
 
-    private void ProcessCapturedPacket(byte[] packet, int datalink)
+    private void ProcessCapturedPacket(byte[] packet, int datalink, NpcapCaptureCandidate candidate)
     {
+        if (!_stats.TryGetValue(candidate.DeviceName, out var stats))
+        {
+            stats = new CaptureStats(candidate);
+            _stats[candidate.DeviceName] = stats;
+        }
+        stats.Packets++;
+
         var offset = datalink switch
         {
             NpcapCapture.DltRaw => 0,
@@ -108,21 +191,21 @@ internal sealed class CaptureEngine : IDisposable
 
         if (offset < 0)
         {
-            if (_unsupportedDatalinks.Add(datalink))
-                AppLog.Write("capture: unsupported Npcap datalink=" + datalink);
+            if (_unsupportedDatalinks.Add((candidate.DeviceName, datalink)))
+                AppLog.Write($"capture: unsupported Npcap datalink={datalink} device={candidate.Description}");
             return;
         }
 
         if (offset >= packet.Length) return;
         if (offset == 0)
         {
-            ProcessIpPacket(packet, packet.Length);
+            ProcessIpPacket(packet, packet.Length, candidate, stats);
             return;
         }
 
         var ipPacket = new byte[packet.Length - offset];
         Buffer.BlockCopy(packet, offset, ipPacket, 0, ipPacket.Length);
-        ProcessIpPacket(ipPacket, ipPacket.Length);
+        ProcessIpPacket(ipPacket, ipPacket.Length, candidate, stats);
     }
 
     private static bool TryGetEthernetPayloadOffset(byte[] packet, out int offset)
@@ -145,7 +228,11 @@ internal sealed class CaptureEngine : IDisposable
         return true;
     }
 
-    private void ProcessIpPacket(byte[] packet, int length)
+    private void ProcessIpPacket(
+        byte[] packet,
+        int length,
+        NpcapCaptureCandidate candidate,
+        CaptureStats stats)
     {
         if (!TryLocateTcp(packet, length, out var tcp, out var packetEnd, out var flowPrefix)) return;
         if (packetEnd < tcp + 20) return;
@@ -159,7 +246,9 @@ internal sealed class CaptureEngine : IDisposable
         var seq = ReadU32BE(packet, tcp + 4);
         var sourcePort = ReadU16BE(packet, tcp);
         var destPort = ReadU16BE(packet, tcp + 2);
-        var key = $"{flowPrefix}:{sourcePort}>{destPort}";
+        var key = $"{candidate.DeviceName}|{flowPrefix}:{sourcePort}>{destPort}";
+
+        if (payloadLen > 0) stats.TcpPayloadPackets++;
 
         if (!_flows.TryGetValue(key, out var flow))
         {
@@ -170,7 +259,7 @@ internal sealed class CaptureEngine : IDisposable
 
         flow.LastSeenUtc = DateTime.UtcNow;
         if ((flags & 0x02) != 0) flow.Reset(seq + 1);
-        if (payloadLen > 0) InsertSegment(flow, seq, packet, payloadOffset, payloadLen);
+        if (payloadLen > 0) InsertSegment(flow, seq, packet, payloadOffset, payloadLen, candidate, stats);
         if ((flags & 0x05) != 0) flow.Reset(null);
 
         if ((DateTime.UtcNow - _lastCleanupUtc).TotalSeconds >= 30)
@@ -273,7 +362,14 @@ internal sealed class CaptureEngine : IDisposable
 
     private static bool SeqBefore(uint a, uint b) => unchecked((int)(a - b)) < 0;
 
-    private void InsertSegment(FlowState flow, uint seq, byte[] packet, int offset, int len)
+    private void InsertSegment(
+        FlowState flow,
+        uint seq,
+        byte[] packet,
+        int offset,
+        int len,
+        NpcapCaptureCandidate candidate,
+        CaptureStats stats)
     {
         if (!flow.HasNext)
         {
@@ -292,9 +388,9 @@ internal sealed class CaptureEngine : IDisposable
 
         if (seq == flow.NextSeq)
         {
-            AppendStream(flow, packet, offset, len);
+            AppendStream(flow, packet, offset, len, candidate, stats);
             flow.NextSeq += (uint)len;
-            DrainPending(flow);
+            DrainPending(flow, candidate, stats);
             return;
         }
 
@@ -310,14 +406,14 @@ internal sealed class CaptureEngine : IDisposable
         flow.Reset(null);
     }
 
-    private void DrainPending(FlowState flow)
+    private void DrainPending(FlowState flow, NpcapCaptureCandidate candidate, CaptureStats stats)
     {
         while (true)
         {
             if (flow.Pending.Remove(flow.NextSeq, out var exact))
             {
                 flow.PendingBytes -= exact.Length;
-                AppendStream(flow, exact, 0, exact.Length);
+                AppendStream(flow, exact, 0, exact.Length, candidate, stats);
                 flow.NextSeq += (uint)exact.Length;
                 continue;
             }
@@ -332,15 +428,21 @@ internal sealed class CaptureEngine : IDisposable
             if (overlap >= (uint)first.Value.Length) continue;
 
             var trim = (int)overlap;
-            AppendStream(flow, first.Value, trim, first.Value.Length - trim);
+            AppendStream(flow, first.Value, trim, first.Value.Length - trim, candidate, stats);
             flow.NextSeq += (uint)(first.Value.Length - trim);
         }
     }
 
-    private void AppendStream(FlowState flow, byte[] data, int offset, int len)
+    private void AppendStream(
+        FlowState flow,
+        byte[] data,
+        int offset,
+        int len,
+        NpcapCaptureCandidate candidate,
+        CaptureStats stats)
     {
         for (var i = 0; i < len; i++) flow.Stream.Add(data[offset + i]);
-        ProcessFrames(flow);
+        ProcessFrames(flow, candidate, stats);
 
         var cap = flow.LooksLikeGame ? MaxGameFrame * 2 : MaxInitialFrame * 2;
         if (flow.Stream.Count <= cap) return;
@@ -348,7 +450,7 @@ internal sealed class CaptureEngine : IDisposable
         flow.LooksLikeGame = false;
     }
 
-    private void ProcessFrames(FlowState flow)
+    private void ProcessFrames(FlowState flow, NpcapCaptureCandidate candidate, CaptureStats stats)
     {
         while (flow.Stream.Count >= 6)
         {
@@ -370,11 +472,18 @@ internal sealed class CaptureEngine : IDisposable
             var frame = flow.Stream.GetRange(0, (int)size).ToArray();
             flow.Stream.RemoveRange(0, (int)size);
             flow.LooksLikeGame = true;
-            ProcessFragment(frame, 0, frame.Length, depth: 0);
+            stats.GameFrames++;
+            ProcessFragment(frame, 0, frame.Length, depth: 0, candidate, stats);
         }
     }
 
-    private void ProcessFragment(byte[] frame, int start, int end, int depth)
+    private void ProcessFragment(
+        byte[] frame,
+        int start,
+        int end,
+        int depth,
+        NpcapCaptureCandidate candidate,
+        CaptureStats stats)
     {
         if (depth > 3 || end - start < 6) return;
 
@@ -392,7 +501,7 @@ internal sealed class CaptureEngine : IDisposable
 
             if (fragment == 2)
             {
-                ProcessNotify(frame, payloadStart, payloadEnd, compressed);
+                ProcessNotify(frame, payloadStart, payloadEnd, compressed, candidate, stats);
             }
             else if (fragment is 5 or 6 && payloadEnd - payloadStart >= 4)
             {
@@ -403,7 +512,7 @@ internal sealed class CaptureEngine : IDisposable
                     {
                         var zipped = frame.AsSpan(nestedStart, payloadEnd - nestedStart).ToArray();
                         var nested = _zstd.Unwrap(zipped).ToArray();
-                        ProcessFragment(nested, 0, nested.Length, depth + 1);
+                        ProcessFragment(nested, 0, nested.Length, depth + 1, candidate, stats);
                     }
                     catch (Exception ex)
                     {
@@ -412,7 +521,7 @@ internal sealed class CaptureEngine : IDisposable
                 }
                 else
                 {
-                    ProcessFragment(frame, nestedStart, payloadEnd, depth + 1);
+                    ProcessFragment(frame, nestedStart, payloadEnd, depth + 1, candidate, stats);
                 }
             }
 
@@ -420,21 +529,28 @@ internal sealed class CaptureEngine : IDisposable
         }
     }
 
-    private void ProcessNotify(byte[] frame, int start, int end, bool compressed)
+    private void ProcessNotify(
+        byte[] frame,
+        int start,
+        int end,
+        bool compressed,
+        NpcapCaptureCandidate candidate,
+        CaptureStats stats)
     {
         if (end - start < 16) return;
+        stats.NotifyFrames++;
 
         var service = ReadU64BE(frame, start);
         var method = ReadU32BE(frame, start + 12);
         var protoStart = start + 16;
         var protoLength = end - protoStart;
 
-        if (_seenNotifyKeys.Add((service, method)))
-            AppLog.Write($"probe: notify service={service} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
+        if (_seenNotifyKeys.Add((candidate.DeviceName, service, method)))
+            AppLog.Write($"probe: notify device={candidate.Description} service={service} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
 
         if (service == WorldNtfService && method is NotifyAllMemberReady or NotifyCaptainReady)
         {
-            AppLog.Write($"event: ready-check notify method=0x{method:X} compressed={compressed}");
+            AppLog.Write($"event: ready-check notify device={candidate.Description} method=0x{method:X} compressed={compressed}");
             var now = DateTime.UtcNow;
             if ((now - _lastReadyAlertUtc).TotalSeconds >= 3)
             {
@@ -446,11 +562,11 @@ internal sealed class CaptureEngine : IDisposable
         }
 
         if (service == GrpcTeamNtfService && method is 0x12 or 0x13 or 0x14 or 0x1F)
-            AppLog.Write($"probe: GrpcTeamNtf matchmaking-related method=0x{method:X} compressed={compressed} protoLen={protoLength}");
+            AppLog.Write($"probe: GrpcTeamNtf matchmaking-related device={candidate.Description} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
 
         if (service != MatchNtfService) return;
 
-        AppLog.Write($"probe: MatchNtf method=0x{method:X} compressed={compressed} protoLen={protoLength}");
+        AppLog.Write($"probe: MatchNtf device={candidate.Description} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
         if (method != EnterMatchResult) return;
 
         byte[] payload;
@@ -471,7 +587,7 @@ internal sealed class CaptureEngine : IDisposable
             return;
         }
 
-        AppLog.Write($"event: match EnterMatchResult status={status} compressed={compressed}");
+        AppLog.Write($"event: match EnterMatchResult device={candidate.Description} status={status} compressed={compressed}");
         if (status != 2) return;
 
         var alertNow = DateTime.UtcNow;
@@ -619,8 +735,33 @@ internal sealed class CaptureEngine : IDisposable
     public void Dispose()
     {
         _stopping = true;
-        if (_thread is { IsAlive: true }) _thread.Join(2000);
+        if (_thread is { IsAlive: true }) _thread.Join(3000);
         _zstd.Dispose();
+    }
+
+    private sealed class OpenedCapture : IDisposable
+    {
+        internal NpcapCaptureCandidate Candidate { get; }
+        internal NpcapCapture Capture { get; }
+
+        internal OpenedCapture(NpcapCaptureCandidate candidate, NpcapCapture capture)
+        {
+            Candidate = candidate;
+            Capture = capture;
+        }
+
+        public void Dispose() => Capture.Dispose();
+    }
+
+    private sealed class CaptureStats
+    {
+        internal NpcapCaptureCandidate Candidate { get; }
+        internal long Packets;
+        internal long TcpPayloadPackets;
+        internal long GameFrames;
+        internal long NotifyFrames;
+
+        internal CaptureStats(NpcapCaptureCandidate candidate) => Candidate = candidate;
     }
 
     private sealed class FlowState
