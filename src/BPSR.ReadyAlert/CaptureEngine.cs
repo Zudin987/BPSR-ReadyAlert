@@ -15,11 +15,16 @@ internal sealed class CaptureEngine : IDisposable
     private const uint NotifyAllMemberReady = 0x46;
     private const uint NotifyCaptainReady = 0x47;
     private const uint EnterMatchResult = 0x04;
+    private const uint NotifyTeamActivityState = 0x0E;
+
+    private const int TeamActivityVoting = 3;
+    private const int MatchStatusWaitReady = 2;
 
     private const int MaxInitialFrame = 512 * 1024;
     private const int MaxGameFrame = 2 * 1024 * 1024;
     private const int MaxPending = 2 * 1024 * 1024;
     private const int MaxFlows = 2048;
+    private const int MaxFrameDepth = 4;
 
     private readonly ConcurrentQueue<AlertEvent> _events;
     private readonly NpcapCapturePlan _plan;
@@ -28,6 +33,7 @@ internal sealed class CaptureEngine : IDisposable
     private readonly HashSet<(string Device, ulong Service, uint Method)> _seenNotifyKeys = new();
     private readonly HashSet<(string Device, int Datalink)> _unsupportedDatalinks = new();
     private readonly Decompressor _zstd = new();
+
     private Thread? _thread;
     private volatile bool _stopping;
     private DateTime _lastReadyAlertUtc = DateTime.MinValue;
@@ -86,7 +92,7 @@ internal sealed class CaptureEngine : IDisposable
                     continue;
                 }
 
-                AppLog.Write($"capture: started backend=Npcap adapters={captures.Count}");
+                AppLog.Write($"capture: started backend=Npcap adapters={captures.Count} parser=ZDPS-compatible");
                 _lastStatsUtc = DateTime.UtcNow;
 
                 while (!_stopping && captures.Count > 0)
@@ -154,7 +160,7 @@ internal sealed class CaptureEngine : IDisposable
             AppLog.Write(
                 $"capture: stats device={candidate.Description} source={candidate.Source} " +
                 $"packets={stats.Packets} tcpPayload={stats.TcpPayloadPackets} " +
-                $"gameFrames={stats.GameFrames} notifyFrames={stats.NotifyFrames}");
+                $"gameFrames={stats.GameFrames} protocolMessages={stats.ProtocolMessages} notifyFrames={stats.NotifyFrames}");
         }
     }
 
@@ -458,74 +464,111 @@ internal sealed class CaptureEngine : IDisposable
                        ((uint)flow.Stream[1] << 16) |
                        ((uint)flow.Stream[2] << 8) |
                        flow.Stream[3];
-            var packetType = (ushort)(((uint)flow.Stream[4] << 8) | flow.Stream[5]);
-            var fragment = packetType & 0x7FFF;
+            var typeRaw = (ushort)(((uint)flow.Stream[4] << 8) | flow.Stream[5]);
+            var messageType = typeRaw & 0x7FFF;
             var max = flow.LooksLikeGame ? MaxGameFrame : MaxInitialFrame;
 
-            if (size < 6 || size > max || fragment is not (1 or 2 or 5 or 6))
+            // ZDPS MsgTypeId is 0..8. Consuming Echo/UNK/Return/None frames is
+            // important even though ReadyAlert ignores their contents; treating them
+            // as invalid corrupts stream alignment and can hide the next Notify.
+            if (size < 6 || size > max || messageType > 8)
             {
                 flow.Stream.RemoveAt(0);
                 continue;
             }
 
             if (flow.Stream.Count < (int)size) return;
-            var frame = flow.Stream.GetRange(0, (int)size).ToArray();
-            flow.Stream.RemoveRange(0, (int)size);
+
+            var frame = flow.Stream.GetRange(0, checked((int)size)).ToArray();
+            flow.Stream.RemoveRange(0, checked((int)size));
             flow.LooksLikeGame = true;
             stats.GameFrames++;
-            ProcessFragment(frame, 0, frame.Length, depth: 0, candidate, stats);
+            ProcessGameMessages(frame, 0, frame.Length, depth: 0, candidate, stats);
         }
     }
 
-    private void ProcessFragment(
-        byte[] frame,
+    private void ProcessGameMessages(
+        byte[] data,
         int start,
         int end,
         int depth,
         NpcapCaptureCandidate candidate,
         CaptureStats stats)
     {
-        if (depth > 3 || end - start < 6) return;
+        if (depth > MaxFrameDepth || end - start < 6) return;
 
         var cursor = start;
         while (cursor + 6 <= end)
         {
-            var packetSize = ReadU32BE(frame, cursor);
-            if (packetSize < 6 || cursor + packetSize > end) return;
+            var packetSize = ReadU32BE(data, cursor);
+            if (packetSize < 6 || packetSize > MaxGameFrame || cursor + packetSize > end)
+            {
+                AppLog.Write($"packet: invalid nested frame device={candidate.Description} depth={depth} size={packetSize} remaining={end - cursor}");
+                return;
+            }
 
-            var typeRaw = ReadU16BE(frame, cursor + 4);
+            var typeRaw = ReadU16BE(data, cursor + 4);
             var compressed = (typeRaw & 0x8000) != 0;
-            var fragment = typeRaw & 0x7FFF;
+            var messageType = typeRaw & 0x7FFF;
+            if (messageType > 8)
+            {
+                AppLog.Write($"packet: unknown message type device={candidate.Description} type={messageType} depth={depth}");
+                return;
+            }
+
             var payloadStart = cursor + 6;
             var payloadEnd = cursor + checked((int)packetSize);
+            stats.ProtocolMessages++;
 
-            if (fragment == 2)
+            switch (messageType)
             {
-                ProcessNotify(frame, payloadStart, payloadEnd, compressed, candidate, stats);
-            }
-            else if (fragment is 5 or 6 && payloadEnd - payloadStart >= 4)
-            {
-                var nestedStart = payloadStart + 4;
-                if (compressed)
-                {
-                    try
-                    {
-                        var zipped = frame.AsSpan(nestedStart, payloadEnd - nestedStart).ToArray();
-                        var nested = _zstd.Unwrap(zipped).ToArray();
-                        ProcessFragment(nested, 0, nested.Length, depth + 1, candidate, stats);
-                    }
-                    catch (Exception ex)
-                    {
-                        AppLog.Write("packet: nested zstd decompression failed " + ex.Message);
-                    }
-                }
-                else
-                {
-                    ProcessFragment(frame, nestedStart, payloadEnd, depth + 1, candidate, stats);
-                }
+                case 2: // Notify
+                    ProcessNotify(data, payloadStart, payloadEnd, compressed, candidate, stats);
+                    break;
+
+                case 6: // FrameDown: uint32 sequence + nested packet stream
+                    ProcessFrameDown(data, payloadStart, payloadEnd, compressed, depth, candidate, stats);
+                    break;
+
+                // 0=None, 1=Call, 3=Return, 4=Echo, 5=FrameUp, 7/8=UNK.
+                // ZDPS consumes all of these but only FrameDown contains server->client
+                // nested Notify messages. FrameUp has a different embedded proxy layout
+                // and must NOT be parsed as FrameDown.
+                default:
+                    break;
             }
 
             cursor = payloadEnd;
+        }
+    }
+
+    private void ProcessFrameDown(
+        byte[] data,
+        int payloadStart,
+        int payloadEnd,
+        bool compressed,
+        int depth,
+        NpcapCaptureCandidate candidate,
+        CaptureStats stats)
+    {
+        if (payloadEnd - payloadStart < 4) return;
+        var nestedStart = payloadStart + 4; // skip FrameDown sequence number
+
+        if (!compressed)
+        {
+            ProcessGameMessages(data, nestedStart, payloadEnd, depth + 1, candidate, stats);
+            return;
+        }
+
+        try
+        {
+            var zipped = data.AsSpan(nestedStart, payloadEnd - nestedStart).ToArray();
+            var nested = _zstd.Unwrap(zipped).ToArray();
+            ProcessGameMessages(nested, 0, nested.Length, depth + 1, candidate, stats);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write($"packet: FrameDown zstd decompression failed device={candidate.Description}: {ex.Message}");
         }
     }
 
@@ -545,30 +588,6 @@ internal sealed class CaptureEngine : IDisposable
         var protoStart = start + 16;
         var protoLength = end - protoStart;
 
-        if (_seenNotifyKeys.Add((candidate.DeviceName, service, method)))
-            AppLog.Write($"probe: notify device={candidate.Description} service={service} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
-
-        if (service == WorldNtfService && method is NotifyAllMemberReady or NotifyCaptainReady)
-        {
-            AppLog.Write($"event: ready-check notify device={candidate.Description} method=0x{method:X} compressed={compressed}");
-            var now = DateTime.UtcNow;
-            if ((now - _lastReadyAlertUtc).TotalSeconds >= 3)
-            {
-                _lastReadyAlertUtc = now;
-                _events.Enqueue(new AlertEvent("ready", "BPSR Ready Check", "Party Ready Check started."));
-                AppLog.Write("alert: enqueued kind=ready");
-            }
-            return;
-        }
-
-        if (service == GrpcTeamNtfService && method is 0x12 or 0x13 or 0x14 or 0x1F)
-            AppLog.Write($"probe: GrpcTeamNtf matchmaking-related device={candidate.Description} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
-
-        if (service != MatchNtfService) return;
-
-        AppLog.Write($"probe: MatchNtf device={candidate.Description} method=0x{method:X} compressed={compressed} protoLen={protoLength}");
-        if (method != EnterMatchResult) return;
-
         byte[] payload;
         try
         {
@@ -577,37 +596,125 @@ internal sealed class CaptureEngine : IDisposable
         }
         catch (Exception ex)
         {
-            AppLog.Write("event: match EnterMatchResult decompression failed " + ex.Message);
+            AppLog.Write($"packet: notify zstd decompression failed device={candidate.Description} service={service} method=0x{method:X}: {ex.Message}");
             return;
         }
+
+        if (_seenNotifyKeys.Add((candidate.DeviceName, service, method)))
+            AppLog.Write($"probe: notify device={candidate.Description} service={service} method=0x{method:X} compressed={compressed} protoLen={payload.Length}");
+
+        // Exact ZDPS Ready Check trigger: NotifyAllMemberReady opens the Ready Check UI.
+        // NotifyCaptainReady is a response/update and is used by ZDPS to stop its loop,
+        // not to start the alert.
+        if (service == WorldNtfService)
+        {
+            if (method == NotifyAllMemberReady)
+            {
+                AppLog.Write($"event: ready-check open device={candidate.Description} method=0x{method:X}");
+                EnqueueReadyAlert("world-ready-check", "BPSR Ready Check", "Party Ready Check started.");
+                return;
+            }
+
+            if (method == NotifyCaptainReady)
+            {
+                AppLog.Write($"event: ready-check response device={candidate.Description} method=0x{method:X}");
+                return;
+            }
+        }
+
+        // ZDPS also alerts when a party activity/dungeon vote opens. That is a
+        // different protocol path from WorldNtf Ready Check: GrpcTeamNtf method 0xE,
+        // VRequest.State.State == ETeamActivity_Voting (3).
+        if (service == GrpcTeamNtfService && method == NotifyTeamActivityState)
+        {
+            if (TryParseTeamActivityState(payload, 0, payload.Length, out var state))
+            {
+                AppLog.Write($"event: team-activity state device={candidate.Description} state={state}");
+                if (state == TeamActivityVoting)
+                    EnqueueReadyAlert("team-activity-vote", "BPSR Party Ready Vote", "A party activity is waiting for your vote.");
+            }
+            else
+            {
+                AppLog.Write($"event: team-activity payload could not be parsed device={candidate.Description} len={payload.Length}");
+            }
+            return;
+        }
+
+        if (service == GrpcTeamNtfService && method is 0x12 or 0x13 or 0x14 or 0x1F)
+            AppLog.Write($"probe: GrpcTeamNtf matchmaking-related device={candidate.Description} method=0x{method:X} protoLen={payload.Length}");
+
+        if (service != MatchNtfService) return;
+
+        AppLog.Write($"probe: MatchNtf device={candidate.Description} method=0x{method:X} protoLen={payload.Length}");
+        if (method != EnterMatchResult) return;
 
         if (!TryParseMatchStatus(payload, 0, payload.Length, out var status))
         {
-            AppLog.Write($"event: match EnterMatchResult payload could not be parsed len={payload.Length}");
+            AppLog.Write($"event: match EnterMatchResult payload could not be parsed device={candidate.Description} len={payload.Length}");
             return;
         }
 
-        AppLog.Write($"event: match EnterMatchResult device={candidate.Description} status={status} compressed={compressed}");
-        if (status != 2) return;
+        AppLog.Write($"event: match EnterMatchResult device={candidate.Description} status={status}");
+        if (status != MatchStatusWaitReady) return;
 
-        var alertNow = DateTime.UtcNow;
-        if ((alertNow - _lastQueueAlertUtc).TotalSeconds < 5) return;
-        _lastQueueAlertUtc = alertNow;
+        var now = DateTime.UtcNow;
+        if ((now - _lastQueueAlertUtc).TotalSeconds < 5) return;
+        _lastQueueAlertUtc = now;
         _events.Enqueue(new AlertEvent("queue", "BPSR Match Found", "Matchmaking is waiting for acceptance."));
-        AppLog.Write("alert: enqueued kind=queue");
+        AppLog.Write("alert: enqueued kind=queue source=match-wait-ready");
+    }
+
+    private void EnqueueReadyAlert(string source, string title, string message)
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _lastReadyAlertUtc).TotalSeconds < 3)
+        {
+            AppLog.Write($"alert: duplicate suppressed kind=ready source={source}");
+            return;
+        }
+
+        _lastReadyAlertUtc = now;
+        _events.Enqueue(new AlertEvent("ready", title, message));
+        AppLog.Write($"alert: enqueued kind=ready source={source}");
     }
 
     private static bool TryParseMatchStatus(byte[] data, int offset, int length, out int status)
     {
         status = -1;
+
+        // MatchNtf.EnterMatchResultNtf.vRequest = field 1
         if (!TryGetLengthField(data, offset, length, 1, out var requestOffset, out var requestLength)) return false;
+        // EnterMatchResultNtfRequest.matchInfo = field 2
         if (!TryGetLengthField(data, requestOffset, requestLength, 2, out var infoOffset, out var infoLength)) return false;
+        // MatchInfo.matchStatus = field 2
         if (!TryGetVarintField(data, infoOffset, infoLength, 2, out var value)) return false;
+
         status = checked((int)value);
         return true;
     }
 
-    private static bool TryGetLengthField(byte[] data, int offset, int length, int wantedField, out int valueOffset, out int valueLength)
+    private static bool TryParseTeamActivityState(byte[] data, int offset, int length, out int state)
+    {
+        state = -1;
+
+        // GrpcTeamNtf.NotifyTeamActivityState.vRequest = field 1
+        if (!TryGetLengthField(data, offset, length, 1, out var requestOffset, out var requestLength)) return false;
+        // NotifyTeamActivityStateRequest.state (TeamActivity) = field 1
+        if (!TryGetLengthField(data, requestOffset, requestLength, 1, out var activityOffset, out var activityLength)) return false;
+        // TeamActivity.state = field 2
+        if (!TryGetVarintField(data, activityOffset, activityLength, 2, out var value)) return false;
+
+        state = checked((int)value);
+        return true;
+    }
+
+    private static bool TryGetLengthField(
+        byte[] data,
+        int offset,
+        int length,
+        int wantedField,
+        out int valueOffset,
+        out int valueLength)
     {
         valueOffset = 0;
         valueLength = 0;
@@ -759,6 +866,7 @@ internal sealed class CaptureEngine : IDisposable
         internal long Packets;
         internal long TcpPayloadPackets;
         internal long GameFrames;
+        internal long ProtocolMessages;
         internal long NotifyFrames;
 
         internal CaptureStats(NpcapCaptureCandidate candidate) => Candidate = candidate;
