@@ -4,7 +4,7 @@ internal sealed class AppPaths
 {
     internal string Root { get; }
     internal string AssetsDir { get; }
-    internal string AlertSoundPath => Path.Combine(AssetsDir, "LetsDoThis.wav");
+    internal string AlertSoundPath => Path.Combine(AssetsDir, $"LetsDoThis-{AppVersion.Current}.wav");
     internal string AppIconPath => Path.Combine(AssetsDir, $"App-{AppVersion.Current}.ico");
     internal string SettingsPath => Path.Combine(Root, "settings.json");
     internal string LogPath => Path.Combine(Root, "readyalert.log");

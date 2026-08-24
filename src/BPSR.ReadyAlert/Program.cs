@@ -8,8 +8,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        // CI uses this after stamping the final single-file EXE icon. If resource
-        // editing ever damages the .NET bundle, this process will fail to start.
+        // CI uses this after publishing the final single-file EXE. If the bundle is
+        // damaged, this process will fail to start.
         if (args.Any(a => string.Equals(a, "--build-smoke-test", StringComparison.OrdinalIgnoreCase)))
             return;
 
@@ -43,6 +43,19 @@ internal static class Program
                 launcher.EnsureRunningInteractive();
 
             var capturePlan = NpcapDeviceSelector.SelectPlan(settings);
+
+            // A saved Npcap device GUID can disappear after a NIC/Npcap reinstall.
+            // SelectPlan already falls back safely; also clear the stale override so
+            // the tray accurately shows Follow Resonance Logs CN / Auto next time.
+            if (!string.IsNullOrWhiteSpace(settings.NpcapDeviceName) &&
+                !capturePlan.AvailableDevices.Any(d =>
+                    string.Equals(d.Name, settings.NpcapDeviceName, StringComparison.OrdinalIgnoreCase)))
+            {
+                AppLog.Write("settings: clearing unavailable NpcapDeviceName=" + settings.NpcapDeviceName);
+                settings.NpcapDeviceName = string.Empty;
+                settingsStore.Save(settings);
+            }
+
             Application.Run(new TrayApplicationContext(paths, settings, settingsStore, launcher, capturePlan));
         }
         catch (DllNotFoundException ex)
