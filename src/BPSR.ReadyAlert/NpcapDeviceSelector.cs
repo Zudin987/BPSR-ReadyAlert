@@ -76,6 +76,7 @@ internal static class NpcapDeviceSelector
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var results = new List<string>();
 
         foreach (var root in new[] { local, roaming })
         {
@@ -90,28 +91,36 @@ internal static class NpcapDeviceSelector
                 })
                 {
                     var candidate = Path.Combine(root, relative);
-                    if (seen.Add(candidate)) yield return candidate;
+                    if (seen.Add(candidate)) results.Add(candidate);
                 }
             }
 
+            string[] directories;
             try
             {
-                foreach (var dir in Directory.EnumerateDirectories(root, "*resonance*", SearchOption.TopDirectoryOnly))
+                directories = Directory.GetDirectories(root, "*resonance*", SearchOption.TopDirectoryOnly);
+            }
+            catch
+            {
+                directories = Array.Empty<string>();
+            }
+
+            foreach (var dir in directories)
+            {
+                var name = Path.GetFileName(dir);
+                if (!name.Contains("log", StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (var candidate in new[]
                 {
-                    var name = Path.GetFileName(dir);
-                    if (!name.Contains("log", StringComparison.OrdinalIgnoreCase)) continue;
-                    foreach (var candidate in new[]
-                    {
-                        Path.Combine(dir, "stores", "packetCapture.json"),
-                        Path.Combine(dir, "packetCapture.json")
-                    })
-                    {
-                        if (seen.Add(candidate)) yield return candidate;
-                    }
+                    Path.Combine(dir, "stores", "packetCapture.json"),
+                    Path.Combine(dir, "packetCapture.json")
+                })
+                {
+                    if (seen.Add(candidate)) results.Add(candidate);
                 }
             }
-            catch { }
         }
+
+        return results;
     }
 
     private static NpcapDevice? TryAutoSelect(IReadOnlyList<NpcapDevice> devices)
@@ -165,7 +174,7 @@ internal static class NpcapDeviceSelector
 
         var text = (nic.Name + " " + nic.Description).ToLowerInvariant();
         var virtualWords = new[] { "virtual", "vmware", "hyper-v", "virtualbox", "vpn", "tap", "tunnel", "wsl", "tailscale", "zerotier", "wireguard" };
-        if (virtualWords.Any(text.Contains)) score -= 100;
+        if (virtualWords.Any(word => text.Contains(word, StringComparison.Ordinal))) score -= 100;
 
         try
         {
