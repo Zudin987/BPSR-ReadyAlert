@@ -36,7 +36,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _capturePlan = capturePlan;
         _player = new AlertAudioPlayer(_paths.AlertSoundPath, _settings.AlertVolume);
 
-        _appIcon = LoadApplicationIcon(_paths.AppIconPath);
+        // NotifyIcon is a small-icon surface. Explicitly request the exact 16x16
+        // frame from App.ico instead of relying on Windows/System.Drawing to pick
+        // a larger frame and scale it down.
+        _appIcon = LoadApplicationIcon(_paths.AppIconPath, 16, 16);
         var menu = BuildMenu();
         _tray = new NotifyIcon
         {
@@ -62,15 +65,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Write("tray: running");
     }
 
-    private static Icon LoadApplicationIcon(string iconPath)
+    private static Icon LoadApplicationIcon(string iconPath, int width, int height)
     {
         try
         {
             if (File.Exists(iconPath))
             {
                 using var stream = new FileStream(iconPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var icon = new Icon(stream);
-                AppLog.Write("icon: loaded custom icon " + iconPath);
+                using var icon = new Icon(stream, width, height);
+                AppLog.Write($"icon: loaded custom icon {width}x{height} {iconPath}");
                 return (Icon)icon.Clone();
             }
         }
@@ -84,8 +87,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var exe = Environment.ProcessPath;
             if (!string.IsNullOrWhiteSpace(exe) && File.Exists(exe))
             {
-                var icon = Icon.ExtractAssociatedIcon(exe);
-                if (icon is not null) return icon;
+                using var associated = Icon.ExtractAssociatedIcon(exe);
+                if (associated is not null)
+                    return new Icon(associated, width, height);
             }
         }
         catch (Exception ex)
@@ -93,7 +97,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             AppLog.Write("icon: exe fallback failed " + ex.Message);
         }
 
-        return (Icon)SystemIcons.Application.Clone();
+        return new Icon(SystemIcons.Application, width, height);
     }
 
     private ContextMenuStrip BuildMenu()
