@@ -44,8 +44,9 @@ jobs:
       - name: Smoke-test single-file EXE
         shell: pwsh
         run: |
-          & ./dist/BPSR-ReadyAlert.exe --build-smoke-test
-          if ($LASTEXITCODE -ne 0) { throw "EXE smoke test failed with exit code $LASTEXITCODE" }
+          $process = Start-Process -FilePath ./dist/BPSR-ReadyAlert.exe -ArgumentList '--build-smoke-test' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "EXE smoke test failed with exit code $($process.ExitCode)" }
+          Write-Host "EXE smoke test passed with exit code $($process.ExitCode)."
 
       - name: Keep release files only
         shell: pwsh
