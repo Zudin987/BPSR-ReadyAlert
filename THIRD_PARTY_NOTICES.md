@@ -1,19 +1,12 @@
 # Third-party notices
 
-## WinDivert 2.2.2
+## Npcap
 
-Windows release builds contain the unmodified official x64 `WinDivert.dll` and `WinDivert64.sys` from WinDivert 2.2.2-A as embedded runtime resources. They are extracted to a private, versioned directory at runtime and dynamically loaded.
+BPSR Ready Alert uses the user's existing **Npcap** installation through the standard `wpcap.dll` API for passive packet capture.
 
-WinDivert is copyright basil and is dual-licensed under the GNU Lesser General Public License v3 or GNU General Public License v2. The official WinDivert `LICENSE` file is embedded in the release and extracted beside the runtime files.
+Npcap is an external runtime dependency. BPSR Ready Alert does **not** bundle, redistribute, install, modify, or update Npcap files.
 
-Build-time SHA-256 checks:
-
-```text
-c1e060ee19444a259b2162f8af0f3fe8c4428a1c6f694dce20de194ac8d7d9a2  WinDivert.dll
-8da085332782708d8767bcace5327a6ec7283c17cfb85e40b03cd2323a90ddc2  WinDivert64.sys
-```
-
-Source / releases: https://github.com/basil00/WinDivert
+Official site: https://npcap.com/
 
 ## ZstdSharp.Port
 
@@ -21,21 +14,17 @@ Source / releases: https://github.com/basil00/WinDivert
 
 Source: https://github.com/oleg-st/ZstdSharp
 
-## BPSR-ZDPS default alert sound
+## Alert sound
 
-The default `LetsDoThis.wav` is fetched at build time from `Blue-Protocol-Source/BPSR-ZDPS` and verified against the exact SHA-256 selected for this project:
+The bundled `LetsDoThis.wav` is reconstructed at build time from the exact user-supplied audio selected for this project. It is not downloaded from Resonance Logs CN.
 
-```text
-0befc4c0b6a40ef374fb75c6f4c658850439ee43fa9a3c0d74d904c76627048a  LetsDoThis.wav
-```
-
-BPSR-ZDPS is published under the MIT License.
+BPSR-ZDPS was used as a behavioral reference for the notification feature and packet-state handling.
 
 Source: https://github.com/Blue-Protocol-Source/BPSR-ZDPS
 
 ## Protocol references
 
-Packet service/method IDs and protobuf field behavior were cross-checked against the public BPSR community projects below:
+Packet service/method IDs, Npcap behavior, network-adapter selection behavior, and protobuf field behavior were cross-checked against the public BPSR community projects below:
 
 - `fudiyangjin/resonance-logs-cn` (AGPL-3.0)
 - `Blue-Protocol-Source/BPSR-ZDPS` (MIT)
