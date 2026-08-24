@@ -313,13 +313,31 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             if (_settings.DesktopNotification || evt.Kind == "error")
             {
+                var (title, message) = FormatDesktopNotification(evt);
                 _tray.ShowBalloonTip(
                     4000,
-                    evt.Title,
-                    evt.Message,
+                    title,
+                    message,
                     evt.Kind == "error" ? ToolTipIcon.Error : ToolTipIcon.Info);
             }
         }
+    }
+
+    private static (string Title, string Message) FormatDesktopNotification(AlertEvent evt)
+    {
+        if (evt.Kind == "queue")
+            return (string.Empty, "BPSR Party Ready Confirm");
+
+        if (evt.Kind == "ready")
+        {
+            if (string.Equals(evt.Title, "BPSR Ready Check", StringComparison.Ordinal))
+                return (string.Empty, "BPSR FoodSerum Ready Check");
+
+            if (string.Equals(evt.Title, "BPSR Party Ready Vote", StringComparison.Ordinal))
+                return (string.Empty, "BPSR Party Ready Confirm");
+        }
+
+        return (evt.Title, evt.Message);
     }
 
     private void PlayAlert(string reason)
