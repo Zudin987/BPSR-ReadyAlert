@@ -6,8 +6,13 @@ namespace BPSR.ReadyAlert;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        // CI uses this after stamping the final single-file EXE icon. If resource
+        // editing ever damages the .NET bundle, this process will fail to start.
+        if (args.Any(a => string.Equals(a, "--build-smoke-test", StringComparison.OrdinalIgnoreCase)))
+            return;
+
         using var mutex = new Mutex(initiallyOwned: true, name: @"Global\BPSR-ReadyAlert", createdNew: out var createdNew);
         if (!createdNew)
         {
