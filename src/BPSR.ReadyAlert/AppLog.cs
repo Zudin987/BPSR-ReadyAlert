@@ -8,8 +8,11 @@ internal static class AppLog
 
     internal static void Initialize(string path)
     {
-        _path = path;
-        RotateIfNeeded();
+        lock (Gate)
+        {
+            _path = path;
+            RotateIfNeeded();
+        }
     }
 
     internal static void Write(string message)
@@ -19,6 +22,12 @@ internal static class AppLog
             lock (Gate)
             {
                 if (string.IsNullOrWhiteSpace(_path)) return;
+
+                // Rotation used to happen only on startup, so a very long-running
+                // session could grow indefinitely. Check before each append; ReadyAlert
+                // writes infrequently enough that this is negligible overhead.
+                RotateIfNeeded();
+
                 File.AppendAllText(
                     _path,
                     $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}");
