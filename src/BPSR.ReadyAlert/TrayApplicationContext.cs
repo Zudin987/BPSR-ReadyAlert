@@ -12,6 +12,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
     private readonly ResonanceLogsLauncher _launcher;
+    private readonly NpcapSelection _captureSelection;
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly ConcurrentQueue<AlertEvent> _events = new();
@@ -23,12 +24,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppPaths paths,
         AppSettings settings,
         SettingsStore settingsStore,
-        ResonanceLogsLauncher launcher)
+        ResonanceLogsLauncher launcher,
+        NpcapSelection captureSelection)
     {
         _paths = paths;
         _settings = settings;
         _settingsStore = settingsStore;
         _launcher = launcher;
+        _captureSelection = captureSelection;
         _player = new SoundPlayer(_paths.AlertSoundPath);
         try { _player.Load(); } catch (Exception ex) { AppLog.Write("audio: preload failed " + ex.Message); }
 
@@ -37,7 +40,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _tray = new NotifyIcon
         {
             Icon = _appIcon,
-            Text = "BPSR Ready Alert - Monitoring",
+            Text = "BPSR Ready Alert - Npcap",
             ContextMenuStrip = menu,
             Visible = true
         };
@@ -45,8 +48,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Write(
             $"settings: queue={_settings.QueuePopAlert} ready={_settings.ReadyCheckAlert} " +
             $"notification={_settings.DesktopNotification} autoLaunch={_settings.AutoLaunchResonanceLogs}");
+        AppLog.Write($"capture: selected adapter source={_captureSelection.Source} device={_captureSelection.DeviceName} description={_captureSelection.Description}");
 
-        _engine = new CaptureEngine(_events);
+        _engine = new CaptureEngine(_events, _captureSelection);
         _engine.Start();
 
         _timer = new System.Windows.Forms.Timer { Interval = 100 };
@@ -129,6 +133,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(readyItem);
         menu.Items.Add(notificationItem);
         menu.Items.Add(autoLaunchItem);
+
+        var adapterLabel = _captureSelection.Description;
+        if (adapterLabel.Length > 58) adapterLabel = adapterLabel[..55] + "...";
+        menu.Items.Add(new ToolStripMenuItem($"Npcap: {adapterLabel} ({_captureSelection.Source})") { Enabled = false });
         menu.Items.Add(new ToolStripSeparator());
 
         var test = new ToolStripMenuItem("Test Alert Sound");
