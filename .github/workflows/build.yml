@@ -27,6 +27,15 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
 
+      - name: Export prepared assets for audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: BPSR-ReadyAlert-prepared-assets
+          path: |
+            src/BPSR.ReadyAlert/Assets/LetsDoThis.wav
+            src/BPSR.ReadyAlert/Assets/App.ico
+          if-no-files-found: error
+
       - name: Restore
         run: dotnet restore src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj
 
