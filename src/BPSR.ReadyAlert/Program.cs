@@ -28,7 +28,6 @@ internal static class Program
             AppLog.Write($"startup: version={AppVersion.Current} exe={Environment.ProcessPath}");
 
             RuntimeAssets.Ensure(paths);
-            NativeMethods.ConfigureWinDivert(paths.WinDivertDllPath);
 
             var settingsStore = new SettingsStore(paths.SettingsPath);
             var settings = settingsStore.Load();
@@ -38,7 +37,19 @@ internal static class Program
             if (settings.AutoLaunchResonanceLogs)
                 launcher.EnsureRunningInteractive();
 
-            Application.Run(new TrayApplicationContext(paths, settings, settingsStore, launcher));
+            var captureSelection = NpcapDeviceSelector.Select();
+            Application.Run(new TrayApplicationContext(paths, settings, settingsStore, launcher, captureSelection));
+        }
+        catch (DllNotFoundException ex)
+        {
+            AppLog.Write("startup: Npcap missing " + ex);
+            MessageBox.Show(
+                "BPSR Ready Alert could not find Npcap.\r\n\r\n" +
+                "Install Npcap, or make sure the same Npcap installation used by Resonance Logs CN is working.\r\n\r\n" +
+                "Details: " + ex.Message,
+                "BPSR Ready Alert - Npcap Required",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
         catch (Exception ex)
         {

@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BPSR-ReadyAlert</AssemblyName>
     <RootNamespace>BPSR.ReadyAlert</RootNamespace>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <Authors>Zudin987</Authors>
     <Description>Portable matchmaking and Ready Check alerts for Blue Protocol: Star Resonance.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -28,15 +28,10 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\LetsDoThis.wav" LogicalName="BPSR.ReadyAlert.Assets.LetsDoThis.wav" />
-    <EmbeddedResource Include="vendor\WinDivert\WinDivert.dll" LogicalName="BPSR.ReadyAlert.WinDivert.WinDivert.dll" />
-    <EmbeddedResource Include="vendor\WinDivert\WinDivert64.sys" LogicalName="BPSR.ReadyAlert.WinDivert.WinDivert64.sys" />
-    <EmbeddedResource Include="vendor\WinDivert\LICENSE" LogicalName="BPSR.ReadyAlert.WinDivert.LICENSE" />
   </ItemGroup>
 
-  <Target Name="RequireWinDivertBuildInputs" BeforeTargets="BeforeBuild">
+  <Target Name="RequireBuildInputs" BeforeTargets="BeforeBuild">
     <Error Condition="!Exists('Assets\App.ico')" Text="Missing Assets/App.ico." />
-    <Error Condition="!Exists('vendor\WinDivert\WinDivert.dll')" Text="Missing vendor/WinDivert/WinDivert.dll. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
-    <Error Condition="!Exists('vendor\WinDivert\WinDivert64.sys')" Text="Missing vendor/WinDivert/WinDivert64.sys. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
-    <Error Condition="!Exists('vendor\WinDivert\LICENSE')" Text="Missing vendor/WinDivert/LICENSE. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('Assets\LetsDoThis.wav')" Text="Missing Assets/LetsDoThis.wav. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
   </Target>
 </Project>

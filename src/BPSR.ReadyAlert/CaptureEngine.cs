@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Net;
-using System.Runtime.InteropServices;
 using ZstdSharp;
 
 namespace BPSR.ReadyAlert;
@@ -23,18 +22,23 @@ internal sealed class CaptureEngine : IDisposable
     private const int MaxFlows = 768;
 
     private readonly ConcurrentQueue<AlertEvent> _events;
+    private readonly NpcapSelection _selection;
     private readonly Dictionary<string, FlowState> _flows = new();
     private readonly HashSet<(ulong Service, uint Method)> _seenNotifyKeys = new();
+    private readonly HashSet<int> _unsupportedDatalinks = new();
     private readonly Decompressor _zstd = new();
     private Thread? _thread;
     private volatile bool _stopping;
-    private IntPtr _handle = IntPtr.Zero;
     private DateTime _lastReadyAlertUtc = DateTime.MinValue;
     private DateTime _lastQueueAlertUtc = DateTime.MinValue;
     private DateTime _lastCaptureErrorNoticeUtc = DateTime.MinValue;
     private DateTime _lastCleanupUtc = DateTime.MinValue;
 
-    internal CaptureEngine(ConcurrentQueue<AlertEvent> events) => _events = events;
+    internal CaptureEngine(ConcurrentQueue<AlertEvent> events, NpcapSelection selection)
+    {
+        _events = events;
+        _selection = selection;
+    }
 
     internal void Start()
     {
@@ -48,65 +52,37 @@ internal sealed class CaptureEngine : IDisposable
 
     private void Run()
     {
-        var packet = new byte[65_535];
-        var address = Marshal.AllocHGlobal(128);
-        try
+        while (!_stopping)
         {
-            while (!_stopping)
+            try
             {
-                AppLog.Write("capture: opening WinDivert sniff handle priority=-1000 filter=tcp (IPv4+IPv6, both directions)");
-                _handle = NativeMethods.WinDivertOpen(
-                    "!loopback && tcp",
-                    layer: 0,
-                    priority: -1000,
-                    flags: NativeMethods.WinDivertFlagSniff | NativeMethods.WinDivertFlagRecvOnly);
+                AppLog.Write($"capture: opening Npcap device={_selection.DeviceName} source={_selection.Source}");
+                using var capture = new NpcapCapture(_selection.DeviceName);
+                AppLog.Write($"capture: started backend=Npcap datalink={capture.DataLink} device={capture.DeviceName}");
 
-                if (_handle == IntPtr.Zero || _handle == NativeMethods.InvalidHandleValue)
-                {
-                    var error = Marshal.GetLastWin32Error();
-                    _handle = IntPtr.Zero;
-                    AppLog.Write($"capture: WinDivertOpen failed error={error}");
-                    NotifyCaptureErrorThrottled(error);
-                    SleepWhileRunning(1500);
-                    continue;
-                }
-
-                AppLog.Write("capture: started");
                 while (!_stopping)
                 {
-                    if (!NativeMethods.WinDivertRecv(_handle, packet, (uint)packet.Length, out var recvLen, address))
-                    {
-                        var error = Marshal.GetLastWin32Error();
-                        if (!_stopping) AppLog.Write($"capture: WinDivertRecv failed error={error}; reopening");
-                        break;
-                    }
-
-                    if (recvLen > 0)
-                        ProcessIpPacket(packet, checked((int)recvLen));
+                    if (capture.TryRead(out var packet) && packet is not null)
+                        ProcessCapturedPacket(packet, capture.DataLink);
                 }
-
-                CloseHandle();
+            }
+            catch (Exception ex)
+            {
+                if (_stopping) break;
+                AppLog.Write("capture: Npcap error " + ex);
+                NotifyCaptureErrorThrottled(ex.Message);
+                SleepWhileRunning(1500);
+            }
+            finally
+            {
                 _flows.Clear();
-                if (!_stopping) SleepWhileRunning(750);
             }
         }
-        catch (Exception ex)
-        {
-            AppLog.Write("capture: fatal " + ex);
-            _events.Enqueue(new AlertEvent(
-                "error",
-                "BPSR Ready Alert",
-                "Packet capture stopped. Open the log from the tray menu for details."));
-        }
-        finally
-        {
-            CloseHandle();
-            Marshal.FreeHGlobal(address);
-            AppLog.Write("capture: stopped");
-        }
+
+        AppLog.Write("capture: stopped");
     }
 
-    private void NotifyCaptureErrorThrottled(int error)
+    private void NotifyCaptureErrorThrottled(string error)
     {
         var now = DateTime.UtcNow;
         if ((now - _lastCaptureErrorNoticeUtc).TotalSeconds < 30) return;
@@ -114,7 +90,59 @@ internal sealed class CaptureEngine : IDisposable
         _events.Enqueue(new AlertEvent(
             "error",
             "BPSR Ready Alert",
-            $"Packet capture is unavailable (Win32 error {error}). The app will keep retrying."));
+            "Npcap capture is unavailable: " + error));
+    }
+
+    private void ProcessCapturedPacket(byte[] packet, int datalink)
+    {
+        var offset = datalink switch
+        {
+            NpcapCapture.DltRaw => 0,
+            NpcapCapture.DltIpv4 => 0,
+            NpcapCapture.DltIpv6 => 0,
+            NpcapCapture.DltNull => 4,
+            NpcapCapture.DltLoop => 4,
+            NpcapCapture.DltEthernet => TryGetEthernetPayloadOffset(packet, out var ethernetOffset) ? ethernetOffset : -1,
+            _ => -1
+        };
+
+        if (offset < 0)
+        {
+            if (_unsupportedDatalinks.Add(datalink))
+                AppLog.Write("capture: unsupported Npcap datalink=" + datalink);
+            return;
+        }
+
+        if (offset >= packet.Length) return;
+        if (offset == 0)
+        {
+            ProcessIpPacket(packet, packet.Length);
+            return;
+        }
+
+        var ipPacket = new byte[packet.Length - offset];
+        Buffer.BlockCopy(packet, offset, ipPacket, 0, ipPacket.Length);
+        ProcessIpPacket(ipPacket, ipPacket.Length);
+    }
+
+    private static bool TryGetEthernetPayloadOffset(byte[] packet, out int offset)
+    {
+        offset = -1;
+        if (packet.Length < 14) return false;
+
+        var etherType = ReadU16BE(packet, 12);
+        var cursor = 14;
+        var vlanDepth = 0;
+        while (etherType is 0x8100 or 0x88A8 or 0x9100)
+        {
+            if (++vlanDepth > 2 || cursor + 4 > packet.Length) return false;
+            etherType = ReadU16BE(packet, cursor + 2);
+            cursor += 4;
+        }
+
+        if (etherType is not (0x0800 or 0x86DD)) return false;
+        offset = cursor;
+        return true;
     }
 
     private void ProcessIpPacket(byte[] packet, int length)
@@ -588,18 +616,9 @@ internal sealed class CaptureEngine : IDisposable
             Thread.Sleep(Math.Min(100, milliseconds - elapsed));
     }
 
-    private void CloseHandle()
-    {
-        var handle = _handle;
-        _handle = IntPtr.Zero;
-        if (handle == IntPtr.Zero || handle == NativeMethods.InvalidHandleValue) return;
-        try { NativeMethods.WinDivertClose(handle); } catch { }
-    }
-
     public void Dispose()
     {
         _stopping = true;
-        CloseHandle();
         if (_thread is { IsAlive: true }) _thread.Join(2000);
         _zstd.Dispose();
     }
