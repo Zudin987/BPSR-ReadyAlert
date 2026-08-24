@@ -4,11 +4,20 @@ using System.Text.Json;
 
 namespace BPSR.ReadyAlert;
 
-internal sealed record NpcapSelection(string DeviceName, string Description, string Source, string? ResonanceLogsConfigPath);
+internal sealed record NpcapCaptureCandidate(string DeviceName, string Description, string Source);
+
+internal sealed record NpcapCapturePlan(
+    IReadOnlyList<NpcapCaptureCandidate> Candidates,
+    string? ResonanceLogsConfigPath)
+{
+    internal NpcapCaptureCandidate Primary => Candidates[0];
+}
 
 internal static class NpcapDeviceSelector
 {
-    internal static NpcapSelection Select()
+    private const int MaxCandidates = 12;
+
+    internal static NpcapCapturePlan SelectPlan()
     {
         var devices = NpcapCapture.ListDevices();
         if (devices.Count == 0)
@@ -18,31 +27,91 @@ internal static class NpcapDeviceSelector
         AppLog.Write($"npcap: enumerated devices={devices.Count}");
 
         var saved = TryReadResonanceLogsDevice();
-        if (saved.DeviceName is not null)
+        var candidates = new List<NpcapCaptureCandidate>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddCandidate(NpcapDevice device, string source)
         {
-            var exact = devices.FirstOrDefault(d => string.Equals(d.Name, saved.DeviceName, StringComparison.OrdinalIgnoreCase));
+            if (candidates.Count >= MaxCandidates) return;
+            if (!seen.Add(device.Name)) return;
+            candidates.Add(new NpcapCaptureCandidate(device.Name, device.Description, source));
+        }
+
+        // Only trust Resonance Logs' stored adapter when Resonance Logs itself is
+        // configured for Npcap. A stale npcapDevice can remain in the settings when
+        // the user switches the meter back to WinDivert.
+        if (!string.IsNullOrWhiteSpace(saved.DeviceName) &&
+            string.Equals(saved.Method, "Npcap", StringComparison.OrdinalIgnoreCase))
+        {
+            var exact = devices.FirstOrDefault(d =>
+                string.Equals(d.Name, saved.DeviceName, StringComparison.OrdinalIgnoreCase));
             if (exact is not null)
             {
-                AppLog.Write($"npcap: selected source=resonance-logs device={exact.Name} description={exact.Description} config={saved.Path}");
-                return new NpcapSelection(exact.Name, exact.Description, "Resonance Logs CN", saved.Path);
+                AddCandidate(exact, "Resonance Logs CN");
+                AppLog.Write($"npcap: preferred source=resonance-logs device={exact.Name} description={exact.Description} config={saved.Path}");
             }
-
-            AppLog.Write($"npcap: Resonance Logs stored device is unavailable: {saved.DeviceName}");
+            else
+            {
+                AppLog.Write($"npcap: Resonance Logs stored device is unavailable: {saved.DeviceName}");
+            }
         }
-
-        var auto = TryAutoSelect(devices);
-        if (auto is not null)
+        else if (!string.IsNullOrWhiteSpace(saved.DeviceName))
         {
-            AppLog.Write($"npcap: selected source=auto device={auto.Name} description={auto.Description}");
-            return new NpcapSelection(auto.Name, auto.Description, "Auto-selected", saved.Path);
+            AppLog.Write($"npcap: ignoring stored device because Resonance Logs method={saved.Method ?? "<missing>"}");
         }
 
-        var fallback = devices.FirstOrDefault(d => !LooksLikeLoopback(d)) ?? devices[0];
-        AppLog.Write($"npcap: selected source=fallback device={fallback.Name} description={fallback.Description}");
-        return new NpcapSelection(fallback.Name, fallback.Description, "Fallback", saved.Path);
+        // ZDPS-style active-adapter selection: up, has an IP address, a real
+        // gateway, and a MAC. Prefer Ethernet/Wi-Fi and de-prioritize virtual/VPN NICs.
+        var interfaces = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(IsUsableInterface)
+            .Select(n => new
+            {
+                Interface = n,
+                Score = ScoreInterface(n),
+                NormalizedId = NormalizeGuid(n.Id)
+            })
+            .OrderByDescending(x => x.Score)
+            .ToArray();
+
+        foreach (var item in interfaces)
+        {
+            var exact = devices.FirstOrDefault(d =>
+                DeviceMatchesInterface(d, item.Interface, item.NormalizedId));
+            if (exact is null) continue;
+
+            AddCandidate(exact, "Auto-selected");
+            AppLog.Write($"npcap: auto candidate nic={item.Interface.Name} description={item.Interface.Description} score={item.Score} matched={exact.Name}");
+        }
+
+        // Do not bet the whole app on one adapter. Add the remaining Npcap adapters
+        // as passive scan candidates, physical-looking ones first. This fixes systems
+        // where Windows reports the wrong default route, tethering/VPN changes the
+        // active NIC, or the CN meter has a stale saved adapter.
+        foreach (var device in devices
+                     .Where(d => !LooksLikeLoopback(d) && !LooksVirtual(d))
+                     .OrderBy(d => d.Description, StringComparer.OrdinalIgnoreCase))
+        {
+            AddCandidate(device, "Npcap scan");
+        }
+
+        foreach (var device in devices
+                     .Where(d => !LooksLikeLoopback(d) && LooksVirtual(d))
+                     .OrderBy(d => d.Description, StringComparer.OrdinalIgnoreCase))
+        {
+            AddCandidate(device, "Npcap scan");
+        }
+
+        if (candidates.Count == 0)
+            AddCandidate(devices[0], "Fallback");
+
+        AppLog.Write($"npcap: capture plan adapters={candidates.Count} preferred={candidates[0].Description} source={candidates[0].Source}");
+        foreach (var candidate in candidates)
+            AppLog.Write($"npcap: plan device={candidate.DeviceName} description={candidate.Description} source={candidate.Source}");
+
+        return new NpcapCapturePlan(candidates, saved.Path);
     }
 
-    private static (string? DeviceName, string? Path) TryReadResonanceLogsDevice()
+    private static (string? DeviceName, string? Method, string? Path) TryReadResonanceLogsDevice()
     {
         foreach (var path in EnumerateConfigCandidates())
         {
@@ -59,8 +128,8 @@ internal static class NpcapDeviceSelector
                     : null;
 
                 AppLog.Write($"npcap: Resonance Logs config path={path} method={method ?? "<missing>"} device={device ?? "<empty>"}");
-                if (!string.IsNullOrWhiteSpace(device))
-                    return (device.Trim(), path);
+                if (!string.IsNullOrWhiteSpace(device) || !string.IsNullOrWhiteSpace(method))
+                    return (device?.Trim(), method?.Trim(), path);
             }
             catch (Exception ex)
             {
@@ -68,7 +137,7 @@ internal static class NpcapDeviceSelector
             }
         }
 
-        return (null, null);
+        return (null, null, null);
     }
 
     private static IEnumerable<string> EnumerateConfigCandidates()
@@ -82,7 +151,7 @@ internal static class NpcapDeviceSelector
         {
             if (string.IsNullOrWhiteSpace(root)) continue;
 
-            foreach (var appDirName in new[] { "resonance-logs-cn", "resonance-logs" })
+            foreach (var appDirName in new[] { "com.resonance-logs-cn", "resonance-logs-cn", "resonance-logs" })
             {
                 foreach (var relative in new[]
                 {
@@ -123,32 +192,6 @@ internal static class NpcapDeviceSelector
         return results;
     }
 
-    private static NpcapDevice? TryAutoSelect(IReadOnlyList<NpcapDevice> devices)
-    {
-        var interfaces = NetworkInterface.GetAllNetworkInterfaces()
-            .Where(IsUsableInterface)
-            .Select(n => new
-            {
-                Interface = n,
-                Score = ScoreInterface(n),
-                NormalizedId = NormalizeGuid(n.Id)
-            })
-            .OrderByDescending(x => x.Score)
-            .ToArray();
-
-        foreach (var item in interfaces)
-        {
-            var exact = devices.FirstOrDefault(d => DeviceMatchesInterface(d, item.Interface, item.NormalizedId));
-            if (exact is not null)
-            {
-                AppLog.Write($"npcap: auto candidate nic={item.Interface.Name} description={item.Interface.Description} score={item.Score} matched={exact.Name}");
-                return exact;
-            }
-        }
-
-        return null;
-    }
-
     private static bool IsUsableInterface(NetworkInterface nic)
     {
         if (nic.OperationalStatus != OperationalStatus.Up) return false;
@@ -173,8 +216,7 @@ internal static class NpcapDeviceSelector
         if (nic.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.Wireless80211) score += 40;
 
         var text = (nic.Name + " " + nic.Description).ToLowerInvariant();
-        var virtualWords = new[] { "virtual", "vmware", "hyper-v", "virtualbox", "vpn", "tap", "tunnel", "wsl", "tailscale", "zerotier", "wireguard" };
-        if (virtualWords.Any(word => text.Contains(word, StringComparison.Ordinal))) score -= 100;
+        if (VirtualWords.Any(word => text.Contains(word, StringComparison.Ordinal))) score -= 100;
 
         try
         {
@@ -204,6 +246,18 @@ internal static class NpcapDeviceSelector
             return true;
 
         return false;
+    }
+
+    private static readonly string[] VirtualWords =
+    {
+        "virtual", "vmware", "hyper-v", "virtualbox", "vpn", "tap", "tunnel",
+        "wsl", "tailscale", "zerotier", "wireguard", "loopback"
+    };
+
+    private static bool LooksVirtual(NpcapDevice device)
+    {
+        var text = (device.Name + " " + device.Description).ToLowerInvariant();
+        return VirtualWords.Any(word => text.Contains(word, StringComparison.Ordinal));
     }
 
     private static string NormalizeGuid(string value) =>
