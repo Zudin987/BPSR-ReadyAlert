@@ -98,8 +98,18 @@ internal sealed class NpcapCapture : IDisposable
             {
                 var header = Marshal.PtrToStructure<PcapPkthdr>(headerPtr);
                 if (header.CapLen == 0 || dataPtr == IntPtr.Zero) return false;
-                packet = new byte[header.CapLen];
-                Marshal.Copy(dataPtr, packet, 0, checked((int)header.CapLen));
+
+                var captured = new byte[header.CapLen];
+                Marshal.Copy(dataPtr, captured, 0, checked((int)header.CapLen));
+
+                // Match ZDPS's connection-selection strategy: only allow packets
+                // whose local endpoint belongs to a running BPSR-family process.
+                // This happens before TCP/game-protocol reassembly so unrelated
+                // browser/Discord/launcher traffic can never desynchronise it.
+                if (!GamePacketFilter.IsBpsrPacket(captured, DataLink))
+                    return false;
+
+                packet = captured;
                 return true;
             }
             case 0:
@@ -116,20 +126,24 @@ internal sealed class NpcapCapture : IDisposable
     {
         CheckPreActivate(Native.pcap_set_snaplen(handle, 65_536), "pcap_set_snaplen", handle);
         CheckPreActivate(Native.pcap_set_promisc(handle, 1), "pcap_set_promisc", handle);
-        // Keep a short fallback timeout because v0.4.1 may scan several adapters.
-        // On normal Npcap builds immediate mode makes reads return promptly anyway.
-        CheckPreActivate(Native.pcap_set_timeout(handle, 50), "pcap_set_timeout", handle);
+
+        // Low-latency fallback. Immediate mode normally delivers packets as soon
+        // as they arrive; if it is unavailable, a 1 ms read timeout prevents a
+        // quiet adapter from stalling the polling loop for tens of milliseconds.
+        CheckPreActivate(Native.pcap_set_timeout(handle, 1), "pcap_set_timeout", handle);
         CheckPreActivate(Native.pcap_set_buffer_size(handle, 16 * 1024 * 1024), "pcap_set_buffer_size", handle);
 
         try
         {
             var immediate = Native.pcap_set_immediate_mode(handle, 1);
             if (immediate != 0)
-                AppLog.Write("npcap: pcap_set_immediate_mode returned " + immediate + "; continuing");
+                AppLog.Write("npcap: pcap_set_immediate_mode returned " + immediate + "; continuing with 1ms timeout");
+            else
+                AppLog.Write("npcap: immediate mode enabled; fallback timeout=1ms");
         }
         catch (EntryPointNotFoundException)
         {
-            AppLog.Write("npcap: immediate mode unavailable; continuing with timeout mode");
+            AppLog.Write("npcap: immediate mode unavailable; using 1ms timeout");
         }
 
         var activate = Native.pcap_activate(handle);
