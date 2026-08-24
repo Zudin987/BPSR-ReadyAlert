@@ -12,7 +12,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
     private readonly ResonanceLogsLauncher _launcher;
-    private readonly NpcapSelection _captureSelection;
+    private readonly NpcapCapturePlan _capturePlan;
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly ConcurrentQueue<AlertEvent> _events = new();
@@ -25,17 +25,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppSettings settings,
         SettingsStore settingsStore,
         ResonanceLogsLauncher launcher,
-        NpcapSelection captureSelection)
+        NpcapCapturePlan capturePlan)
     {
         _paths = paths;
         _settings = settings;
         _settingsStore = settingsStore;
         _launcher = launcher;
-        _captureSelection = captureSelection;
+        _capturePlan = capturePlan;
         _player = new SoundPlayer(_paths.AlertSoundPath);
         try { _player.Load(); } catch (Exception ex) { AppLog.Write("audio: preload failed " + ex.Message); }
 
-        _appIcon = LoadApplicationIcon();
+        _appIcon = LoadApplicationIcon(_paths.AppIconPath);
         var menu = BuildMenu();
         _tray = new NotifyIcon
         {
@@ -48,9 +48,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Write(
             $"settings: queue={_settings.QueuePopAlert} ready={_settings.ReadyCheckAlert} " +
             $"notification={_settings.DesktopNotification} autoLaunch={_settings.AutoLaunchResonanceLogs}");
-        AppLog.Write($"capture: selected adapter source={_captureSelection.Source} device={_captureSelection.DeviceName} description={_captureSelection.Description}");
+        AppLog.Write($"capture: plan adapters={_capturePlan.Candidates.Count} preferred={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
 
-        _engine = new CaptureEngine(_events, _captureSelection);
+        _engine = new CaptureEngine(_events, _capturePlan);
         _engine.Start();
 
         _timer = new System.Windows.Forms.Timer { Interval = 100 };
@@ -60,20 +60,35 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Write("tray: running");
     }
 
-    private static Icon LoadApplicationIcon()
+    private static Icon LoadApplicationIcon(string iconPath)
     {
         try
         {
-            var path = Environment.ProcessPath;
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            if (File.Exists(iconPath))
             {
-                var icon = Icon.ExtractAssociatedIcon(path);
+                using var stream = new FileStream(iconPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var icon = new Icon(stream);
+                AppLog.Write("icon: loaded custom icon " + iconPath);
+                return (Icon)icon.Clone();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("icon: direct load failed " + ex.Message);
+        }
+
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(exe) && File.Exists(exe))
+            {
+                var icon = Icon.ExtractAssociatedIcon(exe);
                 if (icon is not null) return icon;
             }
         }
         catch (Exception ex)
         {
-            AppLog.Write("icon: extract failed " + ex.Message);
+            AppLog.Write("icon: exe fallback failed " + ex.Message);
         }
 
         return (Icon)SystemIcons.Application.Clone();
@@ -134,9 +149,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(notificationItem);
         menu.Items.Add(autoLaunchItem);
 
-        var adapterLabel = _captureSelection.Description;
-        if (adapterLabel.Length > 58) adapterLabel = adapterLabel[..55] + "...";
-        menu.Items.Add(new ToolStripMenuItem($"Npcap: {adapterLabel} ({_captureSelection.Source})") { Enabled = false });
+        var adaptersMenu = new ToolStripMenuItem($"Npcap: scanning {_capturePlan.Candidates.Count} adapter(s)");
+        foreach (var candidate in _capturePlan.Candidates)
+        {
+            var label = candidate.Description;
+            if (label.Length > 58) label = label[..55] + "...";
+            adaptersMenu.DropDownItems.Add(new ToolStripMenuItem($"{label} ({candidate.Source})") { Enabled = false });
+        }
+        menu.Items.Add(adaptersMenu);
         menu.Items.Add(new ToolStripSeparator());
 
         var test = new ToolStripMenuItem("Test Alert Sound");
@@ -154,10 +174,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var startMenu = new ToolStripMenuItem("Create / Refresh Start Menu Shortcut");
         startMenu.Click += (_, _) =>
         {
-            var ok = StartMenuShortcut.TryCreateOrRefresh();
+            var ok = StartMenuShortcut.TryCreateOrRefresh(_paths.AppIconPath);
             MessageBox.Show(
                 ok
-                    ? "Start Menu shortcut created. Search for 'BPSR Ready Alert', then right-click it and choose 'Pin to Start'."
+                    ? "Start Menu shortcut created with the custom icon. Search for 'BPSR Ready Alert', then right-click it and choose 'Pin to Start'."
                     : "Could not create the Start Menu shortcut. See readyalert.log for details.",
                 "BPSR Ready Alert",
                 MessageBoxButtons.OK,
