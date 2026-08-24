@@ -61,4 +61,52 @@ if ([Text.Encoding]::ASCII.GetString($header) -ne 'RIFF') {
 }
 $actualSound = (Get-FileHash $SoundDestination -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "Bundled alert WAV prepared. SHA-256: $actualSound"
+
+# Repair the historical App.ico if its directory advertises a truncated image.
+# WinForms was tolerant enough to use the early frames for the tray, but Windows
+# Explorer rejects the malformed ICO as an application icon. Keep every complete
+# image entry and rebuild a clean ICO directory with corrected offsets.
+$IconPath = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\App.ico'
+$ico = [IO.File]::ReadAllBytes($IconPath)
+if ($ico.Length -lt 22 -or [BitConverter]::ToUInt16($ico, 0) -ne 0 -or [BitConverter]::ToUInt16($ico, 2) -ne 1) {
+    throw 'Assets/App.ico has an invalid ICO header.'
+}
+
+$declaredCount = [BitConverter]::ToUInt16($ico, 4)
+$valid = @()
+for ($i = 0; $i -lt $declaredCount; $i++) {
+    $entryOffset = 6 + (16 * $i)
+    if (($entryOffset + 16) -gt $ico.Length) { break }
+    $size = [BitConverter]::ToUInt32($ico, $entryOffset + 8)
+    $dataOffset = [BitConverter]::ToUInt32($ico, $entryOffset + 12)
+    if ($size -gt 0 -and ([uint64]$dataOffset + [uint64]$size) -le [uint64]$ico.Length) {
+        $valid += [pscustomobject]@{ EntryOffset = $entryOffset; Size = [int]$size; DataOffset = [int]$dataOffset }
+    } else {
+        Write-Host "Dropping truncated App.ico image entry #$i (offset=$dataOffset size=$size)."
+    }
+}
+
+if ($valid.Count -lt 1) { throw 'Assets/App.ico contains no complete images.' }
+if ($valid.Count -ne $declaredCount) {
+    $newLength = 6 + (16 * $valid.Count) + (($valid | Measure-Object -Property Size -Sum).Sum)
+    $fixed = New-Object byte[] $newLength
+    [Array]::Copy($ico, 0, $fixed, 0, 4)
+    [Array]::Copy([BitConverter]::GetBytes([uint16]$valid.Count), 0, $fixed, 4, 2)
+    $cursor = 6 + (16 * $valid.Count)
+
+    for ($i = 0; $i -lt $valid.Count; $i++) {
+        $item = $valid[$i]
+        $dstEntry = 6 + (16 * $i)
+        [Array]::Copy($ico, $item.EntryOffset, $fixed, $dstEntry, 12)
+        [Array]::Copy([BitConverter]::GetBytes([uint32]$cursor), 0, $fixed, $dstEntry + 12, 4)
+        [Array]::Copy($ico, $item.DataOffset, $fixed, $cursor, $item.Size)
+        $cursor += $item.Size
+    }
+
+    [IO.File]::WriteAllBytes($IconPath, $fixed)
+    Write-Host "Repaired App.ico: kept $($valid.Count) of $declaredCount image entries."
+} else {
+    Write-Host "App.ico validation passed with $declaredCount image entries."
+}
+
 Write-Host 'Build assets prepared. Npcap is an external runtime dependency and is not redistributed.' -ForegroundColor Green
