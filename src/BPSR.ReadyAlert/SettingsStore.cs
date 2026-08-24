@@ -9,6 +9,12 @@ internal sealed class AppSettings
     public bool DesktopNotification { get; set; } = false;
     public bool AutoLaunchResonanceLogs { get; set; } = true;
     public string ResonanceLogsPath { get; set; } = string.Empty;
+
+    // Empty = follow Resonance Logs CN's Npcap choice, then auto-select if needed.
+    // Non-empty = explicitly capture only this Npcap device.
+    public string NpcapDeviceName { get; set; } = string.Empty;
+
+    public int AlertVolume { get; set; } = 100;
 }
 
 internal sealed class SettingsStore
@@ -29,7 +35,12 @@ internal sealed class SettingsStore
             if (File.Exists(_path))
             {
                 var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path), JsonOptions);
-                if (loaded is not null) return loaded;
+                if (loaded is not null)
+                {
+                    loaded.AlertVolume = Math.Clamp(loaded.AlertVolume, 0, 100);
+                    loaded.NpcapDeviceName ??= string.Empty;
+                    return loaded;
+                }
             }
         }
         catch (Exception ex)
@@ -46,6 +57,7 @@ internal sealed class SettingsStore
     {
         try
         {
+            settings.AlertVolume = Math.Clamp(settings.AlertVolume, 0, 100);
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var temp = _path + ".new";
             File.WriteAllText(temp, JsonSerializer.Serialize(settings, JsonOptions));
