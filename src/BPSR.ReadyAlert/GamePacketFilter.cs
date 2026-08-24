@@ -83,7 +83,7 @@ internal static class GamePacketFilter
             }
 
             _localEndpoints = endpoints;
-            var summary = $"pids={string.Join(',', pids.Order())} names={string.Join(',', foundNames.Order(StringComparer.OrdinalIgnoreCase))} endpoints={endpoints.Count}";
+            var summary = $"pids={string.Join(',', pids.OrderBy(x => x))} names={string.Join(',', foundNames.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))} endpoints={endpoints.Count}";
             if (!string.Equals(summary, _lastSummary, StringComparison.Ordinal))
             {
                 _lastSummary = summary;
