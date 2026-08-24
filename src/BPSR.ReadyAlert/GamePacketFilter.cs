@@ -13,8 +13,10 @@ internal static class GamePacketFilter
     ];
 
     private static readonly object Sync = new();
+    private static HashSet<int> _gamePids = new();
     private static HashSet<EndpointKey> _localEndpoints = new();
-    private static DateTime _lastRefreshUtc = DateTime.MinValue;
+    private static DateTime _lastPidRefreshUtc = DateTime.MinValue;
+    private static DateTime _lastEndpointRefreshUtc = DateTime.MinValue;
     private static string _lastSummary = string.Empty;
 
     internal static bool IsBpsrPacket(byte[] packet, int datalink)
@@ -22,7 +24,7 @@ internal static class GamePacketFilter
         if (!TryGetIpv4TcpEndpoints(packet, datalink, out var srcAddress, out var srcPort, out var dstAddress, out var dstPort))
             return false;
 
-        RefreshIfNeeded();
+        RefreshSnapshotsIfNeeded();
 
         lock (Sync)
         {
@@ -31,47 +33,40 @@ internal static class GamePacketFilter
         }
     }
 
-    private static void RefreshIfNeeded()
+    private static void RefreshSnapshotsIfNeeded()
     {
         var now = DateTime.UtcNow;
-        if ((now - _lastRefreshUtc).TotalMilliseconds < 750) return;
 
         lock (Sync)
         {
             now = DateTime.UtcNow;
-            if ((now - _lastRefreshUtc).TotalMilliseconds < 750) return;
-            _lastRefreshUtc = now;
 
-            var pids = new HashSet<int>();
-            var foundNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            try
+            // Process IDs are stable for a running game, so do the relatively
+            // expensive process enumeration infrequently. While no game is found,
+            // retry quickly so Ready Alert can be started before BPSR.
+            var pidIntervalMs = _gamePids.Count == 0 ? 100 : 2000;
+            if ((now - _lastPidRefreshUtc).TotalMilliseconds >= pidIntervalMs)
             {
-                foreach (var process in Process.GetProcesses())
-                {
-                    try
-                    {
-                        if (!GameProcessNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase))
-                            continue;
-                        pids.Add(process.Id);
-                        foundNames.Add(process.ProcessName);
-                    }
-                    catch { }
-                    finally { process.Dispose(); }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppLog.Write("game-filter: process enumeration failed " + ex.Message);
+                _lastPidRefreshUtc = now;
+                _gamePids = FindGamePids();
             }
 
+            // Connections can change during login, matchmaking and scene changes.
+            // Refresh this much faster than the process list so a brand-new BPSR
+            // TCP connection is not allowed to send several packets before we know
+            // that its local endpoint belongs to the game.
+            if ((now - _lastEndpointRefreshUtc).TotalMilliseconds < 100)
+                return;
+
+            _lastEndpointRefreshUtc = now;
             var endpoints = new HashSet<EndpointKey>();
-            if (pids.Count > 0)
+            if (_gamePids.Count > 0)
             {
                 try
                 {
                     foreach (var row in TcpOwnerTable.GetIpv4Rows())
                     {
-                        if (!pids.Contains(row.OwningPid)) continue;
+                        if (!_gamePids.Contains(row.OwningPid)) continue;
                         if (row.LocalPort <= 0) continue;
                         endpoints.Add(new EndpointKey(row.LocalAddress, row.LocalPort));
                     }
@@ -83,15 +78,43 @@ internal static class GamePacketFilter
             }
 
             _localEndpoints = endpoints;
-            var summary = $"pids={string.Join(',', pids.OrderBy(x => x))} names={string.Join(',', foundNames.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))} endpoints={endpoints.Count}";
-            if (!string.Equals(summary, _lastSummary, StringComparison.Ordinal))
+            LogSnapshotIfChanged();
+        }
+    }
+
+    private static HashSet<int> FindGamePids()
+    {
+        var pids = new HashSet<int>();
+        try
+        {
+            foreach (var process in Process.GetProcesses())
             {
-                _lastSummary = summary;
-                AppLog.Write("game-filter: " + summary);
-                foreach (var endpoint in endpoints.OrderBy(x => x.Address, StringComparer.Ordinal).ThenBy(x => x.Port))
-                    AppLog.Write($"game-filter: local={endpoint.Address}:{endpoint.Port}");
+                try
+                {
+                    if (GameProcessNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase))
+                        pids.Add(process.Id);
+                }
+                catch { }
+                finally { process.Dispose(); }
             }
         }
+        catch (Exception ex)
+        {
+            AppLog.Write("game-filter: process enumeration failed " + ex.Message);
+        }
+
+        return pids;
+    }
+
+    private static void LogSnapshotIfChanged()
+    {
+        var summary = $"pids={string.Join(',', _gamePids.Order())} endpoints={_localEndpoints.Count}";
+        if (string.Equals(summary, _lastSummary, StringComparison.Ordinal)) return;
+
+        _lastSummary = summary;
+        AppLog.Write("game-filter: " + summary);
+        foreach (var endpoint in _localEndpoints.OrderBy(x => x.Address, StringComparer.Ordinal).ThenBy(x => x.Port))
+            AppLog.Write($"game-filter: local={endpoint.Address}:{endpoint.Port}");
     }
 
     private static bool TryGetIpv4TcpEndpoints(
