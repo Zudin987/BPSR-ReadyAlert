@@ -91,53 +91,59 @@ internal sealed class NpcapCapture : IDisposable
         packet = null;
         if (_handle == IntPtr.Zero) return false;
 
-        // Match ZDPS's capture strategy: only hand packets from TCP endpoints owned
-        // by a supported BPSR game process to the reassembler. Consume a small batch
-        // per call so unrelated adapter traffic cannot starve the game stream.
-        for (var attempt = 0; attempt < 64; attempt++)
+        var result = Native.pcap_next_ex(_handle, out var headerPtr, out var dataPtr);
+        switch (result)
         {
-            var result = Native.pcap_next_ex(_handle, out var headerPtr, out var dataPtr);
-            switch (result)
+            case 1:
             {
-                case 1:
-                {
-                    var header = Marshal.PtrToStructure<PcapPkthdr>(headerPtr);
-                    if (header.CapLen == 0 || dataPtr == IntPtr.Zero) continue;
-                    var candidate = new byte[header.CapLen];
-                    Marshal.Copy(dataPtr, candidate, 0, checked((int)header.CapLen));
-                    if (!GamePacketFilter.IsBpsrPacket(candidate, DataLink)) continue;
-                    packet = candidate;
-                    return true;
-                }
-                case 0:
-                case -2:
-                    return false;
-                case -1:
-                    throw new InvalidOperationException("pcap_next_ex failed: " + GetHandleError(_handle));
-                default:
-                    throw new InvalidOperationException("Unexpected pcap_next_ex result: " + result);
-            }
-        }
+                var header = Marshal.PtrToStructure<PcapPkthdr>(headerPtr);
+                if (header.CapLen == 0 || dataPtr == IntPtr.Zero) return false;
 
-        return false;
+                var captured = new byte[header.CapLen];
+                Marshal.Copy(dataPtr, captured, 0, checked((int)header.CapLen));
+
+                // Match ZDPS's connection-selection strategy: only allow packets
+                // whose local endpoint belongs to a running BPSR-family process.
+                // This happens before TCP/game-protocol reassembly so unrelated
+                // browser/Discord/launcher traffic can never desynchronise it.
+                if (!GamePacketFilter.IsBpsrPacket(captured, DataLink))
+                    return false;
+
+                packet = captured;
+                return true;
+            }
+            case 0:
+            case -2:
+                return false;
+            case -1:
+                throw new InvalidOperationException("pcap_next_ex failed: " + GetHandleError(_handle));
+            default:
+                throw new InvalidOperationException("Unexpected pcap_next_ex result: " + result);
+        }
     }
 
     private static void ConfigureHandle(IntPtr handle)
     {
         CheckPreActivate(Native.pcap_set_snaplen(handle, 65_536), "pcap_set_snaplen", handle);
         CheckPreActivate(Native.pcap_set_promisc(handle, 1), "pcap_set_promisc", handle);
-        CheckPreActivate(Native.pcap_set_timeout(handle, 50), "pcap_set_timeout", handle);
+
+        // Low-latency fallback. Immediate mode normally delivers packets as soon
+        // as they arrive; if it is unavailable, a 1 ms read timeout prevents a
+        // quiet adapter from stalling the polling loop for tens of milliseconds.
+        CheckPreActivate(Native.pcap_set_timeout(handle, 1), "pcap_set_timeout", handle);
         CheckPreActivate(Native.pcap_set_buffer_size(handle, 16 * 1024 * 1024), "pcap_set_buffer_size", handle);
 
         try
         {
             var immediate = Native.pcap_set_immediate_mode(handle, 1);
             if (immediate != 0)
-                AppLog.Write("npcap: pcap_set_immediate_mode returned " + immediate + "; continuing");
+                AppLog.Write("npcap: pcap_set_immediate_mode returned " + immediate + "; continuing with 1ms timeout");
+            else
+                AppLog.Write("npcap: immediate mode enabled; fallback timeout=1ms");
         }
         catch (EntryPointNotFoundException)
         {
-            AppLog.Write("npcap: immediate mode unavailable; continuing with timeout mode");
+            AppLog.Write("npcap: immediate mode unavailable; using 1ms timeout");
         }
 
         var activate = Native.pcap_activate(handle);
@@ -206,6 +212,7 @@ internal sealed class NpcapCapture : IDisposable
                 return;
             }
 
+            // Some Npcap installs expose wpcap.dll through the normal DLL search path.
             _dllPathConfigured = true;
         }
     }
