@@ -17,19 +17,24 @@ It is designed to run beside the official **Resonance Logs CN** DPS meter withou
 5. On first run, Ready Alert tries to find `resonance-logs-cn.exe`. If it cannot, select the EXE once.
 6. From then on, launch **BPSR Ready Alert only**. It automatically starts Resonance Logs CN if the meter is not already running.
 
-The app stays in the system tray. Right-click the tray icon for **Test Alert Sound**, alert toggles, log access, the selected Npcap adapter, or to change the Resonance Logs CN path.
+The app stays in the system tray. Right-click the tray icon for **Test Alert Sound**, alert toggles, **Network Adapter**, **Alert Volume**, log access, or to change the Resonance Logs CN path.
 
 Ready Alert does not request Administrator/UAC elevation by default. Some Npcap installations can be configured to allow capture only to administrators; on such systems Windows may require the app to be run as administrator.
 
 ## Network adapter selection
 
-Ready Alert tries to avoid making you choose the same network adapter twice:
+Ready Alert captures **one Npcap adapter only**.
 
-1. It looks for Resonance Logs CN's `packetCapture.json` and reuses the stored `npcapDevice` when Resonance Logs itself is configured for Npcap.
-2. It also auto-selects active physical adapters with an IP address, gateway, and MAC address, preferring Ethernet/Wi-Fi and avoiding common VPN/VM/tunnel adapters.
-3. It passively scans additional sensible Npcap adapters as fallbacks so one stale adapter choice does not break detection.
+- If you have not selected an adapter in Ready Alert, it first follows Resonance Logs CN's saved `npcapDevice` when Resonance Logs itself is configured for Npcap.
+- If that is unavailable, Ready Alert auto-selects an active physical adapter with an IP address, gateway, and MAC address, preferring Ethernet/Wi-Fi and avoiding common VPN/VM/tunnel adapters.
+- Use **Network Adapter** in the tray menu to explicitly choose any Npcap adapter yourself. The choice is saved and capture restarts immediately on the selected adapter.
+- Choose **Follow Resonance Logs CN / Auto** to remove the Ready Alert override.
 
-The preferred adapter and capture plan are recorded in `readyalert.log`.
+Ready Alert does not scan all adapters in parallel.
+
+## Alert volume
+
+Use **Alert Volume** in the tray menu to set Ready Alert's own sound level from **Mute to 100%** in 10% steps. This changes only the alert playback volume; it does not change Windows master volume.
 
 ## Pin to Start
 
@@ -51,14 +56,14 @@ It never copies files into the Resonance Logs CN directory and does not replace 
 
 ## Alert detection
 
-The app passively captures TCP traffic through Npcap and performs TCP/game-frame reassembly using the same message-type rules as BPSR-ZDPS.
+The app passively captures TCP traffic through Npcap and performs TCP/game-frame reassembly using the same message-type rules as BPSR-ZDPS. Captured packets are filtered to TCP endpoints owned by a running BPSR-family game process before game-protocol parsing.
 
 - Ready Check open: `WorldNtf` service `1664308034`, method `0x46` (`NotifyAllMemberReady`).
 - Ready Check response/update: method `0x47` (`NotifyCaptainReady`) is observed but does **not** start the alert.
 - Match found: `MatchNtf` service `822849903`, method `0x04` (`EnterMatchResult`), then protobuf `MatchInfo.matchStatus == 2` (`WaitReady`).
 - Party/dungeon vote: `GrpcTeamNtf` service `966773353`, method `0x0E` (`NotifyTeamActivityState`), then protobuf `TeamActivity.state == 3` (`Voting`).
 - Protocol message types `0..8` are consumed correctly; only `FrameDown` (`6`) is recursively decoded for nested server notifications. `FrameUp` (`5`) is not treated as `FrameDown`.
-- IPv4 and IPv6 are supported.
+- IPv4 and IPv6 game-frame parsing is supported; BPSR process ownership filtering currently follows ZDPS's IPv4 TCP owner-table approach.
 - Ethernet/raw-IP Npcap datalink formats are supported, including common VLAN headers.
 - Zstd-compressed notify and FrameDown payloads are supported.
 - Duplicate alerts are suppressed for a few seconds.
@@ -74,7 +79,7 @@ GitHub Actions builds the self-contained Windows x64 EXE. Local build requires t
 dotnet publish src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj -c Release -r win-x64 --self-contained true -o dist
 ```
 
-`prepare-build-assets.ps1` reconstructs the bundled alert WAV used by the project. Npcap is intentionally not downloaded or redistributed by the build.
+`prepare-build-assets.ps1` reconstructs the bundled alert WAV and validates/repairs the bundled application ICO before compilation. Npcap is intentionally not downloaded or redistributed by the build.
 
 ## Notes
 

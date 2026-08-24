@@ -12,13 +12,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
     private readonly ResonanceLogsLauncher _launcher;
-    private readonly NpcapCapturePlan _capturePlan;
+    private NpcapCapturePlan _capturePlan;
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly ConcurrentQueue<AlertEvent> _events = new();
-    private readonly CaptureEngine _engine;
-    private readonly SoundPlayer _player;
+    private CaptureEngine _engine;
+    private readonly AlertAudioPlayer _player;
     private readonly Icon _appIcon;
+    private ToolStripMenuItem? _adapterMenu;
+    private ToolStripMenuItem? _volumeMenu;
 
     internal TrayApplicationContext(
         AppPaths paths,
@@ -32,8 +34,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _settingsStore = settingsStore;
         _launcher = launcher;
         _capturePlan = capturePlan;
-        _player = new SoundPlayer(_paths.AlertSoundPath);
-        try { _player.Load(); } catch (Exception ex) { AppLog.Write("audio: preload failed " + ex.Message); }
+        _player = new AlertAudioPlayer(_paths.AlertSoundPath, _settings.AlertVolume);
 
         _appIcon = LoadApplicationIcon(_paths.AppIconPath);
         var menu = BuildMenu();
@@ -47,13 +48,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         AppLog.Write(
             $"settings: queue={_settings.QueuePopAlert} ready={_settings.ReadyCheckAlert} " +
-            $"notification={_settings.DesktopNotification} autoLaunch={_settings.AutoLaunchResonanceLogs}");
-        AppLog.Write($"capture: plan adapters={_capturePlan.Candidates.Count} preferred={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
+            $"notification={_settings.DesktopNotification} autoLaunch={_settings.AutoLaunchResonanceLogs} " +
+            $"volume={_settings.AlertVolume}% adapter={_settings.NpcapDeviceName}");
+        AppLog.Write($"capture: selected adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
 
         _engine = new CaptureEngine(_events, _capturePlan);
         _engine.Start();
 
-        _timer = new System.Windows.Forms.Timer { Interval = 100 };
+        _timer = new System.Windows.Forms.Timer { Interval = 25 };
         _timer.Tick += (_, _) => DrainEvents();
         _timer.Start();
 
@@ -149,14 +151,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(notificationItem);
         menu.Items.Add(autoLaunchItem);
 
-        var adaptersMenu = new ToolStripMenuItem($"Npcap: scanning {_capturePlan.Candidates.Count} adapter(s)");
-        foreach (var candidate in _capturePlan.Candidates)
-        {
-            var label = candidate.Description;
-            if (label.Length > 58) label = label[..55] + "...";
-            adaptersMenu.DropDownItems.Add(new ToolStripMenuItem($"{label} ({candidate.Source})") { Enabled = false });
-        }
-        menu.Items.Add(adaptersMenu);
+        _adapterMenu = new ToolStripMenuItem();
+        RefreshAdapterMenu();
+        menu.Items.Add(_adapterMenu);
+
+        _volumeMenu = new ToolStripMenuItem();
+        RefreshVolumeMenu();
+        menu.Items.Add(_volumeMenu);
         menu.Items.Add(new ToolStripSeparator());
 
         var test = new ToolStripMenuItem("Test Alert Sound");
@@ -203,6 +204,92 @@ internal sealed class TrayApplicationContext : ApplicationContext
         return menu;
     }
 
+    private void RefreshAdapterMenu()
+    {
+        if (_adapterMenu is null) return;
+
+        var description = Shorten(_capturePlan.Primary.Description, 38);
+        _adapterMenu.Text = $"Network Adapter: {description}";
+        _adapterMenu.DropDownItems.Clear();
+
+        var auto = new ToolStripMenuItem("Follow Resonance Logs CN / Auto")
+        {
+            Checked = string.IsNullOrWhiteSpace(_settings.NpcapDeviceName)
+        };
+        auto.Click += (_, _) => SelectAdapter(string.Empty);
+        _adapterMenu.DropDownItems.Add(auto);
+        _adapterMenu.DropDownItems.Add(new ToolStripSeparator());
+
+        foreach (var device in _capturePlan.AvailableDevices)
+        {
+            var label = Shorten(device.Description, 64);
+            var item = new ToolStripMenuItem(label)
+            {
+                Checked = !string.IsNullOrWhiteSpace(_settings.NpcapDeviceName) &&
+                          string.Equals(_settings.NpcapDeviceName, device.Name, StringComparison.OrdinalIgnoreCase),
+                ToolTipText = device.Name
+            };
+            var deviceName = device.Name;
+            item.Click += (_, _) => SelectAdapter(deviceName);
+            _adapterMenu.DropDownItems.Add(item);
+        }
+    }
+
+    private void SelectAdapter(string deviceName)
+    {
+        if (string.Equals(_settings.NpcapDeviceName, deviceName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _settings.NpcapDeviceName = deviceName;
+        _settingsStore.Save(_settings);
+        AppLog.Write("settings: NpcapDeviceName=" + (string.IsNullOrWhiteSpace(deviceName) ? "<auto>" : deviceName));
+
+        try
+        {
+            _engine.Dispose();
+            _capturePlan = NpcapDeviceSelector.SelectPlan(_settings);
+            _engine = new CaptureEngine(_events, _capturePlan);
+            _engine.Start();
+            RefreshAdapterMenu();
+            AppLog.Write($"capture: switched adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("capture: adapter switch failed " + ex);
+            _events.Enqueue(new AlertEvent("error", "BPSR Ready Alert", "Could not switch Npcap adapter: " + ex.Message));
+        }
+    }
+
+    private void RefreshVolumeMenu()
+    {
+        if (_volumeMenu is null) return;
+        _volumeMenu.Text = $"Alert Volume: {_settings.AlertVolume}%";
+        _volumeMenu.DropDownItems.Clear();
+
+        foreach (var volume in Enumerable.Range(0, 11).Select(i => i * 10))
+        {
+            var value = volume;
+            var item = new ToolStripMenuItem(value == 0 ? "Mute" : $"{value}%")
+            {
+                Checked = value == _settings.AlertVolume
+            };
+            item.Click += (_, _) => SetVolume(value);
+            _volumeMenu.DropDownItems.Add(item);
+        }
+    }
+
+    private void SetVolume(int volume)
+    {
+        _settings.AlertVolume = Math.Clamp(volume, 0, 100);
+        _settingsStore.Save(_settings);
+        _player.Volume = _settings.AlertVolume;
+        RefreshVolumeMenu();
+        AppLog.Write("settings: AlertVolume=" + _settings.AlertVolume);
+    }
+
+    private static string Shorten(string value, int max) =>
+        value.Length <= max ? value : value[..(max - 3)] + "...";
+
     private void DrainEvents()
     {
         while (_events.TryDequeue(out var evt))
@@ -239,10 +326,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         try
         {
-            AppLog.Write($"audio: play requested reason={reason} file={_paths.AlertSoundPath}");
-            _player.Stop();
-            _player.Play();
-            AppLog.Write($"audio: play submitted reason={reason}");
+            _player.Play(reason);
         }
         catch (Exception ex)
         {
