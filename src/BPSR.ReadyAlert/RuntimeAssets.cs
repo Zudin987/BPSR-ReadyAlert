@@ -9,6 +9,9 @@ internal static class RuntimeAssets
         EnsureResource(
             "BPSR.ReadyAlert.Assets.LetsDoThis.wav",
             paths.AlertSoundPath);
+        EnsureResource(
+            "BPSR.ReadyAlert.Assets.App.ico",
+            paths.AppIconPath);
     }
 
     private static void EnsureResource(string resourceName, string destination)
