@@ -91,33 +91,41 @@ internal sealed class NpcapCapture : IDisposable
         packet = null;
         if (_handle == IntPtr.Zero) return false;
 
-        var result = Native.pcap_next_ex(_handle, out var headerPtr, out var dataPtr);
-        switch (result)
+        // Match ZDPS's capture strategy: only hand packets from TCP endpoints owned
+        // by a supported BPSR game process to the reassembler. Consume a small batch
+        // per call so unrelated adapter traffic cannot starve the game stream.
+        for (var attempt = 0; attempt < 64; attempt++)
         {
-            case 1:
+            var result = Native.pcap_next_ex(_handle, out var headerPtr, out var dataPtr);
+            switch (result)
             {
-                var header = Marshal.PtrToStructure<PcapPkthdr>(headerPtr);
-                if (header.CapLen == 0 || dataPtr == IntPtr.Zero) return false;
-                packet = new byte[header.CapLen];
-                Marshal.Copy(dataPtr, packet, 0, checked((int)header.CapLen));
-                return true;
+                case 1:
+                {
+                    var header = Marshal.PtrToStructure<PcapPkthdr>(headerPtr);
+                    if (header.CapLen == 0 || dataPtr == IntPtr.Zero) continue;
+                    var candidate = new byte[header.CapLen];
+                    Marshal.Copy(dataPtr, candidate, 0, checked((int)header.CapLen));
+                    if (!GamePacketFilter.IsBpsrPacket(candidate, DataLink)) continue;
+                    packet = candidate;
+                    return true;
+                }
+                case 0:
+                case -2:
+                    return false;
+                case -1:
+                    throw new InvalidOperationException("pcap_next_ex failed: " + GetHandleError(_handle));
+                default:
+                    throw new InvalidOperationException("Unexpected pcap_next_ex result: " + result);
             }
-            case 0:
-            case -2:
-                return false;
-            case -1:
-                throw new InvalidOperationException("pcap_next_ex failed: " + GetHandleError(_handle));
-            default:
-                throw new InvalidOperationException("Unexpected pcap_next_ex result: " + result);
         }
+
+        return false;
     }
 
     private static void ConfigureHandle(IntPtr handle)
     {
         CheckPreActivate(Native.pcap_set_snaplen(handle, 65_536), "pcap_set_snaplen", handle);
         CheckPreActivate(Native.pcap_set_promisc(handle, 1), "pcap_set_promisc", handle);
-        // Keep a short fallback timeout because v0.4.1 may scan several adapters.
-        // On normal Npcap builds immediate mode makes reads return promptly anyway.
         CheckPreActivate(Native.pcap_set_timeout(handle, 50), "pcap_set_timeout", handle);
         CheckPreActivate(Native.pcap_set_buffer_size(handle, 16 * 1024 * 1024), "pcap_set_buffer_size", handle);
 
@@ -198,7 +206,6 @@ internal sealed class NpcapCapture : IDisposable
                 return;
             }
 
-            // Some Npcap installs expose wpcap.dll through the normal DLL search path.
             _dllPathConfigured = true;
         }
     }
