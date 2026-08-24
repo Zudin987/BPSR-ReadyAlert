@@ -110,6 +110,30 @@ jobs:
 
             Download `BPSR-ReadyAlert.exe`, place it anywhere, and run it. The app is self-contained and requires no .NET installation.
 
+      - name: Create v0.9.0 RC release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v0.9.0]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.9.0
+          name: BPSR Ready Alert v0.9.0 RC
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            Release candidate for v1.0.0.
+
+            Main changes from v0.6.1:
+            - migrated the self-contained build to .NET 10 LTS, reducing EXE size substantially without trimming;
+            - hardened log rotation and stale asset/adapter handling;
+            - repaired the application icon source;
+            - tightened GitHub Actions release permissions and added a 55 MiB size regression guard.
+
+            Please live-test Ready Check, matchmaking queue popup, adapter switching, alert volume, tray/Explorer icon, and normal exit before v1.0.0.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
