@@ -44,6 +44,16 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o dist
 
+      - name: Enforce EXE size budget
+        shell: pwsh
+        run: |
+          $exe = Get-Item ./dist/BPSR-ReadyAlert.exe
+          $limit = 55MB
+          Write-Host ("BPSR-ReadyAlert.exe: {0:N2} MiB (budget: {1:N2} MiB)" -f ($exe.Length / 1MB), ($limit / 1MB))
+          if ($exe.Length -gt $limit) {
+            throw "Release EXE exceeded the 55 MiB size budget. Review new dependencies/runtime changes before release."
+          }
+
       - name: Smoke-test single-file EXE
         shell: pwsh
         run: |
