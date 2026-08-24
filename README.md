@@ -3,7 +3,8 @@
 A tiny Windows companion for **Blue Protocol: Star Resonance** that plays a sound when:
 
 - matchmaking reaches the **accept / Ready** popup;
-- a party **Ready Check** starts.
+- a party **Ready Check** starts;
+- a party/dungeon activity vote opens.
 
 It is designed to run beside the official **Resonance Logs CN** DPS meter without modifying or replacing any of its files, so the CN meter keeps using its normal updater.
 
@@ -24,11 +25,11 @@ Ready Alert does not request Administrator/UAC elevation by default. Some Npcap 
 
 Ready Alert tries to avoid making you choose the same network adapter twice:
 
-1. It looks for Resonance Logs CN's `packetCapture.json` and reuses the stored `npcapDevice` if that adapter still exists.
-2. If no usable saved adapter exists, it auto-selects an active physical adapter with an IP address, gateway, and MAC address, preferring Ethernet/Wi-Fi and avoiding common VPN/VM/tunnel adapters.
-3. As a final fallback it uses the first non-loopback Npcap adapter and records the choice in `readyalert.log`.
+1. It looks for Resonance Logs CN's `packetCapture.json` and reuses the stored `npcapDevice` when Resonance Logs itself is configured for Npcap.
+2. It also auto-selects active physical adapters with an IP address, gateway, and MAC address, preferring Ethernet/Wi-Fi and avoiding common VPN/VM/tunnel adapters.
+3. It passively scans additional sensible Npcap adapters as fallbacks so one stale adapter choice does not break detection.
 
-The selected adapter and selection source are shown in the tray menu.
+The preferred adapter and capture plan are recorded in `readyalert.log`.
 
 ## Pin to Start
 
@@ -40,7 +41,7 @@ Windows does not provide a reliable supported API for silently pinning an app, s
 
 There is no installer. The release is one self-contained `BPSR-ReadyAlert.exe`.
 
-Npcap is an external dependency and is **not** bundled or modified by Ready Alert. The app only extracts its bundled alert WAV to:
+Npcap is an external dependency and is **not** bundled or modified by Ready Alert. The app extracts its bundled alert WAV and versioned icon to:
 
 ```text
 %LOCALAPPDATA%\BPSR-ReadyAlert\assets\
@@ -50,13 +51,16 @@ It never copies files into the Resonance Logs CN directory and does not replace 
 
 ## Alert detection
 
-The app passively captures TCP traffic through Npcap and performs its own TCP/frame reassembly.
+The app passively captures TCP traffic through Npcap and performs TCP/game-frame reassembly using the same message-type rules as BPSR-ZDPS.
 
-- Ready Check: `WorldNtf` service `1664308034`, methods `0x46` (`NotifyAllMemberReady`) and `0x47` (`NotifyCaptainReady`).
+- Ready Check open: `WorldNtf` service `1664308034`, method `0x46` (`NotifyAllMemberReady`).
+- Ready Check response/update: method `0x47` (`NotifyCaptainReady`) is observed but does **not** start the alert.
 - Match found: `MatchNtf` service `822849903`, method `0x04` (`EnterMatchResult`), then protobuf `MatchInfo.matchStatus == 2` (`WaitReady`).
+- Party/dungeon vote: `GrpcTeamNtf` service `966773353`, method `0x0E` (`NotifyTeamActivityState`), then protobuf `TeamActivity.state == 3` (`Voting`).
+- Protocol message types `0..8` are consumed correctly; only `FrameDown` (`6`) is recursively decoded for nested server notifications. `FrameUp` (`5`) is not treated as `FrameDown`.
 - IPv4 and IPv6 are supported.
 - Ethernet/raw-IP Npcap datalink formats are supported, including common VLAN headers.
-- Zstd-compressed notify and nested frames are supported.
+- Zstd-compressed notify and FrameDown payloads are supported.
 - Duplicate alerts are suppressed for a few seconds.
 
 The default sound is the user-selected `LetsDoThis` alert bundled into the EXE at build time.
