@@ -2,6 +2,8 @@
 
 A small Windows companion for **Blue Protocol: Star Resonance** that plays a sound when matchmaking reaches the accept/Ready popup, a party Ready Check starts, or a party/dungeon activity vote opens.
 
+**Website:** https://zudin987.github.io/projects/readyalert/
+
 It is designed to run beside the official **Resonance Logs CN** DPS meter without modifying or replacing its files.
 
 ## Quick start
