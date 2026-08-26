@@ -64,7 +64,7 @@ internal sealed partial class ChatOverlayForm
         var y = e.Bounds.Top + 5;
         var right = e.Bounds.Right - 10;
         var textColor = ChatColorUtil.Blend(ChatUiTheme.Text, back, _settings.Chat.TextOpacity);
-        var senderColor = ChatColorUtil.Blend(Color.FromArgb(126, 186, 255), back, _settings.Chat.TextOpacity);
+        var senderColor = ChatColorUtil.Blend(ChatSenderColor.ForMessage(item.Message), back, _settings.Chat.TextOpacity);
         var metaColor = ChatColorUtil.Blend(Color.FromArgb(157, 170, 188), back, _settings.Chat.TextOpacity);
         var messageFont = _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont;
 
@@ -123,13 +123,7 @@ internal sealed partial class ChatOverlayForm
         return value;
     }
 
-    private bool IsNearBottom()
-    {
-        if (_messages.Items.Count == 0) return true;
-        var index = _messages.IndexFromPoint(new Point(Math.Max(1, _messages.ClientSize.Width / 2), Math.Max(1, _messages.ClientSize.Height - 3)));
-        if (index == ListBox.NoMatches) return _messages.TopIndex >= _messages.Items.Count - 1;
-        return index >= _messages.Items.Count - 1;
-    }
+    private bool IsNearBottom() => ChatListScrollMath.IsAtBottom(_messages);
 
     private void UpdateFollowLatestFromViewport()
     {
@@ -156,7 +150,7 @@ internal sealed partial class ChatOverlayForm
 
     private void ScrollToLatest()
     {
-        if (_messages.Items.Count > 0) _messages.TopIndex = _messages.Items.Count - 1;
+        ChatListScrollMath.ScrollToBottom(_messages);
         _unseenMessages = 0;
         UpdateNewMessagesButton();
     }
