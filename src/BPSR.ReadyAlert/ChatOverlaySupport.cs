@@ -257,6 +257,10 @@ internal static class ChatNativeMethods
 internal sealed class ChatMessageListBox : ListBox
 {
     private const int WmVScroll = 0x0115;
+    private Font? _stableControlFont;
+    private bool _isolateOwnerDrawFont;
+    private bool _normalizingFont;
+
     internal event EventHandler? ViewportChanged;
 
     internal ChatMessageListBox()
@@ -266,6 +270,35 @@ internal sealed class ChatMessageListBox : ListBox
         BorderStyle = BorderStyle.None;
         SelectionMode = SelectionMode.One;
         SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
+
+        // The real message fonts are owned/disposed by ChatOverlayForm's custom
+        // renderer. Keep the native ListBox FONT property on a process-owned,
+        // stable system font so WinForms can always create/recreate the HWND safely.
+        // This deliberately prevents a transient render Font from becoming the
+        // control Font and later being disposed while WinForms still references it.
+        _stableControlFont = SystemFonts.MessageBoxFont;
+        base.Font = _stableControlFont;
+        _isolateOwnerDrawFont = true;
+    }
+
+    protected override void OnFontChanged(EventArgs e)
+    {
+        if (_isolateOwnerDrawFont && !_normalizingFont && _stableControlFont is not null &&
+            !ReferenceEquals(Font, _stableControlFont))
+        {
+            _normalizingFont = true;
+            try
+            {
+                base.Font = _stableControlFont;
+            }
+            finally
+            {
+                _normalizingFont = false;
+            }
+            return;
+        }
+
+        base.OnFontChanged(e);
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
