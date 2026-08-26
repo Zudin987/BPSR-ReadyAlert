@@ -24,13 +24,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- RC5 UI overhaul is compiled from side-by-side files while the RC4 UI
-         source remains on the feature branch for easy review/rollback. -->
-    <Compile Remove="ChatOverlayForm.cs" />
-    <Compile Remove="ChatOverlayDialogs.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
