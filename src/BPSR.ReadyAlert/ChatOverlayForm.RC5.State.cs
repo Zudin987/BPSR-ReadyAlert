@@ -9,6 +9,7 @@ internal sealed partial class ChatOverlayForm
     {
         TopMost = _settings.Chat.TopMost;
         Opacity = Math.Clamp(_settings.Chat.WindowOpacity, 25, 100) / 100d;
+        ChatNotificationEngine.Configure(_settings.Chat, _defaultSoundPath);
 
         var body = ChatColorUtil.Blend(Color.FromArgb(16, 19, 23), Color.FromArgb(49, 56, 67), _settings.Chat.BackgroundOpacity);
         var toolbar = ChatColorUtil.Blend(Color.FromArgb(20, 24, 29), Color.FromArgb(56, 65, 78), _settings.Chat.ToolbarOpacity);
@@ -30,6 +31,7 @@ internal sealed partial class ChatOverlayForm
         PositionNewMessagesButton();
         _messages.Invalidate();
         UpdateEmptyState();
+        SyncV111ScrollUx();
 
         if (registerHotkeys && IsHandleCreated) RegisterHotkeys(showErrors: true);
         ApplyClickThrough();
@@ -68,13 +70,15 @@ internal sealed partial class ChatOverlayForm
         if (_history.Count <= cap)
         {
             UpdateEmptyState();
+            SyncV111ScrollUx();
             return;
         }
 
-        // Capture the user's viewport before removing the oldest rows. Native
-        // WinForms ListBox can reset TopIndex when item 0 is deleted; if that
-        // happens before AddMessage checks follow-latest state, the overlay thinks
-        // the user intentionally scrolled up and starts accumulating unread chat.
+        // Item-0 deletion changes native ListBox scroll state. Stop an in-flight
+        // wheel animation before taking the user's anchor so its old target cannot
+        // race the trim and pull the viewport somewhere else afterward.
+        CancelV111SmoothScroll();
+
         var keepFollowing = _followLatest && IsNearBottom();
         ChatMessageEvent? viewportAnchor = null;
         if (!keepFollowing && _messages.TopIndex >= 0 && _messages.TopIndex < _messages.Items.Count &&
@@ -87,7 +91,7 @@ internal sealed partial class ChatOverlayForm
             _history.RemoveAt(0);
             for (var i = 0; i < _messages.Items.Count; i++)
             {
-                if (_messages.Items[i] is ChatDisplayItem item && item.Message.Equals(removed))
+                if (_messages.Items[i] is ChatDisplayItem item && item.Message.SequenceId == removed.SequenceId)
                 {
                     _messages.Items.RemoveAt(i);
                     break;
@@ -104,15 +108,17 @@ internal sealed partial class ChatOverlayForm
         {
             for (var i = 0; i < _messages.Items.Count; i++)
             {
-                if (_messages.Items[i] is ChatDisplayItem item && item.Message.Equals(anchor))
+                if (_messages.Items[i] is ChatDisplayItem item && item.Message.SequenceId == anchor.SequenceId)
                 {
                     _messages.TopIndex = i;
                     break;
                 }
             }
+            CancelV111SmoothScroll();
         }
 
         UpdateEmptyState();
+        SyncV111ScrollUx();
     }
 
     private ChatTabSettings SelectedTab =>
@@ -132,6 +138,7 @@ internal sealed partial class ChatOverlayForm
     {
         if (IsDisposed || _settings.Chat.Tabs.Count == 0 || _collapsed) return;
 
+        CancelV111SmoothScroll();
         ChatMessageEvent? oldTop = null;
         if (keepScroll && !_followLatest && _messages.TopIndex >= 0 && _messages.TopIndex < _messages.Items.Count &&
             _messages.Items[_messages.TopIndex] is ChatDisplayItem oldTopItem)
@@ -160,15 +167,17 @@ internal sealed partial class ChatOverlayForm
         {
             for (var i = 0; i < _messages.Items.Count; i++)
             {
-                if (_messages.Items[i] is ChatDisplayItem item && item.Message.Equals(topMessage))
+                if (_messages.Items[i] is ChatDisplayItem item && item.Message.SequenceId == topMessage.SequenceId)
                 {
                     _messages.TopIndex = i;
                     break;
                 }
             }
+            CancelV111SmoothScroll();
         }
         _messages.Invalidate();
         UpdateEmptyState();
+        SyncV111ScrollUx();
     }
 
     private ChatDisplayItem CreateDisplayItem(ChatMessageEvent message)
@@ -189,7 +198,11 @@ internal sealed partial class ChatOverlayForm
         var empty = _messages.Items.Count == 0;
         _messages.Visible = !empty;
         _emptyState.Visible = empty;
-        if (!empty) return;
+        if (!empty)
+        {
+            SyncV111ScrollUx();
+            return;
+        }
 
         if (_history.Count == 0)
         {
@@ -205,6 +218,7 @@ internal sealed partial class ChatOverlayForm
         }
         _emptyState.BringToFront();
         _topPanel.BringToFront();
+        SyncV111ScrollUx();
     }
 
     private sealed record ChatDisplayItem(
