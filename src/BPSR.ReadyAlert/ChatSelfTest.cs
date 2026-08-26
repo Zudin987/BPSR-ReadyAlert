@@ -108,6 +108,7 @@ internal static class ChatSelfTest
         Assert(settings.Tabs.Any(x => x.Name == "World"), "World tab");
         Assert(settings.Tabs.Any(x => x.Name == "Guild / Team"), "Guild / Team tab");
         var all = settings.Tabs.Single(x => x.Name == "All");
+        Assert(all.Channels.Contains((int)ChatChannel.Null), "All includes Null");
         Assert(all.Channels.Contains((int)ChatChannel.Newbie), "All includes Newbie");
         Assert(all.Channels.Contains((int)ChatChannel.Play), "All includes Play");
         Assert(settings.BackgroundOpacity == 10, "background opacity clamp");
