@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BPSR-ReadyAlert</AssemblyName>
     <RootNamespace>BPSR.ReadyAlert</RootNamespace>
-    <Version>1.1.0-rc.4</Version>
+    <Version>1.1.0-rc.5</Version>
     <Authors>Zudin987</Authors>
     <Description>Portable matchmaking, Ready Check, and optional chat overlay companion for Blue Protocol: Star Resonance.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -22,6 +22,13 @@
     <DebugType>embedded</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- RC5 UI overhaul is compiled from side-by-side files while the RC4 UI
+         source remains on the feature branch for easy review/rollback. -->
+    <Compile Remove="ChatOverlayForm.cs" />
+    <Compile Remove="ChatOverlayDialogs.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
