@@ -17,7 +17,7 @@ internal static class AppVersion
                 return plus >= 0 ? informational[..plus] : informational;
             }
 
-            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0-rc.3";
+            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0-rc.4";
         }
     }
 }
