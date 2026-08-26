@@ -5,29 +5,33 @@ namespace BPSR.ReadyAlert;
 
 internal sealed class ChatOverlayForm : Form
 {
+    private const int MaxSenderNameLength = 128;
+    private const int MaxDisplayedMessageLength = 8 * 1024;
+
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
-    private readonly Action<bool> _enabledChanged;
     private readonly List<ChatMessageEvent> _history = [];
     private readonly Dictionary<int, ChatMessageEvent> _lineMessageMap = [];
     private readonly FlowLayoutPanel _tabBar;
     private readonly RichTextBox _messages;
     private readonly Button _gearButton;
+    private readonly Panel _topPanel;
     private readonly System.Windows.Forms.Timer _relativeTimer;
     private ChatMessageEvent? _contextMessage;
     private bool _allowClose;
+    private int _trimsSinceFullRender;
 
     internal ChatOverlayForm(
         AppSettings settings,
         SettingsStore settingsStore,
-        string iconPath,
-        Action<bool> enabledChanged)
+        string iconPath)
     {
         _settings = settings;
         _settingsStore = settingsStore;
-        _enabledChanged = enabledChanged;
         _settings.Chat.Normalize();
 
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         Text = "BPSR Chat";
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
@@ -54,7 +58,7 @@ internal sealed class ChatOverlayForm : Form
 
         RestoreWindowPlacement();
 
-        var topPanel = new Panel
+        _topPanel = new Panel
         {
             Dock = DockStyle.Top,
             Height = 34,
@@ -69,7 +73,8 @@ internal sealed class ChatOverlayForm : Form
             FlatStyle = FlatStyle.Flat,
             ForeColor = Color.WhiteSmoke,
             BackColor = Color.FromArgb(52, 52, 52),
-            TabStop = false
+            TabStop = false,
+            AccessibleName = "Chat settings"
         };
         _gearButton.FlatAppearance.BorderSize = 0;
         _gearButton.Click += (_, _) => OpenSettingsDialog();
@@ -84,8 +89,8 @@ internal sealed class ChatOverlayForm : Form
             BackColor = Color.FromArgb(36, 36, 36)
         };
 
-        topPanel.Controls.Add(_tabBar);
-        topPanel.Controls.Add(_gearButton);
+        _topPanel.Controls.Add(_tabBar);
+        _topPanel.Controls.Add(_gearButton);
 
         _messages = new RichTextBox
         {
@@ -95,22 +100,25 @@ internal sealed class ChatOverlayForm : Form
             ForeColor = Color.Gainsboro,
             ReadOnly = true,
             DetectUrls = false,
-            HideSelection = true,
+            HideSelection = false,
             ScrollBars = RichTextBoxScrollBars.Vertical,
             WordWrap = true,
-            Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point)
+            Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point),
+            AccessibleName = "BPSR chat messages"
         };
 
         var messageMenu = new ContextMenuStrip();
         var copyName = new ToolStripMenuItem("Copy Name");
         copyName.Click += (_, _) =>
         {
-            if (_contextMessage is { } msg) Clipboard.SetText(msg.SenderName);
+            if (_contextMessage is { } msg && !string.IsNullOrEmpty(msg.SenderName))
+                Clipboard.SetText(msg.SenderName);
         };
         var copyUid = new ToolStripMenuItem("Copy UID");
         copyUid.Click += (_, _) =>
         {
-            if (_contextMessage is { } msg) Clipboard.SetText(msg.SenderId.ToString());
+            if (_contextMessage is { } msg && msg.SenderId != 0)
+                Clipboard.SetText(msg.SenderId.ToString());
         };
         var block = new ToolStripMenuItem("Block User");
         block.Click += (_, _) =>
@@ -124,21 +132,23 @@ internal sealed class ChatOverlayForm : Form
         messageMenu.Opening += (_, e) =>
         {
             var has = _contextMessage.HasValue;
-            copyName.Enabled = has;
-            copyUid.Enabled = has;
-            block.Enabled = has;
+            copyName.Enabled = has && !string.IsNullOrEmpty(_contextMessage.Value.SenderName);
+            copyUid.Enabled = has && _contextMessage.Value.SenderId != 0;
+            block.Enabled = has && _contextMessage.Value.SenderId != 0;
             if (!has) e.Cancel = true;
         };
         _messages.ContextMenuStrip = messageMenu;
         _messages.MouseDown += MessagesMouseDown;
 
         Controls.Add(_messages);
-        Controls.Add(topPanel);
+        Controls.Add(_topPanel);
 
-        _relativeTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+        // Relative times do not need a 1 Hz full RichTextBox rebuild. A 15-second
+        // refresh keeps the display useful while avoiding needless CPU/scroll churn.
+        _relativeTimer = new System.Windows.Forms.Timer { Interval = 15_000 };
         _relativeTimer.Tick += (_, _) =>
         {
-            if (Visible && _settings.Chat.ShowTime && _settings.Chat.ShowTimeAsAgo)
+            if (Visible && !_messages.Focused && _settings.Chat.ShowTime && _settings.Chat.ShowTimeAsAgo)
                 RenderMessages(keepScroll: true);
         };
         _relativeTimer.Start();
@@ -148,9 +158,10 @@ internal sealed class ChatOverlayForm : Form
             SaveWindowPlacement();
             if (!_allowClose && e.CloseReason == CloseReason.UserClosing)
             {
+                // X means "hide chat". The tray Chat Overlay check box is the
+                // explicit control for turning packet processing fully off.
                 e.Cancel = true;
                 Hide();
-                _enabledChanged(false);
             }
         };
 
@@ -166,10 +177,30 @@ internal sealed class ChatOverlayForm : Form
             return;
         }
 
+        message = SanitizeForDisplay(message);
         _history.Add(message);
-        TrimHistory();
-        if (Visible)
-            RenderMessages(keepScroll: false);
+        var trimmed = TrimHistory();
+
+        if (!Visible || _settings.Chat.Tabs.Count == 0)
+            return;
+
+        if (trimmed)
+        {
+            _trimsSinceFullRender++;
+            if (_trimsSinceFullRender >= 20)
+            {
+                RenderMessages(keepScroll: true);
+                return;
+            }
+        }
+
+        if (!IsVisibleForTab(message, SelectedTab))
+            return;
+
+        var wasAtEnd = IsCaretAtEnd();
+        AppendMessage(message);
+        if (wasAtEnd)
+            ScrollToEnd();
     }
 
     internal void ShowOverlay()
@@ -193,6 +224,7 @@ internal sealed class ChatOverlayForm : Form
             BeginInvoke(new Action(HideOverlay));
             return;
         }
+
         SaveWindowPlacement();
         Hide();
     }
@@ -218,6 +250,23 @@ internal sealed class ChatOverlayForm : Form
         _allowClose = true;
         Close();
         Dispose();
+    }
+
+    private static ChatMessageEvent SanitizeForDisplay(ChatMessageEvent message)
+    {
+        var name = (message.SenderName ?? string.Empty)
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Replace('\0', ' ')
+            .Trim();
+        if (name.Length > MaxSenderNameLength)
+            name = name[..MaxSenderNameLength];
+
+        var text = (message.Text ?? string.Empty).Replace("\0", string.Empty, StringComparison.Ordinal);
+        if (text.Length > MaxDisplayedMessageLength)
+            text = text[..MaxDisplayedMessageLength] + "…";
+
+        return message with { SenderName = name, Text = text };
     }
 
     private void MessagesMouseDown(object? sender, MouseEventArgs e)
@@ -255,10 +304,7 @@ internal sealed class ChatOverlayForm : Form
         {
             _tabBar.Controls.Clear();
             foreach (var tab in _settings.Chat.Tabs)
-            {
-                var button = MakeTabButton(tab);
-                _tabBar.Controls.Add(button);
-            }
+                _tabBar.Controls.Add(MakeTabButton(tab));
 
             var add = new Button
             {
@@ -269,7 +315,8 @@ internal sealed class ChatOverlayForm : Form
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(55, 55, 55),
                 ForeColor = Color.White,
-                TabStop = false
+                TabStop = false,
+                AccessibleName = "Add chat tab"
             };
             add.FlatAppearance.BorderSize = 0;
             add.Click += (_, _) => AddTab();
@@ -295,15 +342,16 @@ internal sealed class ChatOverlayForm : Form
             BackColor = selected ? Color.FromArgb(85, 85, 85) : Color.FromArgb(55, 55, 55),
             ForeColor = Color.WhiteSmoke,
             TabStop = false,
-            Tag = tab
+            Tag = tab,
+            AccessibleName = $"Chat tab {tab.Name}"
         };
         button.FlatAppearance.BorderSize = 0;
         button.Click += (_, _) => SelectTab(tab.Id);
 
         var menu = new ContextMenuStrip();
-        var edit = new ToolStripMenuItem("Edit");
+        var edit = new ToolStripMenuItem("Edit Tab...");
         edit.Click += (_, _) => EditTab(tab);
-        var delete = new ToolStripMenuItem("Delete");
+        var delete = new ToolStripMenuItem("Delete Tab...");
         delete.Click += (_, _) => DeleteTab(tab);
         menu.Items.Add(edit);
         menu.Items.Add(delete);
@@ -382,13 +430,27 @@ internal sealed class ChatOverlayForm : Form
     {
         TopMost = _settings.Chat.TopMost;
         Opacity = Math.Clamp(_settings.Chat.WindowOpacity, 25, 100) / 100d;
+
+        // WinForms child controls cannot independently alpha-blend with the desktop
+        // without switching the whole overlay to a custom layered-window renderer.
+        // Keep text crisp and use BackgroundOpacity as the surface darkness control.
+        var strength = Math.Clamp(_settings.Chat.BackgroundOpacity, 10, 100) / 100d;
+        var messageShade = (int)Math.Round(66 - (42 * strength));
+        var chromeShade = Math.Min(78, messageShade + 12);
+        var buttonShade = Math.Min(92, chromeShade + 16);
+        BackColor = Color.FromArgb(chromeShade, chromeShade, chromeShade);
+        _topPanel.BackColor = Color.FromArgb(chromeShade, chromeShade, chromeShade);
+        _tabBar.BackColor = _topPanel.BackColor;
+        _messages.BackColor = Color.FromArgb(messageShade, messageShade, messageShade);
+        _gearButton.BackColor = Color.FromArgb(buttonShade, buttonShade, buttonShade);
     }
 
-    private void TrimHistory()
+    private bool TrimHistory()
     {
         var cap = Math.Clamp(_settings.Chat.MaxHistory, 10, 500);
-        if (_history.Count > cap)
-            _history.RemoveRange(0, _history.Count - cap);
+        if (_history.Count <= cap) return false;
+        _history.RemoveRange(0, _history.Count - cap);
+        return true;
     }
 
     private ChatTabSettings SelectedTab =>
@@ -402,8 +464,6 @@ internal sealed class ChatOverlayForm : Form
         if (_settings.Chat.BlockedUsers.Any(x => x.Id != 0 && x.Id == message.SenderId)) return false;
         if (_settings.Chat.HideStickers && message.Kind == ChatMessageKind.Sticker) return false;
 
-        // ZDPS applies the regex filters to text chat. ReadyAlert keeps that behavior,
-        // but makes matching case-insensitive and supports explicit AND/OR expressions.
         if (message.Kind is ChatMessageKind.Text or ChatMessageKind.TextNotice)
         {
             if (!string.IsNullOrWhiteSpace(tab.ShowIfMatches) &&
@@ -423,28 +483,30 @@ internal sealed class ChatOverlayForm : Form
         if (IsDisposed || _settings.Chat.Tabs.Count == 0) return;
 
         var oldSelection = _messages.SelectionStart;
-        var oldScrollAtEnd = _messages.SelectionStart >= Math.Max(0, _messages.TextLength - 2);
+        var oldSelectionLength = _messages.SelectionLength;
+        var oldScrollAtEnd = IsCaretAtEnd();
         _messages.SuspendLayout();
         try
         {
             _messages.Clear();
             _lineMessageMap.Clear();
+            _trimsSinceFullRender = 0;
             var tab = SelectedTab;
 
             foreach (var message in _history)
             {
-                if (!IsVisibleForTab(message, tab)) continue;
-                AppendMessage(message);
+                if (IsVisibleForTab(message, tab))
+                    AppendMessage(message);
             }
 
             if (!keepScroll || oldScrollAtEnd)
             {
-                _messages.SelectionStart = _messages.TextLength;
-                _messages.ScrollToCaret();
+                ScrollToEnd();
             }
             else
             {
                 _messages.SelectionStart = Math.Min(oldSelection, _messages.TextLength);
+                _messages.SelectionLength = Math.Min(oldSelectionLength, _messages.TextLength - _messages.SelectionStart);
                 _messages.ScrollToCaret();
             }
         }
@@ -456,8 +518,7 @@ internal sealed class ChatOverlayForm : Form
 
     private void AppendMessage(ChatMessageEvent message)
     {
-        var line = _messages.GetLineFromCharIndex(_messages.TextLength);
-        _lineMessageMap[line] = message;
+        var startLine = _messages.GetLineFromCharIndex(_messages.TextLength);
 
         AppendColored($"[{GetChannelName(message.Channel)}] ", GetChannelColor(message.Channel));
 
@@ -465,19 +526,37 @@ internal sealed class ChatOverlayForm : Form
         {
             if (_settings.Chat.ShowTime)
                 AppendColored(GetTimeText(message.Timestamp) + " ", Color.FromArgb(155, 166, 190));
-            AppendColored($"[{message.SenderName}] ", Color.FromArgb(102, 179, 255));
+            AppendColored($"[{DisplaySenderName(message)}] ", Color.FromArgb(102, 179, 255));
             AppendColored(message.Text + Environment.NewLine, Color.Gainsboro);
-            return;
+        }
+        else
+        {
+            AppendColored($"[{DisplaySenderName(message)}]", Color.FromArgb(102, 179, 255));
+            if (_settings.Chat.ShowTime)
+                AppendColored("  " + GetTimeText(message.Timestamp), Color.FromArgb(155, 166, 190));
+            AppendColored(Environment.NewLine, Color.Gainsboro);
+            AppendColored(message.Text + Environment.NewLine, Color.Gainsboro);
         }
 
-        AppendColored($"[{message.SenderName}]", Color.FromArgb(102, 179, 255));
-        if (_settings.Chat.ShowTime)
-            AppendColored("  " + GetTimeText(message.Timestamp), Color.FromArgb(155, 166, 190));
-        AppendColored(Environment.NewLine, Color.Gainsboro);
+        var endLine = _messages.GetLineFromCharIndex(Math.Max(0, _messages.TextLength - 1));
+        for (var line = startLine; line <= endLine; line++)
+            _lineMessageMap[line] = message;
+    }
 
-        var contentLine = _messages.GetLineFromCharIndex(_messages.TextLength);
-        _lineMessageMap[contentLine] = message;
-        AppendColored(message.Text + Environment.NewLine, Color.Gainsboro);
+    private static string DisplaySenderName(ChatMessageEvent message)
+    {
+        if (!string.IsNullOrWhiteSpace(message.SenderName)) return message.SenderName;
+        return message.SenderId != 0 ? message.SenderId.ToString() : "System";
+    }
+
+    private bool IsCaretAtEnd() =>
+        _messages.SelectionStart + _messages.SelectionLength >= Math.Max(0, _messages.TextLength - 2);
+
+    private void ScrollToEnd()
+    {
+        _messages.SelectionStart = _messages.TextLength;
+        _messages.SelectionLength = 0;
+        _messages.ScrollToCaret();
     }
 
     private void AppendColored(string text, Color color)
@@ -534,10 +613,7 @@ internal sealed class ChatOverlayForm : Form
     {
         if (_settings.Chat.WindowX == int.MinValue || _settings.Chat.WindowY == int.MinValue)
         {
-            var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
-            Location = new Point(
-                Math.Max(area.Left, area.Right - Width - 40),
-                Math.Max(area.Top, area.Bottom - Height - 80));
+            PlaceAtPrimaryScreenBottomRight();
             return;
         }
 
@@ -549,6 +625,16 @@ internal sealed class ChatOverlayForm : Form
         var visible = Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(desired));
         if (visible)
             Bounds = desired;
+        else
+            PlaceAtPrimaryScreenBottomRight();
+    }
+
+    private void PlaceAtPrimaryScreenBottomRight()
+    {
+        var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+        Location = new Point(
+            Math.Max(area.Left, area.Right - Width - 40),
+            Math.Max(area.Top, area.Bottom - Height - 80));
     }
 
     private void SaveWindowPlacement()
