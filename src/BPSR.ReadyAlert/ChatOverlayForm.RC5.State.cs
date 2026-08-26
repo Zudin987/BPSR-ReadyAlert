@@ -64,6 +64,16 @@ internal sealed partial class ChatOverlayForm
         // ListBox deliberately keeps ChatMessageListBox's stable system font.
     }
 
+    private static bool SameMessageIdentity(ChatMessageEvent left, ChatMessageEvent right)
+    {
+        // Parsed live chat always has a session-local SequenceId. Keep the record
+        // equality fallback for legacy/self-test callers that construct events
+        // directly and therefore still use SequenceId=0.
+        if (left.SequenceId != 0 && right.SequenceId != 0)
+            return left.SequenceId == right.SequenceId;
+        return left.Equals(right);
+    }
+
     private void RemoveOverflowHistoryFromView()
     {
         var cap = Math.Clamp(_settings.Chat.MaxHistory, 10, 500);
@@ -91,7 +101,7 @@ internal sealed partial class ChatOverlayForm
             _history.RemoveAt(0);
             for (var i = 0; i < _messages.Items.Count; i++)
             {
-                if (_messages.Items[i] is ChatDisplayItem item && item.Message.SequenceId == removed.SequenceId)
+                if (_messages.Items[i] is ChatDisplayItem item && SameMessageIdentity(item.Message, removed))
                 {
                     _messages.Items.RemoveAt(i);
                     break;
@@ -108,7 +118,7 @@ internal sealed partial class ChatOverlayForm
         {
             for (var i = 0; i < _messages.Items.Count; i++)
             {
-                if (_messages.Items[i] is ChatDisplayItem item && item.Message.SequenceId == anchor.SequenceId)
+                if (_messages.Items[i] is ChatDisplayItem item && SameMessageIdentity(item.Message, anchor))
                 {
                     _messages.TopIndex = i;
                     break;
@@ -167,7 +177,7 @@ internal sealed partial class ChatOverlayForm
         {
             for (var i = 0; i < _messages.Items.Count; i++)
             {
-                if (_messages.Items[i] is ChatDisplayItem item && item.Message.SequenceId == topMessage.SequenceId)
+                if (_messages.Items[i] is ChatDisplayItem item && SameMessageIdentity(item.Message, topMessage))
                 {
                     _messages.TopIndex = i;
                     break;
