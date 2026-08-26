@@ -11,6 +11,8 @@ namespace BPSR.ReadyAlert;
 /// </summary>
 internal static class ChatFilterExpression
 {
+    private const int MaxExpressionLength = 4096;
+
     private static readonly Regex OrSplitter = new(
         @"[\r\n]+|\s*(?:\|\||\bOR\b)\s*|\s+\|\s+",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -25,6 +27,7 @@ internal static class ChatFilterExpression
     internal static bool IsMatch(string text, string? expression)
     {
         if (string.IsNullOrWhiteSpace(expression)) return true;
+        if (expression.Length > MaxExpressionLength) return false;
 
         try
         {
@@ -59,6 +62,11 @@ internal static class ChatFilterExpression
     {
         error = string.Empty;
         if (string.IsNullOrWhiteSpace(expression)) return true;
+        if (expression.Length > MaxExpressionLength)
+        {
+            error = $"Filter is too long. Keep it under {MaxExpressionLength} characters.";
+            return false;
+        }
 
         var foundAtom = false;
         foreach (var orGroup in SplitNonEmpty(OrSplitter, expression))
