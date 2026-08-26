@@ -21,17 +21,20 @@ internal sealed class ChatTabEditorForm : Form
     ];
 
     private readonly ChatTabSettings _tab;
+    private bool _isNew;
     private readonly TextBox _name = new();
     private readonly CheckedListBox _channels = new();
     private readonly NumericUpDown _minLevel = new();
     private readonly TextBox _show = new();
     private readonly TextBox _hide = new();
     private readonly Label _validation = new();
+    private readonly Label _applyStatus = new();
     private readonly Button _save = new();
 
     internal ChatTabEditorForm(ChatTabSettings tab, bool isNew)
     {
         _tab = tab;
+        _isNew = isNew;
         ChatUiTheme.ApplyForm(this);
         Text = isNew ? "Add Chat Tab" : $"Edit Chat Tab — {tab.Name}";
         StartPosition = FormStartPosition.CenterParent;
@@ -65,7 +68,7 @@ internal sealed class ChatTabEditorForm : Form
 
         AddStack(stack, BuildHeader(
             isNew ? "Create a chat tab" : "Edit chat tab",
-            "Choose what this tab shows. You can change it again later by right-clicking the tab."));
+            "Choose what this tab shows. Save applies immediately and keeps this window open."));
         AddStack(stack, BuildBasicsCard(tab));
         AddStack(stack, BuildChannelsCard(tab));
         AddStack(stack, BuildFiltersCard(tab));
@@ -78,6 +81,17 @@ internal sealed class ChatTabEditorForm : Form
         _show.TextChanged += (_, _) => RefreshValidation();
         _hide.TextChanged += (_, _) => RefreshValidation();
         RefreshValidation();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        if (Owner is ChatOverlayForm overlay && overlay.TopMost)
+        {
+            TopMost = true;
+            BringToFront();
+            Activate();
+        }
     }
 
     private Panel BuildFooter()
@@ -107,39 +121,46 @@ internal sealed class ChatTabEditorForm : Form
         var actions = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 4,
+            ColumnCount = 5,
             RowCount = 1,
             Margin = Padding.Empty,
             Padding = new Padding(18, 14, 18, 14),
             BackColor = ChatUiTheme.Surface
         };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112F));
         actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
+        _applyStatus.Dock = DockStyle.Fill;
+        _applyStatus.TextAlign = ContentAlignment.MiddleRight;
+        _applyStatus.ForeColor = ChatUiTheme.Success;
+        _applyStatus.Font = ChatUiTheme.UiFont(8.5F, FontStyle.Bold);
+
         _save.Text = "Save tab";
         _save.Dock = DockStyle.Fill;
         _save.Margin = Padding.Empty;
         ChatUiTheme.StylePrimaryButton(_save);
-        _save.Click += (_, _) => SaveAndClose();
+        _save.Click += (_, _) => ApplyTab();
 
-        var cancel = new Button
+        var close = new Button
         {
-            Text = "Cancel",
+            Text = "Close",
             Dock = DockStyle.Fill,
             DialogResult = DialogResult.Cancel,
             Margin = Padding.Empty
         };
-        ChatUiTheme.StyleSecondaryButton(cancel);
-        cancel.Margin = Padding.Empty;
+        ChatUiTheme.StyleSecondaryButton(close);
+        close.Margin = Padding.Empty;
 
-        actions.Controls.Add(cancel, 1, 0);
-        actions.Controls.Add(_save, 3, 0);
+        actions.Controls.Add(_applyStatus, 1, 0);
+        actions.Controls.Add(close, 2, 0);
+        actions.Controls.Add(_save, 4, 0);
         root.Controls.Add(actions, 0, 1);
         footer.Controls.Add(root);
-        CancelButton = cancel;
+        CancelButton = close;
         return footer;
     }
 
@@ -414,6 +435,7 @@ internal sealed class ChatTabEditorForm : Form
 
     private void RefreshValidation()
     {
+        _applyStatus.Text = string.Empty;
         if (!ChatFilterExpression.TryValidate(_show.Text, out var showError))
         {
             _validation.ForeColor = ChatUiTheme.Danger;
@@ -434,7 +456,7 @@ internal sealed class ChatTabEditorForm : Form
         _save.Enabled = true;
     }
 
-    private void SaveAndClose()
+    private void ApplyTab()
     {
         var name = _name.Text.Trim();
         if (name.Length == 0)
@@ -470,7 +492,20 @@ internal sealed class ChatTabEditorForm : Form
         _tab.MinLevel = (int)_minLevel.Value;
         _tab.ShowIfMatches = _show.Text.Trim();
         _tab.HideIfMatches = _hide.Text.Trim();
-        DialogResult = DialogResult.OK;
-        Close();
+
+        if (Owner is ChatOverlayForm overlay)
+        {
+            overlay.ApplyTabFromOpenDialog(_tab, _isNew);
+            TopMost = overlay.TopMost;
+            if (TopMost)
+            {
+                BringToFront();
+                Activate();
+            }
+        }
+
+        _isNew = false;
+        Text = $"Edit Chat Tab — {_tab.Name}";
+        _applyStatus.Text = "Saved ✓";
     }
 }
