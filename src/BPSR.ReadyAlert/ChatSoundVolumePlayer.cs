@@ -3,16 +3,22 @@ using System.Media;
 namespace BPSR.ReadyAlert;
 
 /// <summary>
-/// Keeps one preloaded PCM WAV player for chat notifications. It reuses
-/// ReadyAlert's existing sample-scaling audio path, so chat volume needs no new
-/// media framework or long-lived background audio engine.
+/// Keeps a tiny cache of preloaded PCM WAV players for chat notifications. RC9
+/// supports three keyword sounds plus Private/Talk and the built-in fallback, so
+/// switching between rules does not reopen/rescale a WAV on every chat message.
 /// </summary>
 internal static class ChatSoundVolumePlayer
 {
+    private const int MaxCachedPlayers = 5;
     private static readonly object Sync = new();
-    private static AlertAudioPlayer? _player;
-    private static string _loadedPath = string.Empty;
-    private static int _loadedVolume = -1;
+    private static readonly Dictionary<string, CacheEntry> Players = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Queue<string> LoadOrder = new();
+
+    private sealed class CacheEntry(AlertAudioPlayer player, int volume)
+    {
+        internal AlertAudioPlayer Player { get; } = player;
+        internal int Volume { get; } = volume;
+    }
 
     internal static void Play(string preferredPath, string fallbackPath, int volume, string reason)
     {
@@ -53,24 +59,39 @@ internal static class ChatSoundVolumePlayer
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
         try
         {
-            if (_player is null || _loadedVolume != volume || !string.Equals(_loadedPath, path, StringComparison.OrdinalIgnoreCase))
+            if (!Players.TryGetValue(path, out var entry) || entry.Volume != volume)
             {
-                _player?.Dispose();
-                _player = new AlertAudioPlayer(path, volume);
-                _loadedPath = path;
-                _loadedVolume = volume;
+                if (entry is not null)
+                {
+                    entry.Player.Dispose();
+                    Players.Remove(path);
+                }
+
+                TrimCacheForNewPath(path);
+                entry = new CacheEntry(new AlertAudioPlayer(path, volume), volume);
+                Players[path] = entry;
+                LoadOrder.Enqueue(path);
             }
-            _player.Play("chat-" + reason);
+
+            entry.Player.Play("chat-" + reason);
             return true;
         }
         catch (Exception ex)
         {
             AppLog.Write($"chat: volume-controlled sound failed path='{path}' reason={reason}: {ex.Message}");
-            _player?.Dispose();
-            _player = null;
-            _loadedPath = string.Empty;
-            _loadedVolume = -1;
+            if (Players.Remove(path, out var failed)) failed.Player.Dispose();
             return false;
+        }
+    }
+
+    private static void TrimCacheForNewPath(string incomingPath)
+    {
+        if (Players.ContainsKey(incomingPath)) return;
+        while (Players.Count >= MaxCachedPlayers && LoadOrder.Count > 0)
+        {
+            var oldest = LoadOrder.Dequeue();
+            if (!Players.Remove(oldest, out var entry)) continue;
+            entry.Player.Dispose();
         }
     }
 }
