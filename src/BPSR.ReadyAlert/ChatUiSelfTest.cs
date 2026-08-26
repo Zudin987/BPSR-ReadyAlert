@@ -10,6 +10,7 @@ internal static class ChatUiSelfTest
         TestTabEditorCreatesAndKeepsFooterVisible();
         TestSettingsShellCreatesAtMinimumSize();
         TestSupportDialogsCreateAtMinimumSize();
+        TestOverlayBodyStartsBelowToolbar();
         TestThemeControlsCreateHandles();
     }
 
@@ -20,7 +21,7 @@ internal static class ChatUiSelfTest
             Name = "World",
             Channels = [(int)ChatChannel.World],
             MinLevel = 50,
-            ShowIfMatches = "serum | food | raid",
+            ShowIfMatches = "PA",
             HideIfMatches = "spam"
         };
         using var form = new ChatTabEditorForm(tab, isNew: false);
@@ -28,7 +29,7 @@ internal static class ChatUiSelfTest
 
         var save = FindButton(form, "Save tab") ?? throw new InvalidOperationException("Chat UI self-test failed: tab editor Save tab button missing");
         AssertInsideClient(form, save, "tab editor Save");
-        Assert(save.Enabled, "tab editor valid filters keep Save enabled");
+        Assert(save.Enabled, "tab editor two-character filter keeps Save enabled");
     }
 
     private static void TestSettingsShellCreatesAtMinimumSize()
@@ -70,13 +71,39 @@ internal static class ChatUiSelfTest
         }
     }
 
+    private static void TestOverlayBodyStartsBelowToolbar()
+    {
+        var settings = new AppSettings { ChatOverlayEnabled = true };
+        settings.Chat.Normalize();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-ui-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            using var form = new ChatOverlayForm(settings, new SettingsStore(tempPath), string.Empty, string.Empty);
+            form.Size = new Size(600, 300);
+            PerformLayoutTree(form);
+            var bounds = form.GetLayoutBoundsForSelfTest();
+
+            Assert(bounds.Toolbar.Height > 0, "overlay toolbar has height");
+            Assert(bounds.Messages.Height > 0, "overlay message body has height");
+            Assert(bounds.Messages.Top >= bounds.Toolbar.Bottom,
+                "overlay first chat row starts below toolbar instead of underneath it");
+        }
+        finally
+        {
+            TryDelete(tempPath);
+            TryDelete(tempPath + ".bak");
+            TryDelete(tempPath + ".new");
+        }
+    }
+
     private static void TestThemeControlsCreateHandles()
     {
         using var tab = new ChatTabButton { Text = "World", Selected = true };
         using var nav = new ChatNavButton { Text = "Appearance", Selected = true };
         _ = tab.Handle;
         _ = nav.Handle;
-        Assert(tab.IsHandleCreated && nav.IsHandleCreated, "RC5 themed buttons create native handles");
+        Assert(tab.IsHandleCreated && nav.IsHandleCreated, "RC6 themed buttons create native handles");
     }
 
     private static void PrepareAtMinimumSize(Form form)
@@ -128,6 +155,15 @@ internal static class ChatUiSelfTest
         if (!ReferenceEquals(parent, form))
             throw new InvalidOperationException("Chat UI self-test failed: control is not parented by expected form");
         return rect;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch { }
     }
 
     private static void Assert(bool condition, string name)
