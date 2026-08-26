@@ -42,8 +42,17 @@ internal sealed partial class ChatGeneralSettingsForm : Form
     private readonly TextBox _highlight = new();
     private readonly Label _highlightValidation = new();
     private readonly Button _highlightColor = new();
-    private readonly CheckBox _highlightSound = new() { Text = "Play a sound when the keyword rule matches" };
-    private readonly TextBox _highlightSoundPath = new();
+
+    private readonly CheckBox[] _soundRuleEnabled =
+    [
+        new() { Text = "Enable sound rule 1" },
+        new() { Text = "Enable sound rule 2" },
+        new() { Text = "Enable sound rule 3" }
+    ];
+    private readonly TextBox[] _soundRuleMatch = [new(), new(), new()];
+    private readonly TextBox[] _soundRulePath = [new(), new(), new()];
+    private readonly Label[] _soundRuleValidation = [new(), new(), new()];
+
     private readonly CheckBox _privateHighlight = new() { Text = "Highlight Private / Talk messages" };
     private readonly Button _privateColor = new();
     private readonly CheckBox _privateSound = new() { Text = "Play a sound for Private / Talk messages" };
