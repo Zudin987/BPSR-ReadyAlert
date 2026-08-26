@@ -4,13 +4,15 @@ namespace BPSR.ReadyAlert;
 
 /// <summary>
 /// Friendly filter syntax layered on top of .NET regular expressions.
-/// Regex matching is always case-insensitive. A single '|' remains normal regex
-/// alternation, while OR/|| and AND/&& can combine several regex clauses.
+/// Matching is always case-insensitive. New lines, OR/||, and a whitespace-delimited
+/// single pipe ("foo | bar") are friendly OR separators. A compact regex pipe
+/// ("foo|bar" or "(foo|bar)") remains normal regex alternation for advanced users.
+/// AND/&& combines clauses that must all match.
 /// </summary>
 internal static class ChatFilterExpression
 {
     private static readonly Regex OrSplitter = new(
-        @"\s*(?:\|\||\bOR\b)\s*|[\r\n]+",
+        @"[\r\n]+|\s*(?:\|\||\bOR\b)\s*|\s+\|\s+",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly Regex AndSplitter = new(
