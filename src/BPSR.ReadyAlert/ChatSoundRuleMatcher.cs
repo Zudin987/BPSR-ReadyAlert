@@ -2,6 +2,9 @@ namespace BPSR.ReadyAlert;
 
 internal static class ChatSoundRuleMatcher
 {
+    internal static ChatSoundRule? FindFirstMatch(IReadOnlyList<ChatSoundRule> rules, ChatMessageEvent message) =>
+        FindFirstMatch(rules, message.Text ?? string.Empty);
+
     internal static ChatSoundRule? FindFirstMatch(IReadOnlyList<ChatSoundRule> rules, string searchable)
     {
         var count = Math.Min(rules.Count, 3);
