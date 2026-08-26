@@ -18,6 +18,7 @@ internal static class Program
                 ChatSelfTest.Run();
                 ChatUiSelfTest.Run();
                 ChatRc8SelfTest.Run();
+                ChatRc9SelfTest.Run();
                 return;
             }
             catch
