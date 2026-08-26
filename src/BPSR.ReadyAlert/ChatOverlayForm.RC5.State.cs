@@ -90,12 +90,7 @@ internal sealed partial class ChatOverlayForm
         if (message.SenderLevel > 0 && message.SenderLevel < tab.MinLevel) return false;
         if (_settings.Chat.BlockedUsers.Any(x => x.Id != 0 && x.Id == message.SenderId)) return false;
         if (_settings.Chat.HideStickers && message.Kind == ChatMessageKind.Sticker) return false;
-
-        if (message.Kind is ChatMessageKind.Text or ChatMessageKind.TextNotice)
-        {
-            if (!string.IsNullOrWhiteSpace(tab.ShowIfMatches) && !ChatFilterExpression.IsMatch(message.Text, tab.ShowIfMatches)) return false;
-            if (!string.IsNullOrWhiteSpace(tab.HideIfMatches) && ChatFilterExpression.IsMatch(message.Text, tab.HideIfMatches)) return false;
-        }
+        if (!ChatTabFilter.PassesTextRules(message, tab)) return false;
         return true;
     }
 
@@ -145,11 +140,11 @@ internal sealed partial class ChatOverlayForm
     private ChatDisplayItem CreateDisplayItem(ChatMessageEvent message)
     {
         var highlight = false;
-        if (!string.IsNullOrWhiteSpace(_settings.Chat.HighlightIfMatches) &&
-            message.Kind is ChatMessageKind.Text or ChatMessageKind.TextNotice)
+        if (!string.IsNullOrWhiteSpace(_settings.Chat.HighlightIfMatches))
         {
-            var searchable = DisplaySenderName(message) + "\n" + message.Text;
-            highlight = ChatFilterExpression.IsMatch(searchable, _settings.Chat.HighlightIfMatches);
+            highlight = ChatFilterExpression.IsMatch(
+                ChatTabFilter.SearchableText(message),
+                _settings.Chat.HighlightIfMatches);
         }
         return new ChatDisplayItem(message, highlight, _settings.Chat.PrivateHighlightEnabled && message.Channel == ChatChannel.Private);
     }
