@@ -106,13 +106,14 @@ internal static class ChatHotkey
 
     internal static string FormatKey(Keys key)
     {
-        if (key >= Keys.D0 && key <= Keys.D9)
-            return ((int)(key - Keys.D0)).ToString();
-        if (key >= Keys.NumPad0 && key <= Keys.NumPad9)
-            return "Num" + ((int)(key - Keys.NumPad0));
-        if (key >= Keys.A && key <= Keys.Z)
+        var keyValue = (int)key;
+        if (keyValue >= (int)Keys.D0 && keyValue <= (int)Keys.D9)
+            return (keyValue - (int)Keys.D0).ToString();
+        if (keyValue >= (int)Keys.NumPad0 && keyValue <= (int)Keys.NumPad9)
+            return "Num" + (keyValue - (int)Keys.NumPad0);
+        if (keyValue >= (int)Keys.A && keyValue <= (int)Keys.Z)
             return key.ToString();
-        if (key >= Keys.F1 && key <= Keys.F24)
+        if (keyValue >= (int)Keys.F1 && keyValue <= (int)Keys.F24)
             return key.ToString();
 
         return key switch
@@ -148,7 +149,7 @@ internal static class ChatHotkey
             }
             if (char.IsDigit(c))
             {
-                key = Keys.D0 + (c - '0');
+                key = (Keys)((int)Keys.D0 + (c - '0'));
                 return true;
             }
             if (c == '`') { key = Keys.Oemtilde; return true; }
@@ -159,7 +160,7 @@ internal static class ChatHotkey
         if (text.StartsWith("Num", StringComparison.OrdinalIgnoreCase) &&
             text.Length == 4 && char.IsDigit(text[3]))
         {
-            key = Keys.NumPad0 + (text[3] - '0');
+            key = (Keys)((int)Keys.NumPad0 + (text[3] - '0'));
             return true;
         }
 
