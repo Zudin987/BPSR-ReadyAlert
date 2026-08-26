@@ -5,6 +5,8 @@ on:
     branches: [main, feature/chat-ux-v1.1.1]
     tags: ['v*']
   pull_request:
+  pull_request_target:
+    types: [opened, reopened]
   workflow_dispatch:
 
 permissions:
@@ -235,3 +237,49 @@ jobs:
           files: |
             dist/BPSR-ReadyAlert.exe
             dist/SHA256SUMS.txt
+
+  publish_v111_from_owner_pr:
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'release/v1.1.1-publish' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor == 'Zudin987'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download validated main build
+        uses: actions/download-artifact@v4
+        with:
+          name: BPSR-ReadyAlert-win-x64
+          path: dist
+
+      - name: Publish v1.1.1 stable release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.1
+          name: BPSR Ready Alert v1.1.1
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.event.pull_request.base.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.1.1 hardens Chat Overlay reliability and scrolling.
+
+            Highlights:
+            - chat keyword/private sound handling is independent from overlay rendering, so collapse/hide/repaint cannot stop sound matching;
+            - follow-latest/history trimming no longer jumps away from the newest chat;
+            - smoother precision mouse-wheel scrolling and a custom dark scrollbar;
+            - deterministic per-user sender colors for easier conversation tracking;
+            - compiled/cached regex matching with timeout protection;
+            - bounded custom notification WAV size/duration and cache usage;
+            - IPv6 TCP capture support and richer voice/multilingual/hypertext chat extraction;
+            - expanded regression coverage for sound, scrolling, IPv6, rich chat and WAV limits.
+
+            Requires Npcap to be installed.
