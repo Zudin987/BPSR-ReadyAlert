@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Drawing.Text;
 using System.Windows.Forms;
 
 namespace BPSR.ReadyAlert;
@@ -83,8 +82,6 @@ internal sealed class ChatTabEditorForm : Form
 
     private Panel BuildFooter()
     {
-        // Keep actions in their own fixed row instead of relying on FlowLayoutPanel
-        // margin math. This remains stable when WinForms applies per-monitor DPI.
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
@@ -318,7 +315,10 @@ internal sealed class ChatTabEditorForm : Form
             Margin = Padding.Empty
         };
         labelBox.Controls.Add(ChatUiTheme.FieldLabel(label));
-        labelBox.Controls.Add(ChatUiTheme.Hint(hint));
+        var hintLabel = ChatUiTheme.Hint(hint);
+        hintLabel.MaximumSize = new Size(195, 0);
+        hintLabel.Margin = new Padding(0, 3, 0, 0);
+        labelBox.Controls.Add(hintLabel);
 
         var host = new Panel
         {
