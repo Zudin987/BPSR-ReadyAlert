@@ -2,6 +2,8 @@ using System.Media;
 
 namespace BPSR.ReadyAlert;
 
+internal readonly record struct WaveMetadata(long Bytes, double DurationSeconds, int SampleRate, int Channels);
+
 internal sealed class AlertAudioPlayer : IDisposable
 {
     private readonly object _sync = new();
@@ -13,7 +15,7 @@ internal sealed class AlertAudioPlayer : IDisposable
     internal AlertAudioPlayer(string path, int volume)
     {
         _sourceWav = File.ReadAllBytes(path);
-        ValidatePcm16Wave(_sourceWav);
+        _ = ValidatePcm16Wave(_sourceWav);
         Volume = volume;
     }
 
@@ -58,6 +60,12 @@ internal sealed class AlertAudioPlayer : IDisposable
         }
     }
 
+    internal static WaveMetadata ProbePcm16Wave(string path)
+    {
+        var wav = File.ReadAllBytes(path);
+        return ValidatePcm16Wave(wav);
+    }
+
     private void RebuildPlayer()
     {
         try { _player?.Stop(); } catch { }
@@ -96,7 +104,7 @@ internal sealed class AlertAudioPlayer : IDisposable
         return output;
     }
 
-    private static void ValidatePcm16Wave(byte[] wav)
+    private static WaveMetadata ValidatePcm16Wave(byte[] wav)
     {
         if (wav.Length < 44 || ReadAscii(wav, 0, 4) != "RIFF" || ReadAscii(wav, 8, 4) != "WAVE")
             throw new InvalidDataException("Alert sound is not a valid RIFF/WAVE file.");
@@ -104,10 +112,18 @@ internal sealed class AlertAudioPlayer : IDisposable
         var fmt = FindChunk(wav, "fmt ");
         if (fmt.Length < 16) throw new InvalidDataException("Alert sound has an invalid fmt chunk.");
         var format = ReadUInt16(wav, fmt.Offset);
+        var channels = ReadUInt16(wav, fmt.Offset + 2);
+        var sampleRate = ReadUInt32(wav, fmt.Offset + 4);
+        var byteRate = ReadUInt32(wav, fmt.Offset + 8);
         var bits = ReadUInt16(wav, fmt.Offset + 14);
         if (format != 1 || bits != 16)
             throw new InvalidDataException($"Alert sound must be 16-bit PCM WAV (format={format}, bits={bits}).");
-        _ = FindChunk(wav, "data");
+        if (channels == 0 || sampleRate == 0 || byteRate == 0)
+            throw new InvalidDataException("Alert sound has invalid PCM rate/channel metadata.");
+
+        var data = FindChunk(wav, "data");
+        var duration = data.Length / (double)byteRate;
+        return new WaveMetadata(wav.LongLength, duration, checked((int)sampleRate), channels);
     }
 
     private static (int Offset, int Length) FindChunk(byte[] wav, string id)
