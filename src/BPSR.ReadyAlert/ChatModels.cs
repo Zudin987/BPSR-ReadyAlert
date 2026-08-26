@@ -69,6 +69,10 @@ internal sealed class ChatOverlaySettings
     public bool ShowTime { get; set; } = true;
     public bool ShowTimeAsAgo { get; set; } = true;
     public bool HideStickers { get; set; } = false;
+
+    // WinForms applies WindowOpacity to the full overlay. BackgroundOpacity separately
+    // controls the darkness/strength of the chat surface so users can tune readability.
+    public int BackgroundOpacity { get; set; } = 82;
     public int WindowOpacity { get; set; } = 92;
     public int MaxHistory { get; set; } = 200;
     public int WindowX { get; set; } = int.MinValue;
@@ -81,6 +85,7 @@ internal sealed class ChatOverlaySettings
 
     internal void Normalize()
     {
+        BackgroundOpacity = Math.Clamp(BackgroundOpacity, 10, 100);
         WindowOpacity = Math.Clamp(WindowOpacity, 25, 100);
         MaxHistory = Math.Clamp(MaxHistory, 10, 500);
         WindowWidth = Math.Clamp(WindowWidth, 420, 2400);
@@ -88,14 +93,30 @@ internal sealed class ChatOverlaySettings
         Tabs ??= [];
         BlockedUsers ??= [];
 
-        foreach (var tab in Tabs)
+        var seenIds = new HashSet<long>();
+        for (var i = 0; i < Tabs.Count; i++)
         {
+            var tab = Tabs[i];
             tab.Name = string.IsNullOrWhiteSpace(tab.Name) ? "Chat" : tab.Name.Trim();
+            if (tab.Name.Length > 40) tab.Name = tab.Name[..40];
             tab.Channels ??= [];
+            tab.Channels = tab.Channels.Distinct().ToList();
             tab.MinLevel = Math.Clamp(tab.MinLevel, 1, 100);
             tab.ShowIfMatches ??= string.Empty;
             tab.HideIfMatches ??= string.Empty;
+
+            if (tab.Id == 0 || !seenIds.Add(tab.Id))
+            {
+                tab.Id = DateTime.UtcNow.Ticks + i;
+                seenIds.Add(tab.Id);
+            }
         }
+
+        BlockedUsers = BlockedUsers
+            .Where(x => x is not null && x.Id != 0)
+            .GroupBy(x => x.Id)
+            .Select(g => g.First())
+            .ToList();
 
         if (Tabs.Count == 0)
             AddDefaultTabs();
@@ -128,6 +149,8 @@ internal sealed class ChatOverlaySettings
                 (int)ChatChannel.Private,
                 (int)ChatChannel.Group,
                 (int)ChatChannel.TopNotice,
+                (int)ChatChannel.Play,
+                (int)ChatChannel.Newbie,
                 (int)ChatChannel.System
             ],
             MinLevel = 1
