@@ -9,6 +9,7 @@ internal static class ChatUiSelfTest
     {
         TestTabEditorCreatesAndKeepsFooterVisible();
         TestSettingsShellCreatesAtMinimumSize();
+        TestSupportDialogsCreateAtMinimumSize();
         TestThemeControlsCreateHandles();
     }
 
@@ -23,10 +24,7 @@ internal static class ChatUiSelfTest
             HideIfMatches = "spam"
         };
         using var form = new ChatTabEditorForm(tab, isNew: false);
-        form.Size = form.MinimumSize;
-        _ = form.Handle;
-        form.CreateControl();
-        form.PerformLayout();
+        PrepareAtMinimumSize(form);
 
         var save = FindButton(form, "Save tab") ?? throw new InvalidOperationException("Chat UI self-test failed: tab editor Save tab button missing");
         AssertInsideClient(form, save, "tab editor Save");
@@ -38,10 +36,7 @@ internal static class ChatUiSelfTest
         var settings = new ChatOverlaySettings();
         settings.Normalize();
         using var form = new ChatGeneralSettingsForm(settings);
-        form.Size = form.MinimumSize;
-        _ = form.Handle;
-        form.CreateControl();
-        form.PerformLayout();
+        PrepareAtMinimumSize(form);
 
         var save = FindButton(form, "Save changes") ?? throw new InvalidOperationException("Chat UI self-test failed: settings Save changes button missing");
         AssertInsideClient(form, save, "settings Save");
@@ -51,6 +46,30 @@ internal static class ChatUiSelfTest
         Assert(FindButton(form, "Advanced") is not null, "settings Advanced navigation exists");
     }
 
+    private static void TestSupportDialogsCreateAtMinimumSize()
+    {
+        using (var colors = new ChannelColorsForm([]))
+        {
+            PrepareAtMinimumSize(colors);
+            var save = FindButton(colors, "Save colors") ?? throw new InvalidOperationException("Chat UI self-test failed: channel colors Save button missing");
+            AssertInsideClient(colors, save, "channel colors Save");
+        }
+
+        using (var blocked = new BlockedUsersForm([]))
+        {
+            PrepareAtMinimumSize(blocked);
+            var done = FindButton(blocked, "Done") ?? throw new InvalidOperationException("Chat UI self-test failed: blocked users Done button missing");
+            AssertInsideClient(blocked, done, "blocked users Done");
+        }
+
+        using (var status = new ChatDebugStatusForm())
+        {
+            PrepareAtMinimumSize(status);
+            var done = FindButton(status, "Done") ?? throw new InvalidOperationException("Chat UI self-test failed: capture status Done button missing");
+            AssertInsideClient(status, done, "capture status Done");
+        }
+    }
+
     private static void TestThemeControlsCreateHandles()
     {
         using var tab = new ChatTabButton { Text = "World", Selected = true };
@@ -58,6 +77,21 @@ internal static class ChatUiSelfTest
         _ = tab.Handle;
         _ = nav.Handle;
         Assert(tab.IsHandleCreated && nav.IsHandleCreated, "RC5 themed buttons create native handles");
+    }
+
+    private static void PrepareAtMinimumSize(Form form)
+    {
+        form.Size = form.MinimumSize;
+        _ = form.Handle;
+        form.CreateControl();
+        PerformLayoutTree(form);
+    }
+
+    private static void PerformLayoutTree(Control parent)
+    {
+        parent.PerformLayout();
+        foreach (Control child in parent.Controls)
+            PerformLayoutTree(child);
     }
 
     private static Button? FindButton(Control parent, string text)
@@ -74,12 +108,26 @@ internal static class ChatUiSelfTest
 
     private static void AssertInsideClient(Form form, Control control, string name)
     {
-        var screen = control.RectangleToScreen(control.ClientRectangle);
-        var client = form.RectangleToScreen(form.ClientRectangle);
-        Assert(screen.Left >= client.Left - 1, name + " left edge stays inside client area");
-        Assert(screen.Top >= client.Top - 1, name + " top edge stays inside client area");
-        Assert(screen.Right <= client.Right + 1, name + " right edge stays inside client area");
-        Assert(screen.Bottom <= client.Bottom + 1, name + " bottom edge stays inside client area");
+        var rect = GetBoundsRelativeToForm(form, control);
+        var client = form.ClientRectangle;
+        Assert(rect.Left >= client.Left - 1, name + " left edge stays inside client area");
+        Assert(rect.Top >= client.Top - 1, name + " top edge stays inside client area");
+        Assert(rect.Right <= client.Right + 1, name + " right edge stays inside client area");
+        Assert(rect.Bottom <= client.Bottom + 1, name + " bottom edge stays inside client area");
+    }
+
+    private static Rectangle GetBoundsRelativeToForm(Form form, Control control)
+    {
+        var rect = control.Bounds;
+        var parent = control.Parent;
+        while (parent is not null && !ReferenceEquals(parent, form))
+        {
+            rect.Offset(parent.Left, parent.Top);
+            parent = parent.Parent;
+        }
+        if (!ReferenceEquals(parent, form))
+            throw new InvalidOperationException("Chat UI self-test failed: control is not parented by expected form");
+        return rect;
     }
 
     private static void Assert(bool condition, string name)
