@@ -83,11 +83,16 @@ internal static class ChatUiSelfTest
             form.Size = new Size(600, 300);
             PerformLayoutTree(form);
             var bounds = form.GetLayoutBoundsForSelfTest();
+            var ux = form.GetRc7UxMetricsForSelfTest();
 
             Assert(bounds.Toolbar.Height > 0, "overlay toolbar has height");
             Assert(bounds.Messages.Height > 0, "overlay message body has height");
             Assert(bounds.Messages.Top >= bounds.Toolbar.Bottom,
                 "overlay first chat row starts below toolbar instead of underneath it");
+            Assert(ux.BorderThickness >= 2, "overlay has a visible frame border");
+            Assert(ux.ResizeHitZone >= 12, "overlay resize hit target is forgiving");
+            Assert(ux.CollapsedOpacity <= 0.60d, "collapsed edge handle is translucent");
+            Assert(ux.NativeCollapsedThemeDisabled, "collapsed edge handle cannot be repainted by native light button theme");
         }
         finally
         {
@@ -103,7 +108,7 @@ internal static class ChatUiSelfTest
         using var nav = new ChatNavButton { Text = "Appearance", Selected = true };
         _ = tab.Handle;
         _ = nav.Handle;
-        Assert(tab.IsHandleCreated && nav.IsHandleCreated, "RC6 themed buttons create native handles");
+        Assert(tab.IsHandleCreated && nav.IsHandleCreated, "RC7 themed buttons create native handles");
     }
 
     private static void PrepareAtMinimumSize(Form form)
