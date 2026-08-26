@@ -6,9 +6,13 @@ internal static class ChatRc9SelfTest
 {
     internal static void Run()
     {
+        Environment.ExitCode = 91;
         TestLegacyRc8SoundMigration();
+        Environment.ExitCode = 92;
         TestThreeRuleCapAndPriority();
+        Environment.ExitCode = 93;
         TestSoundRuleUi();
+        Environment.ExitCode = 0;
     }
 
     private static void TestLegacyRc8SoundMigration()
