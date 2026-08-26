@@ -9,10 +9,12 @@ internal static class Program
     private static void Main(string[] args)
     {
         // CI runs the final published single-file EXE in this mode. Besides proving
-        // the bundle starts, run deterministic chat parser/filter/settings checks.
+        // the bundle starts, run deterministic chat parser/filter/settings and UI checks.
         if (args.Any(a => string.Equals(a, "--build-smoke-test", StringComparison.OrdinalIgnoreCase)))
         {
+            ApplicationConfiguration.Initialize();
             ChatSelfTest.Run();
+            ChatUiSelfTest.Run();
             return;
         }
 
@@ -47,9 +49,6 @@ internal static class Program
 
             var capturePlan = NpcapDeviceSelector.SelectPlan(settings);
 
-            // A saved Npcap device GUID can disappear after a NIC/Npcap reinstall.
-            // SelectPlan already falls back safely; also clear the stale override so
-            // the tray accurately shows Follow Resonance Logs CN / Auto next time.
             if (!string.IsNullOrWhiteSpace(settings.NpcapDeviceName) &&
                 !capturePlan.AvailableDevices.Any(d =>
                     string.Equals(d.Name, settings.NpcapDeviceName, StringComparison.OrdinalIgnoreCase)))
