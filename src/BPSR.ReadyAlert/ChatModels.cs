@@ -142,6 +142,7 @@ internal sealed class ChatOverlaySettings
             Name = "All",
             Channels =
             [
+                (int)ChatChannel.Null,
                 (int)ChatChannel.World,
                 (int)ChatChannel.Local,
                 (int)ChatChannel.Team,
