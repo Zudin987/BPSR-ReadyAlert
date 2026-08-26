@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace BPSR.ReadyAlert;
@@ -23,6 +24,12 @@ internal static class ChatUiTheme
     internal static readonly Color Danger = Color.FromArgb(244, 113, 116);
     internal static readonly Color Input = Color.FromArgb(18, 21, 26);
 
+    private const int DwmwaUseImmersiveDarkMode = 20;
+    private const int DwmwaUseImmersiveDarkModeLegacy = 19;
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
+
     internal static Font UiFont(float size = 9F, FontStyle style = FontStyle.Regular) =>
         new("Segoe UI", size, style, GraphicsUnit.Point);
 
@@ -33,6 +40,22 @@ internal static class ChatUiTheme
         form.Font = UiFont();
         form.AutoScaleMode = AutoScaleMode.Dpi;
         form.AutoScaleDimensions = new SizeF(96F, 96F);
+        form.HandleCreated += (_, _) => TryUseDarkTitleBar(form);
+        if (form.IsHandleCreated) TryUseDarkTitleBar(form);
+    }
+
+    private static void TryUseDarkTitleBar(Form form)
+    {
+        if (!OperatingSystem.IsWindows() || !form.IsHandleCreated) return;
+        try
+        {
+            var enabled = 1;
+            var result = DwmSetWindowAttribute(form.Handle, DwmwaUseImmersiveDarkMode, ref enabled, sizeof(int));
+            if (result != 0)
+                _ = DwmSetWindowAttribute(form.Handle, DwmwaUseImmersiveDarkModeLegacy, ref enabled, sizeof(int));
+        }
+        catch (DllNotFoundException) { }
+        catch (EntryPointNotFoundException) { }
     }
 
     internal static void StylePrimaryButton(Button button)
@@ -126,9 +149,6 @@ internal static class ChatUiTheme
     internal static Label Subheading(string text) => new()
     {
         AutoSize = true,
-        // Keep explanatory copy narrow enough for every RC5 dialog at minimum
-        // width. This intentionally wraps earlier instead of forcing horizontal
-        // scrolling on 125–175% DPI displays.
         MaximumSize = new Size(430, 0),
         Text = text,
         ForeColor = Muted,
