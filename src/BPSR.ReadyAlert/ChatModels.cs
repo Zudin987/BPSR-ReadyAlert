@@ -33,7 +33,8 @@ internal readonly record struct ChatMessageEvent(
     ChatChannel Channel,
     DateTime Timestamp,
     ChatMessageKind Kind,
-    string Text);
+    string Text,
+    long SequenceId = 0);
 
 internal sealed class ChatTabSettings
 {
