@@ -25,12 +25,15 @@ internal static class Program
                 // exit codes to identify which RC5 UI-fit assertion failed without
                 // weakening the assertions themselves.
                 var detail = ex.ToString();
-                Environment.ExitCode = detail.Contains("tab editor Save button stays inside", StringComparison.OrdinalIgnoreCase) ? 21
-                    : detail.Contains("tab editor valid filters keep Save enabled", StringComparison.OrdinalIgnoreCase) ? 22
-                    : detail.Contains("tab editor", StringComparison.OrdinalIgnoreCase) ? 23
-                    : detail.Contains("settings", StringComparison.OrdinalIgnoreCase) ? 24
-                    : detail.Contains("themed buttons", StringComparison.OrdinalIgnoreCase) ? 25
-                    : 20;
+                Environment.ExitCode = detail.Contains("tab editor Save left edge", StringComparison.OrdinalIgnoreCase) ? 31
+                    : detail.Contains("tab editor Save top edge", StringComparison.OrdinalIgnoreCase) ? 32
+                    : detail.Contains("tab editor Save right edge", StringComparison.OrdinalIgnoreCase) ? 33
+                    : detail.Contains("tab editor Save bottom edge", StringComparison.OrdinalIgnoreCase) ? 34
+                    : detail.Contains("tab editor valid filters keep Save enabled", StringComparison.OrdinalIgnoreCase) ? 35
+                    : detail.Contains("tab editor", StringComparison.OrdinalIgnoreCase) ? 36
+                    : detail.Contains("settings", StringComparison.OrdinalIgnoreCase) ? 37
+                    : detail.Contains("themed buttons", StringComparison.OrdinalIgnoreCase) ? 38
+                    : 30;
                 return;
             }
         }
