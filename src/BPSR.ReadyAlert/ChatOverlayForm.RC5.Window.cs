@@ -20,7 +20,10 @@ internal sealed partial class ChatOverlayForm
             return;
         }
 
-        var searchable = ChatTabFilter.SearchableText(message);
+        // Sound rules intentionally inspect message content only. Player/sender
+        // names are excluded so a user named "Serum" does not trigger the serum
+        // notification every time they say something unrelated.
+        var searchable = message.Text ?? string.Empty;
         for (var i = 0; i < _settings.Chat.HighlightSoundRules.Count && i < 3; i++)
         {
             var rule = _settings.Chat.HighlightSoundRules[i];
@@ -34,7 +37,7 @@ internal sealed partial class ChatOverlayForm
 
     private void PlayChatSound(string configuredPath, string reason)
     {
-        // There is intentionally no user cooldown for RC9. The timestamp is kept
+        // There is intentionally no user cooldown for RC9+. The timestamp is kept
         // only for diagnostics/future troubleshooting and does not suppress sound.
         _lastSoundUtc = DateTime.UtcNow;
         var preferredPath = !string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath)
