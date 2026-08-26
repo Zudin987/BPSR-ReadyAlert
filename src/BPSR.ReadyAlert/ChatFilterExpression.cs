@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace BPSR.ReadyAlert;
@@ -24,10 +25,17 @@ internal static class ChatFilterExpression
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(80);
     private const RegexOptions MatchOptions = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
 
+    // A syntactically valid catastrophic regex can otherwise consume one timeout for
+    // every historical message during a redraw. Once an expression times out, fail it
+    // closed for the rest of the session (or until the editor validates it again).
+    private static readonly ConcurrentDictionary<string, byte> TimedOutExpressions =
+        new(StringComparer.Ordinal);
+
     internal static bool IsMatch(string text, string? expression)
     {
         if (string.IsNullOrWhiteSpace(expression)) return true;
         if (expression.Length > MaxExpressionLength) return false;
+        if (TimedOutExpressions.ContainsKey(expression)) return false;
 
         try
         {
@@ -52,6 +60,8 @@ internal static class ChatFilterExpression
         }
         catch (RegexMatchTimeoutException)
         {
+            if (TimedOutExpressions.TryAdd(expression, 0))
+                AppLog.Write("chat: regex filter timed out and was disabled for this session");
             return false;
         }
 
@@ -92,6 +102,7 @@ internal static class ChatFilterExpression
             return false;
         }
 
+        TimedOutExpressions.TryRemove(expression, out _);
         return true;
     }
 
