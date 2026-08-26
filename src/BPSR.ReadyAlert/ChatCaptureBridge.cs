@@ -2,6 +2,16 @@ using System.Collections.Concurrent;
 
 namespace BPSR.ReadyAlert;
 
+internal readonly record struct ChatCaptureStatus(
+    bool Enabled,
+    long MatchingNotifies,
+    long ParsedMessages,
+    long ParseFailures,
+    long DroppedQueuedMessages,
+    int QueueCount,
+    int LastPayloadLength,
+    DateTime? LastMessageUtc);
+
 /// <summary>
 /// Cheap opt-in chat consumer for CaptureEngine's existing decoded Notify stream.
 /// It deliberately owns no Npcap handle, TCP flow state, decompressor, or thread.
@@ -12,6 +22,12 @@ internal static class ChatCaptureBridge
     private static ConcurrentQueue<ChatMessageEvent>? _events;
     private static volatile bool _enabled;
     private static int _loggedParseFailure;
+    private static long _matchingNotifies;
+    private static long _parsedMessages;
+    private static long _parseFailures;
+    private static long _droppedQueuedMessages;
+    private static long _lastMessageUtcTicks;
+    private static int _lastPayloadLength;
 
     internal static bool Enabled
     {
@@ -25,6 +41,21 @@ internal static class ChatCaptureBridge
         Volatile.Write(ref _events, events);
     }
 
+    internal static ChatCaptureStatus GetStatus()
+    {
+        var events = Volatile.Read(ref _events);
+        var ticks = Interlocked.Read(ref _lastMessageUtcTicks);
+        return new ChatCaptureStatus(
+            Enabled,
+            Interlocked.Read(ref _matchingNotifies),
+            Interlocked.Read(ref _parsedMessages),
+            Interlocked.Read(ref _parseFailures),
+            Interlocked.Read(ref _droppedQueuedMessages),
+            events?.Count ?? 0,
+            Volatile.Read(ref _lastPayloadLength),
+            ticks > 0 ? new DateTime(ticks, DateTimeKind.Utc) : null);
+    }
+
     /// <summary>
     /// Returns true when this Notify belongs to the chat service/method, even when
     /// chat is disabled. That lets CaptureEngine stop dispatching this known packet
@@ -35,6 +66,9 @@ internal static class ChatCaptureBridge
         if (service != ChatProtocol.ServiceId || method != ChatProtocol.NotifyNewestChitChatMsgs)
             return false;
 
+        Interlocked.Increment(ref _matchingNotifies);
+        Volatile.Write(ref _lastPayloadLength, payload.Length);
+
         if (!_enabled) return true;
 
         var events = Volatile.Read(ref _events);
@@ -42,14 +76,20 @@ internal static class ChatCaptureBridge
 
         if (!ChatProtocol.TryParseNotify(payload, out var message))
         {
+            Interlocked.Increment(ref _parseFailures);
             if (Interlocked.Exchange(ref _loggedParseFailure, 1) == 0)
                 AppLog.Write($"chat: first ChitChatNtf parse failure protoLen={payload.Length}");
             return true;
         }
 
+        Interlocked.Increment(ref _parsedMessages);
+        Interlocked.Exchange(ref _lastMessageUtcTicks, DateTime.UtcNow.Ticks);
+
         // The UI normally drains every 25 ms. Keep a hard emergency ceiling so a
         // blocked UI thread or malformed packet flood cannot grow memory forever.
-        while (events.Count >= MaxQueuedMessages && events.TryDequeue(out _)) { }
+        while (events.Count >= MaxQueuedMessages && events.TryDequeue(out _))
+            Interlocked.Increment(ref _droppedQueuedMessages);
+
         events.Enqueue(message);
         return true;
     }
