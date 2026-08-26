@@ -8,10 +8,27 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        // CI uses this after publishing the final single-file EXE. If the bundle is
-        // damaged, this process will fail to start.
+        // CI runs the final published single-file EXE in this mode. Besides proving
+        // the bundle starts, run deterministic chat parser/filter/settings and UI checks.
         if (args.Any(a => string.Equals(a, "--build-smoke-test", StringComparison.OrdinalIgnoreCase)))
-            return;
+        {
+            try
+            {
+                ApplicationConfiguration.Initialize();
+                RunSmokeStep(ChatSelfTest.Run, 11);
+                RunSmokeStep(ChatUiSelfTest.Run, 12);
+                RunSmokeStep(ChatRc8SelfTest.Run, 13);
+                RunSmokeStep(ChatRc9SelfTest.Run, 14);
+                RunSmokeStep(ChatRc10SelfTest.Run, 15);
+                Environment.ExitCode = 0;
+                return;
+            }
+            catch
+            {
+                if (Environment.ExitCode == 0) Environment.ExitCode = 1;
+                return;
+            }
+        }
 
         using var mutex = new Mutex(initiallyOwned: true, name: @"Global\BPSR-ReadyAlert", createdNew: out var createdNew);
         if (!createdNew)
@@ -44,9 +61,6 @@ internal static class Program
 
             var capturePlan = NpcapDeviceSelector.SelectPlan(settings);
 
-            // A saved Npcap device GUID can disappear after a NIC/Npcap reinstall.
-            // SelectPlan already falls back safely; also clear the stale override so
-            // the tray accurately shows Follow Resonance Logs CN / Auto next time.
             if (!string.IsNullOrWhiteSpace(settings.NpcapDeviceName) &&
                 !capturePlan.AvailableDevices.Any(d =>
                     string.Equals(d.Name, settings.NpcapDeviceName, StringComparison.OrdinalIgnoreCase)))
@@ -83,5 +97,12 @@ internal static class Program
         {
             try { mutex.ReleaseMutex(); } catch { }
         }
+    }
+
+    private static void RunSmokeStep(Action step, int failureCode)
+    {
+        Environment.ExitCode = failureCode;
+        step();
+        Environment.ExitCode = 0;
     }
 }

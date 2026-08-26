@@ -158,10 +158,40 @@ jobs:
             - auto-launch of Resonance Logs CN;
             - Start Menu shortcut support;
             - self-contained Windows x64 single EXE on .NET 10;
-            - exact user-supplied 16x16 icon frame explicitly used by the system tray and Small/Details views;
-            - exact user-supplied 48x48 frame used for normal Explorer icon views.
+            - exact user-supplied tray / Explorer icon handling.
 
             Requires Npcap to be installed.
+
+      - name: Create v1.1.0 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.1.0]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.0
+          name: BPSR Ready Alert v1.1.0
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.1.0 adds the optional BPSR Chat Overlay while keeping the existing Ready Check and matchmaking alerts lightweight.
+
+            Highlights:
+            - shared-capture chat decoding: no second Npcap engine or duplicate TCP/zstd pipeline;
+            - borderless floating chat overlay with World, Guild/Team, All and custom tabs;
+            - channel selection, minimum level, Show/Hide filters, case-insensitive OR/AND/regex matching and invalid-regex protection;
+            - Smart Scroll, timestamps, compact mode, opacity, fonts, channel colors, click-through and screen-edge collapse;
+            - up to three prioritized message-only keyword/regex sound rules with one shared chat-alert volume;
+            - Private/Talk highlighting and optional sound;
+            - saved settings, blocked-user list, settings backup recovery and capture diagnostics;
+            - improved DPI/layout handling and child-dialog Always-on-Top behavior;
+            - all previous Ready/Queue, Resonance Logs CN integration, adapter selection and tray features retained.
+
+            Requires Npcap to be installed.
+
+            See the README for filter syntax and Chat Overlay setup.
 
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')

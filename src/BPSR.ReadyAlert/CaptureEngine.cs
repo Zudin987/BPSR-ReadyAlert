@@ -603,6 +603,11 @@ internal sealed class CaptureEngine : IDisposable
         if (_seenNotifyKeys.Add((candidate.DeviceName, service, method)))
             AppLog.Write($"probe: notify device={candidate.Description} service={service} method=0x{method:X} compressed={compressed} protoLen={payload.Length}");
 
+        // Chat is another consumer of this already-filtered/reassembled/decompressed
+        // Notify stream. No second Npcap handle or duplicate TCP pipeline is used.
+        if (ChatCaptureBridge.TryHandle(service, method, payload))
+            return;
+
         // Exact ZDPS Ready Check trigger: NotifyAllMemberReady opens the Ready Check UI.
         // NotifyCaptainReady is a response/update and is used by ZDPS to stop its loop,
         // not to start the alert.
