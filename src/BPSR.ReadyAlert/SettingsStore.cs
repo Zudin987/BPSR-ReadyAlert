@@ -15,6 +15,10 @@ internal sealed class AppSettings
     public string NpcapDeviceName { get; set; } = string.Empty;
 
     public int AlertVolume { get; set; } = 100;
+
+    // Chat capture/overlay is opt-in and can be toggled from the tray menu.
+    public bool ChatOverlayEnabled { get; set; } = false;
+    public ChatOverlaySettings Chat { get; set; } = new();
 }
 
 internal sealed class SettingsStore
@@ -37,8 +41,7 @@ internal sealed class SettingsStore
                 var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path), JsonOptions);
                 if (loaded is not null)
                 {
-                    loaded.AlertVolume = Math.Clamp(loaded.AlertVolume, 0, 100);
-                    loaded.NpcapDeviceName ??= string.Empty;
+                    Normalize(loaded);
                     return loaded;
                 }
             }
@@ -49,6 +52,7 @@ internal sealed class SettingsStore
         }
 
         var settings = new AppSettings();
+        Normalize(settings);
         Save(settings);
         return settings;
     }
@@ -57,7 +61,7 @@ internal sealed class SettingsStore
     {
         try
         {
-            settings.AlertVolume = Math.Clamp(settings.AlertVolume, 0, 100);
+            Normalize(settings);
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var temp = _path + ".new";
             File.WriteAllText(temp, JsonSerializer.Serialize(settings, JsonOptions));
@@ -67,5 +71,14 @@ internal sealed class SettingsStore
         {
             AppLog.Write("settings: save failed " + ex.Message);
         }
+    }
+
+    private static void Normalize(AppSettings settings)
+    {
+        settings.AlertVolume = Math.Clamp(settings.AlertVolume, 0, 100);
+        settings.NpcapDeviceName ??= string.Empty;
+        settings.ResonanceLogsPath ??= string.Empty;
+        settings.Chat ??= new ChatOverlaySettings();
+        settings.Chat.Normalize();
     }
 }
