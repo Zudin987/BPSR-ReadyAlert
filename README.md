@@ -13,20 +13,68 @@ It is designed to run beside the official **Resonance Logs CN** DPS meter withou
 3. Run Ready Alert. On first run, select `resonance-logs-cn.exe` if it is not found automatically.
 4. After setup, you can launch **BPSR Ready Alert only**; it starts Resonance Logs CN when needed.
 
-The app stays in the system tray. Right-click the tray icon for **Test Alert Sound**, alert toggles, **Network Adapter**, **Alert Volume**, logs, or the Resonance Logs CN path.
+The app stays in the system tray. Right-click the tray icon for **Test Alert Sound**, alert toggles, **Chat Overlay**, **Network Adapter**, **Alert Volume**, logs, or the Resonance Logs CN path.
 
 Ready Alert does not request Administrator elevation by default. If your Npcap installation restricts capture to administrators, Windows may require you to run it as administrator.
 
+## Chat Overlay (v1.1 RC)
+
+The optional **Chat Overlay** is based on the public BPSR-ZDPS chat behavior and protocol definitions. It is **off by default** and can be enabled/disabled at any time from the Ready Alert system-tray menu.
+
+When enabled it provides:
+
+- World, Guild/Team, and All default tabs;
+- custom tabs with selectable chat channels;
+- minimum-level filters;
+- compact or expanded message layout;
+- normal timestamps or relative `Xs / Xm / Xh` time;
+- always-on-top option;
+- window opacity and history-size controls;
+- sticker hiding;
+- copy player name / UID and local blocked-user list;
+- persistent window position, tabs, filters, and settings.
+
+The overlay is view-only. It does not send chat messages, inject into BPSR, or modify the game client.
+
+### Better Show/Hide filters
+
+ZDPS's original fields accept one .NET regex and use the default case-sensitive matching behavior. Ready Alert keeps regex support but makes matching **case-insensitive** and adds friendly multi-filter operators.
+
+Examples:
+
+```text
+food
+food OR serum
+food||serum
+boss AND hard
+boss&&hard
+(raid|dungeon)
+```
+
+- `OR` / `||` means any expression may match.
+- `AND` / `&&` means every expression in that group must match.
+- A single regex `|` still works normally, for example `(raid|dungeon)`.
+- Separate lines in the filter box are also treated as OR alternatives.
+- Matching has a short timeout so a pathological regex cannot freeze the overlay.
+
+`Show If Matches` includes matching text messages. `Hide If Matches` excludes matching text messages.
+
+### Chat network handling
+
+The overlay follows the same BPSR `ChitChatNtf.NotifyNewestChitChatMsgs` path used by ZDPS (`service 164931432`, method `0x01`) and manually decodes only the fields it needs. No Google.Protobuf runtime is added.
+
+Chat capture starts only while **Chat Overlay** is enabled. It uses the same selected Npcap adapter and the same BPSR-process TCP ownership filter as Ready Alert. Chat history stays in memory; only overlay settings and the local blocked-user list are persisted in `settings.json`.
+
 ## Network adapter
 
-Ready Alert captures **one Npcap adapter** at a time.
+Ready Alert captures **one selected Npcap adapter** at a time.
 
 - By default it follows Resonance Logs CN's saved Npcap device when available.
 - Otherwise it chooses an active physical Ethernet/Wi-Fi adapter and avoids common VPN/VM/tunnel adapters.
 - Use **Network Adapter** in the tray menu to choose one manually.
 - Choose **Follow Resonance Logs CN / Auto** to remove the manual override.
 
-The selected adapter is saved and capture restarts immediately when changed.
+The selected adapter is saved and capture restarts immediately when changed. When Chat Overlay is enabled, its optional chat capture follows that same selected adapter.
 
 ## Alerts and volume
 
@@ -46,7 +94,7 @@ Ready Alert stores its extracted alert sound/icon and local app data under:
 
 It never copies files into the Resonance Logs CN directory and does not replace the CN executable, DLLs, updater, or settings. It does not inject into or modify the BPSR game process.
 
-Packet/protocol details can change after game updates. If an alert stops working, use **Open Log** from the tray menu when reporting it.
+Packet/protocol details can change after game updates. If an alert or chat capture stops working, use **Open Log** from the tray menu when reporting it.
 
 ## Pin to Start
 
