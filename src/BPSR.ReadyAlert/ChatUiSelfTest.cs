@@ -28,8 +28,8 @@ internal static class ChatUiSelfTest
         form.CreateControl();
         form.PerformLayout();
 
-        var save = FindButton(form, "Save tab") ?? throw new InvalidOperationException("Chat UI self-test failed: Save tab button missing");
-        Assert(IsInsideClient(form, save), "tab editor Save button stays inside client area at minimum size");
+        var save = FindButton(form, "Save tab") ?? throw new InvalidOperationException("Chat UI self-test failed: tab editor Save tab button missing");
+        AssertInsideClient(form, save, "tab editor Save");
         Assert(save.Enabled, "tab editor valid filters keep Save enabled");
     }
 
@@ -43,8 +43,8 @@ internal static class ChatUiSelfTest
         form.CreateControl();
         form.PerformLayout();
 
-        var save = FindButton(form, "Save changes") ?? throw new InvalidOperationException("Chat UI self-test failed: Save changes button missing");
-        Assert(IsInsideClient(form, save), "settings Save button stays inside client area at minimum size");
+        var save = FindButton(form, "Save changes") ?? throw new InvalidOperationException("Chat UI self-test failed: settings Save changes button missing");
+        AssertInsideClient(form, save, "settings Save");
         Assert(FindButton(form, "Appearance") is not null, "settings Appearance navigation exists");
         Assert(FindButton(form, "Interaction") is not null, "settings Interaction navigation exists");
         Assert(FindButton(form, "Highlights & sounds") is not null, "settings alerts navigation exists");
@@ -72,12 +72,14 @@ internal static class ChatUiSelfTest
         return null;
     }
 
-    private static bool IsInsideClient(Form form, Control control)
+    private static void AssertInsideClient(Form form, Control control, string name)
     {
         var screen = control.RectangleToScreen(control.ClientRectangle);
         var client = form.RectangleToScreen(form.ClientRectangle);
-        return screen.Left >= client.Left - 1 && screen.Top >= client.Top - 1 &&
-               screen.Right <= client.Right + 1 && screen.Bottom <= client.Bottom + 1;
+        Assert(screen.Left >= client.Left - 1, name + " left edge stays inside client area");
+        Assert(screen.Top >= client.Top - 1, name + " top edge stays inside client area");
+        Assert(screen.Right <= client.Right + 1, name + " right edge stays inside client area");
+        Assert(screen.Bottom <= client.Bottom + 1, name + " bottom edge stays inside client area");
     }
 
     private static void Assert(bool condition, string name)
