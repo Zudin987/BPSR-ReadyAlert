@@ -12,10 +12,8 @@ internal static class Program
         // the bundle starts, run deterministic chat parser/filter/settings and UI checks.
         if (args.Any(a => string.Equals(a, "--build-smoke-test", StringComparison.OrdinalIgnoreCase)))
         {
-            var errorPath = Path.Combine(AppContext.BaseDirectory, "SMOKE-ERROR.txt");
             try
             {
-                if (File.Exists(errorPath)) File.Delete(errorPath);
                 ApplicationConfiguration.Initialize();
                 ChatSelfTest.Run();
                 ChatUiSelfTest.Run();
@@ -23,8 +21,14 @@ internal static class Program
             }
             catch (Exception ex)
             {
-                try { File.WriteAllText(errorPath, ex.ToString()); } catch { }
-                Environment.ExitCode = 1;
+                // WinExe has no attached console in Actions. Use temporary distinct
+                // exit codes to identify which RC5 UI-fit assertion failed without
+                // weakening the assertions themselves.
+                var detail = ex.ToString();
+                Environment.ExitCode = detail.Contains("tab editor", StringComparison.OrdinalIgnoreCase) ? 11
+                    : detail.Contains("settings", StringComparison.OrdinalIgnoreCase) ? 12
+                    : detail.Contains("themed buttons", StringComparison.OrdinalIgnoreCase) ? 13
+                    : 10;
                 return;
             }
         }
