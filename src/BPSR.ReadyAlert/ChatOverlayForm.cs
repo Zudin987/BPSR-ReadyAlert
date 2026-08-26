@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Media;
 using System.Windows.Forms;
 
 namespace BPSR.ReadyAlert;
@@ -7,40 +8,70 @@ internal sealed class ChatOverlayForm : Form
 {
     private const int MaxSenderNameLength = 128;
     private const int MaxDisplayedMessageLength = 8 * 1024;
+    private const int ClickThroughHotkeyId = 0x5141;
+    private const int CollapseHotkeyId = 0x5142;
+    private const int ResizeGrip = 6;
+    private const int CollapsedThickness = 22;
 
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
+    private readonly string _defaultSoundPath;
     private readonly List<ChatMessageEvent> _history = [];
-    private readonly Dictionary<int, ChatMessageEvent> _lineMessageMap = [];
     private readonly FlowLayoutPanel _tabBar;
-    private readonly RichTextBox _messages;
+    private readonly ChatMessageListBox _messages;
     private readonly Button _gearButton;
+    private readonly Button _collapseButton;
+    private readonly Button _hideButton;
+    private readonly Button _dragGrip;
     private readonly Panel _topPanel;
+    private readonly Button _newMessagesButton;
+    private readonly Button _collapsedHandle;
     private readonly System.Windows.Forms.Timer _relativeTimer;
+    private readonly System.Windows.Forms.Timer _resizeTimer;
+    private readonly SoundPlayer _chatSoundPlayer = new();
+    private readonly ToolTip _toolTip = new();
+
     private ChatMessageEvent? _contextMessage;
+    private Font? _messageFont;
+    private Font? _messageBoldFont;
+    private Font? _senderFont;
+    private Font? _metaFont;
     private bool _allowClose;
-    private int _trimsSinceFullRender;
+    private bool _followLatest = true;
+    private int _unseenMessages;
+    private bool _clickThroughRegistered;
+    private bool _collapseRegistered;
+    private bool _collapsed;
+    private Rectangle _expandedBounds;
+    private DateTime _lastSoundUtc = DateTime.MinValue;
+    private bool _disposedResources;
 
     internal ChatOverlayForm(
         AppSettings settings,
         SettingsStore settingsStore,
-        string iconPath)
+        string iconPath,
+        string defaultSoundPath)
     {
         _settings = settings;
         _settingsStore = settingsStore;
+        _defaultSoundPath = defaultSoundPath;
         _settings.Chat.Normalize();
 
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96F, 96F);
-        Text = "BPSR Chat";
+        Text = string.Empty;
         ShowInTaskbar = false;
+        ShowIcon = false;
+        ControlBox = false;
         StartPosition = FormStartPosition.Manual;
-        MinimumSize = new Size(420, 260);
+        MinimumSize = new Size(360, 180);
         Size = new Size(_settings.Chat.WindowWidth, _settings.Chat.WindowHeight);
-        BackColor = Color.FromArgb(30, 30, 30);
+        BackColor = Color.FromArgb(28, 30, 34);
         ForeColor = Color.Gainsboro;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        FormBorderStyle = FormBorderStyle.None;
+        Padding = new Padding(1);
+        DoubleBuffered = true;
 
         try
         {
@@ -57,26 +88,37 @@ internal sealed class ChatOverlayForm : Form
         }
 
         RestoreWindowPlacement();
+        _expandedBounds = Bounds;
 
         _topPanel = new Panel
         {
             Dock = DockStyle.Top,
             Height = 34,
-            BackColor = Color.FromArgb(36, 36, 36)
+            Padding = new Padding(0),
+            BackColor = Color.FromArgb(36, 39, 44)
         };
 
-        _gearButton = new Button
+        _dragGrip = MakeToolbarButton("≡", 30, "Drag chat window");
+        _dragGrip.Dock = DockStyle.Left;
+        _dragGrip.Cursor = Cursors.SizeAll;
+        _dragGrip.MouseDown += (_, e) =>
         {
-            Text = "⚙",
-            Dock = DockStyle.Right,
-            Width = 38,
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = Color.WhiteSmoke,
-            BackColor = Color.FromArgb(52, 52, 52),
-            TabStop = false,
-            AccessibleName = "Chat settings"
+            if (e.Button == MouseButtons.Left && !_collapsed && !_settings.Chat.ClickThrough)
+                ChatNativeMethods.BeginWindowDrag(Handle);
         };
-        _gearButton.FlatAppearance.BorderSize = 0;
+
+        _hideButton = MakeToolbarButton("×", 34, "Hide chat (Chat Overlay stays enabled)");
+        _hideButton.Dock = DockStyle.Right;
+        _hideButton.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+        _hideButton.Click += (_, _) => HideOverlay();
+
+        _collapseButton = MakeToolbarButton("◀", 34, "Collapse chat to a screen edge");
+        _collapseButton.Dock = DockStyle.Right;
+        _collapseButton.Click += (_, _) => ToggleCollapsed();
+
+        _gearButton = MakeToolbarButton("⚙", 38, "Chat settings");
+        _gearButton.Dock = DockStyle.Right;
+        _gearButton.AccessibleName = "Chat settings";
         _gearButton.Click += (_, _) => OpenSettingsDialog();
 
         _tabBar = new FlowLayoutPanel
@@ -86,26 +128,27 @@ internal sealed class ChatOverlayForm : Form
             WrapContents = false,
             AutoScroll = true,
             Padding = new Padding(3, 3, 0, 0),
-            BackColor = Color.FromArgb(36, 36, 36)
+            Margin = Padding.Empty,
+            BackColor = _topPanel.BackColor
         };
 
         _topPanel.Controls.Add(_tabBar);
         _topPanel.Controls.Add(_gearButton);
+        _topPanel.Controls.Add(_collapseButton);
+        _topPanel.Controls.Add(_hideButton);
+        _topPanel.Controls.Add(_dragGrip);
 
-        _messages = new RichTextBox
+        _messages = new ChatMessageListBox
         {
             Dock = DockStyle.Fill,
-            BorderStyle = BorderStyle.None,
-            BackColor = Color.FromArgb(24, 24, 24),
+            BackColor = Color.FromArgb(22, 24, 28),
             ForeColor = Color.Gainsboro,
-            ReadOnly = true,
-            DetectUrls = false,
-            HideSelection = false,
-            ScrollBars = RichTextBoxScrollBars.Vertical,
-            WordWrap = true,
-            Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point),
             AccessibleName = "BPSR chat messages"
         };
+        _messages.MeasureItem += MessagesMeasureItem;
+        _messages.DrawItem += MessagesDrawItem;
+        _messages.MouseDown += MessagesMouseDown;
+        _messages.ViewportChanged += (_, _) => UpdateFollowLatestFromViewport();
 
         var messageMenu = new ContextMenuStrip();
         var copyName = new ToolStripMenuItem("Copy Name");
@@ -131,49 +174,148 @@ internal sealed class ChatOverlayForm : Form
         messageMenu.Items.Add(block);
         messageMenu.Opening += (_, e) =>
         {
-            if (_contextMessage is { } current)
+            if (_contextMessage is not { } current)
             {
-                copyName.Enabled = !string.IsNullOrEmpty(current.SenderName);
-                copyUid.Enabled = current.SenderId != 0;
-                block.Enabled = current.SenderId != 0;
+                e.Cancel = true;
                 return;
             }
-
-            copyName.Enabled = false;
-            copyUid.Enabled = false;
-            block.Enabled = false;
-            e.Cancel = true;
+            copyName.Enabled = !string.IsNullOrEmpty(current.SenderName);
+            copyUid.Enabled = current.SenderId != 0;
+            block.Enabled = current.SenderId != 0;
         };
         _messages.ContextMenuStrip = messageMenu;
-        _messages.MouseDown += MessagesMouseDown;
+
+        _newMessagesButton = new Button
+        {
+            Text = "↓ New messages",
+            Width = 150,
+            Height = 28,
+            FlatStyle = FlatStyle.Flat,
+            Visible = false,
+            TabStop = false,
+            Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
+            BackColor = Color.FromArgb(57, 65, 76),
+            ForeColor = Color.WhiteSmoke
+        };
+        _newMessagesButton.FlatAppearance.BorderColor = Color.FromArgb(90, 100, 112);
+        _newMessagesButton.Click += (_, _) => ResumeFollowingLatest();
+
+        _collapsedHandle = new Button
+        {
+            Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat,
+            Text = "◀",
+            Visible = false,
+            TabStop = false,
+            BackColor = Color.FromArgb(36, 39, 44),
+            ForeColor = Color.WhiteSmoke,
+            AccessibleName = "Expand chat overlay"
+        };
+        _collapsedHandle.FlatAppearance.BorderSize = 0;
+        _collapsedHandle.Click += (_, _) => ExpandFromEdge();
 
         Controls.Add(_messages);
         Controls.Add(_topPanel);
+        Controls.Add(_newMessagesButton);
+        Controls.Add(_collapsedHandle);
+        _newMessagesButton.BringToFront();
 
-        // Relative times do not need a 1 Hz full RichTextBox rebuild. A 15-second
-        // refresh keeps the display useful while avoiding needless CPU/scroll churn.
         _relativeTimer = new System.Windows.Forms.Timer { Interval = 15_000 };
         _relativeTimer.Tick += (_, _) =>
         {
-            if (Visible && !_messages.Focused && _settings.Chat.ShowTime && _settings.Chat.ShowTimeAsAgo)
-                RenderMessages(keepScroll: true);
+            if (Visible && !_collapsed && _settings.Chat.ShowTime && _settings.Chat.ShowTimeAsAgo)
+                _messages.Invalidate();
         };
         _relativeTimer.Start();
+
+        _resizeTimer = new System.Windows.Forms.Timer { Interval = 120 };
+        _resizeTimer.Tick += (_, _) =>
+        {
+            _resizeTimer.Stop();
+            if (!_collapsed) RebuildVisibleMessages(keepScroll: true);
+        };
+
+        Resize += (_, _) =>
+        {
+            PositionNewMessagesButton();
+            if (!_collapsed)
+            {
+                _resizeTimer.Stop();
+                _resizeTimer.Start();
+            }
+        };
 
         FormClosing += (_, e) =>
         {
             SaveWindowPlacement();
             if (!_allowClose && e.CloseReason == CloseReason.UserClosing)
             {
-                // X means "hide chat". The tray Chat Overlay check box is the
-                // explicit control for turning packet processing fully off.
                 e.Cancel = true;
                 Hide();
             }
         };
 
-        ApplyWindowSettings();
+        ApplyWindowSettings(registerHotkeys: false);
         RebuildTabBar();
+        PositionNewMessagesButton();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        RegisterHotkeys(showErrors: false);
+        ApplyClickThrough();
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        UnregisterHotkeys();
+        base.OnHandleDestroyed(e);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == ChatNativeMethods.WmHotKey)
+        {
+            var id = m.WParam.ToInt32();
+            if (id == ClickThroughHotkeyId)
+            {
+                ToggleClickThrough();
+                return;
+            }
+            if (id == CollapseHotkeyId)
+            {
+                ToggleCollapsed();
+                return;
+            }
+        }
+
+        if (m.Msg == ChatNativeMethods.WmNcHitTest && !_collapsed && !_settings.Chat.ClickThrough)
+        {
+            base.WndProc(ref m);
+            if ((int)m.Result == 1)
+            {
+                var value = m.LParam.ToInt64();
+                var screenPoint = new Point(unchecked((short)(value & 0xFFFF)), unchecked((short)((value >> 16) & 0xFFFF)));
+                var p = PointToClient(screenPoint);
+                var left = p.X <= ResizeGrip;
+                var right = p.X >= ClientSize.Width - ResizeGrip;
+                var top = p.Y <= ResizeGrip;
+                var bottom = p.Y >= ClientSize.Height - ResizeGrip;
+
+                if (left && top) m.Result = new IntPtr(ChatNativeMethods.HtTopLeft);
+                else if (right && top) m.Result = new IntPtr(ChatNativeMethods.HtTopRight);
+                else if (left && bottom) m.Result = new IntPtr(ChatNativeMethods.HtBottomLeft);
+                else if (right && bottom) m.Result = new IntPtr(ChatNativeMethods.HtBottomRight);
+                else if (left) m.Result = new IntPtr(ChatNativeMethods.HtLeft);
+                else if (right) m.Result = new IntPtr(ChatNativeMethods.HtRight);
+                else if (top) m.Result = new IntPtr(ChatNativeMethods.HtTop);
+                else if (bottom) m.Result = new IntPtr(ChatNativeMethods.HtBottom);
+            }
+            return;
+        }
+
+        base.WndProc(ref m);
     }
 
     internal void AddMessage(ChatMessageEvent message)
@@ -186,39 +328,27 @@ internal sealed class ChatOverlayForm : Form
 
         message = SanitizeForDisplay(message);
         _history.Add(message);
-        var trimmed = TrimHistory();
+        RemoveOverflowHistoryFromView();
+        HandleMessageNotification(message);
 
-        if (!Visible || _settings.Chat.Tabs.Count == 0)
+        if (!Visible || _collapsed || _settings.Chat.Tabs.Count == 0)
             return;
-
-        if (trimmed)
-        {
-            _trimsSinceFullRender++;
-            if (_trimsSinceFullRender >= 20)
-            {
-                RenderMessages(keepScroll: true);
-                return;
-            }
-        }
-
         if (!IsVisibleForTab(message, SelectedTab))
             return;
 
-        var wasAtBottom = IsScrolledNearBottom();
-        var oldTopChar = GetFirstVisibleCharIndex();
-        var oldSelection = _messages.SelectionStart;
-        var oldSelectionLength = _messages.SelectionLength;
+        var wasFollowing = _followLatest && IsNearBottom();
+        _messages.Items.Add(CreateDisplayItem(message));
 
-        AppendMessage(message);
-
-        if (wasAtBottom)
+        if (wasFollowing)
         {
-            ScrollToEnd();
+            _followLatest = true;
+            ScrollToLatest();
         }
         else
         {
-            RestoreScrollToChar(oldTopChar);
-            RestoreSelection(oldSelection, oldSelectionLength);
+            _followLatest = false;
+            _unseenMessages++;
+            UpdateNewMessagesButton();
         }
     }
 
@@ -230,10 +360,11 @@ internal sealed class ChatOverlayForm : Form
             return;
         }
 
-        ApplyWindowSettings();
+        if (_collapsed) ExpandFromEdge();
+        ApplyWindowSettings(registerHotkeys: true);
         if (!Visible) Show();
         else BringToFront();
-        RenderMessages(keepScroll: false);
+        RebuildVisibleMessages(keepScroll: false);
     }
 
     internal void HideOverlay()
@@ -250,15 +381,19 @@ internal sealed class ChatOverlayForm : Form
 
     internal void OpenSettingsDialog()
     {
+        var oldClickThrough = _settings.Chat.ClickThrough;
         using var dialog = new ChatGeneralSettingsForm(_settings.Chat);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
         _settings.Chat.Normalize();
-        TrimHistory();
-        ApplyWindowSettings();
+        RemoveOverflowHistoryFromView();
         _settingsStore.Save(_settings);
+        ApplyWindowSettings(registerHotkeys: true);
         RebuildTabBar();
-        RenderMessages(keepScroll: true);
+        RebuildVisibleMessages(keepScroll: true);
+
+        if (!oldClickThrough && _settings.Chat.ClickThrough)
+            AppLog.Write("chat: click-through enabled; use " + _settings.Chat.ClickThroughHotkey + " to toggle it");
     }
 
     internal void Shutdown()
@@ -266,9 +401,28 @@ internal sealed class ChatOverlayForm : Form
         if (IsDisposed) return;
         SaveWindowPlacement();
         _relativeTimer.Stop();
+        _resizeTimer.Stop();
+        UnregisterHotkeys();
         _allowClose = true;
         Close();
         Dispose();
+    }
+
+    private Button MakeToolbarButton(string text, int width, string tooltip)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Width = width,
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = Color.WhiteSmoke,
+            BackColor = Color.FromArgb(45, 49, 55),
+            TabStop = false,
+            Margin = Padding.Empty
+        };
+        button.FlatAppearance.BorderSize = 0;
+        _toolTip.SetToolTip(button, tooltip);
+        return button;
     }
 
     private static ChatMessageEvent SanitizeForDisplay(ChatMessageEvent message)
@@ -296,9 +450,15 @@ internal sealed class ChatOverlayForm : Form
             return;
         }
 
-        var charIndex = _messages.GetCharIndexFromPosition(e.Location);
-        var line = _messages.GetLineFromCharIndex(charIndex);
-        _contextMessage = _lineMessageMap.TryGetValue(line, out var message) ? message : null;
+        var index = _messages.IndexFromPoint(e.Location);
+        if (index < 0 || index >= _messages.Items.Count || _messages.Items[index] is not ChatDisplayItem item)
+        {
+            _contextMessage = null;
+            return;
+        }
+
+        _messages.SelectedIndex = index;
+        _contextMessage = item.Message;
     }
 
     private void BlockUser(ChatMessageEvent message)
@@ -313,7 +473,7 @@ internal sealed class ChatOverlayForm : Form
             BlockedAtUtc = DateTime.UtcNow
         });
         _settingsStore.Save(_settings);
-        RenderMessages(keepScroll: true);
+        RebuildVisibleMessages(keepScroll: true);
     }
 
     private void RebuildTabBar()
@@ -332,7 +492,7 @@ internal sealed class ChatOverlayForm : Form
                 Height = 27,
                 Margin = new Padding(2, 0, 0, 0),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(55, 55, 55),
+                BackColor = Color.FromArgb(55, 59, 66),
                 ForeColor = Color.White,
                 TabStop = false,
                 AccessibleName = "Add chat tab"
@@ -358,7 +518,7 @@ internal sealed class ChatOverlayForm : Form
             Margin = new Padding(0, 0, 3, 0),
             Padding = new Padding(7, 0, 7, 0),
             FlatStyle = FlatStyle.Flat,
-            BackColor = selected ? Color.FromArgb(85, 85, 85) : Color.FromArgb(55, 55, 55),
+            BackColor = selected ? Color.FromArgb(79, 86, 98) : Color.FromArgb(48, 52, 59),
             ForeColor = Color.WhiteSmoke,
             TabStop = false,
             Tag = tab,
@@ -384,7 +544,10 @@ internal sealed class ChatOverlayForm : Form
         _settings.Chat.LastSelectedTabId = id;
         _settingsStore.Save(_settings);
         RebuildTabBar();
-        RenderMessages(keepScroll: false);
+        _followLatest = true;
+        _unseenMessages = 0;
+        UpdateNewMessagesButton();
+        RebuildVisibleMessages(keepScroll: false);
     }
 
     private void AddTab()
@@ -402,7 +565,7 @@ internal sealed class ChatOverlayForm : Form
         _settings.Chat.LastSelectedTabId = tab.Id;
         _settingsStore.Save(_settings);
         RebuildTabBar();
-        RenderMessages(keepScroll: false);
+        RebuildVisibleMessages(keepScroll: false);
     }
 
     private void EditTab(ChatTabSettings tab)
@@ -418,7 +581,7 @@ internal sealed class ChatOverlayForm : Form
         tab.HideIfMatches = working.HideIfMatches;
         _settingsStore.Save(_settings);
         RebuildTabBar();
-        RenderMessages(keepScroll: true);
+        RebuildVisibleMessages(keepScroll: true);
     }
 
     private void DeleteTab(ChatTabSettings tab)
@@ -442,34 +605,78 @@ internal sealed class ChatOverlayForm : Form
             _settings.Chat.LastSelectedTabId = _settings.Chat.Tabs[0].Id;
         _settingsStore.Save(_settings);
         RebuildTabBar();
-        RenderMessages(keepScroll: false);
+        RebuildVisibleMessages(keepScroll: false);
     }
 
-    private void ApplyWindowSettings()
+    private void ApplyWindowSettings(bool registerHotkeys)
     {
         TopMost = _settings.Chat.TopMost;
         Opacity = Math.Clamp(_settings.Chat.WindowOpacity, 25, 100) / 100d;
 
-        // WinForms child controls cannot independently alpha-blend with the desktop
-        // without switching the whole overlay to a custom layered-window renderer.
-        // Keep text crisp and use BackgroundOpacity as the surface darkness control.
-        var strength = Math.Clamp(_settings.Chat.BackgroundOpacity, 10, 100) / 100d;
-        var messageShade = (int)Math.Round(66 - (42 * strength));
-        var chromeShade = Math.Min(78, messageShade + 12);
-        var buttonShade = Math.Min(92, chromeShade + 16);
-        BackColor = Color.FromArgb(chromeShade, chromeShade, chromeShade);
-        _topPanel.BackColor = Color.FromArgb(chromeShade, chromeShade, chromeShade);
-        _tabBar.BackColor = _topPanel.BackColor;
-        _messages.BackColor = Color.FromArgb(messageShade, messageShade, messageShade);
-        _gearButton.BackColor = Color.FromArgb(buttonShade, buttonShade, buttonShade);
+        var body = ChatColorUtil.Blend(Color.FromArgb(20, 22, 26), Color.FromArgb(52, 56, 64), _settings.Chat.BackgroundOpacity);
+        var toolbar = ChatColorUtil.Blend(Color.FromArgb(28, 31, 36), Color.FromArgb(68, 74, 84), _settings.Chat.ToolbarOpacity);
+        BackColor = Color.FromArgb(55, 60, 68);
+        _messages.BackColor = body;
+        _topPanel.BackColor = toolbar;
+        _tabBar.BackColor = toolbar;
+        _collapsedHandle.BackColor = toolbar;
+        foreach (var button in new[] { _gearButton, _collapseButton, _hideButton, _dragGrip })
+            button.BackColor = ChatColorUtil.Blend(toolbar, Color.White, 8);
+
+        CreateFonts();
+        _messages.Font = _messageFont!;
+
+        UpdateCollapseButtonGlyph();
+        PositionNewMessagesButton();
+        _messages.Invalidate();
+
+        if (registerHotkeys && IsHandleCreated)
+            RegisterHotkeys(showErrors: true);
+        ApplyClickThrough();
     }
 
-    private bool TrimHistory()
+    private void CreateFonts()
+    {
+        Font newMessage;
+        try
+        {
+            newMessage = new Font(_settings.Chat.FontFamily, _settings.Chat.FontSize, FontStyle.Regular, GraphicsUnit.Point);
+        }
+        catch
+        {
+            newMessage = new Font("Segoe UI", _settings.Chat.FontSize, FontStyle.Regular, GraphicsUnit.Point);
+        }
+
+        var newBold = new Font(newMessage, FontStyle.Bold);
+        var newSender = new Font(newMessage.FontFamily, newMessage.Size, FontStyle.Bold, GraphicsUnit.Point);
+        var newMeta = new Font(newMessage.FontFamily, Math.Max(8F, newMessage.Size - 1F), FontStyle.Regular, GraphicsUnit.Point);
+
+        _messageFont?.Dispose();
+        _messageBoldFont?.Dispose();
+        _senderFont?.Dispose();
+        _metaFont?.Dispose();
+        _messageFont = newMessage;
+        _messageBoldFont = newBold;
+        _senderFont = newSender;
+        _metaFont = newMeta;
+    }
+
+    private void RemoveOverflowHistoryFromView()
     {
         var cap = Math.Clamp(_settings.Chat.MaxHistory, 10, 500);
-        if (_history.Count <= cap) return false;
-        _history.RemoveRange(0, _history.Count - cap);
-        return true;
+        while (_history.Count > cap)
+        {
+            var removed = _history[0];
+            _history.RemoveAt(0);
+            for (var i = 0; i < _messages.Items.Count; i++)
+            {
+                if (_messages.Items[i] is ChatDisplayItem item && item.Message.Equals(removed))
+                {
+                    _messages.Items.RemoveAt(i);
+                    break;
+                }
+            }
+        }
     }
 
     private ChatTabSettings SelectedTab =>
@@ -497,123 +704,453 @@ internal sealed class ChatOverlayForm : Form
         return true;
     }
 
-    private void RenderMessages(bool keepScroll)
+    private void RebuildVisibleMessages(bool keepScroll)
     {
-        if (IsDisposed || _settings.Chat.Tabs.Count == 0) return;
+        if (IsDisposed || _settings.Chat.Tabs.Count == 0 || _collapsed) return;
 
-        var oldSelection = _messages.SelectionStart;
-        var oldSelectionLength = _messages.SelectionLength;
-        var oldTopChar = GetFirstVisibleCharIndex();
-        var wasAtBottom = IsScrolledNearBottom();
+        ChatMessageEvent? oldTop = null;
+        if (keepScroll && !_followLatest && _messages.TopIndex >= 0 && _messages.TopIndex < _messages.Items.Count &&
+            _messages.Items[_messages.TopIndex] is ChatDisplayItem oldTopItem)
+            oldTop = oldTopItem.Message;
 
-        _messages.SuspendLayout();
+        var shouldFollow = !keepScroll || _followLatest || IsNearBottom();
+        _messages.BeginUpdate();
         try
         {
-            _messages.Clear();
-            _lineMessageMap.Clear();
-            _trimsSinceFullRender = 0;
+            _messages.Items.Clear();
             var tab = SelectedTab;
-
             foreach (var message in _history)
             {
                 if (IsVisibleForTab(message, tab))
-                    AppendMessage(message);
-            }
-
-            if (!keepScroll || wasAtBottom)
-            {
-                ScrollToEnd();
-            }
-            else
-            {
-                RestoreScrollToChar(oldTopChar);
-                RestoreSelection(oldSelection, oldSelectionLength);
+                    _messages.Items.Add(CreateDisplayItem(message));
             }
         }
         finally
         {
-            _messages.ResumeLayout();
+            _messages.EndUpdate();
         }
+
+        if (shouldFollow)
+        {
+            _followLatest = true;
+            ScrollToLatest();
+        }
+        else if (oldTop is { } topMessage)
+        {
+            for (var i = 0; i < _messages.Items.Count; i++)
+            {
+                if (_messages.Items[i] is ChatDisplayItem item && item.Message.Equals(topMessage))
+                {
+                    _messages.TopIndex = i;
+                    break;
+                }
+            }
+        }
+        _messages.Invalidate();
     }
 
-    private void AppendMessage(ChatMessageEvent message)
+    private ChatDisplayItem CreateDisplayItem(ChatMessageEvent message)
     {
-        var startLine = _messages.GetLineFromCharIndex(_messages.TextLength);
+        var highlight = false;
+        if (!string.IsNullOrWhiteSpace(_settings.Chat.HighlightIfMatches) &&
+            message.Kind is ChatMessageKind.Text or ChatMessageKind.TextNotice)
+        {
+            var searchable = DisplaySenderName(message) + "\n" + message.Text;
+            highlight = ChatFilterExpression.IsMatch(searchable, _settings.Chat.HighlightIfMatches);
+        }
 
-        AppendColored($"[{GetChannelName(message.Channel)}] ", GetChannelColor(message.Channel));
+        return new ChatDisplayItem(
+            message,
+            highlight,
+            _settings.Chat.PrivateHighlightEnabled && message.Channel == ChatChannel.Private);
+    }
 
+    private void MessagesMeasureItem(object? sender, MeasureItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= _messages.Items.Count || _messages.Items[e.Index] is not ChatDisplayItem item ||
+            _messageFont is null || _messageBoldFont is null || _senderFont is null || _metaFont is null)
+        {
+            e.ItemHeight = Math.Max(22, Font.Height + 8);
+            return;
+        }
+
+        var usableWidth = Math.Max(120, _messages.ClientSize.Width - 22);
+        var lineHeight = Math.Max(_messageFont.Height, _senderFont.Height) + 3;
         if (_settings.Chat.CompactMode)
         {
-            if (_settings.Chat.ShowTime)
-                AppendColored(GetTimeText(message.Timestamp) + " ", Color.FromArgb(155, 166, 190));
-            AppendColored($"[{DisplaySenderName(message)}] ", Color.FromArgb(102, 179, 255));
-            AppendColored(message.Text + Environment.NewLine, Color.Gainsboro);
+            var prefix = CompactPrefix(item.Message);
+            var prefixWidth = TextRenderer.MeasureText(e.Graphics, prefix, _metaFont, Size.Empty, TextFormatFlags.NoPadding).Width +
+                              TextRenderer.MeasureText(e.Graphics, DisplaySenderName(item.Message) + " ", _senderFont, Size.Empty, TextFormatFlags.NoPadding).Width;
+            var messageWidth = Math.Max(80, usableWidth - prefixWidth);
+            var size = TextRenderer.MeasureText(
+                e.Graphics,
+                item.Message.Text,
+                _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont,
+                new Size(messageWidth, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+            e.ItemHeight = Math.Max(lineHeight, size.Height) + 7;
         }
         else
         {
-            AppendColored($"[{DisplaySenderName(message)}]", Color.FromArgb(102, 179, 255));
-            if (_settings.Chat.ShowTime)
-                AppendColored("  " + GetTimeText(message.Timestamp), Color.FromArgb(155, 166, 190));
-            AppendColored(Environment.NewLine, Color.Gainsboro);
-            AppendColored(message.Text + Environment.NewLine, Color.Gainsboro);
+            var size = TextRenderer.MeasureText(
+                e.Graphics,
+                item.Message.Text,
+                _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont,
+                new Size(usableWidth, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+            e.ItemHeight = lineHeight + size.Height + 10;
+        }
+    }
+
+    private void MessagesDrawItem(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= _messages.Items.Count || _messages.Items[e.Index] is not ChatDisplayItem item ||
+            _messageFont is null || _messageBoldFont is null || _senderFont is null || _metaFont is null)
+            return;
+
+        var baseBack = _messages.BackColor;
+        var back = baseBack;
+        if (_settings.Chat.ShowZebraStripes && (e.Index & 1) == 1)
+            back = ChatColorUtil.Blend(Color.FromArgb(52, 58, 68), baseBack, 18);
+        if (item.IsPrivateHighlighted)
+            back = ChatColorUtil.Blend(ChatColorUtil.Parse(_settings.Chat.PrivateHighlightColor, Color.MediumPurple), back, 42);
+        else if (item.IsHighlighted)
+            back = ChatColorUtil.Blend(ChatColorUtil.Parse(_settings.Chat.HighlightColor, Color.DarkGoldenrod), back, 38);
+
+        using (var brush = new SolidBrush(back))
+            e.Graphics.FillRectangle(brush, e.Bounds);
+
+        var channelColor = GetChannelColor(item.Message.Channel);
+        if (_settings.Chat.ShowColorBand)
+        {
+            using var band = new SolidBrush(channelColor);
+            e.Graphics.FillRectangle(band, new Rectangle(e.Bounds.Left, e.Bounds.Top, 3, e.Bounds.Height));
         }
 
-        var endLine = _messages.GetLineFromCharIndex(Math.Max(0, _messages.TextLength - 1));
-        for (var line = startLine; line <= endLine; line++)
-            _lineMessageMap[line] = message;
+        var x = e.Bounds.Left + (_settings.Chat.ShowColorBand ? 8 : 5);
+        var y = e.Bounds.Top + 3;
+        var right = e.Bounds.Right - 8;
+        var textColor = ChatColorUtil.Blend(Color.Gainsboro, back, _settings.Chat.TextOpacity);
+        var senderColor = ChatColorUtil.Blend(Color.FromArgb(102, 179, 255), back, _settings.Chat.TextOpacity);
+        var metaColor = ChatColorUtil.Blend(Color.FromArgb(155, 166, 190), back, _settings.Chat.TextOpacity);
+        var messageFont = _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont;
+
+        if (_settings.Chat.CompactMode)
+        {
+            var channel = $"[{GetChannelName(item.Message.Channel)}] ";
+            x = DrawInline(e.Graphics, channel, _metaFont, channelColor, back, x, y);
+            if (_settings.Chat.ShowTime)
+                x = DrawInline(e.Graphics, GetTimeText(item.Message.Timestamp) + " ", _metaFont, metaColor, back, x, y);
+            x = DrawInline(e.Graphics, $"[{DisplaySenderName(item.Message)}] ", _senderFont, senderColor, back, x, y);
+            var rect = new Rectangle(x, y, Math.Max(20, right - x), Math.Max(18, e.Bounds.Bottom - y - 3));
+            DrawWrapped(e.Graphics, item.Message.Text, messageFont, textColor, back, rect);
+        }
+        else
+        {
+            x = DrawInline(e.Graphics, $"[{GetChannelName(item.Message.Channel)}] ", _metaFont, channelColor, back, x, y);
+            x = DrawInline(e.Graphics, $"[{DisplaySenderName(item.Message)}]", _senderFont, senderColor, back, x, y);
+            if (_settings.Chat.ShowTime)
+                _ = DrawInline(e.Graphics, "  " + GetTimeText(item.Message.Timestamp), _metaFont, metaColor, back, x, y);
+
+            var messageY = y + Math.Max(_senderFont.Height, _metaFont.Height) + 3;
+            var rect = new Rectangle(e.Bounds.Left + (_settings.Chat.ShowColorBand ? 8 : 5), messageY,
+                Math.Max(20, right - e.Bounds.Left - 5), Math.Max(18, e.Bounds.Bottom - messageY - 3));
+            DrawWrapped(e.Graphics, item.Message.Text, messageFont, textColor, back, rect);
+        }
+
+        if (_settings.Chat.ShowSeparators)
+        {
+            using var pen = new Pen(ChatColorUtil.Blend(Color.White, back, 12));
+            e.Graphics.DrawLine(pen, e.Bounds.Left + 6, e.Bounds.Bottom - 1, e.Bounds.Right - 6, e.Bounds.Bottom - 1);
+        }
     }
 
-    private static string DisplaySenderName(ChatMessageEvent message)
+    private int DrawInline(Graphics graphics, string text, Font font, Color color, Color background, int x, int y)
     {
-        if (!string.IsNullOrWhiteSpace(message.SenderName)) return message.SenderName;
-        return message.SenderId != 0 ? message.SenderId.ToString() : "System";
+        var size = TextRenderer.MeasureText(graphics, text, font, Size.Empty, TextFormatFlags.NoPadding);
+        var rect = new Rectangle(x, y, size.Width + 1, size.Height + 2);
+        DrawText(graphics, text, font, color, background, rect, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+        return x + size.Width;
     }
 
-    private bool IsScrolledNearBottom()
+    private void DrawWrapped(Graphics graphics, string text, Font font, Color color, Color background, Rectangle rect)
     {
-        if (_messages.TextLength == 0) return true;
-        var point = new Point(
-            Math.Max(0, _messages.ClientSize.Width - 4),
-            Math.Max(0, _messages.ClientSize.Height - 4));
-        var lastVisibleChar = _messages.GetCharIndexFromPosition(point);
-        return lastVisibleChar >= Math.Max(0, _messages.TextLength - 3);
+        DrawText(graphics, text, font, color, background, rect,
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPadding | TextFormatFlags.TextBoxControl);
     }
 
-    private int GetFirstVisibleCharIndex()
+    private void DrawText(Graphics graphics, string text, Font font, Color color, Color background, Rectangle rect, TextFormatFlags flags)
     {
-        if (_messages.TextLength == 0) return 0;
-        return _messages.GetCharIndexFromPosition(new Point(3, 3));
+        if (_settings.Chat.TextShadow)
+        {
+            var shadow = ChatColorUtil.Blend(Color.Black, background, 58);
+            var shadowRect = new Rectangle(rect.X + 1, rect.Y + 1, rect.Width, rect.Height);
+            TextRenderer.DrawText(graphics, text, font, shadowRect, shadow, flags);
+        }
+        TextRenderer.DrawText(graphics, text, font, rect, color, flags);
     }
 
-    private void RestoreScrollToChar(int charIndex)
+    private string CompactPrefix(ChatMessageEvent message)
     {
-        if (_messages.TextLength == 0) return;
-        _messages.SelectionStart = Math.Clamp(charIndex, 0, _messages.TextLength);
-        _messages.SelectionLength = 0;
-        _messages.ScrollToCaret();
+        var value = $"[{GetChannelName(message.Channel)}] ";
+        if (_settings.Chat.ShowTime) value += GetTimeText(message.Timestamp) + " ";
+        return value;
     }
 
-    private void RestoreSelection(int start, int length)
+    private bool IsNearBottom()
     {
-        var safeStart = Math.Clamp(start, 0, _messages.TextLength);
-        var safeLength = Math.Clamp(length, 0, _messages.TextLength - safeStart);
-        _messages.Select(safeStart, safeLength);
+        if (_messages.Items.Count == 0) return true;
+        var index = _messages.IndexFromPoint(new Point(Math.Max(1, _messages.ClientSize.Width / 2), Math.Max(1, _messages.ClientSize.Height - 3)));
+        if (index == ListBox.NoMatches)
+            return _messages.TopIndex >= _messages.Items.Count - 1;
+        return index >= _messages.Items.Count - 1;
     }
 
-    private void ScrollToEnd()
+    private void UpdateFollowLatestFromViewport()
     {
-        _messages.SelectionStart = _messages.TextLength;
-        _messages.SelectionLength = 0;
-        _messages.ScrollToCaret();
+        if (_collapsed) return;
+        if (IsNearBottom())
+        {
+            _followLatest = true;
+            _unseenMessages = 0;
+        }
+        else
+        {
+            _followLatest = false;
+        }
+        UpdateNewMessagesButton();
     }
 
-    private void AppendColored(string text, Color color)
+    private void ResumeFollowingLatest()
     {
-        _messages.SelectionStart = _messages.TextLength;
-        _messages.SelectionLength = 0;
-        _messages.SelectionColor = color;
-        _messages.AppendText(text);
-        _messages.SelectionColor = _messages.ForeColor;
+        _followLatest = true;
+        _unseenMessages = 0;
+        ScrollToLatest();
+        UpdateNewMessagesButton();
+    }
+
+    private void ScrollToLatest()
+    {
+        if (_messages.Items.Count > 0)
+            _messages.TopIndex = _messages.Items.Count - 1;
+        _unseenMessages = 0;
+        UpdateNewMessagesButton();
+    }
+
+    private void UpdateNewMessagesButton()
+    {
+        _newMessagesButton.Visible = !_collapsed && !_followLatest && _unseenMessages > 0;
+        _newMessagesButton.Text = _unseenMessages <= 1
+            ? "↓ 1 new message"
+            : $"↓ {_unseenMessages} new messages";
+        if (_newMessagesButton.Visible) _newMessagesButton.BringToFront();
+    }
+
+    private void PositionNewMessagesButton()
+    {
+        _newMessagesButton.Location = new Point(
+            Math.Max(4, ClientSize.Width - _newMessagesButton.Width - 16),
+            Math.Max(_topPanel.Bottom + 4, ClientSize.Height - _newMessagesButton.Height - 14));
+    }
+
+    private void HandleMessageNotification(ChatMessageEvent message)
+    {
+        if (_settings.Chat.BlockedUsers.Any(x => x.Id != 0 && x.Id == message.SenderId)) return;
+        if (_settings.Chat.HideStickers && message.Kind == ChatMessageKind.Sticker) return;
+
+        var isPrivate = message.Channel == ChatChannel.Private;
+        if (isPrivate && _settings.Chat.PrivateSoundEnabled)
+        {
+            PlayChatSound(_settings.Chat.PrivateSoundPath);
+            return;
+        }
+
+        if (!_settings.Chat.HighlightSoundEnabled || string.IsNullOrWhiteSpace(_settings.Chat.HighlightIfMatches)) return;
+        if (message.Kind is not (ChatMessageKind.Text or ChatMessageKind.TextNotice)) return;
+        var searchable = DisplaySenderName(message) + "\n" + message.Text;
+        if (ChatFilterExpression.IsMatch(searchable, _settings.Chat.HighlightIfMatches))
+            PlayChatSound(_settings.Chat.HighlightSoundPath);
+    }
+
+    private void PlayChatSound(string configuredPath)
+    {
+        if ((DateTime.UtcNow - _lastSoundUtc).TotalMilliseconds < 150) return;
+        _lastSoundUtc = DateTime.UtcNow;
+
+        var path = !string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath)
+            ? configuredPath
+            : _defaultSoundPath;
+        try
+        {
+            if (File.Exists(path))
+            {
+                _chatSoundPlayer.SoundLocation = path;
+                _chatSoundPlayer.Play();
+            }
+            else
+            {
+                SystemSounds.Asterisk.Play();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("chat: notification sound failed " + ex.Message);
+            try { SystemSounds.Asterisk.Play(); } catch { }
+        }
+    }
+
+    private void RegisterHotkeys(bool showErrors)
+    {
+        if (!IsHandleCreated) return;
+        UnregisterHotkeys();
+
+        var problems = new List<string>();
+        if (ChatHotkey.TryParse(_settings.Chat.ClickThroughHotkey, out var clickGesture, out var clickError))
+        {
+            _clickThroughRegistered = ChatNativeMethods.RegisterHotKey(Handle, ClickThroughHotkeyId, clickGesture.NativeModifiers, (uint)clickGesture.Key);
+            if (!_clickThroughRegistered) problems.Add("Click-through hotkey is already in use by another app.");
+        }
+        else
+        {
+            problems.Add("Click-through hotkey: " + clickError);
+        }
+
+        if (ChatHotkey.TryParse(_settings.Chat.CollapseHotkey, out var collapseGesture, out var collapseError))
+        {
+            if (clickGesture.Equals(collapseGesture))
+            {
+                problems.Add("Click-through and collapse hotkeys cannot be the same.");
+            }
+            else
+            {
+                _collapseRegistered = ChatNativeMethods.RegisterHotKey(Handle, CollapseHotkeyId, collapseGesture.NativeModifiers, (uint)collapseGesture.Key);
+                if (!_collapseRegistered) problems.Add("Collapse hotkey is already in use by another app.");
+            }
+        }
+        else
+        {
+            problems.Add("Collapse hotkey: " + collapseError);
+        }
+
+        if (!_clickThroughRegistered && _settings.Chat.ClickThrough)
+        {
+            _settings.Chat.ClickThrough = false;
+            _settingsStore.Save(_settings);
+            ApplyClickThrough();
+            problems.Add("Click-through was turned OFF so the window cannot become mouse-locked without a working hotkey.");
+        }
+
+        foreach (var problem in problems) AppLog.Write("chat: hotkey " + problem);
+        if (showErrors && problems.Count > 0)
+        {
+            MessageBox.Show(this,
+                string.Join(Environment.NewLine, problems) + Environment.NewLine + Environment.NewLine +
+                "Change the hotkeys in Chat Settings > Interaction.",
+                "BPSR Chat - Hotkey",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void UnregisterHotkeys()
+    {
+        if (!IsHandleCreated) return;
+        if (_clickThroughRegistered)
+        {
+            _ = ChatNativeMethods.UnregisterHotKey(Handle, ClickThroughHotkeyId);
+            _clickThroughRegistered = false;
+        }
+        if (_collapseRegistered)
+        {
+            _ = ChatNativeMethods.UnregisterHotKey(Handle, CollapseHotkeyId);
+            _collapseRegistered = false;
+        }
+    }
+
+    private void ToggleClickThrough()
+    {
+        _settings.Chat.ClickThrough = !_settings.Chat.ClickThrough;
+        _settingsStore.Save(_settings);
+        ApplyClickThrough();
+        AppLog.Write("chat: click-through=" + _settings.Chat.ClickThrough);
+    }
+
+    private void ApplyClickThrough()
+    {
+        if (!IsHandleCreated) return;
+        if (!ChatNativeMethods.SetClickThrough(Handle, _settings.Chat.ClickThrough))
+            AppLog.Write("chat: failed to change click-through window style");
+    }
+
+    private void ToggleCollapsed()
+    {
+        if (_collapsed) ExpandFromEdge();
+        else CollapseToEdge();
+    }
+
+    private void CollapseToEdge()
+    {
+        if (_collapsed) return;
+        _expandedBounds = Bounds;
+        SaveWindowPlacement();
+
+        var screen = Screen.FromRectangle(Bounds).WorkingArea;
+        var side = _settings.Chat.CollapseSide;
+        _topPanel.Visible = false;
+        _messages.Visible = false;
+        _newMessagesButton.Visible = false;
+        _collapsedHandle.Visible = true;
+        MinimumSize = Size.Empty;
+
+        if (side == "Left" || side == "Right")
+        {
+            var height = Math.Min(_expandedBounds.Height, screen.Height);
+            var y = Math.Clamp(_expandedBounds.Top, screen.Top, Math.Max(screen.Top, screen.Bottom - height));
+            var x = side == "Left" ? screen.Left : screen.Right - CollapsedThickness;
+            Bounds = new Rectangle(x, y, CollapsedThickness, height);
+        }
+        else
+        {
+            var width = Math.Min(_expandedBounds.Width, screen.Width);
+            var x = Math.Clamp(_expandedBounds.Left, screen.Left, Math.Max(screen.Left, screen.Right - width));
+            var y = side == "Top" ? screen.Top : screen.Bottom - CollapsedThickness;
+            Bounds = new Rectangle(x, y, width, CollapsedThickness);
+        }
+
+        _collapsed = true;
+        _collapsedHandle.Text = side switch
+        {
+            "Left" => "▶",
+            "Top" => "▼",
+            "Bottom" => "▲",
+            _ => "◀"
+        };
+        AppLog.Write("chat: collapsed side=" + side);
+    }
+
+    private void ExpandFromEdge()
+    {
+        if (!_collapsed) return;
+        _collapsed = false;
+        _collapsedHandle.Visible = false;
+        MinimumSize = new Size(360, 180);
+        Bounds = _expandedBounds;
+        _topPanel.Visible = true;
+        _messages.Visible = true;
+        UpdateNewMessagesButton();
+        RebuildVisibleMessages(keepScroll: true);
+        AppLog.Write("chat: expanded");
+    }
+
+    private void UpdateCollapseButtonGlyph()
+    {
+        _collapseButton.Text = _settings.Chat.CollapseSide switch
+        {
+            "Left" => "◀",
+            "Top" => "▲",
+            "Bottom" => "▼",
+            _ => "▶"
+        };
     }
 
     private string GetTimeText(DateTime timestamp)
@@ -629,12 +1166,19 @@ internal sealed class ChatOverlayForm : Form
         return timestamp.ToString("MM-dd HH:mm");
     }
 
+    private static string DisplaySenderName(ChatMessageEvent message)
+    {
+        if (!string.IsNullOrWhiteSpace(message.SenderName)) return message.SenderName;
+        return message.SenderId != 0 ? message.SenderId.ToString() : "System";
+    }
+
     private static string GetChannelName(ChatChannel channel) => channel switch
     {
+        ChatChannel.Null => "Other",
         ChatChannel.World => "World",
         ChatChannel.Local => "Local",
         ChatChannel.Team => "Team",
-        ChatChannel.Union => "Union",
+        ChatChannel.Union => "Guild",
         ChatChannel.Private => "Private",
         ChatChannel.Group => "Group",
         ChatChannel.TopNotice => "Notice",
@@ -644,18 +1188,15 @@ internal sealed class ChatOverlayForm : Form
         _ => "Other"
     };
 
-    private static Color GetChannelColor(ChatChannel channel) => channel switch
+    private Color GetChannelColor(ChatChannel channel)
     {
-        ChatChannel.World => Color.FromArgb(99, 199, 255),
-        ChatChannel.Local => Color.FromArgb(143, 237, 143),
-        ChatChannel.Team => Color.FromArgb(255, 181, 194),
-        ChatChannel.Union => Color.FromArgb(255, 214, 0),
-        ChatChannel.Private => Color.FromArgb(255, 161, 255),
-        ChatChannel.Group => Color.FromArgb(173, 216, 230),
-        ChatChannel.TopNotice => Color.FromArgb(255, 140, 0),
-        ChatChannel.System => Color.FromArgb(255, 99, 71),
-        _ => Color.LightGray
-    };
+        var defaults = ChatOverlaySettings.CreateDefaultChannelColors();
+        var key = (int)channel;
+        var fallback = ChatColorUtil.Parse(defaults.TryGetValue(key, out var defaultHex) ? defaultHex : "#D3D3D3", Color.LightGray);
+        return _settings.Chat.ChannelColors.TryGetValue(key, out var value)
+            ? ChatColorUtil.Parse(value, fallback)
+            : fallback;
+    }
 
     private void RestoreWindowPlacement()
     {
@@ -687,13 +1228,36 @@ internal sealed class ChatOverlayForm : Form
 
     private void SaveWindowPlacement()
     {
-        if (WindowState == FormWindowState.Normal)
+        var bounds = _collapsed ? _expandedBounds : Bounds;
+        if (WindowState == FormWindowState.Normal && bounds.Width >= 360 && bounds.Height >= 180)
         {
-            _settings.Chat.WindowX = Left;
-            _settings.Chat.WindowY = Top;
-            _settings.Chat.WindowWidth = Width;
-            _settings.Chat.WindowHeight = Height;
+            _settings.Chat.WindowX = bounds.Left;
+            _settings.Chat.WindowY = bounds.Top;
+            _settings.Chat.WindowWidth = bounds.Width;
+            _settings.Chat.WindowHeight = bounds.Height;
         }
         _settingsStore.Save(_settings);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && !_disposedResources)
+        {
+            _disposedResources = true;
+            try { _relativeTimer.Stop(); } catch { }
+            try { _resizeTimer.Stop(); } catch { }
+            _messageFont?.Dispose();
+            _messageBoldFont?.Dispose();
+            _senderFont?.Dispose();
+            _metaFont?.Dispose();
+            _chatSoundPlayer.Dispose();
+            _toolTip.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
+    private sealed record ChatDisplayItem(
+        ChatMessageEvent Message,
+        bool IsHighlighted,
+        bool IsPrivateHighlighted);
 }
