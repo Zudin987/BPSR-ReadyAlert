@@ -38,6 +38,10 @@ internal static class ChatUiTheme
     internal static void StylePrimaryButton(Button button)
     {
         StyleButtonBase(button);
+        // Primary footer/action buttons are placed in tightly sized layout rows.
+        // WinForms' default 3px margin on every side can make a 36px button require
+        // 42px vertically and visibly clip it at the bottom on DPI-scaled forms.
+        button.Margin = Padding.Empty;
         button.BackColor = Accent;
         button.ForeColor = Color.White;
         button.FlatAppearance.MouseOverBackColor = AccentHover;
