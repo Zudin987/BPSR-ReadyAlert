@@ -145,18 +145,18 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         var page = CreatePage(
             "Highlights & sounds",
-            "Highlight important messages visually and optionally play a local sound. Nothing is sent outside your PC.");
+            "Highlight important chat visually and configure up to three different keyword sounds. Nothing is sent outside your PC.");
         var stack = (TableLayoutPanel)page.Tag!;
 
         var volumeContent = MakeSingleColumnTable();
         AddStack(volumeContent, MakeSliderRow(
             "Chat alert volume",
-            "Used by keyword-highlight and Private / Talk notification sounds.",
+            "One shared volume for all three sound rules and Private / Talk sounds.",
             _soundVolume,
             _soundVolumeValue,
             _settings.ChatSoundVolume,
             0));
-        AddPageCard(stack, MakeCard("Sound volume", "Adjust chat notification loudness independently from Ready Check alert volume.", volumeContent));
+        AddPageCard(stack, MakeCard("Sound volume", "A single standardized volume keeps sound setup simple.", volumeContent));
 
         _highlight.Text = _settings.HighlightIfMatches;
         _highlight.Height = 104;
@@ -168,22 +168,18 @@ internal sealed partial class ChatGeneralSettingsForm
 
         ConfigureColorButton(_highlightColor, _highlightColorValue, "Choose highlight color");
         _highlightColor.Click += (_, _) => ChooseColor(ref _highlightColorValue, _highlightColor);
-        _highlightSound.Checked = _settings.HighlightSoundEnabled;
-        ChatUiTheme.StyleCheckBox(_highlightSound);
-        _highlightSoundPath.ReadOnly = true;
-        _highlightSoundPath.Text = _settings.HighlightSoundPath;
-        ChatUiTheme.StyleTextBox(_highlightSoundPath);
 
         var keywordContent = MakeSingleColumnTable();
         AddStack(keywordContent, MakeFieldBlock(
-            "Match rule",
+            "Visual highlight rule",
             "Example: serum | food | raid. One pattern per line is OR. Sender name and message text are both checked.",
             _highlight));
         AddStack(keywordContent, _highlightValidation);
         AddStack(keywordContent, _highlightColor);
-        AddStack(keywordContent, _highlightSound);
-        AddStack(keywordContent, MakePathRow(_highlightSoundPath, () => BrowseSound(_highlightSoundPath), "Sound file", "Leave empty to use ReadyAlert's built-in alert sound."));
-        AddPageCard(stack, MakeCard("Keyword highlight", "Use the same safe, case-insensitive filter syntax as chat tabs.", keywordContent));
+        AddPageCard(stack, MakeCard("Visual keyword highlight", "This changes row color only. Sound triggers are configured separately below.", keywordContent));
+
+        for (var i = 0; i < 3; i++)
+            AddPageCard(stack, BuildSoundRuleCard(i));
 
         _privateHighlight.Checked = _settings.PrivateHighlightEnabled;
         _privateSound.Checked = _settings.PrivateSoundEnabled;
@@ -200,10 +196,49 @@ internal sealed partial class ChatGeneralSettingsForm
         AddStack(privateContent, _privateColor);
         AddStack(privateContent, _privateSound);
         AddStack(privateContent, MakePathRow(_privateSoundPath, () => BrowseSound(_privateSoundPath), "Sound file", "Leave empty to use ReadyAlert's built-in alert sound."));
-        AddPageCard(stack, MakeCard("Private / Talk", "Give direct messages a stronger visual or audio cue.", privateContent));
+        AddPageCard(stack, MakeCard("Private / Talk", "Direct-message audio also uses the shared Chat alert volume above.", privateContent));
 
         RefreshHighlightValidation();
+        for (var i = 0; i < 3; i++) RefreshSoundRuleValidation(i);
         return page;
+    }
+
+    private Control BuildSoundRuleCard(int index)
+    {
+        var existing = index < _settings.HighlightSoundRules.Count ? _settings.HighlightSoundRules[index] : null;
+        _soundRuleEnabled[index].Checked = existing?.Enabled ?? false;
+        _soundRuleMatch[index].Text = existing?.Match ?? string.Empty;
+        _soundRulePath[index].Text = existing?.SoundPath ?? string.Empty;
+
+        ChatUiTheme.StyleCheckBox(_soundRuleEnabled[index]);
+        _soundRuleMatch[index].Height = 74;
+        ChatUiTheme.StyleTextBox(_soundRuleMatch[index], multiline: true);
+        _soundRulePath[index].ReadOnly = true;
+        ChatUiTheme.StyleTextBox(_soundRulePath[index]);
+
+        _soundRuleValidation[index].AutoSize = true;
+        _soundRuleValidation[index].Font = ChatUiTheme.UiFont(8.5F, FontStyle.Bold);
+        _soundRuleValidation[index].Margin = new Padding(0, 5, 0, 3);
+        _soundRuleMatch[index].TextChanged += (_, _) => RefreshSoundRuleValidation(index);
+        _soundRuleEnabled[index].CheckedChanged += (_, _) => RefreshSoundRuleValidation(index);
+
+        var content = MakeSingleColumnTable();
+        AddStack(content, _soundRuleEnabled[index]);
+        AddStack(content, MakeFieldBlock(
+            "Match",
+            "Case-insensitive. Supports PA, serum | food, one pattern per line, AND, or advanced regex.",
+            _soundRuleMatch[index]));
+        AddStack(content, _soundRuleValidation[index]);
+        AddStack(content, MakePathRow(
+            _soundRulePath[index],
+            () => BrowseSound(_soundRulePath[index]),
+            "Sound file",
+            "Leave empty to use ReadyAlert's built-in alert sound."));
+
+        var priority = index == 0
+            ? "Highest priority. If several sound rules match one message, this first matching rule wins."
+            : $"Priority {index + 1}. It is checked only if the earlier enabled sound rules did not match.";
+        return MakeCard($"Sound rule {index + 1}", priority, content);
     }
 
     private Control BuildAdvancedPage()
