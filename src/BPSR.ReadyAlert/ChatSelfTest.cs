@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Text;
 
 namespace BPSR.ReadyAlert;
@@ -10,11 +11,26 @@ internal static class ChatSelfTest
 {
     internal static void Run()
     {
+        TestOwnerDrawFontLifetime();
         TestFilters();
         TestHotkeys();
         TestUnicodeTextNotify();
         TestStickerNotify();
         TestSettingsNormalization();
+    }
+
+    private static void TestOwnerDrawFontLifetime()
+    {
+        // RC3 could leave a transient render Font stored in the native ListBox.
+        // When that Font was later disposed, creating the HWND failed inside
+        // Font.ToHfont() with "Parameter is not valid". Reproduce that exact
+        // lifecycle here: assign a temporary font, dispose it, then create HWND.
+        using var list = new ChatMessageListBox();
+        using (var transient = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point))
+            list.Font = transient;
+
+        _ = list.Handle;
+        Assert(list.IsHandleCreated, "owner-draw list survives disposed transient font before HWND creation");
     }
 
     private static void TestFilters()
