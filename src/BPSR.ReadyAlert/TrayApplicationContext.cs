@@ -261,7 +261,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _chatWindow = new ChatOverlayForm(
             _settings,
             _settingsStore,
-            _paths.AppIconPath);
+            _paths.AppIconPath,
+            _paths.AlertSoundPath);
         return _chatWindow;
     }
 
