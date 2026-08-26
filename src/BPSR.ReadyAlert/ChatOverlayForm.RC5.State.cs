@@ -65,6 +65,22 @@ internal sealed partial class ChatOverlayForm
     private void RemoveOverflowHistoryFromView()
     {
         var cap = Math.Clamp(_settings.Chat.MaxHistory, 10, 500);
+        if (_history.Count <= cap)
+        {
+            UpdateEmptyState();
+            return;
+        }
+
+        // Capture the user's viewport before removing the oldest rows. Native
+        // WinForms ListBox can reset TopIndex when item 0 is deleted; if that
+        // happens before AddMessage checks follow-latest state, the overlay thinks
+        // the user intentionally scrolled up and starts accumulating unread chat.
+        var keepFollowing = _followLatest && IsNearBottom();
+        ChatMessageEvent? viewportAnchor = null;
+        if (!keepFollowing && _messages.TopIndex >= 0 && _messages.TopIndex < _messages.Items.Count &&
+            _messages.Items[_messages.TopIndex] is ChatDisplayItem topItem)
+            viewportAnchor = topItem.Message;
+
         while (_history.Count > cap)
         {
             var removed = _history[0];
@@ -78,6 +94,24 @@ internal sealed partial class ChatOverlayForm
                 }
             }
         }
+
+        if (keepFollowing)
+        {
+            _followLatest = true;
+            ScrollToLatest();
+        }
+        else if (viewportAnchor is { } anchor)
+        {
+            for (var i = 0; i < _messages.Items.Count; i++)
+            {
+                if (_messages.Items[i] is ChatDisplayItem item && item.Message.Equals(anchor))
+                {
+                    _messages.TopIndex = i;
+                    break;
+                }
+            }
+        }
+
         UpdateEmptyState();
     }
 
