@@ -7,6 +7,7 @@ internal sealed class ChatTabEditorForm : Form
 {
     private static readonly (string Label, ChatChannel Channel)[] ChannelChoices =
     [
+        ("Null / Other", ChatChannel.Null),
         ("World", ChatChannel.World),
         ("Local / Scene", ChatChannel.Local),
         ("Group", ChatChannel.Group),
