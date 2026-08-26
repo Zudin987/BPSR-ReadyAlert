@@ -83,43 +83,65 @@ internal sealed class ChatTabEditorForm : Form
 
     private Panel BuildFooter()
     {
+        // Keep actions in their own fixed row instead of relying on FlowLayoutPanel
+        // margin math. This remains stable when WinForms applies per-monitor DPI.
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 64,
+            Height = 70,
+            BackColor = ChatUiTheme.Surface,
+            Padding = Padding.Empty
+        };
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            BackColor = ChatUiTheme.Surface
+        };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 1F));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        root.Controls.Add(new Panel { Dock = DockStyle.Fill, BackColor = ChatUiTheme.Border, Margin = Padding.Empty }, 0, 0);
+
+        var actions = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            RowCount = 1,
+            Margin = Padding.Empty,
             Padding = new Padding(18, 14, 18, 14),
             BackColor = ChatUiTheme.Surface
         };
-        footer.Controls.Add(ChatUiTheme.Divider());
-
-        var buttons = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
-            WrapContents = false,
-            BackColor = ChatUiTheme.Surface,
-            Padding = Padding.Empty,
-            Margin = Padding.Empty
-        };
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112F));
+        actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         _save.Text = "Save tab";
-        _save.Width = 112;
-        _save.Height = 36;
+        _save.Dock = DockStyle.Fill;
+        _save.Margin = Padding.Empty;
         ChatUiTheme.StylePrimaryButton(_save);
         _save.Click += (_, _) => SaveAndClose();
 
         var cancel = new Button
         {
             Text = "Cancel",
-            Width = 96,
-            Height = 36,
+            Dock = DockStyle.Fill,
             DialogResult = DialogResult.Cancel,
-            Margin = new Padding(0, 0, 8, 0)
+            Margin = Padding.Empty
         };
         ChatUiTheme.StyleSecondaryButton(cancel);
-        buttons.Controls.Add(_save);
-        buttons.Controls.Add(cancel);
-        footer.Controls.Add(buttons);
+        cancel.Margin = Padding.Empty;
+
+        actions.Controls.Add(cancel, 1, 0);
+        actions.Controls.Add(_save, 3, 0);
+        root.Controls.Add(actions, 0, 1);
+        footer.Controls.Add(root);
         CancelButton = cancel;
         return footer;
     }
@@ -298,9 +320,23 @@ internal sealed class ChatTabEditorForm : Form
         labelBox.Controls.Add(ChatUiTheme.FieldLabel(label));
         labelBox.Controls.Add(ChatUiTheme.Hint(hint));
 
-        var host = new Panel { Dock = DockStyle.Fill, Height = 52, Padding = new Padding(0, 4, 0, 14), Margin = Padding.Empty };
-        control.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
-        if (control is TextBox) control.Width = 430;
+        var host = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Height = 52,
+            Padding = new Padding(0, 4, 0, 14),
+            Margin = Padding.Empty
+        };
+        if (control is TextBox)
+        {
+            control.Dock = DockStyle.Fill;
+            control.Margin = Padding.Empty;
+        }
+        else
+        {
+            control.Dock = DockStyle.Top;
+            control.Margin = Padding.Empty;
+        }
         host.Controls.Add(control);
 
         table.Controls.Add(labelBox, 0, row);
@@ -309,22 +345,26 @@ internal sealed class ChatTabEditorForm : Form
 
     private static Control MakeFieldBlock(string label, string hint, Control control)
     {
-        var flow = new FlowLayoutPanel
+        var block = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
+            ColumnCount = 1,
+            RowCount = 3,
             Margin = new Padding(0, 0, 0, 16),
             Padding = Padding.Empty
         };
-        flow.Controls.Add(ChatUiTheme.FieldLabel(label));
-        flow.Controls.Add(ChatUiTheme.Hint(hint));
-        control.Margin = new Padding(0, 8, 0, 0);
-        control.Width = 690;
-        flow.Controls.Add(control);
-        return flow;
+        block.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        var labelControl = ChatUiTheme.FieldLabel(label);
+        var hintControl = ChatUiTheme.Hint(hint);
+        hintControl.Margin = new Padding(0, 3, 0, 8);
+        control.Dock = DockStyle.Top;
+        control.Margin = Padding.Empty;
+        block.Controls.Add(labelControl, 0, 0);
+        block.Controls.Add(hintControl, 0, 1);
+        block.Controls.Add(control, 0, 2);
+        return block;
     }
 
     private static ChatCardPanel MakeCard(string title, string subtitle, Control content)
