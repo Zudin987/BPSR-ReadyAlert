@@ -6,6 +6,7 @@ internal static class ChatProtocol
 {
     internal const ulong ServiceId = 164_931_432UL;
     internal const uint NotifyNewestChitChatMsgs = 0x01;
+    private const int MaxDecodedStringBytes = 64 * 1024;
 
     internal static bool TryParseNotify(byte[] payload, out ChatMessageEvent message)
     {
@@ -39,7 +40,7 @@ internal static class ChatProtocol
                 senderLevel = checked((int)Math.Min(levelRaw, int.MaxValue));
         }
 
-        // ChitChatMsg.timestamp = field 3 (Unix seconds)
+        // ChitChatMsg.timestamp = field 3 (Unix seconds), matching ZDPS.
         if (TryGetVarintField(payload, chatOffset, chatLength, 3, out var timestampRaw))
             timestamp = unchecked((long)timestampRaw);
 
@@ -85,11 +86,15 @@ internal static class ChatProtocol
             localTime = DateTime.Now;
         }
 
+        var channel = channelRaw <= int.MaxValue && Enum.IsDefined(typeof(ChatChannel), (int)channelRaw)
+            ? (ChatChannel)(int)channelRaw
+            : ChatChannel.Null;
+
         message = new ChatMessageEvent(
             senderId,
-            string.IsNullOrWhiteSpace(senderName) ? "Unknown" : senderName,
+            senderName,
             senderLevel,
-            Enum.IsDefined(typeof(ChatChannel), (int)channelRaw) ? (ChatChannel)(int)channelRaw : ChatChannel.Null,
+            channel,
             localTime,
             kind,
             text ?? string.Empty);
@@ -106,9 +111,14 @@ internal static class ChatProtocol
         value = string.Empty;
         if (!TryGetLengthField(data, offset, length, wantedField, out var valueOffset, out var valueLength))
             return false;
+        if (valueLength > MaxDecodedStringBytes)
+            return false;
 
         try
         {
+            // UTF-8 is the protobuf string encoding and correctly preserves Malay,
+            // Chinese, emoji, and mixed-language BPSR chat. The framework decoder is
+            // intentionally tolerant of a malformed byte sequence instead of crashing.
             value = Encoding.UTF8.GetString(data, valueOffset, valueLength);
             return true;
         }
