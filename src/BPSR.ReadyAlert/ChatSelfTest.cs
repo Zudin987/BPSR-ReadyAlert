@@ -11,6 +11,7 @@ internal static class ChatSelfTest
     internal static void Run()
     {
         TestFilters();
+        TestHotkeys();
         TestUnicodeTextNotify();
         TestStickerNotify();
         TestSettingsNormalization();
@@ -27,6 +28,16 @@ internal static class ChatSelfTest
         Assert(ChatFilterExpression.TryValidate("serum | food | raid", out _), "valid friendly filter");
         Assert(!ChatFilterExpression.TryValidate("(", out var error) && error.Length > 0, "invalid regex validation");
         Assert(!ChatFilterExpression.IsMatch("anything", "("), "invalid regex runtime safety");
+    }
+
+    private static void TestHotkeys()
+    {
+        Assert(ChatHotkey.TryParse("Ctrl+Shift+F10", out var click, out _), "click-through hotkey parse");
+        Assert(click.Ctrl && click.Shift && !click.Alt && click.Key == System.Windows.Forms.Keys.F10, "click-through hotkey fields");
+        Assert(click.DisplayText == "Ctrl+Shift+F10", "click-through hotkey canonical text");
+        Assert(ChatHotkey.TryParse("alt+f9", out var collapse, out _), "case-insensitive hotkey parse");
+        Assert(collapse.DisplayText == "Alt+F9", "hotkey canonical casing");
+        Assert(!ChatHotkey.TryParse("Ctrl+Shift", out _, out var error) && error.Length > 0, "modifier-only hotkey rejected");
     }
 
     private static void TestUnicodeTextNotify()
@@ -98,8 +109,17 @@ internal static class ChatSelfTest
         {
             Tabs = [],
             BlockedUsers = [],
+            ChannelColors = new Dictionary<int, string>
+            {
+                [(int)ChatChannel.World] = "not-a-color",
+                [12345] = "#FFFFFF"
+            },
             BackgroundOpacity = -10,
+            ToolbarOpacity = 500,
+            TextOpacity = 0,
             WindowOpacity = 500,
+            FontSize = 99,
+            CollapseSide = "Diagonal",
             MaxHistory = 9
         };
         settings.Normalize();
@@ -112,8 +132,15 @@ internal static class ChatSelfTest
         Assert(all.Channels.Contains((int)ChatChannel.Newbie), "All includes Newbie");
         Assert(all.Channels.Contains((int)ChatChannel.Play), "All includes Play");
         Assert(settings.BackgroundOpacity == 10, "background opacity clamp");
+        Assert(settings.ToolbarOpacity == 100, "toolbar opacity clamp");
+        Assert(settings.TextOpacity == 40, "text opacity clamp");
         Assert(settings.WindowOpacity == 100, "window opacity clamp");
+        Assert(Math.Abs(settings.FontSize - 24F) < 0.01F, "font size clamp");
+        Assert(settings.CollapseSide == "Right", "collapse side normalization");
         Assert(settings.MaxHistory == 10, "history clamp");
+        Assert(!settings.ChannelColors.ContainsKey(12345), "unknown channel color removed");
+        Assert(settings.ChannelColors[(int)ChatChannel.World] == "#63C7FF", "invalid channel color repaired");
+        Assert(settings.ChannelColors.Count == Enum.GetValues<ChatChannel>().Length, "all channel colors present");
     }
 
     private static byte[] ProtoMessage(params byte[][] fields)
