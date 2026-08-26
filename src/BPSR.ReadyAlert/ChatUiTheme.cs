@@ -38,9 +38,6 @@ internal static class ChatUiTheme
     internal static void StylePrimaryButton(Button button)
     {
         StyleButtonBase(button);
-        // Primary footer/action buttons are placed in tightly sized layout rows.
-        // WinForms' default 3px margin on every side can make a 36px button require
-        // 42px vertically and visibly clip it at the bottom on DPI-scaled forms.
         button.Margin = Padding.Empty;
         button.BackColor = Accent;
         button.ForeColor = Color.White;
@@ -85,7 +82,7 @@ internal static class ChatUiTheme
         box.BackColor = Input;
         box.ForeColor = Text;
         box.BorderStyle = BorderStyle.FixedSingle;
-        box.Margin = new Padding(0);
+        box.Margin = Padding.Empty;
         if (multiline)
         {
             box.Multiline = true;
@@ -129,7 +126,10 @@ internal static class ChatUiTheme
     internal static Label Subheading(string text) => new()
     {
         AutoSize = true,
-        MaximumSize = new Size(820, 0),
+        // Keep explanatory copy narrow enough for every RC5 dialog at minimum
+        // width. This intentionally wraps earlier instead of forcing horizontal
+        // scrolling on 125–175% DPI displays.
+        MaximumSize = new Size(430, 0),
         Text = text,
         ForeColor = Muted,
         Font = UiFont(9F),
@@ -148,7 +148,7 @@ internal static class ChatUiTheme
     internal static Label Hint(string text) => new()
     {
         AutoSize = true,
-        MaximumSize = new Size(780, 0),
+        MaximumSize = new Size(430, 0),
         Text = text,
         ForeColor = Muted,
         Font = UiFont(8.5F),
