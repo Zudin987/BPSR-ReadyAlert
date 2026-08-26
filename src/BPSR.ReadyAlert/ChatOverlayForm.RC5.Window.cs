@@ -11,26 +11,36 @@ internal sealed partial class ChatOverlayForm
         if (_settings.Chat.BlockedUsers.Any(x => x.Id != 0 && x.Id == message.SenderId)) return;
         if (_settings.Chat.HideStickers && message.Kind == ChatMessageKind.Sticker) return;
 
-        var isPrivate = message.Channel == ChatChannel.Private;
-        if (isPrivate && _settings.Chat.PrivateSoundEnabled)
+        // Private/Talk keeps its dedicated sound priority. Otherwise evaluate the
+        // three user sound rules in order and stop at the first match so one chat
+        // message never launches multiple notification sounds at once.
+        if (message.Channel == ChatChannel.Private && _settings.Chat.PrivateSoundEnabled)
         {
-            PlayChatSound(_settings.Chat.PrivateSoundPath);
+            PlayChatSound(_settings.Chat.PrivateSoundPath, "private");
             return;
         }
-        if (!_settings.Chat.HighlightSoundEnabled || string.IsNullOrWhiteSpace(_settings.Chat.HighlightIfMatches)) return;
-        if (message.Kind is not (ChatMessageKind.Text or ChatMessageKind.TextNotice)) return;
-        var searchable = DisplaySenderName(message) + "\n" + message.Text;
-        if (ChatFilterExpression.IsMatch(searchable, _settings.Chat.HighlightIfMatches)) PlayChatSound(_settings.Chat.HighlightSoundPath);
+
+        var searchable = ChatTabFilter.SearchableText(message);
+        for (var i = 0; i < _settings.Chat.HighlightSoundRules.Count && i < 3; i++)
+        {
+            var rule = _settings.Chat.HighlightSoundRules[i];
+            if (!rule.Enabled || string.IsNullOrWhiteSpace(rule.Match)) continue;
+            if (!ChatFilterExpression.IsMatch(searchable, rule.Match)) continue;
+
+            PlayChatSound(rule.SoundPath, $"rule-{i + 1}");
+            return;
+        }
     }
 
-    private void PlayChatSound(string configuredPath)
+    private void PlayChatSound(string configuredPath, string reason)
     {
-        if ((DateTime.UtcNow - _lastSoundUtc).TotalMilliseconds < 150) return;
+        // There is intentionally no user cooldown for RC9. The timestamp is kept
+        // only for diagnostics/future troubleshooting and does not suppress sound.
         _lastSoundUtc = DateTime.UtcNow;
         var preferredPath = !string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath)
             ? configuredPath
             : _defaultSoundPath;
-        ChatSoundVolumePlayer.Play(preferredPath, _defaultSoundPath, _settings.Chat.ChatSoundVolume, "notification");
+        ChatSoundVolumePlayer.Play(preferredPath, _defaultSoundPath, _settings.Chat.ChatSoundVolume, reason);
     }
 
     private void RegisterHotkeys(bool showErrors)
