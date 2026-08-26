@@ -14,7 +14,8 @@ internal sealed partial class ChatOverlayForm
             return;
         }
 
-        var usableWidth = Math.Max(120, _messages.ClientSize.Width - 28);
+        var scrollInset = _v111ScrollBar is { Visible: true } ? _v111ScrollBar.Width : 0;
+        var usableWidth = Math.Max(120, _messages.ClientSize.Width - 28 - scrollInset);
         var lineHeight = Math.Max(_messageFont.Height, _senderFont.Height) + 3;
         if (_settings.Chat.CompactMode)
         {
@@ -62,9 +63,10 @@ internal sealed partial class ChatOverlayForm
 
         var x = e.Bounds.Left + (_settings.Chat.ShowColorBand ? 10 : 7);
         var y = e.Bounds.Top + 5;
-        var right = e.Bounds.Right - 10;
+        var scrollInset = _v111ScrollBar is { Visible: true } ? _v111ScrollBar.Width : 0;
+        var right = e.Bounds.Right - 10 - scrollInset;
         var textColor = ChatColorUtil.Blend(ChatUiTheme.Text, back, _settings.Chat.TextOpacity);
-        var senderColor = ChatColorUtil.Blend(Color.FromArgb(126, 186, 255), back, _settings.Chat.TextOpacity);
+        var senderColor = ChatColorUtil.Blend(ChatSenderColor.ForMessage(item.Message), back, _settings.Chat.TextOpacity);
         var metaColor = ChatColorUtil.Blend(Color.FromArgb(157, 170, 188), back, _settings.Chat.TextOpacity);
         var messageFont = _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont;
 
@@ -90,7 +92,7 @@ internal sealed partial class ChatOverlayForm
         if (_settings.Chat.ShowSeparators)
         {
             using var pen = new Pen(ChatColorUtil.Blend(Color.White, back, 10));
-            e.Graphics.DrawLine(pen, e.Bounds.Left + 9, e.Bounds.Bottom - 1, e.Bounds.Right - 9, e.Bounds.Bottom - 1);
+            e.Graphics.DrawLine(pen, e.Bounds.Left + 9, e.Bounds.Bottom - 1, e.Bounds.Right - 9 - scrollInset, e.Bounds.Bottom - 1);
         }
     }
 
@@ -123,13 +125,7 @@ internal sealed partial class ChatOverlayForm
         return value;
     }
 
-    private bool IsNearBottom()
-    {
-        if (_messages.Items.Count == 0) return true;
-        var index = _messages.IndexFromPoint(new Point(Math.Max(1, _messages.ClientSize.Width / 2), Math.Max(1, _messages.ClientSize.Height - 3)));
-        if (index == ListBox.NoMatches) return _messages.TopIndex >= _messages.Items.Count - 1;
-        return index >= _messages.Items.Count - 1;
-    }
+    private bool IsNearBottom() => ChatListScrollMath.IsAtBottom(_messages);
 
     private void UpdateFollowLatestFromViewport()
     {
@@ -156,7 +152,11 @@ internal sealed partial class ChatOverlayForm
 
     private void ScrollToLatest()
     {
-        if (_messages.Items.Count > 0) _messages.TopIndex = _messages.Items.Count - 1;
+        // A pending smooth-wheel target must never pull the viewport away again
+        // after the user clicks "new messages" or ReadyAlert follows a fresh row.
+        CancelV111SmoothScroll();
+        ChatListScrollMath.ScrollToBottom(_messages);
+        CancelV111SmoothScroll();
         _unseenMessages = 0;
         UpdateNewMessagesButton();
     }
@@ -166,12 +166,15 @@ internal sealed partial class ChatOverlayForm
         _newMessagesButton.Visible = !_collapsed && !_followLatest && _unseenMessages > 0;
         _newMessagesButton.Text = _unseenMessages <= 1 ? "↓ 1 new message" : $"↓ {_unseenMessages} new messages";
         if (_newMessagesButton.Visible) _newMessagesButton.BringToFront();
+        SyncV111ScrollUx();
     }
 
     private void PositionNewMessagesButton()
     {
+        var inset = _v111ScrollBar is { Visible: true } ? _v111ScrollBar.Width : 0;
         _newMessagesButton.Location = new Point(
-            Math.Max(6, ClientSize.Width - _newMessagesButton.Width - 18),
+            Math.Max(6, ClientSize.Width - _newMessagesButton.Width - 18 - inset),
             Math.Max(_topPanel.Bottom + 6, ClientSize.Height - _newMessagesButton.Height - 16));
+        PositionV111ScrollBar();
     }
 }

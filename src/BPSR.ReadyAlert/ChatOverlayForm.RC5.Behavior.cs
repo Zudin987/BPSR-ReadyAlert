@@ -5,6 +5,9 @@ namespace BPSR.ReadyAlert;
 
 internal sealed partial class ChatOverlayForm
 {
+    private bool _deferredUiRefresh;
+    private int _deferredVisibleMessages;
+
     internal void AddMessage(ChatMessageEvent message)
     {
         if (InvokeRequired)
@@ -15,8 +18,42 @@ internal sealed partial class ChatOverlayForm
 
         message = SanitizeForDisplay(message);
         _history.Add(message);
+
+        // TrayApplicationContext may drain a burst containing many chat events in a
+        // single WinForms tick. Do not remeasure/redraw the owner-drawn ListBox once
+        // per queued row: while more chat is pending, update only the bounded history
+        // and coalesce the visible rebuild into the final message in that burst.
+        var pendingUiMessages = ChatCaptureBridge.GetStatus().QueueCount;
+        if (pendingUiMessages > 0 || _deferredUiRefresh)
+        {
+            TrimHistoryOnly();
+
+            if (Visible && !_collapsed && _settings.Chat.Tabs.Count > 0 &&
+                !_followLatest && IsVisibleForTab(message, SelectedTab))
+                _deferredVisibleMessages++;
+
+            if (pendingUiMessages > 0)
+            {
+                _deferredUiRefresh = true;
+                return;
+            }
+
+            _deferredUiRefresh = false;
+            if (!Visible || _collapsed || _settings.Chat.Tabs.Count == 0)
+            {
+                _deferredVisibleMessages = 0;
+                return;
+            }
+
+            if (!_followLatest && _deferredVisibleMessages > 0)
+                _unseenMessages += _deferredVisibleMessages;
+            _deferredVisibleMessages = 0;
+            RebuildVisibleMessages(keepScroll: true);
+            UpdateNewMessagesButton();
+            return;
+        }
+
         RemoveOverflowHistoryFromView();
-        HandleMessageNotification(message);
 
         if (!Visible || _collapsed || _settings.Chat.Tabs.Count == 0)
             return;
@@ -38,6 +75,14 @@ internal sealed partial class ChatOverlayForm
             _unseenMessages++;
             UpdateNewMessagesButton();
         }
+    }
+
+    private void TrimHistoryOnly()
+    {
+        var cap = Math.Clamp(_settings.Chat.MaxHistory, 10, 500);
+        var overflow = _history.Count - cap;
+        if (overflow <= 0) return;
+        _history.RemoveRange(0, overflow);
     }
 
     internal void ShowOverlay()
@@ -250,6 +295,7 @@ internal sealed partial class ChatOverlayForm
             BlockedAtUtc = DateTime.UtcNow
         });
         _settingsStore.Save(_settings);
+        ChatNotificationEngine.Configure(_settings.Chat, _defaultSoundPath);
         RebuildVisibleMessages(keepScroll: true);
     }
 

@@ -13,6 +13,7 @@ namespace BPSR.ReadyAlert;
 internal static class ChatFilterExpression
 {
     private const int MaxExpressionLength = 4096;
+    private const int MaxCachedExpressions = 256;
 
     private static readonly Regex OrSplitter = new(
         @"[\r\n]+|\s*(?:\|\||\bOR\b)\s*|\s+\|\s+",
@@ -23,7 +24,11 @@ internal static class ChatFilterExpression
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(80);
-    private const RegexOptions MatchOptions = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+    private const RegexOptions MatchOptions =
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled;
+
+    private static readonly ConcurrentDictionary<string, CompiledExpression> Cache =
+        new(StringComparer.Ordinal);
 
     // A syntactically valid catastrophic regex can otherwise consume one timeout for
     // every historical message during a redraw. Once an expression times out, fail it
@@ -31,38 +36,44 @@ internal static class ChatFilterExpression
     private static readonly ConcurrentDictionary<string, byte> TimedOutExpressions =
         new(StringComparer.Ordinal);
 
+    private sealed class CompiledExpression
+    {
+        internal Regex[][] Groups { get; init; } = [];
+        internal string Error { get; init; } = string.Empty;
+        internal bool Valid => Error.Length == 0;
+    }
+
     internal static bool IsMatch(string text, string? expression)
     {
         if (string.IsNullOrWhiteSpace(expression)) return true;
         if (expression.Length > MaxExpressionLength) return false;
         if (TimedOutExpressions.ContainsKey(expression)) return false;
 
+        var compiled = GetOrCompile(expression);
+        if (!compiled.Valid) return false;
+
         try
         {
-            foreach (var orGroup in SplitNonEmpty(OrSplitter, expression))
+            var source = text ?? string.Empty;
+            foreach (var andGroup in compiled.Groups)
             {
                 var all = true;
-                foreach (var atom in SplitNonEmpty(AndSplitter, orGroup))
+                foreach (var atom in andGroup)
                 {
-                    if (!Regex.IsMatch(text ?? string.Empty, atom, MatchOptions, MatchTimeout))
+                    if (!atom.IsMatch(source))
                     {
                         all = false;
                         break;
                     }
                 }
-
                 if (all) return true;
             }
-        }
-        catch (ArgumentException)
-        {
-            return false;
         }
         catch (RegexMatchTimeoutException)
         {
             if (TimedOutExpressions.TryAdd(expression, 0))
                 AppLog.Write("chat: regex filter timed out and was disabled for this session");
-            return false;
+            Cache.TryRemove(expression, out _);
         }
 
         return false;
@@ -83,31 +94,46 @@ internal static class ChatFilterExpression
             return false;
         }
 
-        var foundAtom = false;
-        foreach (var orGroup in SplitNonEmpty(OrSplitter, expression))
+        var compiled = GetOrCompile(expression);
+        error = compiled.Error;
+        return compiled.Valid;
+    }
+
+    private static CompiledExpression GetOrCompile(string expression)
+    {
+        // User-editable filters normally number in the single digits. Bound the
+        // process cache so repeatedly typing temporary expressions can never make it
+        // grow for the lifetime of a long-running ReadyAlert session.
+        if (Cache.Count >= MaxCachedExpressions && !Cache.ContainsKey(expression))
+            Cache.Clear();
+
+        return Cache.GetOrAdd(expression, Compile);
+    }
+
+    private static CompiledExpression Compile(string expression)
+    {
+        var groups = new List<Regex[]>();
+        try
         {
-            foreach (var atom in SplitNonEmpty(AndSplitter, orGroup))
+            foreach (var orGroup in SplitNonEmpty(OrSplitter, expression))
             {
-                foundAtom = true;
-                try
-                {
-                    _ = new Regex(atom, MatchOptions, MatchTimeout);
-                }
-                catch (ArgumentException ex)
-                {
-                    error = $"Invalid regex '{atom}': {ex.Message}";
-                    return false;
-                }
+                var atoms = new List<Regex>();
+                foreach (var atom in SplitNonEmpty(AndSplitter, orGroup))
+                    atoms.Add(new Regex(atom, MatchOptions, MatchTimeout));
+
+                if (atoms.Count > 0)
+                    groups.Add(atoms.ToArray());
             }
         }
-
-        if (!foundAtom)
+        catch (ArgumentException ex)
         {
-            error = "Enter at least one word or regular expression.";
-            return false;
+            return new CompiledExpression { Error = ex.Message };
         }
 
-        return true;
+        if (groups.Count == 0)
+            return new CompiledExpression { Error = "Enter at least one word or regular expression." };
+
+        return new CompiledExpression { Groups = groups.ToArray() };
     }
 
     private static IEnumerable<string> SplitNonEmpty(Regex splitter, string value)
@@ -118,5 +144,13 @@ internal static class ChatFilterExpression
             if (trimmed.Length > 0)
                 yield return trimmed;
         }
+    }
+
+    internal static int CachedExpressionCountForSelfTest => Cache.Count;
+
+    internal static void ClearCacheForSelfTest()
+    {
+        Cache.Clear();
+        TimedOutExpressions.Clear();
     }
 }

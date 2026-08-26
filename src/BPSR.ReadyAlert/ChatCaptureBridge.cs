@@ -14,7 +14,7 @@ internal readonly record struct ChatCaptureStatus(
 
 /// <summary>
 /// Cheap opt-in chat consumer for CaptureEngine's existing decoded Notify stream.
-/// It deliberately owns no Npcap handle, TCP flow state, decompressor, or thread.
+/// It deliberately owns no Npcap handle, TCP flow state, decompressor, or capture thread.
 /// </summary>
 internal static class ChatCaptureBridge
 {
@@ -28,11 +28,16 @@ internal static class ChatCaptureBridge
     private static long _droppedQueuedMessages;
     private static long _lastMessageUtcTicks;
     private static int _lastPayloadLength;
+    private static long _sequenceId;
 
     internal static bool Enabled
     {
         get => _enabled;
-        set => _enabled = value;
+        set
+        {
+            _enabled = value;
+            ChatNotificationEngine.Enabled = value;
+        }
     }
 
     internal static void Configure(ConcurrentQueue<ChatMessageEvent> events)
@@ -67,7 +72,7 @@ internal static class ChatCaptureBridge
             return false;
 
         // Keep Chat Overlay OFF almost free: after the two integer ID comparisons,
-        // skip counters, protobuf parsing, queue work and every UI path.
+        // skip counters, protobuf parsing, queue work and every UI/audio path.
         if (!_enabled) return true;
 
         Interlocked.Increment(ref _matchingNotifies);
@@ -84,8 +89,14 @@ internal static class ChatCaptureBridge
             return true;
         }
 
+        message = message with { SequenceId = Interlocked.Increment(ref _sequenceId) };
         Interlocked.Increment(ref _parsedMessages);
         Interlocked.Exchange(ref _lastMessageUtcTicks, DateTime.UtcNow.Ticks);
+
+        // Notification matching/audio is intentionally independent from the overlay
+        // UI queue. A collapsed/hidden/busy WinForms window therefore cannot stop a
+        // keyword/private sound from being evaluated.
+        ChatNotificationEngine.Enqueue(message);
 
         // The UI normally drains every 25 ms. Keep a hard emergency ceiling so a
         // blocked UI thread or malformed packet flood cannot grow memory forever.

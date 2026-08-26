@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Media;
 using System.Windows.Forms;
 
 namespace BPSR.ReadyAlert;
@@ -8,42 +7,10 @@ internal sealed partial class ChatOverlayForm
 {
     private void HandleMessageNotification(ChatMessageEvent message)
     {
-        if (_settings.Chat.BlockedUsers.Any(x => x.Id != 0 && x.Id == message.SenderId)) return;
-        if (_settings.Chat.HideStickers && message.Kind == ChatMessageKind.Sticker) return;
-
-        // Private/Talk keeps its dedicated sound priority. Otherwise evaluate the
-        // three user sound rules in order and stop at the first match so one chat
-        // message never launches multiple notification sounds at once.
-        if (message.Channel == ChatChannel.Private && _settings.Chat.PrivateSoundEnabled)
-        {
-            PlayChatSound(_settings.Chat.PrivateSoundPath, "private");
-            return;
-        }
-
-        // Sound rules intentionally inspect message content only. Player/sender
-        // names are excluded so a user named "Serum" does not trigger the serum
-        // notification every time they say something unrelated.
-        var searchable = message.Text ?? string.Empty;
-        for (var i = 0; i < _settings.Chat.HighlightSoundRules.Count && i < 3; i++)
-        {
-            var rule = _settings.Chat.HighlightSoundRules[i];
-            if (!rule.Enabled || string.IsNullOrWhiteSpace(rule.Match)) continue;
-            if (!ChatFilterExpression.IsMatch(searchable, rule.Match)) continue;
-
-            PlayChatSound(rule.SoundPath, $"rule-{i + 1}");
-            return;
-        }
-    }
-
-    private void PlayChatSound(string configuredPath, string reason)
-    {
-        // There is intentionally no user cooldown for RC9+. The timestamp is kept
-        // only for diagnostics/future troubleshooting and does not suppress sound.
-        _lastSoundUtc = DateTime.UtcNow;
-        var preferredPath = !string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath)
-            ? configuredPath
-            : _defaultSoundPath;
-        ChatSoundVolumePlayer.Play(preferredPath, _defaultSoundPath, _settings.Chat.ChatSoundVolume, reason);
+        // RC2 notification matching/audio is owned by ChatNotificationEngine and is
+        // dispatched directly from ChatCaptureBridge after parsing. Keep this legacy
+        // call site as a no-op so the UI can never double-play a sound and collapse/
+        // hide/repaint state cannot affect notification delivery.
     }
 
     private void RegisterHotkeys(bool showErrors)
@@ -135,6 +102,7 @@ internal sealed partial class ChatOverlayForm
         SaveWindowPlacement();
         var screen = Screen.FromRectangle(Bounds).WorkingArea;
         var side = _settings.Chat.CollapseSide;
+        CancelV111SmoothScroll();
         _topPanel.Visible = false;
         _messages.Visible = false;
         _emptyState.Visible = false;
@@ -165,6 +133,7 @@ internal sealed partial class ChatOverlayForm
             "Bottom" => "▲",
             _ => "◀"
         };
+        SyncV111ScrollUx();
         AppLog.Write("chat: collapsed side=" + side);
     }
 
@@ -179,6 +148,7 @@ internal sealed partial class ChatOverlayForm
         RebuildVisibleMessages(keepScroll: true);
         UpdateNewMessagesButton();
         UpdateEmptyState();
+        SyncV111ScrollUx();
         AppLog.Write("chat: expanded");
     }
 
@@ -274,6 +244,10 @@ internal sealed partial class ChatOverlayForm
             _disposedResources = true;
             try { _relativeTimer.Stop(); } catch { }
             try { _resizeTimer.Stop(); } catch { }
+            _v111ListUx?.Dispose();
+            _v111ListUx = null;
+            _v111ScrollBar?.Dispose();
+            _v111ScrollBar = null;
             _messageFont?.Dispose();
             _messageBoldFont?.Dispose();
             _senderFont?.Dispose();
