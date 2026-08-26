@@ -17,6 +17,7 @@ internal static class Program
                 ApplicationConfiguration.Initialize();
                 ChatSelfTest.Run();
                 ChatUiSelfTest.Run();
+                ChatRc8SelfTest.Run();
                 return;
             }
             catch
