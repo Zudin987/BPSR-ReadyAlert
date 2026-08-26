@@ -66,10 +66,12 @@ internal static class ChatCaptureBridge
         if (service != ChatProtocol.ServiceId || method != ChatProtocol.NotifyNewestChitChatMsgs)
             return false;
 
+        // Keep Chat Overlay OFF almost free: after the two integer ID comparisons,
+        // skip counters, protobuf parsing, queue work and every UI path.
+        if (!_enabled) return true;
+
         Interlocked.Increment(ref _matchingNotifies);
         Volatile.Write(ref _lastPayloadLength, payload.Length);
-
-        if (!_enabled) return true;
 
         var events = Volatile.Read(ref _events);
         if (events is null) return true;
