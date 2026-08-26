@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
 
+# Keep only the newest build for the same PR/ref. Rapid RC commits previously left
+# stale Windows jobs queued ahead of the actual candidate and delayed validation.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
