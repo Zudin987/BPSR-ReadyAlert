@@ -105,8 +105,23 @@ internal sealed partial class ChatGeneralSettingsForm
             Margin = Padding.Empty
         };
         labelBox.Controls.Add(ChatUiTheme.FieldLabel(label));
-        labelBox.Controls.Add(ChatUiTheme.Hint(hint));
-        var host = new Panel { Dock = DockStyle.Fill, Height = 54, Padding = new Padding(0, 4, 0, 14), Margin = Padding.Empty };
+        var hintLabel = ChatUiTheme.Hint(hint);
+        hintLabel.MaximumSize = new Size(205, 0);
+        hintLabel.Margin = new Padding(0, 3, 0, 0);
+        labelBox.Controls.Add(hintLabel);
+
+        var host = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Height = 54,
+            Padding = new Padding(0, 4, 0, 14),
+            Margin = Padding.Empty
+        };
+        control.Margin = Padding.Empty;
+        if (control is TextBox or ComboBox)
+            control.Dock = DockStyle.Fill;
+        else
+            control.Dock = DockStyle.Top;
         host.Controls.Add(control);
         table.Controls.Add(labelBox, 0, row);
         table.Controls.Add(host, 1, row);
@@ -163,9 +178,19 @@ internal sealed partial class ChatGeneralSettingsForm
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190F));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58F));
-        var labels = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0, 2, 12, 0) };
+        var labels = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Padding = new Padding(0, 2, 12, 0)
+        };
         labels.Controls.Add(ChatUiTheme.FieldLabel(label));
-        labels.Controls.Add(ChatUiTheme.Hint(hint));
+        var hintLabel = ChatUiTheme.Hint(hint);
+        hintLabel.MaximumSize = new Size(172, 0);
+        hintLabel.Margin = new Padding(0, 3, 0, 0);
+        labels.Controls.Add(hintLabel);
         row.Controls.Add(labels, 0, 0);
         row.Controls.Add(slider, 1, 0);
         row.Controls.Add(value, 2, 0);
@@ -192,7 +217,9 @@ internal sealed partial class ChatGeneralSettingsForm
             Padding = new Padding(10, 0, 0, 0)
         };
         content.Controls.Add(ChatUiTheme.FieldLabel(title));
-        content.Controls.Add(ChatUiTheme.Hint(text));
+        var hint = ChatUiTheme.Hint(text);
+        hint.MaximumSize = new Size(390, 0);
+        content.Controls.Add(hint);
         panel.Controls.Add(content);
         panel.Controls.Add(stripe);
         return panel;
@@ -211,9 +238,19 @@ internal sealed partial class ChatGeneralSettingsForm
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132F));
-        var text = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0, 0, 16, 0) };
+        var text = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Padding = new Padding(0, 0, 16, 0)
+        };
         text.Controls.Add(ChatUiTheme.FieldLabel(title));
-        text.Controls.Add(ChatUiTheme.Hint(description));
+        var hint = ChatUiTheme.Hint(description);
+        hint.MaximumSize = new Size(340, 0);
+        hint.Margin = new Padding(0, 3, 0, 0);
+        text.Controls.Add(hint);
         var button = new Button { Text = buttonText, Width = 118, Height = 34, Dock = DockStyle.Top };
         ChatUiTheme.StyleSecondaryButton(button);
         button.Click += (_, _) => action();
@@ -234,7 +271,13 @@ internal sealed partial class ChatGeneralSettingsForm
             Padding = Padding.Empty
         };
         outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        var labelFlow = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        var labelFlow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false
+        };
         labelFlow.Controls.Add(ChatUiTheme.FieldLabel(label));
         labelFlow.Controls.Add(ChatUiTheme.Hint(hint));
 
