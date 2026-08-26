@@ -131,11 +131,18 @@ internal sealed class ChatOverlayForm : Form
         messageMenu.Items.Add(block);
         messageMenu.Opening += (_, e) =>
         {
-            var has = _contextMessage.HasValue;
-            copyName.Enabled = has && !string.IsNullOrEmpty(_contextMessage.Value.SenderName);
-            copyUid.Enabled = has && _contextMessage.Value.SenderId != 0;
-            block.Enabled = has && _contextMessage.Value.SenderId != 0;
-            if (!has) e.Cancel = true;
+            if (_contextMessage is { } current)
+            {
+                copyName.Enabled = !string.IsNullOrEmpty(current.SenderName);
+                copyUid.Enabled = current.SenderId != 0;
+                block.Enabled = current.SenderId != 0;
+                return;
+            }
+
+            copyName.Enabled = false;
+            copyUid.Enabled = false;
+            block.Enabled = false;
+            e.Cancel = true;
         };
         _messages.ContextMenuStrip = messageMenu;
         _messages.MouseDown += MessagesMouseDown;
@@ -197,10 +204,22 @@ internal sealed class ChatOverlayForm : Form
         if (!IsVisibleForTab(message, SelectedTab))
             return;
 
-        var wasAtEnd = IsCaretAtEnd();
+        var wasAtBottom = IsScrolledNearBottom();
+        var oldTopChar = GetFirstVisibleCharIndex();
+        var oldSelection = _messages.SelectionStart;
+        var oldSelectionLength = _messages.SelectionLength;
+
         AppendMessage(message);
-        if (wasAtEnd)
+
+        if (wasAtBottom)
+        {
             ScrollToEnd();
+        }
+        else
+        {
+            RestoreScrollToChar(oldTopChar);
+            RestoreSelection(oldSelection, oldSelectionLength);
+        }
     }
 
     internal void ShowOverlay()
@@ -484,7 +503,9 @@ internal sealed class ChatOverlayForm : Form
 
         var oldSelection = _messages.SelectionStart;
         var oldSelectionLength = _messages.SelectionLength;
-        var oldScrollAtEnd = IsCaretAtEnd();
+        var oldTopChar = GetFirstVisibleCharIndex();
+        var wasAtBottom = IsScrolledNearBottom();
+
         _messages.SuspendLayout();
         try
         {
@@ -499,15 +520,14 @@ internal sealed class ChatOverlayForm : Form
                     AppendMessage(message);
             }
 
-            if (!keepScroll || oldScrollAtEnd)
+            if (!keepScroll || wasAtBottom)
             {
                 ScrollToEnd();
             }
             else
             {
-                _messages.SelectionStart = Math.Min(oldSelection, _messages.TextLength);
-                _messages.SelectionLength = Math.Min(oldSelectionLength, _messages.TextLength - _messages.SelectionStart);
-                _messages.ScrollToCaret();
+                RestoreScrollToChar(oldTopChar);
+                RestoreSelection(oldSelection, oldSelectionLength);
             }
         }
         finally
@@ -549,8 +569,36 @@ internal sealed class ChatOverlayForm : Form
         return message.SenderId != 0 ? message.SenderId.ToString() : "System";
     }
 
-    private bool IsCaretAtEnd() =>
-        _messages.SelectionStart + _messages.SelectionLength >= Math.Max(0, _messages.TextLength - 2);
+    private bool IsScrolledNearBottom()
+    {
+        if (_messages.TextLength == 0) return true;
+        var point = new Point(
+            Math.Max(0, _messages.ClientSize.Width - 4),
+            Math.Max(0, _messages.ClientSize.Height - 4));
+        var lastVisibleChar = _messages.GetCharIndexFromPosition(point);
+        return lastVisibleChar >= Math.Max(0, _messages.TextLength - 3);
+    }
+
+    private int GetFirstVisibleCharIndex()
+    {
+        if (_messages.TextLength == 0) return 0;
+        return _messages.GetCharIndexFromPosition(new Point(3, 3));
+    }
+
+    private void RestoreScrollToChar(int charIndex)
+    {
+        if (_messages.TextLength == 0) return;
+        _messages.SelectionStart = Math.Clamp(charIndex, 0, _messages.TextLength);
+        _messages.SelectionLength = 0;
+        _messages.ScrollToCaret();
+    }
+
+    private void RestoreSelection(int start, int length)
+    {
+        var safeStart = Math.Clamp(start, 0, _messages.TextLength);
+        var safeLength = Math.Clamp(length, 0, _messages.TextLength - safeStart);
+        _messages.Select(safeStart, safeLength);
+    }
 
     private void ScrollToEnd()
     {
