@@ -4,7 +4,8 @@
 
 **Website:** https://zudin987.github.io/projects/readyalert/
 
-**Current stable release:** v1.1.1
+**Current stable release:** v1.1.1  
+**Release channel:** Stable
 
 ## Highlights
 
