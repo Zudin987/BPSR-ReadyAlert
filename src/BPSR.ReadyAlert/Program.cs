@@ -12,10 +12,21 @@ internal static class Program
         // the bundle starts, run deterministic chat parser/filter/settings and UI checks.
         if (args.Any(a => string.Equals(a, "--build-smoke-test", StringComparison.OrdinalIgnoreCase)))
         {
-            ApplicationConfiguration.Initialize();
-            ChatSelfTest.Run();
-            ChatUiSelfTest.Run();
-            return;
+            var errorPath = Path.Combine(AppContext.BaseDirectory, "SMOKE-ERROR.txt");
+            try
+            {
+                if (File.Exists(errorPath)) File.Delete(errorPath);
+                ApplicationConfiguration.Initialize();
+                ChatSelfTest.Run();
+                ChatUiSelfTest.Run();
+                return;
+            }
+            catch (Exception ex)
+            {
+                try { File.WriteAllText(errorPath, ex.ToString()); } catch { }
+                Environment.ExitCode = 1;
+                return;
+            }
         }
 
         using var mutex = new Mutex(initiallyOwned: true, name: @"Global\BPSR-ReadyAlert", createdNew: out var createdNew);
