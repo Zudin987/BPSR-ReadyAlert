@@ -8,10 +8,13 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        // CI uses this after publishing the final single-file EXE. If the bundle is
-        // damaged, this process will fail to start.
+        // CI runs the final published single-file EXE in this mode. Besides proving
+        // the bundle starts, run deterministic chat parser/filter/settings checks.
         if (args.Any(a => string.Equals(a, "--build-smoke-test", StringComparison.OrdinalIgnoreCase)))
+        {
+            ChatSelfTest.Run();
             return;
+        }
 
         using var mutex = new Mutex(initiallyOwned: true, name: @"Global\BPSR-ReadyAlert", createdNew: out var createdNew);
         if (!createdNew)
