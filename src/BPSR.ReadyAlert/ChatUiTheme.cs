@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -185,6 +186,8 @@ internal sealed class ChatNavButton : Button
 {
     private bool _selected;
 
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal bool Selected
     {
         get => _selected;
@@ -234,6 +237,8 @@ internal sealed class ChatTabButton : Button
 {
     private bool _selected;
 
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal bool Selected
     {
         get => _selected;
