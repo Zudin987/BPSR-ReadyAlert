@@ -16,11 +16,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly ConcurrentQueue<AlertEvent> _events = new();
+    private readonly ConcurrentQueue<ChatMessageEvent> _chatEvents = new();
     private CaptureEngine _engine;
+    private ChatCaptureEngine? _chatCapture;
+    private ChatOverlayForm? _chatWindow;
     private readonly AlertAudioPlayer _player;
     private readonly Icon _appIcon;
     private ToolStripMenuItem? _adapterMenu;
     private ToolStripMenuItem? _volumeMenu;
+    private ToolStripMenuItem? _chatMenuItem;
+    private bool _updatingChatToggle;
 
     internal TrayApplicationContext(
         AppPaths paths,
@@ -51,12 +56,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         AppLog.Write(
             $"settings: queue={_settings.QueuePopAlert} ready={_settings.ReadyCheckAlert} " +
-            $"notification={_settings.DesktopNotification} autoLaunch={_settings.AutoLaunchResonanceLogs} " +
-            $"volume={_settings.AlertVolume}% adapter={_settings.NpcapDeviceName}");
+            $"notification={_settings.DesktopNotification} chat={_settings.ChatOverlayEnabled} " +
+            $"autoLaunch={_settings.AutoLaunchResonanceLogs} volume={_settings.AlertVolume}% " +
+            $"adapter={_settings.NpcapDeviceName}");
         AppLog.Write($"capture: selected adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
 
         _engine = new CaptureEngine(_events, _capturePlan);
         _engine.Start();
+
+        if (_settings.ChatOverlayEnabled)
+        {
+            StartChatCapture();
+            EnsureChatWindow().ShowOverlay();
+        }
 
         _timer = new System.Windows.Forms.Timer { Interval = 25 };
         _timer.Tick += (_, _) => DrainEvents();
@@ -139,6 +151,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _settingsStore.Save(_settings);
         };
 
+        _chatMenuItem = new ToolStripMenuItem("Chat Overlay")
+        {
+            Checked = _settings.ChatOverlayEnabled,
+            CheckOnClick = true
+        };
+        _chatMenuItem.CheckedChanged += (_, _) =>
+        {
+            if (_updatingChatToggle) return;
+            SetChatOverlayEnabled(_chatMenuItem.Checked);
+        };
+
         var autoLaunchItem = new ToolStripMenuItem("Auto-launch Resonance Logs CN")
         {
             Checked = _settings.AutoLaunchResonanceLogs,
@@ -153,6 +176,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(queueItem);
         menu.Items.Add(readyItem);
         menu.Items.Add(notificationItem);
+        menu.Items.Add(_chatMenuItem);
         menu.Items.Add(autoLaunchItem);
 
         _adapterMenu = new ToolStripMenuItem();
@@ -208,6 +232,82 @@ internal sealed class TrayApplicationContext : ApplicationContext
         return menu;
     }
 
+    private ChatOverlayForm EnsureChatWindow()
+    {
+        if (_chatWindow is { IsDisposed: false }) return _chatWindow;
+
+        _chatWindow = new ChatOverlayForm(
+            _settings,
+            _settingsStore,
+            _paths.AppIconPath,
+            enabled => SetChatOverlayEnabled(enabled));
+        return _chatWindow;
+    }
+
+    private void SetChatOverlayEnabled(bool enabled)
+    {
+        if (_updatingChatToggle) return;
+        _updatingChatToggle = true;
+        try
+        {
+            if (_settings.ChatOverlayEnabled != enabled)
+            {
+                _settings.ChatOverlayEnabled = enabled;
+                _settingsStore.Save(_settings);
+                AppLog.Write("settings: ChatOverlayEnabled=" + enabled);
+            }
+
+            if (_chatMenuItem is not null && _chatMenuItem.Checked != enabled)
+                _chatMenuItem.Checked = enabled;
+
+            if (enabled)
+            {
+                StartChatCapture();
+                EnsureChatWindow().ShowOverlay();
+            }
+            else
+            {
+                StopChatCapture();
+                _chatWindow?.HideOverlay();
+                while (_chatEvents.TryDequeue(out _)) { }
+            }
+        }
+        finally
+        {
+            _updatingChatToggle = false;
+        }
+    }
+
+    private void StartChatCapture()
+    {
+        if (_chatCapture is not null) return;
+        try
+        {
+            _chatCapture = new ChatCaptureEngine(_chatEvents, _capturePlan);
+            _chatCapture.Start();
+            AppLog.Write("chat: capture enabled");
+        }
+        catch (Exception ex)
+        {
+            _chatCapture?.Dispose();
+            _chatCapture = null;
+            AppLog.Write("chat: capture start failed " + ex);
+            MessageBox.Show(
+                "Chat Overlay could not start its Npcap capture.\r\n\r\n" + ex.Message,
+                "BPSR Chat",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void StopChatCapture()
+    {
+        var capture = _chatCapture;
+        _chatCapture = null;
+        capture?.Dispose();
+        AppLog.Write("chat: capture disabled");
+    }
+
     private void RefreshAdapterMenu()
     {
         if (_adapterMenu is null) return;
@@ -250,10 +350,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         try
         {
+            StopChatCapture();
             _engine.Dispose();
             _capturePlan = NpcapDeviceSelector.SelectPlan(_settings);
             _engine = new CaptureEngine(_events, _capturePlan);
             _engine.Start();
+            if (_settings.ChatOverlayEnabled) StartChatCapture();
             RefreshAdapterMenu();
             AppLog.Write($"capture: switched adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
         }
@@ -325,6 +427,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
                     evt.Kind == "error" ? ToolTipIcon.Error : ToolTipIcon.Info);
             }
         }
+
+        if (!_settings.ChatOverlayEnabled)
+        {
+            while (_chatEvents.TryDequeue(out _)) { }
+            return;
+        }
+
+        var chatWindow = EnsureChatWindow();
+        while (_chatEvents.TryDequeue(out var chat))
+            chatWindow.AddMessage(chat);
     }
 
     private static (string Title, string Message) FormatDesktopNotification(AlertEvent evt)
@@ -385,7 +497,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     protected override void ExitThreadCore()
     {
         _timer.Stop();
+        StopChatCapture();
         _engine.Dispose();
+        _chatWindow?.Shutdown();
         _player.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
