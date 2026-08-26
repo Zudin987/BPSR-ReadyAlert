@@ -90,26 +90,50 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 66,
-            Padding = new Padding(20, 15, 20, 15),
-            BackColor = ChatUiTheme.Surface
+            Height = 70,
+            BackColor = ChatUiTheme.Surface,
+            Padding = Padding.Empty
         };
-        footer.Controls.Add(ChatUiTheme.Divider());
-        var buttons = new FlowLayoutPanel
+        var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
-            WrapContents = false,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
             BackColor = ChatUiTheme.Surface
         };
-        var save = new Button { Text = "Save changes", Width = 128, Height = 36 };
-        var cancel = new Button { Text = "Cancel", Width = 96, Height = 36, DialogResult = DialogResult.Cancel, Margin = new Padding(0, 0, 8, 0) };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 1F));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        root.Controls.Add(new Panel { Dock = DockStyle.Fill, BackColor = ChatUiTheme.Border, Margin = Padding.Empty }, 0, 0);
+
+        var actions = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            RowCount = 1,
+            Margin = Padding.Empty,
+            Padding = new Padding(20, 14, 20, 14),
+            BackColor = ChatUiTheme.Surface
+        };
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128F));
+        actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        var save = new Button { Text = "Save changes", Dock = DockStyle.Fill, Margin = Padding.Empty };
+        var cancel = new Button { Text = "Cancel", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel, Margin = Padding.Empty };
         ChatUiTheme.StylePrimaryButton(save);
         ChatUiTheme.StyleSecondaryButton(cancel);
+        save.Margin = Padding.Empty;
+        cancel.Margin = Padding.Empty;
         save.Click += (_, _) => SaveAndClose();
-        buttons.Controls.Add(save);
-        buttons.Controls.Add(cancel);
-        footer.Controls.Add(buttons);
+        actions.Controls.Add(cancel, 1, 0);
+        actions.Controls.Add(save, 3, 0);
+        root.Controls.Add(actions, 0, 1);
+        footer.Controls.Add(root);
         AcceptButton = save;
         CancelButton = cancel;
         return footer;
