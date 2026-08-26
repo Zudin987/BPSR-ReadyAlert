@@ -86,7 +86,15 @@ internal sealed partial class ChatGeneralSettingsForm
         _settings.Normalize();
 
         if (Owner is ChatOverlayForm overlay)
+        {
             overlay.ApplySettingsFromOpenDialog();
+            TopMost = overlay.TopMost;
+            if (TopMost)
+            {
+                BringToFront();
+                Activate();
+            }
+        }
 
         _applyStatus.Text = "Saved ✓";
     }
@@ -196,7 +204,20 @@ internal sealed partial class ChatGeneralSettingsForm
             Filter = "WAV audio (*.wav)|*.wav|All files (*.*)|*.*",
             CheckFileExists = true
         };
-        if (dialog.ShowDialog(this) == DialogResult.OK) target.Text = dialog.FileName;
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        if (!ChatSoundVolumePlayer.IsSupportedWave(dialog.FileName, out var error))
+        {
+            MessageBox.Show(
+                this,
+                "This WAV cannot use ReadyAlert's lightweight volume control. Choose a standard 16-bit PCM WAV file.\r\n\r\n" + error,
+                "Unsupported WAV format",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        target.Text = dialog.FileName;
     }
 
     private static Color ContrastText(Color color) =>
