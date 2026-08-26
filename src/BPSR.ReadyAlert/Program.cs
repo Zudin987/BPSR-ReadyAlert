@@ -15,15 +15,16 @@ internal static class Program
             try
             {
                 ApplicationConfiguration.Initialize();
-                ChatSelfTest.Run();
-                ChatUiSelfTest.Run();
-                ChatRc8SelfTest.Run();
-                ChatRc9SelfTest.Run();
+                RunSmokeStep(ChatSelfTest.Run, 11);
+                RunSmokeStep(ChatUiSelfTest.Run, 12);
+                RunSmokeStep(ChatRc8SelfTest.Run, 13);
+                RunSmokeStep(ChatRc9SelfTest.Run, 14);
+                Environment.ExitCode = 0;
                 return;
             }
             catch
             {
-                Environment.ExitCode = 1;
+                if (Environment.ExitCode == 0) Environment.ExitCode = 1;
                 return;
             }
         }
@@ -95,5 +96,12 @@ internal static class Program
         {
             try { mutex.ReleaseMutex(); } catch { }
         }
+    }
+
+    private static void RunSmokeStep(Action step, int failureCode)
+    {
+        Environment.ExitCode = failureCode;
+        step();
+        Environment.ExitCode = 0;
     }
 }
