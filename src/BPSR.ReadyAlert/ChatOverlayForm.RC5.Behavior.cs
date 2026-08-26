@@ -23,7 +23,11 @@ internal sealed partial class ChatOverlayForm
         if (!IsVisibleForTab(message, SelectedTab))
             return;
 
-        var wasFollowing = _followLatest && IsNearBottom();
+        // _followLatest is the user's intent. Re-checking IsNearBottom here while
+        // OwnerDrawVariable is inserting/measuring a new row can transiently report
+        // false and flip Smart Scroll off, which caused the viewport to jump away
+        // from the newest chat after every incoming message.
+        var wasFollowing = _followLatest;
         _messages.Items.Add(CreateDisplayItem(message));
         UpdateEmptyState();
 
