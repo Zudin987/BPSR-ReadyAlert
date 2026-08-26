@@ -24,34 +24,44 @@ internal sealed class AppSettings
 internal sealed class SettingsStore
 {
     private readonly string _path;
+    private readonly string _backupPath;
+    private readonly string _tempPath;
+    private readonly object _saveLock = new();
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    internal SettingsStore(string path) => _path = path;
+    internal SettingsStore(string path)
+    {
+        _path = path;
+        _backupPath = path + ".bak";
+        _tempPath = path + ".new";
+    }
 
     internal AppSettings Load()
     {
-        try
+        TryDeleteStaleTemp();
+
+        if (TryLoadFile(_path, out var settings, out var primaryError))
+            return settings;
+
+        if (!string.IsNullOrWhiteSpace(primaryError))
+            AppLog.Write("settings: primary load failed " + primaryError);
+
+        if (TryLoadFile(_backupPath, out settings, out var backupError))
         {
-            if (File.Exists(_path))
-            {
-                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path), JsonOptions);
-                if (loaded is not null)
-                {
-                    Normalize(loaded);
-                    return loaded;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLog.Write("settings: load failed " + ex.Message);
+            AppLog.Write("settings: recovered from backup " + _backupPath);
+            Save(settings);
+            return settings;
         }
 
-        var settings = new AppSettings();
+        if (!string.IsNullOrWhiteSpace(backupError))
+            AppLog.Write("settings: backup load failed " + backupError);
+
+        settings = new AppSettings();
         Normalize(settings);
         Save(settings);
         return settings;
@@ -59,17 +69,88 @@ internal sealed class SettingsStore
 
     internal void Save(AppSettings settings)
     {
+        lock (_saveLock)
+        {
+            try
+            {
+                Normalize(settings);
+                var directory = Path.GetDirectoryName(_path);
+                if (!string.IsNullOrWhiteSpace(directory))
+                    Directory.CreateDirectory(directory);
+
+                TryDeleteStaleTemp();
+                var json = JsonSerializer.Serialize(settings, JsonOptions);
+                using (var stream = new FileStream(_tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write(json);
+                    writer.Flush();
+                    stream.Flush(flushToDisk: true);
+                }
+
+                // Never replace the known-good file with bytes we cannot read back.
+                if (!TryLoadFile(_tempPath, out _, out var validationError))
+                    throw new JsonException("Temporary settings validation failed: " + validationError);
+
+                var currentIsValid = TryLoadFile(_path, out _, out _);
+                if (File.Exists(_path) && currentIsValid)
+                {
+                    File.Replace(_tempPath, _path, _backupPath, ignoreMetadataErrors: true);
+                }
+                else
+                {
+                    // Keep an existing valid backup intact when the current primary is
+                    // already corrupt; the freshly validated temp becomes the primary.
+                    File.Move(_tempPath, _path, overwrite: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write("settings: save failed " + ex.Message);
+            }
+            finally
+            {
+                TryDeleteStaleTemp();
+            }
+        }
+    }
+
+    private static bool TryLoadFile(string path, out AppSettings settings, out string error)
+    {
+        settings = null!;
+        error = string.Empty;
+        if (!File.Exists(path)) return false;
+
         try
         {
-            Normalize(settings);
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            var temp = _path + ".new";
-            File.WriteAllText(temp, JsonSerializer.Serialize(settings, JsonOptions));
-            File.Move(temp, _path, overwrite: true);
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var loaded = JsonSerializer.Deserialize<AppSettings>(stream, JsonOptions);
+            if (loaded is null)
+            {
+                error = "file contained no settings";
+                return false;
+            }
+
+            Normalize(loaded);
+            settings = loaded;
+            return true;
         }
         catch (Exception ex)
         {
-            AppLog.Write("settings: save failed " + ex.Message);
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private void TryDeleteStaleTemp()
+    {
+        try
+        {
+            if (File.Exists(_tempPath)) File.Delete(_tempPath);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("settings: temp cleanup failed " + ex.Message);
         }
     }
 
