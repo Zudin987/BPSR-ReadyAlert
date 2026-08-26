@@ -17,32 +17,50 @@ The app stays in the system tray. Right-click the tray icon for **Test Alert Sou
 
 Ready Alert does not request Administrator elevation by default. If your Npcap installation restricts capture to administrators, Windows may require you to run it as administrator.
 
-## Chat Overlay (v1.1 RC2)
+## Chat Overlay (v1.1 RC3)
 
-The optional **Chat Overlay** is based on the public BPSR-ZDPS chat behavior and protocol definitions. It is **off by default** and can be enabled/disabled at any time from the Ready Alert system-tray menu.
+The optional **Chat Overlay** is based on public BPSR-ZDPS protocol definitions and borrows several overlay UX ideas from community chat tools while keeping ReadyAlert's own lightweight shared-capture architecture. It is **off by default** and can be enabled/disabled from the system tray.
 
-When enabled it provides:
+RC3 provides:
 
+- borderless floating chat window with no normal Windows title bar;
 - World, Guild/Team, and All default tabs;
-- custom tabs with add/edit/delete and selectable chat channels;
-- minimum-level filters;
-- compact or expanded message layout;
-- normal timestamps or relative `Xs / Xm / Xh` time;
+- custom tabs with add/edit/delete, selectable channels, minimum level, Show-if and Hide-if rules;
+- player name/message display, timestamps, compact/expanded layouts and sticker hiding;
+- Smart Scroll: follow new chat while at the bottom, pause when the user scrolls up, then show a **new messages** button;
 - Always on Top;
-- background surface opacity/strength and whole-window opacity controls;
-- configurable maximum in-memory chat history;
-- sticker hiding;
+- click-through mode with a configurable global recovery hotkey (default `Ctrl+Shift+F10`);
+- screen-edge collapse/expand with a configurable hotkey (default `Ctrl+Shift+F9`) and Left/Right/Top/Bottom side;
+- configurable font family/size, bold text, text shadow, separators, zebra shading and channel color strip;
+- customizable per-channel text colors;
+- separate background-surface, toolbar, text and whole-window opacity controls;
+- keyword/regex row highlighting with optional sound;
+- dedicated Private/Talk highlight and optional sound;
 - copy player name / UID and a local blocked-user list;
-- persistent window position/size, tabs, filters, and settings;
-- Per-Monitor-V2 DPI scaling for mixed-DPI Windows 11 setups.
+- configurable maximum in-memory history;
+- persistent window position/size, tabs, filters, hotkeys, colors and appearance;
+- Per-Monitor-V2 DPI scaling;
+- a small **Chat Capture Status** diagnostic page using counters from the same shared capture pipeline;
+- validated `settings.json` writes plus automatic `.bak` recovery if the primary settings file becomes unreadable.
 
-The overlay is view-only. It does not send chat messages, inject into BPSR, or modify the game client.
+The overlay is view-only. It does not send chat messages, inject into BPSR, modify the client, or automate gameplay.
 
-Closing the chat window with **X** or choosing **Hide Chat** only hides the window; chat remains enabled so recent messages can still appear when you show it again. Unchecking **Chat Overlay** fully disables chat parsing, closes the chat UI, and clears its in-memory history.
+Closing the custom **×** button or choosing **Hide Chat** only hides the window; chat remains enabled so recent messages can still appear when you show it again. Unchecking **Chat Overlay** fully disables chat parsing, closes the chat UI and clears its in-memory history.
+
+### Overlay controls
+
+- Drag the small `≡` grip to move the borderless window.
+- Drag any outer edge/corner to resize it.
+- Use the arrow button to collapse to the configured screen edge.
+- Use `⚙` to open Chat Overlay Settings.
+- The default click-through toggle is `Ctrl+Shift+F10`.
+- The default collapse/expand toggle is `Ctrl+Shift+F9`.
+
+If a click-through hotkey cannot be registered, ReadyAlert automatically turns click-through back **off** so the overlay cannot become mouse-locked without a recovery key.
 
 ### Better Show/Hide filters
 
-ZDPS's original fields accept one .NET regex and use the default case-sensitive matching behavior. Ready Alert keeps regex support but makes matching **case-insensitive** and adds beginner-friendly multi-filter operators.
+ReadyAlert keeps regex support but makes matching **case-insensitive** and adds beginner-friendly multi-filter operators.
 
 Examples:
 
@@ -63,18 +81,18 @@ boss&&hard
 - `AND` / `&&` means every expression in that group must match.
 - Compact regex alternation still works normally, for example `(raid|dungeon)`.
 - Matching is case-insensitive, so `serum` matches `Serum`, `SERUM`, or `SeRuM`.
-- Invalid regex is shown in the tab editor and cannot crash the app.
-- Matching has a timeout and filter-size guard so a pathological regex cannot hang the overlay indefinitely.
+- Invalid regex is shown in the editor and cannot crash the app.
+- Matching has a timeout and filter-size guard so pathological regex cannot hang the overlay indefinitely.
 
-`Show If Matches` includes matching text messages. `Hide If Matches` excludes matching text messages.
+`Show If Matches` includes matching text messages. `Hide If Matches` excludes matching text messages. The global Highlight rule uses the same safe expression engine and checks both sender name and message text.
 
 ### Chat network handling
 
 The overlay follows the same BPSR `ChitChatNtf.NotifyNewestChitChatMsgs` path used by ZDPS (`service 164931432`, method `0x01`) and manually decodes only the fields it needs. No Google.Protobuf runtime is added.
 
-Chat does **not** open a second Npcap capture. It consumes Ready Alert's existing BPSR-owned packet stream after the existing TCP reassembly, FrameDown handling, zstd decompression, and Notify framing. When **Chat Overlay** is off, the chat parser and UI are skipped; the stable Ready/Queue capture path continues normally.
+Chat does **not** open a second Npcap capture. It consumes ReadyAlert's existing BPSR-owned packet stream after the existing TCP reassembly, FrameDown handling, zstd decompression and Notify framing. When **Chat Overlay** is off, the chat parser and UI are skipped; the stable Ready/Queue capture path continues normally.
 
-Chat history stays in memory only. Overlay settings and the local blocked-user list are persisted in `settings.json`.
+Chat history stays in memory only. Overlay settings and the local blocked-user list are persisted in `settings.json`. The store validates a temporary write before replacing the primary file and keeps a `settings.json.bak` recovery copy.
 
 ## Network adapter
 
@@ -89,9 +107,11 @@ The selected adapter is saved and capture restarts immediately when changed. Cha
 
 ## Alerts and volume
 
-Use tray-menu toggles to enable/disable individual alerts. **Alert Volume** changes only Ready Alert's own playback level; it does not change Windows master volume.
+Use tray-menu toggles to enable/disable individual alerts. **Alert Volume** changes only Ready Alert's own normal alert playback level; it does not change Windows master volume.
 
-Duplicate notifications are suppressed for a short period so one Ready event does not repeatedly play the sound.
+Duplicate Ready/Queue notifications are suppressed for a short period so one event does not repeatedly play the sound.
+
+Chat highlight/private notification sounds can use a user-selected WAV. If no custom WAV is selected, the built-in ReadyAlert alert sound is used.
 
 ## Installation footprint and safety
 
@@ -105,7 +125,7 @@ Ready Alert stores its extracted alert sound/icon and local app data under:
 
 It never copies files into the Resonance Logs CN directory and does not replace the CN executable, DLLs, updater, or settings. It does not inject into or modify the BPSR game process.
 
-Packet/protocol details can change after game updates. If an alert or chat capture stops working, use **Open Log** from the tray menu when reporting it.
+Packet/protocol details can change after game updates. If an alert or chat capture stops working, open **Chat Settings → Advanced → Chat capture status...** and/or **Open Log** from the tray menu when reporting it.
 
 ## Pin to Start
 
@@ -122,7 +142,7 @@ dotnet publish src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj -c Release -r win-x64 
 
 `prepare-build-assets.ps1` reconstructs the bundled alert WAV and application icon from committed source payloads. Npcap is intentionally not redistributed by the build.
 
-GitHub Actions also executes the published EXE with `--build-smoke-test`. That mode validates the chat filter rules, invalid-regex safety, Unicode Malay/Chinese protobuf decoding, sticker decoding, timestamps, and chat settings normalization without requiring a live BPSR session.
+GitHub Actions also executes the published EXE with `--build-smoke-test`. That mode validates filter rules, invalid-regex safety, hotkey parsing, Unicode Malay/Chinese protobuf decoding, sticker decoding, timestamps and chat-settings normalization without requiring a live BPSR session.
 
 ## License
 
