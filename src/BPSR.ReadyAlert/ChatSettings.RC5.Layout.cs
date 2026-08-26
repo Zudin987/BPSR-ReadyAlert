@@ -114,22 +114,26 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private static Control MakeFieldBlock(string label, string hint, Control control)
     {
-        var flow = new FlowLayoutPanel
+        var block = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
+            ColumnCount = 1,
+            RowCount = 3,
             Margin = new Padding(0, 0, 0, 14),
             Padding = Padding.Empty
         };
-        flow.Controls.Add(ChatUiTheme.FieldLabel(label));
-        flow.Controls.Add(ChatUiTheme.Hint(hint));
-        control.Width = 660;
-        control.Margin = new Padding(0, 8, 0, 0);
-        flow.Controls.Add(control);
-        return flow;
+        block.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        var labelControl = ChatUiTheme.FieldLabel(label);
+        var hintControl = ChatUiTheme.Hint(hint);
+        hintControl.Margin = new Padding(0, 3, 0, 8);
+        control.Dock = DockStyle.Top;
+        control.Margin = Padding.Empty;
+        block.Controls.Add(labelControl, 0, 0);
+        block.Controls.Add(hintControl, 0, 1);
+        block.Controls.Add(control, 0, 2);
+        return block;
     }
 
     private static Control MakeSliderRow(string label, string hint, TrackBar slider, Label value, int current, int minimum)
