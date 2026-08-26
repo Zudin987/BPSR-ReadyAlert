@@ -2,7 +2,7 @@ name: Build Windows EXE
 
 on:
   push:
-    branches: [main, feature/chat-ux-v1.1.1]
+    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -198,6 +198,34 @@ jobs:
             Requires Npcap to be installed.
 
             See the README for filter syntax and Chat Overlay setup.
+
+      - name: Create v1.1.1 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.1.1]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.1
+          name: BPSR Ready Alert v1.1.1
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.1.1 hardens Chat Overlay reliability and scrolling.
+
+            Highlights:
+            - chat keyword/private sound handling is independent from overlay rendering, so collapse/hide/repaint cannot stop sound matching;
+            - follow-latest/history trimming no longer jumps away from the newest chat;
+            - smoother precision mouse-wheel scrolling and a custom dark scrollbar;
+            - deterministic per-user sender colors for easier conversation tracking;
+            - compiled/cached regex matching with timeout protection;
+            - bounded custom notification WAV size/duration and cache usage;
+            - IPv6 TCP capture support and richer voice/multilingual/hypertext chat extraction;
+            - expanded RC2 regression coverage for sound, scrolling, IPv6, rich chat and WAV limits.
+
+            Requires Npcap to be installed.
 
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
