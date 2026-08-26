@@ -11,7 +11,7 @@ internal sealed partial class ChatGeneralSettingsForm
         {
             _highlightValidation.ForeColor = ChatUiTheme.Success;
             _highlightValidation.Text = string.IsNullOrWhiteSpace(_highlight.Text)
-                ? "● No keyword rule configured — all messages use normal styling."
+                ? "● No visual highlight rule configured."
                 : "● Rule is valid — matching is case-insensitive.";
         }
         else
@@ -19,6 +19,32 @@ internal sealed partial class ChatGeneralSettingsForm
             _highlightValidation.ForeColor = ChatUiTheme.Danger;
             _highlightValidation.Text = "● " + error;
         }
+    }
+
+    private void RefreshSoundRuleValidation(int index)
+    {
+        var enabled = _soundRuleEnabled[index].Checked;
+        var text = _soundRuleMatch[index].Text.Trim();
+        var label = _soundRuleValidation[index];
+
+        if (enabled && text.Length == 0)
+        {
+            label.ForeColor = ChatUiTheme.Danger;
+            label.Text = "● Enter a match rule before enabling this sound.";
+            return;
+        }
+
+        if (text.Length > 0 && !ChatFilterExpression.TryValidate(text, out var error))
+        {
+            label.ForeColor = ChatUiTheme.Danger;
+            label.Text = "● " + error;
+            return;
+        }
+
+        label.ForeColor = ChatUiTheme.Success;
+        label.Text = text.Length == 0
+            ? "● Not configured."
+            : enabled ? "● Ready — matching is case-insensitive." : "● Rule saved but currently disabled.";
     }
 
     private void ApplyChanges()
@@ -30,6 +56,26 @@ internal sealed partial class ChatGeneralSettingsForm
             _highlight.Focus();
             return;
         }
+
+        for (var i = 0; i < 3; i++)
+        {
+            var match = _soundRuleMatch[i].Text.Trim();
+            if (_soundRuleEnabled[i].Checked && match.Length == 0)
+            {
+                ShowPage("Alerts");
+                MessageBox.Show(this, $"Sound rule {i + 1} is enabled but has no match text.", "Sound rule", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _soundRuleMatch[i].Focus();
+                return;
+            }
+            if (match.Length > 0 && !ChatFilterExpression.TryValidate(match, out var ruleError))
+            {
+                ShowPage("Alerts");
+                MessageBox.Show(this, ruleError, $"Sound rule {i + 1} is invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _soundRuleMatch[i].Focus();
+                return;
+            }
+        }
+
         if (!ChatHotkey.TryParse(_clickHotkey.Text, out var clickGesture, out var clickError))
         {
             ShowPage("Interaction");
@@ -74,8 +120,17 @@ internal sealed partial class ChatGeneralSettingsForm
         _settings.MaxHistory = (int)_maxHistory.Value;
         _settings.HighlightIfMatches = _highlight.Text.Trim();
         _settings.HighlightColor = _highlightColorValue;
-        _settings.HighlightSoundEnabled = _highlightSound.Checked;
-        _settings.HighlightSoundPath = _highlightSoundPath.Text;
+        _settings.HighlightSoundRules = Enumerable.Range(0, 3)
+            .Select(i => new ChatSoundRule
+            {
+                Enabled = _soundRuleEnabled[i].Checked,
+                Match = _soundRuleMatch[i].Text.Trim(),
+                SoundPath = _soundRulePath[i].Text.Trim()
+            })
+            .Where(x => x.Enabled || x.Match.Length > 0 || x.SoundPath.Length > 0)
+            .ToList();
+        _settings.HighlightSoundEnabled = false;
+        _settings.HighlightSoundPath = string.Empty;
         _settings.PrivateHighlightEnabled = _privateHighlight.Checked;
         _settings.PrivateHighlightColor = _privateColorValue;
         _settings.PrivateSoundEnabled = _privateSound.Checked;
@@ -158,8 +213,15 @@ internal sealed partial class ChatGeneralSettingsForm
         _highlight.Text = source.HighlightIfMatches;
         _highlightColorValue = source.HighlightColor;
         ConfigureColorButton(_highlightColor, _highlightColorValue, "Choose highlight color");
-        _highlightSound.Checked = source.HighlightSoundEnabled;
-        _highlightSoundPath.Text = source.HighlightSoundPath;
+
+        for (var i = 0; i < 3; i++)
+        {
+            var rule = i < source.HighlightSoundRules.Count ? source.HighlightSoundRules[i] : null;
+            _soundRuleEnabled[i].Checked = rule?.Enabled ?? false;
+            _soundRuleMatch[i].Text = rule?.Match ?? string.Empty;
+            _soundRulePath[i].Text = rule?.SoundPath ?? string.Empty;
+            RefreshSoundRuleValidation(i);
+        }
 
         _privateHighlight.Checked = source.PrivateHighlightEnabled;
         _privateColorValue = source.PrivateHighlightColor;
