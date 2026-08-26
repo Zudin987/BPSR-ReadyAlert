@@ -148,6 +148,16 @@ internal sealed partial class ChatGeneralSettingsForm
             "Highlight important messages visually and optionally play a local sound. Nothing is sent outside your PC.");
         var stack = (TableLayoutPanel)page.Tag!;
 
+        var volumeContent = MakeSingleColumnTable();
+        AddStack(volumeContent, MakeSliderRow(
+            "Chat alert volume",
+            "Used by keyword-highlight and Private / Talk notification sounds.",
+            _soundVolume,
+            _soundVolumeValue,
+            _settings.ChatSoundVolume,
+            0));
+        AddPageCard(stack, MakeCard("Sound volume", "Adjust chat notification loudness independently from Ready Check alert volume.", volumeContent));
+
         _highlight.Text = _settings.HighlightIfMatches;
         _highlight.Height = 104;
         ChatUiTheme.StyleTextBox(_highlight, multiline: true);
