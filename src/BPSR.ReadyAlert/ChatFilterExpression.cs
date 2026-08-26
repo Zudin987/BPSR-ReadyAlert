@@ -27,7 +27,7 @@ internal static class ChatFilterExpression
 
     // A syntactically valid catastrophic regex can otherwise consume one timeout for
     // every historical message during a redraw. Once an expression times out, fail it
-    // closed for the rest of the session (or until the editor validates it again).
+    // closed for the rest of the session and show a friendly editor error if revisited.
     private static readonly ConcurrentDictionary<string, byte> TimedOutExpressions =
         new(StringComparer.Ordinal);
 
@@ -77,6 +77,11 @@ internal static class ChatFilterExpression
             error = $"Filter is too long. Keep it under {MaxExpressionLength} characters.";
             return false;
         }
+        if (TimedOutExpressions.ContainsKey(expression))
+        {
+            error = "This regex timed out while matching chat and is disabled for this session. Simplify or change it.";
+            return false;
+        }
 
         var foundAtom = false;
         foreach (var orGroup in SplitNonEmpty(OrSplitter, expression))
@@ -102,7 +107,6 @@ internal static class ChatFilterExpression
             return false;
         }
 
-        TimedOutExpressions.TryRemove(expression, out _);
         return true;
     }
 
