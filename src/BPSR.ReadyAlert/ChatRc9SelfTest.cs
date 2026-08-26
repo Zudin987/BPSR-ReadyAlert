@@ -50,7 +50,9 @@ internal static class ChatRc9SelfTest
         var first = ChatSoundRuleMatcher.FindFirstMatch(settings.HighlightSoundRules, "PA raid serum");
         Assert(ReferenceEquals(first, settings.HighlightSoundRules[0]), "first matching sound rule wins");
 
-        var second = ChatSoundRuleMatcher.FindFirstMatch(settings.HighlightSoundRules, "need RAID party");
+        // Avoid words such as "party" here because simple PA intentionally uses
+        // normal substring/regex matching and would correctly match the "pa" in it.
+        var second = ChatSoundRuleMatcher.FindFirstMatch(settings.HighlightSoundRules, "need RAID group");
         Assert(ReferenceEquals(second, settings.HighlightSoundRules[1]), "later rule matches when earlier rule does not");
 
         settings.HighlightSoundRules[0].Enabled = false;
