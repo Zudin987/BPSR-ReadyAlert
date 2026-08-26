@@ -62,6 +62,20 @@ internal sealed class ChatBlockedUser
     public DateTime BlockedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
+internal sealed class ChatSoundRule
+{
+    public bool Enabled { get; set; }
+    public string Match { get; set; } = string.Empty;
+    public string SoundPath { get; set; } = string.Empty;
+
+    internal ChatSoundRule Clone() => new()
+    {
+        Enabled = Enabled,
+        Match = Match,
+        SoundPath = SoundPath
+    };
+}
+
 internal sealed class ChatOverlaySettings
 {
     public bool TopMost { get; set; } = false;
@@ -92,12 +106,16 @@ internal sealed class ChatOverlaySettings
     public string CollapseHotkey { get; set; } = "Ctrl+Shift+F9";
     public string CollapseSide { get; set; } = "Right";
 
-    // Global notification/highlight rules are separate from per-tab visibility
-    // filters. They reuse ReadyAlert's safe, case-insensitive expression engine.
+    // Visual highlight rule. Sound rules are independent so each keyword can use
+    // a different notification WAV while sharing one standardized volume.
     public string HighlightIfMatches { get; set; } = string.Empty;
     public string HighlightColor { get; set; } = "#6B5A3A";
+    public List<ChatSoundRule> HighlightSoundRules { get; set; } = [];
+
+    // Legacy RC8 fields are kept only so existing settings migrate automatically.
     public bool HighlightSoundEnabled { get; set; } = false;
     public string HighlightSoundPath { get; set; } = string.Empty;
+
     public bool PrivateHighlightEnabled { get; set; } = true;
     public string PrivateHighlightColor { get; set; } = "#56355D";
     public bool PrivateSoundEnabled { get; set; } = false;
@@ -127,15 +145,45 @@ internal sealed class ChatOverlaySettings
         ClickThroughHotkey = NormalizeHotkeyText(ClickThroughHotkey, "Ctrl+Shift+F10");
         CollapseHotkey = NormalizeHotkeyText(CollapseHotkey, "Ctrl+Shift+F9");
         CollapseSide = NormalizeCollapseSide(CollapseSide);
+
         HighlightIfMatches ??= string.Empty;
         if (HighlightIfMatches.Length > 4096) HighlightIfMatches = HighlightIfMatches[..4096];
         HighlightColor = NormalizeHexColor(HighlightColor, "#6B5A3A");
         PrivateHighlightColor = NormalizeHexColor(PrivateHighlightColor, "#56355D");
-        HighlightSoundPath ??= string.Empty;
         PrivateSoundPath ??= string.Empty;
-        if (HighlightSoundPath.Length > 1024) HighlightSoundPath = HighlightSoundPath[..1024];
         if (PrivateSoundPath.Length > 1024) PrivateSoundPath = PrivateSoundPath[..1024];
         ChatSoundVolume = Math.Clamp(ChatSoundVolume, 0, 100);
+
+        HighlightSoundRules ??= [];
+        HighlightSoundPath ??= string.Empty;
+        if (HighlightSoundRules.Count == 0 && HighlightSoundEnabled && !string.IsNullOrWhiteSpace(HighlightIfMatches))
+        {
+            HighlightSoundRules.Add(new ChatSoundRule
+            {
+                Enabled = true,
+                Match = HighlightIfMatches,
+                SoundPath = HighlightSoundPath
+            });
+        }
+
+        HighlightSoundRules = HighlightSoundRules
+            .Where(x => x is not null)
+            .Take(3)
+            .Select(x => x!)
+            .ToList();
+        foreach (var rule in HighlightSoundRules)
+        {
+            rule.Match = (rule.Match ?? string.Empty).Trim();
+            rule.SoundPath = rule.SoundPath ?? string.Empty;
+            if (rule.Match.Length > 4096) rule.Match = rule.Match[..4096];
+            if (rule.SoundPath.Length > 1024) rule.SoundPath = rule.SoundPath[..1024];
+            if (string.IsNullOrWhiteSpace(rule.Match)) rule.Enabled = false;
+        }
+
+        // Clear migrated legacy values so deleting all modern rules does not make
+        // an old RC8 rule reappear on the next settings load.
+        HighlightSoundEnabled = false;
+        HighlightSoundPath = string.Empty;
 
         MaxHistory = Math.Clamp(MaxHistory, 10, 500);
         WindowWidth = Math.Clamp(WindowWidth, 360, 2400);
