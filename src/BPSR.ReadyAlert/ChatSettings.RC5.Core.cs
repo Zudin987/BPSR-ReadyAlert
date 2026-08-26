@@ -48,6 +48,9 @@ internal sealed partial class ChatGeneralSettingsForm : Form
     private readonly Button _privateColor = new();
     private readonly CheckBox _privateSound = new() { Text = "Play a sound for Private / Talk messages" };
     private readonly TextBox _privateSoundPath = new();
+    private readonly TrackBar _soundVolume = new();
+    private readonly Label _soundVolumeValue = new();
+    private readonly Label _applyStatus = new();
 
     internal ChatGeneralSettingsForm(ChatOverlaySettings settings)
     {
@@ -111,31 +114,47 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         var actions = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 4,
+            ColumnCount = 7,
             RowCount = 1,
             Margin = Padding.Empty,
             Padding = new Padding(20, 14, 20, 14),
             BackColor = ChatUiTheme.Surface
         };
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 144F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 16F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128F));
         actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
+        var reset = new Button { Text = "Reset to defaults", Dock = DockStyle.Fill, Margin = Padding.Empty };
         var save = new Button { Text = "Save changes", Dock = DockStyle.Fill, Margin = Padding.Empty };
-        var cancel = new Button { Text = "Cancel", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel, Margin = Padding.Empty };
+        var close = new Button { Text = "Close", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel, Margin = Padding.Empty };
+        ChatUiTheme.StyleSecondaryButton(reset);
         ChatUiTheme.StylePrimaryButton(save);
-        ChatUiTheme.StyleSecondaryButton(cancel);
+        ChatUiTheme.StyleSecondaryButton(close);
+        reset.Margin = Padding.Empty;
         save.Margin = Padding.Empty;
-        cancel.Margin = Padding.Empty;
-        save.Click += (_, _) => SaveAndClose();
-        actions.Controls.Add(cancel, 1, 0);
-        actions.Controls.Add(save, 3, 0);
+        close.Margin = Padding.Empty;
+
+        _applyStatus.Dock = DockStyle.Fill;
+        _applyStatus.TextAlign = ContentAlignment.MiddleRight;
+        _applyStatus.ForeColor = ChatUiTheme.Success;
+        _applyStatus.Font = ChatUiTheme.UiFont(8.5F, FontStyle.Bold);
+        _applyStatus.Text = string.Empty;
+
+        reset.Click += (_, _) => ResetToDefaultsAndApply();
+        save.Click += (_, _) => ApplyChanges();
+        actions.Controls.Add(reset, 0, 0);
+        actions.Controls.Add(_applyStatus, 3, 0);
+        actions.Controls.Add(close, 4, 0);
+        actions.Controls.Add(save, 6, 0);
         root.Controls.Add(actions, 0, 1);
         footer.Controls.Add(root);
         AcceptButton = save;
-        CancelButton = cancel;
+        CancelButton = close;
         return footer;
     }
 
