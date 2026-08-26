@@ -36,14 +36,31 @@ internal static class ChatSelfTest
     private static void TestFilters()
     {
         Assert(ChatFilterExpression.IsMatch("SERUM", "serum"), "case-insensitive filter");
+        Assert(ChatFilterExpression.IsMatch("PA", "PA"), "two-character literal filter");
+        Assert(ChatFilterExpression.IsMatch("pa", "PA"), "two-character filter is case-insensitive");
+        Assert(ChatFilterExpression.IsMatch("A", "a"), "single-character filter has no artificial minimum");
         Assert(ChatFilterExpression.IsMatch("SERUM", "serum | food | raid"), "friendly spaced-pipe OR");
         Assert(ChatFilterExpression.IsMatch("Need FOOD now", "serum\nfood\nraid"), "newline OR");
         Assert(ChatFilterExpression.IsMatch("hard world boss", "boss AND hard"), "AND filter");
         Assert(!ChatFilterExpression.IsMatch("easy world boss", "boss AND hard"), "AND negative filter");
         Assert(ChatFilterExpression.IsMatch("dungeon 12", "(raid|dungeon)\\s+\\d+"), "advanced regex");
+        Assert(ChatFilterExpression.TryValidate("PA", out _), "two-character filter validates");
         Assert(ChatFilterExpression.TryValidate("serum | food | raid", out _), "valid friendly filter");
         Assert(!ChatFilterExpression.TryValidate("(", out var error) && error.Length > 0, "invalid regex validation");
         Assert(!ChatFilterExpression.IsMatch("anything", "("), "invalid regex runtime safety");
+
+        var showPa = new ChatTabSettings { ShowIfMatches = "PA" };
+        var hypertext = new ChatMessageEvent(1, "Recruiter", 80, ChatChannel.World, DateTime.Now, ChatMessageKind.Hypertext, "PA");
+        Assert(ChatTabFilter.PassesTextRules(hypertext, showPa), "short filter applies to non-text displayed rows");
+
+        var senderMatch = new ChatMessageEvent(2, "PA Finder", 80, ChatChannel.World, DateTime.Now, ChatMessageKind.Text, "LFM");
+        Assert(ChatTabFilter.PassesTextRules(senderMatch, showPa), "tab filter searches displayed sender name");
+
+        var miss = new ChatMessageEvent(3, "Recruiter", 80, ChatChannel.World, DateTime.Now, ChatMessageKind.Text, "LFM dungeon");
+        Assert(!ChatTabFilter.PassesTextRules(miss, showPa), "show filter rejects non-matching row");
+
+        var hidePa = new ChatTabSettings { HideIfMatches = "PA" };
+        Assert(!ChatTabFilter.PassesTextRules(hypertext, hidePa), "hide filter removes matching non-text row");
     }
 
     private static void TestHotkeys()
