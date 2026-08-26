@@ -27,21 +27,10 @@ internal sealed partial class ChatOverlayForm
     {
         if ((DateTime.UtcNow - _lastSoundUtc).TotalMilliseconds < 150) return;
         _lastSoundUtc = DateTime.UtcNow;
-        var path = !string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath) ? configuredPath : _defaultSoundPath;
-        try
-        {
-            if (File.Exists(path))
-            {
-                _chatSoundPlayer.SoundLocation = path;
-                _chatSoundPlayer.Play();
-            }
-            else SystemSounds.Asterisk.Play();
-        }
-        catch (Exception ex)
-        {
-            AppLog.Write("chat: notification sound failed " + ex.Message);
-            try { SystemSounds.Asterisk.Play(); } catch { }
-        }
+        var preferredPath = !string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath)
+            ? configuredPath
+            : _defaultSoundPath;
+        ChatSoundVolumePlayer.Play(preferredPath, _defaultSoundPath, _settings.Chat.ChatSoundVolume, "notification");
     }
 
     private void RegisterHotkeys(bool showErrors)
