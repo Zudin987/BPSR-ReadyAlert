@@ -19,6 +19,7 @@ internal static class Program
                 RunSmokeStep(ChatUiSelfTest.Run, 12);
                 RunSmokeStep(ChatRc8SelfTest.Run, 13);
                 RunSmokeStep(ChatRc9SelfTest.Run, 14);
+                RunSmokeStep(ChatRc10SelfTest.Run, 15);
                 Environment.ExitCode = 0;
                 return;
             }
