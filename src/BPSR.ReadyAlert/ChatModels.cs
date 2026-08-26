@@ -102,6 +102,7 @@ internal sealed class ChatOverlaySettings
     public string PrivateHighlightColor { get; set; } = "#56355D";
     public bool PrivateSoundEnabled { get; set; } = false;
     public string PrivateSoundPath { get; set; } = string.Empty;
+    public int ChatSoundVolume { get; set; } = 100;
 
     public Dictionary<int, string> ChannelColors { get; set; } = [];
 
@@ -134,6 +135,7 @@ internal sealed class ChatOverlaySettings
         PrivateSoundPath ??= string.Empty;
         if (HighlightSoundPath.Length > 1024) HighlightSoundPath = HighlightSoundPath[..1024];
         if (PrivateSoundPath.Length > 1024) PrivateSoundPath = PrivateSoundPath[..1024];
+        ChatSoundVolume = Math.Clamp(ChatSoundVolume, 0, 100);
 
         MaxHistory = Math.Clamp(MaxHistory, 10, 500);
         WindowWidth = Math.Clamp(WindowWidth, 360, 2400);
