@@ -1,0 +1,1 @@
+One-shot owner-controlled trigger for validating and publishing BPSR Ready Alert v1.1.1 from the current main branch.
