@@ -21,7 +21,7 @@ internal sealed partial class ChatGeneralSettingsForm
         }
     }
 
-    private void SaveAndClose()
+    private void ApplyChanges()
     {
         if (!ChatFilterExpression.TryValidate(_highlight.Text, out var highlightError))
         {
@@ -80,10 +80,89 @@ internal sealed partial class ChatGeneralSettingsForm
         _settings.PrivateHighlightColor = _privateColorValue;
         _settings.PrivateSoundEnabled = _privateSound.Checked;
         _settings.PrivateSoundPath = _privateSoundPath.Text;
-        _settings.ChannelColors = _channelColorsWorking;
-        _settings.BlockedUsers = _blockedWorking;
-        DialogResult = DialogResult.OK;
-        Close();
+        _settings.ChatSoundVolume = _soundVolume.Value;
+        _settings.ChannelColors = new Dictionary<int, string>(_channelColorsWorking);
+        _settings.BlockedUsers = _blockedWorking.Select(CloneBlockedUser).ToList();
+        _settings.Normalize();
+
+        if (Owner is ChatOverlayForm overlay)
+            overlay.ApplySettingsFromOpenDialog();
+
+        _applyStatus.Text = "Saved ✓";
+    }
+
+    private void ResetToDefaultsAndApply()
+    {
+        var answer = MessageBox.Show(
+            this,
+            "Reset Chat Overlay to its default settings?\r\n\r\n" +
+            "This resets appearance, hotkeys, filters, sounds, channel colors, blocked users, and custom tabs. " +
+            "The overlay's current window position and size will be kept.",
+            "Reset Chat Overlay",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+        if (answer != DialogResult.Yes) return;
+
+        var defaults = new ChatOverlaySettings();
+        defaults.Normalize();
+
+        // Factory-reset the chat configuration while deliberately preserving the
+        // current window placement so the overlay does not jump during live use.
+        _settings.Tabs = defaults.Tabs.Select(x => x.Clone()).ToList();
+        _settings.LastSelectedTabId = _settings.Tabs[0].Id;
+        _blockedWorking = [];
+        _channelColorsWorking = new Dictionary<int, string>(defaults.ChannelColors);
+        LoadControlsFrom(defaults);
+        ApplyChanges();
+        _applyStatus.Text = "Defaults restored ✓";
+    }
+
+    private void LoadControlsFrom(ChatOverlaySettings source)
+    {
+        _topMost.Checked = source.TopMost;
+        _compact.Checked = source.CompactMode;
+        _showTime.Checked = source.ShowTime;
+        _timeAgo.Checked = source.ShowTimeAsAgo;
+        _timeAgo.Enabled = source.ShowTime;
+        _hideStickers.Checked = source.HideStickers;
+        _bold.Checked = source.BoldMessageText;
+        _shadow.Checked = source.TextShadow;
+        _separators.Checked = source.ShowSeparators;
+        _zebra.Checked = source.ShowZebraStripes;
+        _colorBand.Checked = source.ShowColorBand;
+
+        _backgroundOpacity.Value = Math.Clamp(source.BackgroundOpacity, _backgroundOpacity.Minimum, _backgroundOpacity.Maximum);
+        _toolbarOpacity.Value = Math.Clamp(source.ToolbarOpacity, _toolbarOpacity.Minimum, _toolbarOpacity.Maximum);
+        _textOpacity.Value = Math.Clamp(source.TextOpacity, _textOpacity.Minimum, _textOpacity.Maximum);
+        _windowOpacity.Value = Math.Clamp(source.WindowOpacity, _windowOpacity.Minimum, _windowOpacity.Maximum);
+
+        if (!_fontFamily.Items.Contains(source.FontFamily)) _fontFamily.Items.Add(source.FontFamily);
+        _fontFamily.SelectedItem = source.FontFamily;
+        _fontSize.Value = Math.Clamp((decimal)source.FontSize, _fontSize.Minimum, _fontSize.Maximum);
+
+        _clickThrough.Checked = source.ClickThrough;
+        _clickHotkey.Text = source.ClickThroughHotkey;
+        _collapseHotkey.Text = source.CollapseHotkey;
+        _collapseSide.SelectedItem = source.CollapseSide;
+        _maxHistory.Value = Math.Clamp(source.MaxHistory, (int)_maxHistory.Minimum, (int)_maxHistory.Maximum);
+
+        _highlight.Text = source.HighlightIfMatches;
+        _highlightColorValue = source.HighlightColor;
+        ConfigureColorButton(_highlightColor, _highlightColorValue, "Choose highlight color");
+        _highlightSound.Checked = source.HighlightSoundEnabled;
+        _highlightSoundPath.Text = source.HighlightSoundPath;
+
+        _privateHighlight.Checked = source.PrivateHighlightEnabled;
+        _privateColorValue = source.PrivateHighlightColor;
+        ConfigureColorButton(_privateColor, _privateColorValue, "Choose Private / Talk color");
+        _privateSound.Checked = source.PrivateSoundEnabled;
+        _privateSoundPath.Text = source.PrivateSoundPath;
+        _soundVolume.Value = Math.Clamp(source.ChatSoundVolume, _soundVolume.Minimum, _soundVolume.Maximum);
+
+        _blockedWorking = source.BlockedUsers.Select(CloneBlockedUser).ToList();
+        _channelColorsWorking = new Dictionary<int, string>(source.ChannelColors);
+        RefreshHighlightValidation();
     }
 
     private static void ConfigureColorButton(Button button, string colorValue, string text)
