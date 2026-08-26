@@ -10,8 +10,10 @@ internal sealed partial class ChatOverlayForm : Form
     private const int MaxDisplayedMessageLength = 8 * 1024;
     private const int ClickThroughHotkeyId = 0x5141;
     private const int CollapseHotkeyId = 0x5142;
-    private const int ResizeGrip = 7;
+    private const int ResizeGrip = 12;
+    private const int FrameBorderThickness = 2;
     private const int CollapsedThickness = 24;
+    private const double CollapsedOpacityCap = 0.58d;
 
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
@@ -72,7 +74,7 @@ internal sealed partial class ChatOverlayForm : Form
         MinimumSize = new Size(420, 220);
         Size = new Size(_settings.Chat.WindowWidth, _settings.Chat.WindowHeight);
         FormBorderStyle = FormBorderStyle.None;
-        Padding = new Padding(1);
+        Padding = new Padding(FrameBorderThickness);
         BackColor = ChatUiTheme.BorderStrong;
         DoubleBuffered = true;
 
@@ -187,10 +189,20 @@ internal sealed partial class ChatOverlayForm : Form
             BackColor = ChatUiTheme.SurfaceRaised,
             ForeColor = ChatUiTheme.Text,
             AccessibleName = "Expand chat overlay",
-            Cursor = Cursors.Hand
+            Cursor = Cursors.Hand,
+            UseVisualStyleBackColor = false
         };
         _collapsedHandle.FlatAppearance.BorderSize = 0;
+        _collapsedHandle.FlatAppearance.MouseOverBackColor = ChatUiTheme.SurfaceHover;
+        _collapsedHandle.FlatAppearance.MouseDownBackColor = ChatUiTheme.SurfaceRaised;
         _collapsedHandle.Click += (_, _) => ExpandFromEdge();
+        _collapsedHandle.VisibleChanged += (_, _) =>
+        {
+            if (_collapsedHandle.Visible)
+                Opacity = GetCollapsedOpacityTarget();
+            else
+                Opacity = Math.Clamp(_settings.Chat.WindowOpacity, 25, 100) / 100d;
+        };
 
         Controls.Add(_messages);
         Controls.Add(_emptyState);
@@ -239,6 +251,12 @@ internal sealed partial class ChatOverlayForm : Form
         PositionNewMessagesButton();
         UpdateEmptyState();
     }
+
+    private double GetCollapsedOpacityTarget() =>
+        Math.Min(Math.Clamp(_settings.Chat.WindowOpacity, 25, 100) / 100d, CollapsedOpacityCap);
+
+    internal (int BorderThickness, int ResizeHitZone, double CollapsedOpacity, bool NativeCollapsedThemeDisabled) GetRc7UxMetricsForSelfTest() =>
+        (FrameBorderThickness, ResizeGrip, GetCollapsedOpacityTarget(), !_collapsedHandle.UseVisualStyleBackColor);
 
     protected override void OnHandleCreated(EventArgs e)
     {
