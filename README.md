@@ -4,7 +4,7 @@
 
 **Website:** https://zudin987.github.io/projects/readyalert/
 
-**Current stable release:** v1.2.0
+**Current stable release:** v1.2.1
 
 ## Highlights
 
@@ -26,6 +26,21 @@
 - IPv4 + IPv6 BPSR TCP capture support.
 - Richer voice transcript, multilingual-notice, and hypertext extraction for filtering.
 - Portable self-contained Windows x64 EXE; no .NET installation required.
+
+## v1.2.1 — UI/UX and reliability hardening
+
+v1.2.1 keeps the v1.2 feature set while making normal use clearer, smoother, and harder to misconfigure.
+
+- **Three independent audio volumes are explicit:** Ready / Queue volume lives in the tray, Chat alert volume controls keyword + Private/Talk sounds, and TTS volume controls spoken Guild / Party chat only. Changing one never changes either of the others.
+- Removed Windows system-sound fallbacks that could bypass ReadyAlert's configured volume after an audio-file failure.
+- TTS toolbar state is clearer: green = active, red/strikethrough = off, amber = master TTS is on but muted or has no enabled speech channel.
+- Settings now distinguish **Saved**, **Unsaved**, and **Applied — not saved** states. Closing warns about unapplied edits or settings that could not be persisted to disk.
+- Blocking a player now consistently suppresses that player's ReadyAlert chat row, chat alert sounds, translation, and not-yet-playing TTS. Ready / Queue alerts remain unrelated.
+- Clipboard actions retry transient Windows clipboard locks instead of risking an unhandled UI error.
+- Adapter switching preflights the requested Npcap adapter and rolls back to the previous capture when a switch fails.
+- Heavy chat bursts use bounded per-tick UI work and coalesced redraws so the overlay stays responsive.
+- Capture diagnostics pause live text replacement while the user is selecting or scrolling diagnostic text.
+- The single-file smoke suite includes deterministic v1.2.1 regression checks for volume separation, settings persistence states, blocked-user routing, content-cleanup sound behavior, TTS status, and bounded UI draining.
 
 ## Quick start
 
@@ -94,9 +109,9 @@ When enabled, ReadyAlert displays the original BPSR message immediately and adds
 - Guild
 - Party / Team
 
-World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **English `en` voice**. Non-English messages are first translated to English when possible, then spoken by the English voice. The TTS volume is independent from Ready/keyword sounds. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
+World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **English `en` voice**. Non-English messages are first translated to English when possible, then spoken by the English voice. The TTS volume is independent from both Ready / Queue volume and Chat alert volume. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
 
-A compact **TTS** quick-toggle sits directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means enabled. Red strikethrough `TTS` means disabled. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page. The quick toggle does not change the Guild / Party channel selections; it only switches the TTS master setting on or off.
+A compact **TTS** quick-toggle sits directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means active. Red strikethrough `TTS` means disabled. Amber means TTS is enabled but cannot currently speak because its volume is 0% or no Guild / Party speech channel is selected. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page. The quick toggle does not change the Guild / Party channel selections; it only switches the TTS master setting on or off.
 
 During v1.2 development, playback moved from legacy Windows MCI to **NAudio + Windows Media Foundation**, Google TTS switched to the English `en` voice, emoji-only and Hypertext cleanup were added, and the toolbar TTS toggle was introduced. Final hardening gives TTS-capable Guild / Party messages priority over translation-only work, re-checks live speech eligibility before playback, bounds wake/result queues, retries appropriate Google failures, and plays long multi-chunk Google MP3 responses as independent audio chunks. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
 
@@ -147,7 +162,7 @@ Disabling **Chat Overlay** from the tray stops the chat processing path entirely
 
 ReadyAlert reads the local BPSR network stream through Npcap. It does not inject into the game process.
 
-The Chat Overlay reuses the existing capture pipeline. It does **not** create a second Npcap capture handle, TCP reassembler, decompressor, or parallel packet-processing stack just for chat.
+The Chat Overlay reuses the existing capture pipeline. It does **not** create a second Npcap capture handle, TCP reassembler, decompressor, or parallel packet-processing stack just for chat. Adapter switching may briefly open a validation handle before changing adapters, but only one capture engine processes packets at a time.
 
 Parsed chat is kept in bounded local memory for the overlay. When optional translation/TTS is enabled, only messages selected by those channel toggles are sent to Google's Translate/gTTS web services.
 
@@ -157,7 +172,7 @@ Open:
 
 **Chat Overlay → Settings → Advanced → Chat capture status**
 
-The v1.2 diagnostics show capture/parser counters, keyword/private notification counters, and translation/TTS processing/failure/drop counters. This helps distinguish packet-capture problems, parser problems, channel/TTS selection, Google failures, and audio-playback failures without guessing.
+The diagnostics show capture/parser counters, keyword/private notification counters, and translation/TTS processing/failure/drop counters. This helps distinguish packet-capture problems, parser problems, channel/TTS selection, Google failures, and audio-playback failures without guessing.
 
 ## Build
 
