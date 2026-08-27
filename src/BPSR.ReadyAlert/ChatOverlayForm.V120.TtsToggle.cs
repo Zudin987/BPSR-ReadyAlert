@@ -54,27 +54,50 @@ internal sealed partial class ChatOverlayForm
     {
         if (_v120TtsToggleButton is null) return;
 
-        var enabled = _settings.SpeechTranslation.TtsEnabled;
+        var speech = _settings.SpeechTranslation;
+        var enabled = speech.TtsEnabled;
+        var muted = enabled && speech.TtsVolume <= 0;
+        var noChannels = enabled && !speech.TtsGuild && !speech.TtsPartyTeam;
+        var inactive = muted || noChannels;
+
         _v120TtsToggleButton.Text = "TTS";
         if (_v120TtsOnFont is not null && _v120TtsOffFont is not null)
             _v120TtsToggleButton.Font = enabled ? _v120TtsOnFont : _v120TtsOffFont;
         _v120TtsToggleButton.ForeColor = Color.White;
-        _v120TtsToggleButton.BackColor = enabled
-            ? Color.FromArgb(38, 105, 70)
-            : Color.FromArgb(112, 47, 52);
+
+        if (!enabled)
+        {
+            _v120TtsToggleButton.BackColor = Color.FromArgb(112, 47, 52);
+            _v120TtsToggleButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(137, 58, 64);
+            _v120TtsToggleButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(91, 38, 43);
+        }
+        else if (inactive)
+        {
+            // Amber means the master switch is ON but no speech can currently be
+            // heard. This avoids the misleading green state when volume is 0% or
+            // both allowed TTS channels are deselected.
+            _v120TtsToggleButton.BackColor = Color.FromArgb(126, 83, 31);
+            _v120TtsToggleButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(151, 100, 37);
+            _v120TtsToggleButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(101, 66, 25);
+        }
+        else
+        {
+            _v120TtsToggleButton.BackColor = Color.FromArgb(38, 105, 70);
+            _v120TtsToggleButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(46, 126, 83);
+            _v120TtsToggleButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(31, 86, 58);
+        }
+
         _v120TtsToggleButton.FlatAppearance.BorderSize = 0;
-        _v120TtsToggleButton.FlatAppearance.MouseOverBackColor = enabled
-            ? Color.FromArgb(46, 126, 83)
-            : Color.FromArgb(137, 58, 64);
-        _v120TtsToggleButton.FlatAppearance.MouseDownBackColor = enabled
-            ? Color.FromArgb(31, 86, 58)
-            : Color.FromArgb(91, 38, 43);
-        _v120TtsToggleButton.AccessibleDescription = enabled
-            ? "TTS is on. Press to turn text-to-speech off."
-            : "TTS is off. Press to turn text-to-speech on.";
-        _toolTip.SetToolTip(
-            _v120TtsToggleButton,
-            enabled ? "TTS is ON — click to turn it off" : "TTS is OFF — click to turn it on");
+
+        var description = !enabled
+            ? "TTS is off. Press to turn text-to-speech on."
+            : muted
+                ? "TTS is on but muted at 0%. Raise TTS volume in Speech & translation settings."
+                : noChannels
+                    ? "TTS is on but no Guild or Party / Team channel is selected."
+                    : "TTS is on. Press to turn text-to-speech off.";
+        _v120TtsToggleButton.AccessibleDescription = description;
+        _toolTip.SetToolTip(_v120TtsToggleButton, description);
         _v120TtsToggleButton.Invalidate();
     }
 
