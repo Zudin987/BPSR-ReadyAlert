@@ -31,6 +31,10 @@ internal sealed class ChatSpeechTranslationSettings
     internal bool TtsEnabledFor(ChatChannel channel) =>
         TtsEnabled && ChannelEnabled(channel, TtsGuild, TtsPartyTeam);
 
+    internal bool IsOwnUsername(string? senderName) =>
+        IgnoreOwnUsername.Length > 0 &&
+        string.Equals(IgnoreOwnUsername, senderName?.Trim(), StringComparison.OrdinalIgnoreCase);
+
     internal static bool ChannelEnabled(ChatChannel channel, bool guild, bool partyTeam) =>
         (guild && channel == ChatChannel.Union) ||
         (partyTeam && channel is ChatChannel.Team or ChatChannel.Group);
