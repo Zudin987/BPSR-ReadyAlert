@@ -10,6 +10,7 @@ internal static class ChatV120SelfTest
         TestTtsChunking();
         TestGoogleEnglishSelection();
         TestContentFilters();
+        TestToolbarTtsToggle();
     }
 
     private static void TestChannelSelection()
@@ -131,6 +132,39 @@ internal static class ChatV120SelfTest
         Assert(!ChatContentVisibility.ShouldHideInOverlay(hypertextText), "linked-item filter defaults off");
     }
 
+    private static void TestToolbarTtsToggle()
+    {
+        var settings = new AppSettings { ChatOverlayEnabled = true };
+        settings.Chat.Normalize();
+        settings.SpeechTranslation.Normalize();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-tts-toggle-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            using var form = new ChatOverlayForm(settings, new SettingsStore(tempPath), string.Empty, string.Empty);
+            var off = form.GetV120TtsToolbarStateForSelfTest();
+            Assert(!off.Enabled, "toolbar TTS starts from the saved disabled state");
+            Assert(off.Strikeout, "disabled toolbar TTS uses strikeout text");
+            Assert(off.Background.R > off.Background.G, "disabled toolbar TTS uses a red background");
+            Assert(off.ActionIndex == 1, "toolbar TTS is directly between +Tab and Settings");
+
+            form.ToggleV120TtsForSelfTest();
+            var on = form.GetV120TtsToolbarStateForSelfTest();
+            Assert(on.Enabled && settings.SpeechTranslation.TtsEnabled, "toolbar click enables the persisted TTS master switch");
+            Assert(!on.Strikeout, "enabled toolbar TTS removes strikeout");
+            Assert(on.Background.G > on.Background.R, "enabled toolbar TTS uses a green background");
+
+            form.ToggleV120TtsForSelfTest();
+            Assert(!settings.SpeechTranslation.TtsEnabled, "second toolbar click disables TTS again");
+        }
+        finally
+        {
+            TryDelete(tempPath);
+            TryDelete(tempPath + ".bak");
+            TryDelete(tempPath + ".new");
+        }
+    }
+
     private static ChatMessageEvent Message(ChatMessageKind kind, string text) => new(
         123,
         "Tester",
@@ -140,6 +174,15 @@ internal static class ChatV120SelfTest
         kind,
         text,
         1);
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch { }
+    }
 
     private static void Assert(bool condition, string name)
     {
