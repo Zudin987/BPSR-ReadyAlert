@@ -22,6 +22,7 @@ internal static class Program
                 RunSmokeStep(ChatRc10SelfTest.Run, 15);
                 RunSmokeStep(ChatV111SelfTest.Run, 16);
                 RunSmokeStep(ChatRc2SelfTest.Run, 17);
+                RunSmokeStep(ChatV120SelfTest.Run, 18);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -57,10 +58,10 @@ internal static class Program
             var settings = settingsStore.Load();
             var launcher = new ResonanceLogsLauncher(settings, settingsStore);
 
-            // Prime the independent notification snapshot before capture can emit the
-            // first chat packet. This also covers the case where Chat Overlay starts
-            // disabled and is enabled later without constructing the overlay first.
+            // Prime independent background snapshots before capture can emit the
+            // first chat packet. Neither worker owns packet capture or blocks it.
             ChatNotificationEngine.Configure(settings.Chat, paths.AlertSoundPath);
+            ChatSpeechTranslationEngine.Configure(settings.SpeechTranslation);
 
             StartMenuShortcut.TryCreateOrRefresh(paths.AppIconPath);
             if (settings.AutoLaunchResonanceLogs)
@@ -102,6 +103,7 @@ internal static class Program
         }
         finally
         {
+            ChatSpeechTranslationEngine.Shutdown();
             try { mutex.ReleaseMutex(); } catch { }
         }
     }
