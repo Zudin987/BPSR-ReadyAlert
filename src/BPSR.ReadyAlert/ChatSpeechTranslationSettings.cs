@@ -3,6 +3,7 @@ namespace BPSR.ReadyAlert;
 internal sealed class ChatSpeechTranslationSettings
 {
     public bool TranslationEnabled { get; set; } = false;
+    public bool TranslationWorld { get; set; } = false;
     public bool TranslationGuild { get; set; } = true;
     public bool TranslationPartyTeam { get; set; } = true;
     public bool ShowTranslationInOverlay { get; set; } = true;
@@ -26,16 +27,21 @@ internal sealed class ChatSpeechTranslationSettings
     }
 
     internal bool TranslationEnabledFor(ChatChannel channel) =>
-        TranslationEnabled && ChannelEnabled(channel, TranslationGuild, TranslationPartyTeam);
+        TranslationEnabled && TranslationChannelEnabled(channel, TranslationWorld, TranslationGuild, TranslationPartyTeam);
 
     internal bool TtsEnabledFor(ChatChannel channel) =>
-        TtsEnabled && ChannelEnabled(channel, TtsGuild, TtsPartyTeam);
+        TtsEnabled && TtsChannelEnabled(channel, TtsGuild, TtsPartyTeam);
 
     internal bool IsOwnUsername(string? senderName) =>
         IgnoreOwnUsername.Length > 0 &&
         string.Equals(IgnoreOwnUsername, senderName?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    internal static bool ChannelEnabled(ChatChannel channel, bool guild, bool partyTeam) =>
+    internal static bool TranslationChannelEnabled(ChatChannel channel, bool world, bool guild, bool partyTeam) =>
+        (world && channel == ChatChannel.World) ||
+        (guild && channel == ChatChannel.Union) ||
+        (partyTeam && channel is ChatChannel.Team or ChatChannel.Group);
+
+    internal static bool TtsChannelEnabled(ChatChannel channel, bool guild, bool partyTeam) =>
         (guild && channel == ChatChannel.Union) ||
         (partyTeam && channel is ChatChannel.Team or ChatChannel.Group);
 }
