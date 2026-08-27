@@ -9,6 +9,7 @@ internal sealed partial class ChatGeneralSettingsForm
     private bool _v121DirtyTrackingReady;
     private bool _v121SuppressDirtyTracking;
     private bool _v121EverSaved;
+    private bool _v121AppliedNotPersisted;
     private string _v121SavedFingerprint = string.Empty;
 
     /// <summary>
@@ -74,6 +75,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
             _v121SavedFingerprint = CaptureV121EditorFingerprint();
             _v121EverSaved = true;
+            _v121AppliedNotPersisted = false;
             _applyStatus.ForeColor = ChatUiTheme.Success;
         };
 
@@ -131,8 +133,16 @@ internal sealed partial class ChatGeneralSettingsForm
         }
         else if (_applyStatus.Text == "Unsaved")
         {
-            _applyStatus.Text = _v121EverSaved ? "Saved ✓" : string.Empty;
-            _applyStatus.ForeColor = _v121EverSaved ? ChatUiTheme.Success : ChatUiTheme.Muted;
+            if (_v121AppliedNotPersisted)
+            {
+                _applyStatus.Text = "Applied — not saved";
+                _applyStatus.ForeColor = ChatUiTheme.Danger;
+            }
+            else
+            {
+                _applyStatus.Text = _v121EverSaved ? "Saved ✓" : string.Empty;
+                _applyStatus.ForeColor = _v121EverSaved ? ChatUiTheme.Success : ChatUiTheme.Muted;
+            }
         }
     }
 
