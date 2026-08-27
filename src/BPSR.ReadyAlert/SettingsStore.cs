@@ -47,7 +47,10 @@ internal sealed class SettingsStore
         TryDeleteStaleTemp();
 
         if (TryLoadFile(_path, out var settings, out var primaryError))
+        {
+            ApplyRuntimeSettings(settings);
             return settings;
+        }
 
         if (!string.IsNullOrWhiteSpace(primaryError))
             AppLog.Write("settings: primary load failed " + primaryError);
@@ -75,6 +78,11 @@ internal sealed class SettingsStore
             try
             {
                 Normalize(settings);
+                // Runtime content filtering follows the in-memory settings immediately.
+                // File validation below reads old/new JSON through TryLoadFile, which is
+                // deliberately side-effect free and therefore cannot revert this state.
+                ApplyRuntimeSettings(settings);
+
                 var directory = Path.GetDirectoryName(_path);
                 if (!string.IsNullOrWhiteSpace(directory))
                     Directory.CreateDirectory(directory);
@@ -165,4 +173,9 @@ internal sealed class SettingsStore
         settings.Chat.Normalize();
         settings.SpeechTranslation.Normalize();
     }
+
+    private static void ApplyRuntimeSettings(AppSettings settings) =>
+        ChatContentVisibility.Configure(
+            settings.SpeechTranslation.HideEmojiMessages,
+            settings.SpeechTranslation.HideLinkedItemMessages);
 }
