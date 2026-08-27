@@ -1,11 +1,10 @@
 # BPSR Ready Alert
 
-**BPSR Ready Alert** is a lightweight Windows companion for **Blue Protocol: Star Resonance (BPSR)**. It keeps the original Ready Check / matchmaking sound alerts and adds an optional floating **Chat Overlay** with filters, custom tabs, keyword sounds, smoother scrolling, and per-user sender colors.
+**BPSR Ready Alert** is a lightweight Windows companion for **Blue Protocol: Star Resonance (BPSR)**. It keeps the original Ready Check / matchmaking sound alerts and adds an optional floating **Chat Overlay** with filters, custom tabs, keyword sounds, smoother scrolling, per-user sender colors, optional English translation, and optional Guild / Party text-to-speech.
 
 **Website:** https://zudin987.github.io/projects/readyalert/
 
-**Current stable release:** v1.1.2  
-**Release channel:** Stable
+**Current stable release:** v1.2.0
 
 ## Highlights
 
@@ -13,11 +12,15 @@
 - Optional floating Chat Overlay using the same capture pipeline — no second Npcap engine.
 - World, Guild/Team, All, and custom chat tabs.
 - Channel selection, minimum-level filters, Show/Hide expressions, OR/AND matching, and advanced regex.
+- Optional global cleanup for sticker messages, emoji-only `<sprite=1>` through `<sprite=100>` messages, and linked-item / Hypertext messages.
 - Up to 3 prioritized message-only sound rules with one shared chat-alert volume.
 - Private/Talk highlighting and optional sound.
 - Smart follow-latest scrolling with history preservation when old rows are trimmed.
 - Smoother precision mouse-wheel scrolling and a custom dark scrollbar.
 - Stable per-user sender colors so the same player is easy to recognize across messages.
+- Optional no-key Google translation of **World, Guild, and Party / Team** chat to English.
+- Optional no-key **Google English (`en`)** text-to-speech for **Guild and Party / Team only**, with its own volume, sender-name toggle, own-username ignore rule, one-click test button, and a toolbar TTS on/off quick toggle.
+- TTS-priority scheduling keeps Guild / Party speech responsive even when World translation is busy.
 - Click-through mode, compact mode, opacity, fonts, timestamps, channel colors, screen-edge collapse, and Always-on-Top support.
 - The persistent Chat Overlay stays out of Windows Alt+Tab while remaining visible on-screen.
 - IPv4 + IPv6 BPSR TCP capture support.
@@ -63,6 +66,41 @@ For several exact alternatives:
 This matches the whole words `tina`, `tr`, or `towering`, but not words such as `train` or `try`.
 
 Invalid or timed-out regex fails safely instead of blocking the app.
+
+### Content cleanup — v1.2.0
+
+Open **Chat Overlay → Settings → Interaction**. The global cleanup options are placed together:
+
+- **Hide sticker messages** — existing sticker filter.
+- **Hide emoji-only messages** — recognizes BPSR sprite tokens from `<sprite=1>` through `<sprite=100>`, including rows containing several sprite tokens.
+- **Hide linked-item / Hypertext messages** — hides parsed Hypertext chat and placeholder rows such as `[Hypertext 3000001]` or `[Hypertext 1050001] MrHard`.
+
+The emoji filter is deliberately token-aware: a normal message such as `hello <sprite=31>` remains visible because the row is not emoji-only. Linked-item matching is limited to actual Hypertext message kinds / `[Hypertext ...]` markers, so ordinary chat that merely uses the word “hypertext” remains visible. Sprite-only and Hypertext placeholder messages are also excluded from TTS so ReadyAlert does not literally speak markup such as “sprite equals 31” or “Hypertext 3000001”.
+
+### Translation and TTS — v1.2.0
+
+Open **Chat Overlay → Settings → Speech & translation**.
+
+**Translation** has three independent channel toggles:
+
+- World
+- Guild (`Union`)
+- Party / Team (`Team` + `Group`)
+
+When enabled, ReadyAlert displays the original BPSR message immediately and adds `↳ EN:` underneath when Google returns a non-English → English translation. Translation work is asynchronous and bounded so capture/UI do not wait for Google.
+
+**Text-to-speech** intentionally has only two channel toggles:
+
+- Guild
+- Party / Team
+
+World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **English `en` voice**. Non-English messages are first translated to English when possible, then spoken by the English voice. The TTS volume is independent from Ready/keyword sounds. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
+
+A compact **TTS** quick-toggle sits directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means enabled. Red strikethrough `TTS` means disabled. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page. The quick toggle does not change the Guild / Party channel selections; it only switches the TTS master setting on or off.
+
+During v1.2 development, playback moved from legacy Windows MCI to **NAudio + Windows Media Foundation**, Google TTS switched to the English `en` voice, emoji-only and Hypertext cleanup were added, and the toolbar TTS toggle was introduced. Final hardening gives TTS-capable Guild / Party messages priority over translation-only work, re-checks live speech eligibility before playback, bounds wake/result queues, retries appropriate Google failures, and plays long multi-chunk Google MP3 responses as independent audio chunks. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
+
+These Google Translate/gTTS-style endpoints do not require a Cloud API key, but they are undocumented and can be rate-limited or changed by Google. Failures are soft: normal ReadyAlert capture and overlay behavior continue.
 
 ### Sound rules
 
@@ -111,7 +149,7 @@ ReadyAlert reads the local BPSR network stream through Npcap. It does not inject
 
 The Chat Overlay reuses the existing capture pipeline. It does **not** create a second Npcap capture handle, TCP reassembler, decompressor, or parallel packet-processing stack just for chat.
 
-Parsed chat is kept in bounded local memory for the overlay and is not uploaded by ReadyAlert.
+Parsed chat is kept in bounded local memory for the overlay. When optional translation/TTS is enabled, only messages selected by those channel toggles are sent to Google's Translate/gTTS web services.
 
 ## Capture diagnostics
 
@@ -119,7 +157,7 @@ Open:
 
 **Chat Overlay → Settings → Advanced → Chat capture status**
 
-Use this when debugging missing chat or notification sounds. The diagnostics expose capture/parser activity and the independent notification engine status so you can distinguish capture issues, parser issues, rule mismatches, playback failures, and notification-queue drops.
+The v1.2 diagnostics show capture/parser counters, keyword/private notification counters, and translation/TTS processing/failure/drop counters. This helps distinguish packet-capture problems, parser problems, channel/TTS selection, Google failures, and audio-playback failures without guessing.
 
 ## Build
 

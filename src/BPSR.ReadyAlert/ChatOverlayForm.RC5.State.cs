@@ -25,6 +25,7 @@ internal sealed partial class ChatOverlayForm
             button.FlatAppearance.MouseOverBackColor = ChatColorUtil.Blend(toolbar, Color.White, 9);
             button.FlatAppearance.MouseDownBackColor = ChatColorUtil.Blend(toolbar, Color.White, 14);
         }
+        EnsureV120TtsToolbarButton();
 
         CreateFonts();
         UpdateCollapseButtonGlyph();

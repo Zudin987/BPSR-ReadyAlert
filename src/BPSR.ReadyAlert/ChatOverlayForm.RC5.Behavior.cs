@@ -82,6 +82,7 @@ internal sealed partial class ChatOverlayForm
         var cap = Math.Clamp(_settings.Chat.MaxHistory, 10, 500);
         var overflow = _history.Count - cap;
         if (overflow <= 0) return;
+        for (var i = 0; i < overflow; i++) RemoveV120Translation(_history[i]);
         _history.RemoveRange(0, overflow);
     }
 
@@ -92,6 +93,7 @@ internal sealed partial class ChatOverlayForm
             BeginInvoke(new Action(ShowOverlay));
             return;
         }
+        AttachV120SpeechTranslation();
         if (_collapsed) ExpandFromEdge();
         ApplyWindowSettings(registerHotkeys: true);
         if (!Visible) Show();
@@ -114,12 +116,14 @@ internal sealed partial class ChatOverlayForm
     internal void OpenSettingsDialog()
     {
         var oldClickThrough = _settings.Chat.ClickThrough;
-        using var dialog = new ChatGeneralSettingsForm(_settings.Chat);
+        using var dialog = new ChatGeneralSettingsForm(_settings.Chat, _settings.SpeechTranslation);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
         _settings.Chat.Normalize();
+        _settings.SpeechTranslation.Normalize();
         RemoveOverflowHistoryFromView();
         _settingsStore.Save(_settings);
+        ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
         ApplyWindowSettings(registerHotkeys: true);
         RebuildTabBar();
         RebuildVisibleMessages(keepScroll: true);
@@ -129,12 +133,21 @@ internal sealed partial class ChatOverlayForm
             AppLog.Write("chat: click-through enabled; use " + _settings.Chat.ClickThroughHotkey + " to toggle it");
     }
 
+    internal void ApplyV120SpeechSettingsFromOpenDialog()
+    {
+        _settings.SpeechTranslation.Normalize();
+        _settingsStore.Save(_settings);
+        ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
+        RebuildVisibleMessages(keepScroll: true);
+    }
+
     internal void Shutdown()
     {
         if (IsDisposed) return;
         SaveWindowPlacement();
         _relativeTimer.Stop();
         _resizeTimer.Stop();
+        ClearV120SpeechTranslationUi();
         UnregisterHotkeys();
         _allowClose = true;
         Close();

@@ -2,5 +2,5 @@ namespace BPSR.ReadyAlert;
 
 internal static class AppVersion
 {
-    internal const string Current = "1.1.2";
+    internal const string Current = "1.2.0";
 }

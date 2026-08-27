@@ -139,10 +139,12 @@ internal sealed partial class ChatGeneralSettingsForm
         _settings.ChannelColors = new Dictionary<int, string>(_channelColorsWorking);
         _settings.BlockedUsers = _blockedWorking.Select(CloneBlockedUser).ToList();
         _settings.Normalize();
+        ApplySpeechTranslationSettings();
 
         if (Owner is ChatOverlayForm overlay)
         {
             overlay.ApplySettingsFromOpenDialog();
+            overlay.ApplyV120SpeechSettingsFromOpenDialog();
             TopMost = overlay.TopMost;
             if (TopMost)
             {
@@ -159,7 +161,7 @@ internal sealed partial class ChatGeneralSettingsForm
         var answer = MessageBox.Show(
             this,
             "Reset Chat Overlay to its default settings?\r\n\r\n" +
-            "This resets appearance, hotkeys, filters, sounds, channel colors, blocked users, and custom tabs. " +
+            "This resets appearance, hotkeys, filters, sounds, speech/translation, channel colors, blocked users, and custom tabs. " +
             "The overlay's current window position and size will be kept.",
             "Reset Chat Overlay",
             MessageBoxButtons.YesNo,
@@ -169,6 +171,8 @@ internal sealed partial class ChatGeneralSettingsForm
 
         var defaults = new ChatOverlaySettings();
         defaults.Normalize();
+        var speechDefaults = new ChatSpeechTranslationSettings();
+        speechDefaults.Normalize();
 
         // Factory-reset the chat configuration while deliberately preserving the
         // current window placement so the overlay does not jump during live use.
@@ -177,6 +181,10 @@ internal sealed partial class ChatGeneralSettingsForm
         _blockedWorking = [];
         _channelColorsWorking = new Dictionary<int, string>(defaults.ChannelColors);
         LoadControlsFrom(defaults);
+        if (_speechSettings is not null)
+        {
+            LoadSpeechTranslationControls(speechDefaults);
+        }
         ApplyChanges();
         _applyStatus.Text = "Defaults restored ✓";
     }
