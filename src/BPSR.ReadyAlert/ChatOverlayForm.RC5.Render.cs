@@ -17,6 +17,19 @@ internal sealed partial class ChatOverlayForm
         var scrollInset = _v111ScrollBar is { Visible: true } ? _v111ScrollBar.Width : 0;
         var usableWidth = Math.Max(120, _messages.ClientSize.Width - 28 - scrollInset);
         var lineHeight = Math.Max(_messageFont.Height, _senderFont.Height) + 3;
+        var translationLabel = GetV120TranslationLabel(item.Message);
+        var translationHeight = 0;
+        if (translationLabel.Length > 0)
+        {
+            var translatedSize = TextRenderer.MeasureText(
+                e.Graphics,
+                translationLabel,
+                _metaFont,
+                new Size(usableWidth, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+            translationHeight = translatedSize.Height + 4;
+        }
+
         if (_settings.Chat.CompactMode)
         {
             var prefix = CompactPrefix(item.Message);
@@ -26,14 +39,14 @@ internal sealed partial class ChatOverlayForm
             var size = TextRenderer.MeasureText(e.Graphics, item.Message.Text,
                 _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont,
                 new Size(messageWidth, int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
-            e.ItemHeight = Math.Max(lineHeight, size.Height) + 10;
+            e.ItemHeight = Math.Max(lineHeight, size.Height) + 10 + translationHeight;
         }
         else
         {
             var size = TextRenderer.MeasureText(e.Graphics, item.Message.Text,
                 _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont,
                 new Size(usableWidth, int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
-            e.ItemHeight = lineHeight + size.Height + 14;
+            e.ItemHeight = lineHeight + size.Height + 14 + translationHeight;
         }
     }
 
@@ -61,21 +74,36 @@ internal sealed partial class ChatOverlayForm
             e.Graphics.FillRectangle(band, new Rectangle(e.Bounds.Left, e.Bounds.Top + 2, 3, Math.Max(1, e.Bounds.Height - 4)));
         }
 
-        var x = e.Bounds.Left + (_settings.Chat.ShowColorBand ? 10 : 7);
+        var contentLeft = e.Bounds.Left + (_settings.Chat.ShowColorBand ? 10 : 7);
+        var x = contentLeft;
         var y = e.Bounds.Top + 5;
         var scrollInset = _v111ScrollBar is { Visible: true } ? _v111ScrollBar.Width : 0;
         var right = e.Bounds.Right - 10 - scrollInset;
+        var usableWidth = Math.Max(20, right - contentLeft);
         var textColor = ChatColorUtil.Blend(ChatUiTheme.Text, back, _settings.Chat.TextOpacity);
         var senderColor = ChatColorUtil.Blend(ChatSenderColor.ForMessage(item.Message), back, _settings.Chat.TextOpacity);
         var metaColor = ChatColorUtil.Blend(Color.FromArgb(157, 170, 188), back, _settings.Chat.TextOpacity);
         var messageFont = _settings.Chat.BoldMessageText ? _messageBoldFont : _messageFont;
+        var translationLabel = GetV120TranslationLabel(item.Message);
+        var translationHeight = 0;
+        if (translationLabel.Length > 0)
+        {
+            var translationSize = TextRenderer.MeasureText(
+                e.Graphics,
+                translationLabel,
+                _metaFont,
+                new Size(usableWidth, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+            translationHeight = translationSize.Height + 4;
+        }
 
         if (_settings.Chat.CompactMode)
         {
             x = DrawInline(e.Graphics, $"{GetChannelName(item.Message.Channel)} · ", _metaFont, channelColor, back, x, y);
             if (_settings.Chat.ShowTime) x = DrawInline(e.Graphics, GetTimeText(item.Message.Timestamp) + "  ", _metaFont, metaColor, back, x, y);
             x = DrawInline(e.Graphics, DisplaySenderName(item.Message) + "  ", _senderFont, senderColor, back, x, y);
-            var rect = new Rectangle(x, y, Math.Max(20, right - x), Math.Max(18, e.Bounds.Bottom - y - 4));
+            var messageBottom = Math.Max(y + 18, e.Bounds.Bottom - 4 - translationHeight);
+            var rect = new Rectangle(x, y, Math.Max(20, right - x), Math.Max(18, messageBottom - y));
             DrawWrapped(e.Graphics, item.Message.Text, messageFont, textColor, back, rect);
         }
         else
@@ -84,9 +112,20 @@ internal sealed partial class ChatOverlayForm
             x = DrawInline(e.Graphics, DisplaySenderName(item.Message), _senderFont, senderColor, back, x, y);
             if (_settings.Chat.ShowTime) _ = DrawInline(e.Graphics, "   " + GetTimeText(item.Message.Timestamp), _metaFont, metaColor, back, x, y);
             var messageY = y + Math.Max(_senderFont.Height, _metaFont.Height) + 4;
-            var rect = new Rectangle(e.Bounds.Left + (_settings.Chat.ShowColorBand ? 10 : 7), messageY,
-                Math.Max(20, right - e.Bounds.Left - 7), Math.Max(18, e.Bounds.Bottom - messageY - 4));
+            var messageBottom = Math.Max(messageY + 18, e.Bounds.Bottom - 4 - translationHeight);
+            var rect = new Rectangle(contentLeft, messageY, usableWidth, Math.Max(18, messageBottom - messageY));
             DrawWrapped(e.Graphics, item.Message.Text, messageFont, textColor, back, rect);
+        }
+
+        if (translationLabel.Length > 0)
+        {
+            var translationY = Math.Max(e.Bounds.Top + 5, e.Bounds.Bottom - translationHeight - 2);
+            var translationRect = new Rectangle(
+                contentLeft,
+                translationY,
+                usableWidth,
+                Math.Max(_metaFont.Height + 2, translationHeight));
+            DrawWrapped(e.Graphics, translationLabel, _metaFont, GetV120TranslationColor(back), back, translationRect);
         }
 
         if (_settings.Chat.ShowSeparators)
