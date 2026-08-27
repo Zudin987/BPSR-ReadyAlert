@@ -31,6 +31,7 @@ internal static class ChatSpeechTranslationEngine
 
     private const int MaxSpeechQueuedJobs = 12;
     private const int MaxTranslationQueuedJobs = 24;
+    private const int MaxPendingTranslationResults = 512;
     private const int MaxTranslationChars = 1_000;
     private const int MaxSpeechChars = 500;
     private const int MaxCacheEntries = 256;
@@ -44,7 +45,11 @@ internal static class ChatSpeechTranslationEngine
     // an entire burst of time-sensitive TTS jobs.
     private static readonly ConcurrentQueue<SpeechJob> SpeechJobs = new();
     private static readonly ConcurrentQueue<SpeechJob> TranslationJobs = new();
-    private static readonly SemaphoreSlim Wake = new(0, int.MaxValue);
+
+    // This is an edge-trigger style wake-up, not a count of queued messages. The
+    // worker drains both queues completely after every wake, so one pending permit
+    // is sufficient and avoids accumulating thousands of redundant permits in a burst.
+    private static readonly SemaphoreSlim Wake = new(0, 1);
     private static readonly CancellationTokenSource ShutdownCts = new();
     private static readonly HttpClient Http = CreateHttpClient();
     private static readonly object StartLock = new();
@@ -107,7 +112,10 @@ internal static class ChatSpeechTranslationEngine
         var wantsSpeech = snapshot.TtsEnabledFor(message.Channel) && !snapshot.IsOwnUsername(message.SenderName);
         if (!wantsTranslation && !wantsSpeech) return;
 
-        var job = new SpeechJob(message, DateTime.UtcNow);
+        // Capture feature eligibility at enqueue time. Turning TTS/translation ON
+        // later must never make older translation-only jobs suddenly speak or make
+        // previously ineligible messages appear as delayed translations.
+        var job = new SpeechJob(message, DateTime.UtcNow, wantsTranslation, wantsSpeech);
         if (wantsSpeech)
             EnqueueBounded(SpeechJobs, job, MaxSpeechQueuedJobs);
         else
@@ -203,7 +211,7 @@ internal static class ChatSpeechTranslationEngine
 
             while (!cancellationToken.IsCancellationRequested && TryDequeueNext(out var job))
             {
-                if (!_enabled || DateTime.UtcNow - job.QueuedUtc > MaxJobAge)
+                if (!_enabled || IsJobStale(job))
                 {
                     Interlocked.Increment(ref _dropped);
                     continue;
@@ -229,8 +237,8 @@ internal static class ChatSpeechTranslationEngine
     {
         var message = job.Message;
         var snapshot = Volatile.Read(ref _snapshot);
-        var wantsOverlayTranslation = snapshot.TranslationEnabledFor(message.Channel);
-        var wantsSpeech = snapshot.TtsEnabledFor(message.Channel) && !snapshot.IsOwnUsername(message.SenderName);
+        var wantsOverlayTranslation = job.TranslationRequested && snapshot.TranslationEnabledFor(message.Channel);
+        var wantsSpeech = CanSpeakJob(job, snapshot, enabled: _enabled);
         if (!wantsOverlayTranslation && !wantsSpeech) return;
 
         Interlocked.Increment(ref _processed);
@@ -242,6 +250,14 @@ internal static class ChatSpeechTranslationEngine
         {
             outcome = await TranslateToEnglishAsync(sourceText, cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // HttpClient timeout is also represented as OperationCanceledException.
+            // Treat it as a soft Google failure rather than as an app-shutdown cancel.
+            Interlocked.Increment(ref _translationFailures);
+            AppLog.Write("translate: request timed out " + ex.Message);
+            outcome = new TranslationOutcome(sourceText, string.Empty, false, false);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Interlocked.Increment(ref _translationFailures);
@@ -249,31 +265,41 @@ internal static class ChatSpeechTranslationEngine
             outcome = new TranslationOutcome(sourceText, string.Empty, false, false);
         }
 
-        if (wantsOverlayTranslation && snapshot.ShowTranslationInOverlay && outcome.WasTranslated)
+        // Settings can change while Google is in flight. Never resurrect a message
+        // after the overlay/capture pipeline was disabled, and never emit a result for
+        // a channel that was not translation-eligible when this job was queued.
+        var live = Volatile.Read(ref _snapshot);
+        if (_enabled && job.TranslationRequested && live.TranslationEnabledFor(message.Channel) &&
+            live.ShowTranslationInOverlay && outcome.WasTranslated)
         {
             var results = Volatile.Read(ref _translationResults);
             if (results is not null)
             {
-                results.Enqueue(new ChatTranslationResult(message.SequenceId, outcome.EnglishText, outcome.SourceLanguage));
+                EnqueueTranslationResultBounded(
+                    results,
+                    new ChatTranslationResult(message.SequenceId, outcome.EnglishText, outcome.SourceLanguage));
                 Interlocked.Increment(ref _translated);
                 Interlocked.Exchange(ref _lastSuccessUtcTicks, DateTime.UtcNow.Ticks);
             }
         }
 
-        // TTS may have been switched off while the translation request was in flight.
-        // Re-read live settings before any TTS download/playback so the toolbar OFF
-        // action takes effect for the next not-yet-playing phrase.
-        var liveSpeech = Volatile.Read(ref _snapshot);
-        if (!liveSpeech.TtsEnabledFor(message.Channel) ||
-            liveSpeech.IsOwnUsername(message.SenderName) ||
-            liveSpeech.TtsVolume <= 0)
+        // TTS may have been switched off, the overlay may have been disabled, the
+        // username filter may have changed, or the job may have become stale while
+        // translation was in flight. Re-check every one of those conditions before
+        // making any TTS request.
+        live = Volatile.Read(ref _snapshot);
+        if (!CanSpeakJob(job, live, enabled: _enabled))
+        {
+            if (job.SpeechRequested && IsJobStale(job))
+                Interlocked.Increment(ref _dropped);
             return;
+        }
 
         var speechText = outcome.Success ? outcome.EnglishText : sourceText;
         speechText = CleanText(speechText, MaxSpeechChars);
         if (speechText.Length == 0) return;
 
-        if (liveSpeech.ReadSenderName && !string.IsNullOrWhiteSpace(message.SenderName))
+        if (live.ReadSenderName && !string.IsNullOrWhiteSpace(message.SenderName))
         {
             var sender = CleanText(message.SenderName, 80);
             if (sender.Length > 0) speechText = sender + ". " + speechText;
@@ -287,17 +313,23 @@ internal static class ChatSpeechTranslationEngine
             var audioChunks = await DownloadGoogleTtsChunksAsync(speechText, cancellationToken).ConfigureAwait(false);
             foreach (var audio in audioChunks)
             {
-                liveSpeech = Volatile.Read(ref _snapshot);
-                if (!liveSpeech.TtsEnabledFor(message.Channel) ||
-                    liveSpeech.IsOwnUsername(message.SenderName) ||
-                    liveSpeech.TtsVolume <= 0)
+                live = Volatile.Read(ref _snapshot);
+                if (!CanSpeakJob(job, live, enabled: _enabled))
+                {
+                    if (IsJobStale(job)) Interlocked.Increment(ref _dropped);
                     return;
+                }
 
-                await ChatTtsAudioPlayer.PlayAsync(audio, liveSpeech.TtsVolume, cancellationToken).ConfigureAwait(false);
+                await ChatTtsAudioPlayer.PlayAsync(audio, live.TtsVolume, cancellationToken).ConfigureAwait(false);
             }
 
             Interlocked.Increment(ref _spoken);
             Interlocked.Exchange(ref _lastSuccessUtcTicks, DateTime.UtcNow.Ticks);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            Interlocked.Increment(ref _ttsFailures);
+            AppLog.Write("tts: google en request/playback timed out " + ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -306,17 +338,33 @@ internal static class ChatSpeechTranslationEngine
         }
     }
 
+    private static bool IsJobStale(SpeechJob job) =>
+        DateTime.UtcNow - job.QueuedUtc > MaxJobAge;
+
+    private static bool CanSpeakJob(SpeechJob job, SpeechSnapshot live, bool enabled) =>
+        enabled &&
+        job.SpeechRequested &&
+        !IsJobStale(job) &&
+        live.TtsEnabledFor(job.Message.Channel) &&
+        !live.IsOwnUsername(job.Message.SenderName) &&
+        live.TtsVolume > 0;
+
+    private static void EnqueueTranslationResultBounded(
+        ConcurrentQueue<ChatTranslationResult> results,
+        ChatTranslationResult result)
+    {
+        while (results.Count >= MaxPendingTranslationResults && results.TryDequeue(out _))
+            Interlocked.Increment(ref _dropped);
+        results.Enqueue(result);
+    }
+
     private static async Task<TranslationOutcome> TranslateToEnglishAsync(string text, CancellationToken cancellationToken)
     {
         if (TranslationCache.TryGetValue(text, out var cached)) return cached;
 
         var url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" +
                   Uri.EscapeDataString(text);
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Referrer = new Uri("https://translate.google.com/");
-        using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var json = await FetchGoogleTranslationJsonWithRetryAsync(url, cancellationToken).ConfigureAwait(false);
 
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
@@ -348,6 +396,52 @@ internal static class ChatSpeechTranslationEngine
         var outcome = new TranslationOutcome(translated, sourceLanguage, wasTranslated, true);
         AddTranslationCache(text, outcome);
         return outcome;
+    }
+
+    private static async Task<string> FetchGoogleTranslationJsonWithRetryAsync(
+        string url,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Referrer = new Uri("https://translate.google.com/");
+                using var response = await Http.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken).ConfigureAwait(false);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var status = (int)response.StatusCode;
+                    if (attempt == 0 && IsRetryableGoogleStatus(status))
+                    {
+                        await DelayForRetryAsync(response, status, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    throw new HttpRequestException(
+                        $"Google Translate returned HTTP {status}.",
+                        null,
+                        response.StatusCode);
+                }
+
+                return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex) when (
+                attempt == 0 && ex.StatusCode is null && !cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (
+                attempt == 0 && !cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw new HttpRequestException("Google Translate request failed after retry.");
     }
 
     private static void AddTranslationCache(string source, TranslationOutcome outcome)
@@ -389,7 +483,6 @@ internal static class ChatSpeechTranslationEngine
         int total,
         CancellationToken cancellationToken)
     {
-        Exception? lastError = null;
         for (var attempt = 0; attempt < 2; attempt++)
         {
             try
@@ -398,19 +491,23 @@ internal static class ChatSpeechTranslationEngine
                           $"&tl={GoogleTtsLanguage}&total={total}&idx={index}&textlen={text.Length}&q={Uri.EscapeDataString(text)}";
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Accept.ParseAdd("audio/mpeg,*/*;q=0.8");
-                using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                    .ConfigureAwait(false);
+                using var response = await Http.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken).ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var status = (int)response.StatusCode;
-                    var retryable = status == 408 || status == 429 || status >= 500;
-                    if (attempt == 0 && retryable)
+                    if (attempt == 0 && IsRetryableGoogleStatus(status))
                     {
-                        await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+                        await DelayForRetryAsync(response, status, cancellationToken).ConfigureAwait(false);
                         continue;
                     }
-                    throw new HttpRequestException($"Google English TTS returned HTTP {status}.");
+                    throw new HttpRequestException(
+                        $"Google English TTS returned HTTP {status}.",
+                        null,
+                        response.StatusCode);
                 }
 
                 var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
@@ -423,14 +520,47 @@ internal static class ChatSpeechTranslationEngine
                     throw new InvalidDataException($"Google English TTS returned invalid audio ({bytes.Length} bytes).");
                 return bytes;
             }
-            catch (HttpRequestException ex) when (attempt == 0 && !cancellationToken.IsCancellationRequested)
+            catch (HttpRequestException ex) when (
+                attempt == 0 && ex.StatusCode is null && !cancellationToken.IsCancellationRequested)
             {
-                lastError = ex;
+                await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            }
+            catch (InvalidDataException) when (attempt == 0 && !cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (
+                attempt == 0 && !cancellationToken.IsCancellationRequested)
+            {
                 await Task.Delay(150, cancellationToken).ConfigureAwait(false);
             }
         }
 
-        throw lastError ?? new HttpRequestException("Google English TTS request failed.");
+        throw new HttpRequestException("Google English TTS request failed after retry.");
+    }
+
+    private static bool IsRetryableGoogleStatus(int status) =>
+        status == 408 || status == 429 || status >= 500;
+
+    private static async Task DelayForRetryAsync(
+        HttpResponseMessage response,
+        int status,
+        CancellationToken cancellationToken)
+    {
+        var delayMs = status == 429 ? 500 : 150;
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter?.Delta is { } delta)
+        {
+            delayMs = Math.Clamp((int)Math.Ceiling(delta.TotalMilliseconds), 150, 2_000);
+        }
+        else if (retryAfter?.Date is { } date)
+        {
+            var remaining = date - DateTimeOffset.UtcNow;
+            if (remaining > TimeSpan.Zero)
+                delayMs = Math.Clamp((int)Math.Ceiling(remaining.TotalMilliseconds), 150, 2_000);
+        }
+
+        await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
     }
 
     internal static List<string> SplitForTts(string text, int maxChars)
@@ -457,11 +587,31 @@ internal static class ChatSpeechTranslationEngine
     {
         var high = new ConcurrentQueue<SpeechJob>();
         var normal = new ConcurrentQueue<SpeechJob>();
-        normal.Enqueue(new SpeechJob(translationOnly, DateTime.UtcNow));
-        high.Enqueue(new SpeechJob(speechPriority, DateTime.UtcNow));
+        normal.Enqueue(new SpeechJob(translationOnly, DateTime.UtcNow, true, false));
+        high.Enqueue(new SpeechJob(speechPriority, DateTime.UtcNow, false, true));
         return TryDequeueNext(high, normal, out var first) &&
                first.Message.SequenceId == speechPriority.SequenceId;
     }
+
+    internal static bool WouldSpeakQueuedJobForSelfTest(
+        ChatMessageEvent message,
+        ChatSpeechTranslationSettings enqueueSettings,
+        ChatSpeechTranslationSettings liveSettings,
+        TimeSpan queuedAge)
+    {
+        enqueueSettings.Normalize();
+        liveSettings.Normalize();
+        var enqueued = SpeechSnapshot.From(enqueueSettings);
+        var job = new SpeechJob(
+            message,
+            DateTime.UtcNow - queuedAge,
+            enqueued.TranslationEnabledFor(message.Channel),
+            enqueued.TtsEnabledFor(message.Channel) && !enqueued.IsOwnUsername(message.SenderName));
+        return CanSpeakJob(job, SpeechSnapshot.From(liveSettings), enabled: true);
+    }
+
+    internal static bool IsRetryableGoogleStatusForSelfTest(int status) =>
+        IsRetryableGoogleStatus(status);
 
     private static string CleanText(string? value, int maxChars)
     {
@@ -484,7 +634,11 @@ internal static class ChatSpeechTranslationEngine
             }
             if (builder.Length >= maxChars) break;
         }
-        return builder.ToString().Trim();
+
+        var cleaned = builder.ToString().Trim();
+        if (cleaned.Length > 0 && char.IsHighSurrogate(cleaned[^1]))
+            cleaned = cleaned[..^1];
+        return cleaned;
     }
 
     private static bool LooksLikeHtml(byte[] bytes)
@@ -504,7 +658,11 @@ internal static class ChatSpeechTranslationEngine
         return client;
     }
 
-    private readonly record struct SpeechJob(ChatMessageEvent Message, DateTime QueuedUtc);
+    private readonly record struct SpeechJob(
+        ChatMessageEvent Message,
+        DateTime QueuedUtc,
+        bool TranslationRequested,
+        bool SpeechRequested);
 
     private readonly record struct TranslationOutcome(
         string EnglishText,
