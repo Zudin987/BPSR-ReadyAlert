@@ -7,6 +7,7 @@ internal static class UiUxV121SelfTest
     internal static void Run()
     {
         TestAudioVolumesStayIndependent();
+        TestExplicitReadyQueueVolumeLabel();
         TestHiddenGarbageCannotTriggerChatSounds();
         TestMutedTtsToolbarState();
         TestSettingsDirtyState();
@@ -36,6 +37,17 @@ internal static class UiUxV121SelfTest
         settings.SpeechTranslation.Normalize();
         Assert(settings.AlertVolume == 10 && settings.Chat.ChatSoundVolume == 30,
             "changing TTS volume does not alter Ready / Queue or Chat alert volume");
+    }
+
+    private static void TestExplicitReadyQueueVolumeLabel()
+    {
+        var label = TrayApplicationContext.ReadyQueueVolumeMenuText(35);
+        Assert(label.Contains("Ready", StringComparison.Ordinal) &&
+               label.Contains("Queue", StringComparison.Ordinal) &&
+               label.Contains("35%", StringComparison.Ordinal),
+            "tray volume label explicitly identifies Ready / Queue sounds");
+        Assert(!label.Equals("Alert Volume: 35%", StringComparison.Ordinal),
+            "tray no longer uses the ambiguous generic Alert Volume label");
     }
 
     private static void TestHiddenGarbageCannotTriggerChatSounds()
@@ -136,7 +148,7 @@ internal static class UiUxV121SelfTest
 
         var changedVolume = speech.TtsVolume == 65 ? 60 : 65;
         form.SetV121TtsVolumeForSelfTest(changedVolume);
-        Assert(form.GetV121SaveStateForSelfTest() == "Unsaved changes",
+        Assert(form.GetV121SaveStateForSelfTest() == "Unsaved",
             "editing TTS volume immediately clears stale Saved state and marks the editor dirty");
     }
 
