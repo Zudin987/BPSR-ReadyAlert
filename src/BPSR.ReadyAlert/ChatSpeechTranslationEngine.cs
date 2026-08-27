@@ -56,7 +56,7 @@ internal static class ChatSpeechTranslationEngine
     private static readonly Dictionary<string, TranslationOutcome> TranslationCache = new(StringComparer.Ordinal);
     private static readonly Queue<string> TranslationCacheOrder = new();
 
-    private static volatile SpeechSnapshot _snapshot = SpeechSnapshot.Disabled;
+    private static SpeechSnapshot _snapshot = SpeechSnapshot.Disabled;
     private static ConcurrentQueue<ChatTranslationResult>? _translationResults;
     private static Task? _worker;
     private static volatile bool _enabled;
