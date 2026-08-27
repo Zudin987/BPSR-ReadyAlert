@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -23,18 +22,19 @@ internal readonly record struct ChatSpeechTranslationStatus(
 
 /// <summary>
 /// Optional background translation/TTS pipeline for parsed BPSR chat.
-///
-/// It deliberately does not own any capture state and never blocks the Npcap/parser
-/// thread or WinForms UI. Google access uses the same undocumented Google Translate
-/// web functionality commonly used by gTTS-style clients: no Cloud project/API key.
-/// Upstream behavior can change, so all failures are soft and leave normal chat intact.
+/// Google access intentionally uses the no-key Translate/gTTS-style web endpoints,
+/// not Google Cloud. All network and audio work stays off the Npcap/parser/UI paths.
 /// </summary>
 internal static class ChatSpeechTranslationEngine
 {
+    internal const string GoogleTtsLanguage = "ms";
+
     private const int MaxQueuedJobs = 24;
     private const int MaxTranslationChars = 1_000;
     private const int MaxSpeechChars = 500;
     private const int MaxCacheEntries = 256;
+    private const int MaxTtsChunkChars = 200;
+    private const int MaxTtsAudioBytes = 4 * 1024 * 1024;
     private static readonly TimeSpan MaxJobAge = TimeSpan.FromSeconds(20);
 
     private static readonly ConcurrentQueue<SpeechJob> Jobs = new();
@@ -68,6 +68,10 @@ internal static class ChatSpeechTranslationEngine
                 while (Jobs.TryDequeue(out _))
                     Interlocked.Increment(ref _dropped);
             }
+            else if (Volatile.Read(ref _snapshot).HasAnyFeature)
+            {
+                EnsureWorker();
+            }
             TryWake();
         }
     }
@@ -78,10 +82,12 @@ internal static class ChatSpeechTranslationEngine
     {
         ArgumentNullException.ThrowIfNull(settings);
         settings.Normalize();
-        Volatile.Write(ref _snapshot, SpeechSnapshot.From(settings));
+        var snapshot = SpeechSnapshot.From(settings);
+        Volatile.Write(ref _snapshot, snapshot);
         if (translationResults is not null)
             Volatile.Write(ref _translationResults, translationResults);
-        EnsureWorker();
+        if (_enabled && snapshot.HasAnyFeature)
+            EnsureWorker();
         TryWake();
     }
 
@@ -116,6 +122,12 @@ internal static class ChatSpeechTranslationEngine
             Interlocked.Read(ref _ttsFailures),
             Interlocked.Read(ref _dropped),
             ticks > 0 ? new DateTime(ticks, DateTimeKind.Utc) : null);
+    }
+
+    internal static async Task TestTtsAsync(int volume, CancellationToken cancellationToken = default)
+    {
+        var audio = await DownloadGoogleTtsAsync("ReadyAlert text to speech test.", cancellationToken).ConfigureAwait(false);
+        await ChatTtsAudioPlayer.PlayAsync(audio, Math.Clamp(volume, 0, 100), cancellationToken).ConfigureAwait(false);
     }
 
     internal static void Shutdown()
@@ -228,14 +240,14 @@ internal static class ChatSpeechTranslationEngine
         try
         {
             var audio = await DownloadGoogleTtsAsync(speechText, cancellationToken).ConfigureAwait(false);
-            await MciMp3Player.PlayAsync(audio, snapshot.TtsVolume, cancellationToken).ConfigureAwait(false);
+            await ChatTtsAudioPlayer.PlayAsync(audio, snapshot.TtsVolume, cancellationToken).ConfigureAwait(false);
             Interlocked.Increment(ref _spoken);
             Interlocked.Exchange(ref _lastSuccessUtcTicks, DateTime.UtcNow.Ticks);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Interlocked.Increment(ref _ttsFailures);
-            AppLog.Write("tts: google playback failed " + ex.Message);
+            AppLog.Write("tts: google ms playback failed " + ex.Message);
         }
     }
 
@@ -297,30 +309,74 @@ internal static class ChatSpeechTranslationEngine
 
     private static async Task<byte[]> DownloadGoogleTtsAsync(string text, CancellationToken cancellationToken)
     {
-        var parts = SplitForTts(text, 180);
+        var parts = SplitForTts(text, MaxTtsChunkChars);
         if (parts.Count == 0) throw new InvalidDataException("There is no text to speak.");
 
         using var output = new MemoryStream();
         for (var i = 0; i < parts.Count; i++)
         {
-            var part = parts[i];
-            var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en" +
-                      $"&total={parts.Count}&idx={i}&textlen={part.Length}&q={Uri.EscapeDataString(part)}";
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Referrer = new Uri("https://translate.google.com/");
-            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
-            if (bytes.Length < 64 || LooksLikeHtml(bytes))
-                throw new InvalidDataException("Google TTS returned a non-audio response.");
+            var bytes = await FetchGoogleTtsChunkWithRetryAsync(parts[i], i, parts.Count, cancellationToken)
+                .ConfigureAwait(false);
+            if (output.Length + bytes.Length > MaxTtsAudioBytes)
+                throw new InvalidDataException("Google TTS response exceeded the 4 MiB safety limit.");
             await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
         }
-
         return output.ToArray();
+    }
+
+    private static async Task<byte[]> FetchGoogleTtsChunkWithRetryAsync(
+        string text,
+        int index,
+        int total,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob" +
+                          $"&tl={GoogleTtsLanguage}&total={total}&idx={index}&textlen={text.Length}&q={Uri.EscapeDataString(text)}";
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Accept.ParseAdd("audio/mpeg,*/*;q=0.8");
+                using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var status = (int)response.StatusCode;
+                    var retryable = status == 408 || status == 429 || status >= 500;
+                    if (attempt == 0 && retryable)
+                    {
+                        await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    throw new HttpRequestException($"Google ms TTS returned HTTP {status}.");
+                }
+
+                var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                if (!mediaType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Google ms TTS returned unexpected content type: " +
+                                                   (mediaType.Length == 0 ? "unknown" : mediaType));
+
+                var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+                if (bytes.Length < 200 || LooksLikeHtml(bytes))
+                    throw new InvalidDataException($"Google ms TTS returned invalid audio ({bytes.Length} bytes).");
+                return bytes;
+            }
+            catch (HttpRequestException ex) when (attempt == 0 && !cancellationToken.IsCancellationRequested)
+            {
+                lastError = ex;
+                await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw lastError ?? new HttpRequestException("Google ms TTS request failed.");
     }
 
     internal static List<string> SplitForTts(string text, int maxChars)
     {
+        maxChars = Math.Clamp(maxChars, 40, MaxTtsChunkChars);
         text = CleanText(text, Math.Max(maxChars, MaxSpeechChars));
         var parts = new List<string>();
         while (text.Length > maxChars)
@@ -371,12 +427,8 @@ internal static class ChatSpeechTranslationEngine
 
     private static HttpClient CreateHttpClient()
     {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(8)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36");
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 Malay-TTS-Bot/1.0 ReadyAlert/1.2");
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
         return client;
     }
@@ -391,6 +443,7 @@ internal static class ChatSpeechTranslationEngine
 
     private sealed record SpeechSnapshot(
         bool TranslationEnabled,
+        bool TranslationWorld,
         bool TranslationGuild,
         bool TranslationPartyTeam,
         bool ShowTranslationInOverlay,
@@ -402,10 +455,12 @@ internal static class ChatSpeechTranslationEngine
         int TtsVolume)
     {
         internal static readonly SpeechSnapshot Disabled = new(
-            false, true, true, true, false, true, true, false, string.Empty, 70);
+            false, false, true, true, true,
+            false, true, true, false, string.Empty, 70);
 
         internal static SpeechSnapshot From(ChatSpeechTranslationSettings settings) => new(
             settings.TranslationEnabled,
+            settings.TranslationWorld,
             settings.TranslationGuild,
             settings.TranslationPartyTeam,
             settings.ShowTranslationInOverlay,
@@ -416,78 +471,19 @@ internal static class ChatSpeechTranslationEngine
             settings.IgnoreOwnUsername,
             settings.TtsVolume);
 
+        internal bool HasAnyFeature =>
+            (TranslationEnabled && (TranslationWorld || TranslationGuild || TranslationPartyTeam)) ||
+            (TtsEnabled && (TtsGuild || TtsPartyTeam));
+
         internal bool TranslationEnabledFor(ChatChannel channel) =>
-            TranslationEnabled && ChatSpeechTranslationSettings.ChannelEnabled(channel, TranslationGuild, TranslationPartyTeam);
+            TranslationEnabled && ChatSpeechTranslationSettings.TranslationChannelEnabled(
+                channel, TranslationWorld, TranslationGuild, TranslationPartyTeam);
 
         internal bool TtsEnabledFor(ChatChannel channel) =>
-            TtsEnabled && ChatSpeechTranslationSettings.ChannelEnabled(channel, TtsGuild, TtsPartyTeam);
+            TtsEnabled && ChatSpeechTranslationSettings.TtsChannelEnabled(channel, TtsGuild, TtsPartyTeam);
 
         internal bool IsOwnUsername(string? senderName) =>
             IgnoreOwnUsername.Length > 0 &&
             string.Equals(IgnoreOwnUsername, senderName?.Trim(), StringComparison.OrdinalIgnoreCase);
-    }
-}
-
-internal static class MciMp3Player
-{
-    private static int _aliasCounter;
-
-    [DllImport("winmm.dll", CharSet = CharSet.Unicode)]
-    private static extern int mciSendStringW(string command, StringBuilder? returnValue, int returnLength, IntPtr callback);
-
-    [DllImport("winmm.dll", CharSet = CharSet.Unicode)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool mciGetErrorStringW(int errorCode, StringBuilder errorText, int errorTextSize);
-
-    internal static async Task PlayAsync(byte[] mp3Bytes, int volume, CancellationToken cancellationToken)
-    {
-        if (mp3Bytes.Length == 0) return;
-        var folder = Path.Combine(Path.GetTempPath(), "BPSR-ReadyAlert", "tts");
-        Directory.CreateDirectory(folder);
-        var path = Path.Combine(folder, $"speech-{Environment.ProcessId}-{Interlocked.Increment(ref _aliasCounter)}.mp3");
-        var alias = "readyalerttts" + _aliasCounter;
-
-        try
-        {
-            await File.WriteAllBytesAsync(path, mp3Bytes, cancellationToken).ConfigureAwait(false);
-            Send($"open \"{path}\" type mpegvideo alias {alias}");
-            Send($"setaudio {alias} volume to {Math.Clamp(volume, 0, 100) * 10}");
-            Send($"play {alias}");
-
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var mode = Query($"status {alias} mode");
-                if (mode.Equals("stopped", StringComparison.OrdinalIgnoreCase) ||
-                    mode.Equals("not ready", StringComparison.OrdinalIgnoreCase))
-                    break;
-                await Task.Delay(40, cancellationToken).ConfigureAwait(false);
-            }
-        }
-        finally
-        {
-            try { _ = mciSendStringW($"stop {alias}", null, 0, IntPtr.Zero); } catch { }
-            try { _ = mciSendStringW($"close {alias}", null, 0, IntPtr.Zero); } catch { }
-            try { File.Delete(path); } catch { }
-        }
-    }
-
-    private static void Send(string command)
-    {
-        var code = mciSendStringW(command, null, 0, IntPtr.Zero);
-        if (code != 0) throw new InvalidOperationException("MCI: " + GetError(code));
-    }
-
-    private static string Query(string command)
-    {
-        var result = new StringBuilder(128);
-        var code = mciSendStringW(command, result, result.Capacity, IntPtr.Zero);
-        if (code != 0) throw new InvalidOperationException("MCI: " + GetError(code));
-        return result.ToString().Trim();
-    }
-
-    private static string GetError(int code)
-    {
-        var text = new StringBuilder(256);
-        return mciGetErrorStringW(code, text, text.Capacity) ? text.ToString() : "error " + code;
     }
 }
