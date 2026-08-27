@@ -29,6 +29,10 @@ internal sealed partial class ChatOverlayForm
         while (_v120TranslationQueue.TryDequeue(out var result))
         {
             if (result.SequenceId == 0 || string.IsNullOrWhiteSpace(result.EnglishText)) continue;
+
+            // A translation can finish after its original row has already aged out of
+            // bounded history. Do not resurrect or cache that stale result.
+            if (!_history.Any(x => x.SequenceId == result.SequenceId)) continue;
             _v120Translations[result.SequenceId] = result;
 
             if (!Visible || _collapsed) continue;
@@ -40,6 +44,15 @@ internal sealed partial class ChatOverlayForm
                     break;
                 }
             }
+        }
+
+        // Keep translation memory bounded alongside the normal chat history even
+        // during long sessions with steady message turnover.
+        if (_v120Translations.Count > _history.Count)
+        {
+            var live = _history.Where(x => x.SequenceId != 0).Select(x => x.SequenceId).ToHashSet();
+            foreach (var sequenceId in _v120Translations.Keys.Where(x => !live.Contains(x)).ToArray())
+                _v120Translations.Remove(sequenceId);
         }
 
         // OwnerDrawVariable heights are measured when rows are inserted. Rebuild only
