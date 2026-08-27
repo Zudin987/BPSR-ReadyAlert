@@ -13,6 +13,7 @@ internal static class UiUxV121SelfTest
         TestBlockedUsersSuppressAllChatOutputs();
         TestMutedTtsToolbarState();
         TestSettingsDirtyState();
+        TestAppliedButUnsavedCloseWarning();
         TestSettingsSaveResultIsTruthful();
         TestChatUiDrainIsBounded();
         TestSupportDialogMicrocopy();
@@ -212,6 +213,24 @@ internal static class UiUxV121SelfTest
         form.SetV121TtsVolumeForSelfTest(changedVolume);
         Assert(form.GetV121SaveStateForSelfTest() == "Unsaved",
             "editing TTS volume immediately clears stale Saved state and marks the editor dirty");
+    }
+
+    private static void TestAppliedButUnsavedCloseWarning()
+    {
+        var chat = new ChatOverlaySettings();
+        chat.Normalize();
+        var speech = new ChatSpeechTranslationSettings();
+        speech.Normalize();
+
+        using var form = new ChatGeneralSettingsForm(chat, speech);
+        form.SetV121AppliedNotPersistedForSelfTest(true);
+        Assert(form.GetV121CloseWarningKindForSelfTest() == "persistence",
+            "settings that were applied but failed to persist cannot close silently");
+
+        var changedVolume = speech.TtsVolume == 61 ? 62 : 61;
+        form.SetV121TtsVolumeForSelfTest(changedVolume);
+        Assert(form.GetV121CloseWarningKindForSelfTest() == "dirty+persistence",
+            "close warning reports both unapplied edits and a prior persistence failure");
     }
 
     private static void TestSettingsSaveResultIsTruthful()
