@@ -108,8 +108,7 @@ internal static class ChatSpeechTranslationEngine
         if (message.Kind is ChatMessageKind.Sticker or ChatMessageKind.Picture) return;
 
         var snapshot = Volatile.Read(ref _snapshot);
-        var wantsTranslation = snapshot.TranslationEnabledFor(message.Channel);
-        var wantsSpeech = snapshot.TtsEnabledFor(message.Channel) && !snapshot.IsOwnUsername(message.SenderName);
+        var (wantsTranslation, wantsSpeech) = RequestedFeatures(snapshot, message);
         if (!wantsTranslation && !wantsSpeech) return;
 
         // Capture feature eligibility at enqueue time. Turning TTS/translation ON
@@ -142,10 +141,14 @@ internal static class ChatSpeechTranslationEngine
 
     internal static async Task TestTtsAsync(int volume, CancellationToken cancellationToken = default)
     {
+        volume = Math.Clamp(volume, 0, 100);
+        if (volume <= 0)
+            throw new InvalidOperationException("TTS volume is 0%. Raise the TTS volume before testing the voice.");
+
         var chunks = await DownloadGoogleTtsChunksAsync(
             "ReadyAlert text to speech test.", cancellationToken).ConfigureAwait(false);
         foreach (var audio in chunks)
-            await ChatTtsAudioPlayer.PlayAsync(audio, Math.Clamp(volume, 0, 100), cancellationToken).ConfigureAwait(false);
+            await ChatTtsAudioPlayer.PlayAsync(audio, volume, cancellationToken).ConfigureAwait(false);
     }
 
     internal static void Shutdown()
@@ -237,7 +240,9 @@ internal static class ChatSpeechTranslationEngine
     {
         var message = job.Message;
         var snapshot = Volatile.Read(ref _snapshot);
-        var wantsOverlayTranslation = job.TranslationRequested && snapshot.TranslationEnabledFor(message.Channel);
+        var wantsOverlayTranslation = job.TranslationRequested &&
+                                      snapshot.ShowTranslationInOverlay &&
+                                      snapshot.TranslationEnabledFor(message.Channel);
         var wantsSpeech = CanSpeakJob(job, snapshot, enabled: _enabled);
         if (!wantsOverlayTranslation && !wantsSpeech) return;
 
@@ -336,6 +341,17 @@ internal static class ChatSpeechTranslationEngine
             Interlocked.Increment(ref _ttsFailures);
             AppLog.Write("tts: google en playback failed " + ex.Message);
         }
+    }
+
+    private static (bool TranslationRequested, bool SpeechRequested) RequestedFeatures(
+        SpeechSnapshot snapshot,
+        ChatMessageEvent message)
+    {
+        var translation = snapshot.ShowTranslationInOverlay && snapshot.TranslationEnabledFor(message.Channel);
+        var speech = snapshot.TtsVolume > 0 &&
+                     snapshot.TtsEnabledFor(message.Channel) &&
+                     !snapshot.IsOwnUsername(message.SenderName);
+        return (translation, speech);
     }
 
     private static bool IsJobStale(SpeechJob job) =>
@@ -602,12 +618,21 @@ internal static class ChatSpeechTranslationEngine
         enqueueSettings.Normalize();
         liveSettings.Normalize();
         var enqueued = SpeechSnapshot.From(enqueueSettings);
+        var (_, speechRequested) = RequestedFeatures(enqueued, message);
         var job = new SpeechJob(
             message,
             DateTime.UtcNow - queuedAge,
-            enqueued.TranslationEnabledFor(message.Channel),
-            enqueued.TtsEnabledFor(message.Channel) && !enqueued.IsOwnUsername(message.SenderName));
+            TranslationRequested: false,
+            SpeechRequested: speechRequested);
         return CanSpeakJob(job, SpeechSnapshot.From(liveSettings), enabled: true);
+    }
+
+    internal static (bool TranslationRequested, bool SpeechRequested) RequestedFeaturesForSelfTest(
+        ChatMessageEvent message,
+        ChatSpeechTranslationSettings settings)
+    {
+        settings.Normalize();
+        return RequestedFeatures(SpeechSnapshot.From(settings), message);
     }
 
     internal static bool IsRetryableGoogleStatusForSelfTest(int status) =>
@@ -701,8 +726,9 @@ internal static class ChatSpeechTranslationEngine
             settings.TtsVolume);
 
         internal bool HasAnyFeature =>
-            (TranslationEnabled && (TranslationWorld || TranslationGuild || TranslationPartyTeam)) ||
-            (TtsEnabled && (TtsGuild || TtsPartyTeam));
+            (ShowTranslationInOverlay && TranslationEnabled &&
+             (TranslationWorld || TranslationGuild || TranslationPartyTeam)) ||
+            (TtsVolume > 0 && TtsEnabled && (TtsGuild || TtsPartyTeam));
 
         internal bool TranslationEnabledFor(ChatChannel channel) =>
             TranslationEnabled && ChatSpeechTranslationSettings.TranslationChannelEnabled(
