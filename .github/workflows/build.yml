@@ -254,6 +254,36 @@ jobs:
 
             Requires Npcap to be installed.
 
+      - name: Create v1.2.0 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.0]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.0
+          name: BPSR Ready Alert v1.2.0
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.2.0 adds optional English translation and Guild / Party text-to-speech to the Chat Overlay.
+
+            Highlights:
+            - no-key Google Translate web translation for World, Guild, and Party / Team, rendered below the original message;
+            - no-key Google English TTS for Guild and Party / Team only;
+            - NAudio + Windows Media Foundation playback with independent TTS volume;
+            - optional sender-name reading and exact own-username ignore;
+            - quick TTS toolbar toggle with green ON / red strikethrough OFF state;
+            - global hide options for BPSR sprite-only emoji and Hypertext/linked-item rows;
+            - TTS-priority scheduling so busy World translation cannot starve Guild/Party speech;
+            - bounded queues/cache, stale-job skipping, Google response validation/retry, and soft failure behavior;
+            - keeps previous Ready/Queue alerts, Alt+Tab overlay exclusion, scroll reliability, IPv6 and rich-chat improvements.
+
+            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
+            Requires Npcap to be installed.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
