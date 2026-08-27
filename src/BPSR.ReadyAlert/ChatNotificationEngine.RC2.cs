@@ -97,6 +97,17 @@ internal static class ChatNotificationEngine
         Volatile.Write(ref _snapshot, snapshot);
     }
 
+    /// <summary>
+    /// The block list is a ReadyAlert-chat policy, not merely a rendering detail.
+    /// Capture routing uses the same immutable snapshot as the notification worker so
+    /// blocked senders cannot disappear visually yet still reach translation/TTS.
+    /// </summary>
+    internal static bool IsSenderBlocked(long senderId)
+    {
+        if (senderId == 0) return false;
+        return Volatile.Read(ref _snapshot).BlockedIds.Contains(senderId);
+    }
+
     internal static void Enqueue(ChatMessageEvent message)
     {
         if (!Enabled) return;
