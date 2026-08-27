@@ -26,6 +26,7 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         _speechSettings = speechSettings;
         RegisterPage("Speech", "Speech & translation", BuildSpeechTranslationPage());
+        InstallV120ContentFilters();
 
         // Keep the troubleshooting page last in the sidebar.
         if (_pages.TryGetValue("Speech", out var speech) && _pages.TryGetValue("Advanced", out var advanced))
@@ -191,6 +192,8 @@ internal sealed partial class ChatGeneralSettingsForm
         _speechSettings.ReadSenderName = _ttsReadSender.Checked;
         _speechSettings.IgnoreOwnUsername = _ttsOwnUsername.Text;
         _speechSettings.TtsVolume = _ttsVolume.Value;
+        _speechSettings.HideEmojiMessages = _hideEmoji.Checked;
+        _speechSettings.HideLinkedItemMessages = _hideLinkedItems.Checked;
         _speechSettings.Normalize();
         ChatSpeechTranslationEngine.Configure(_speechSettings);
     }
@@ -207,6 +210,8 @@ internal sealed partial class ChatGeneralSettingsForm
         _ttsParty.Checked = source.TtsPartyTeam;
         _ttsReadSender.Checked = source.ReadSenderName;
         _ttsOwnUsername.Text = source.IgnoreOwnUsername;
+        _hideEmoji.Checked = source.HideEmojiMessages;
+        _hideLinkedItems.Checked = source.HideLinkedItemMessages;
 
         if (_ttsVolume.Minimum == 0 && _ttsVolume.Maximum == 10)
         {
