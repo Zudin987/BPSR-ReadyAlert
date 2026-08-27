@@ -227,8 +227,8 @@ internal sealed class ChatDebugStatusForm : Form
         Text = "Chat Capture Status";
         StartPosition = FormStartPosition.CenterParent;
         ShowInTaskbar = false;
-        ClientSize = new Size(650, 500);
-        MinimumSize = new Size(560, 400);
+        ClientSize = new Size(700, 610);
+        MinimumSize = new Size(580, 440);
 
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = ChatUiTheme.Surface, Padding = new Padding(16, 14, 16, 14) };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
@@ -244,7 +244,7 @@ internal sealed class ChatDebugStatusForm : Form
         var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(24), BackColor = ChatUiTheme.Window };
         var header = new Panel { Dock = DockStyle.Top, Height = 82 };
         var title = ChatUiTheme.Heading("Chat capture status", 17F); title.Location = new Point(0, 0);
-        var hint = ChatUiTheme.Subheading("Live counters from the same ReadyAlert capture pipeline used for Ready alerts."); hint.Location = new Point(0, 34);
+        var hint = ChatUiTheme.Subheading("Live capture, notification, translation, and TTS counters for troubleshooting."); hint.Location = new Point(0, 34);
         header.Controls.Add(title); header.Controls.Add(hint);
 
         _status.Dock = DockStyle.Fill;
@@ -269,25 +269,59 @@ internal sealed class ChatDebugStatusForm : Form
 
     private void RefreshStatus()
     {
-        var status = ChatCaptureBridge.GetStatus();
+        var capture = ChatCaptureBridge.GetStatus();
+        var notify = ChatNotificationEngine.GetStatus();
+        var speech = ChatSpeechTranslationEngine.GetStatus();
+
         _status.Text =
-            "BPSR ReadyAlert Chat RC5\r\n" +
+            $"BPSR ReadyAlert {AppVersion.Current}\r\n" +
             "================================================\r\n" +
-            $"Chat enabled          {status.Enabled}\r\n" +
+            $"Chat enabled          {capture.Enabled}\r\n" +
             "Capture pipeline       Shared ReadyAlert CaptureEngine\r\n" +
             "Second Npcap capture   No\r\n" +
             $"Service ID            {ChatProtocol.ServiceId}\r\n" +
             $"Method                0x{ChatProtocol.NotifyNewestChitChatMsgs:X2}\r\n\r\n" +
-            $"Matching notifies     {status.MatchingNotifies}\r\n" +
-            $"Parsed messages       {status.ParsedMessages}\r\n" +
-            $"Parse failures        {status.ParseFailures}\r\n" +
-            $"Queue drops           {status.DroppedQueuedMessages}\r\n" +
-            $"Pending UI queue      {status.QueueCount}\r\n" +
-            $"Last payload bytes    {status.LastPayloadLength}\r\n" +
-            $"Last message UTC      {(status.LastMessageUtc?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Never")}\r\n\r\n" +
-            "Testing tip\r\n" +
-            "-----------\r\n" +
-            "Keep this window open while someone sends BPSR chat. Matching notifies\r\n" +
-            "should increase first; Parsed messages should increase immediately after.";
+            "CAPTURE / PARSER\r\n" +
+            $"Matching notifies     {capture.MatchingNotifies}\r\n" +
+            $"Parsed messages       {capture.ParsedMessages}\r\n" +
+            $"Parse failures        {capture.ParseFailures}\r\n" +
+            $"Queue drops           {capture.DroppedQueuedMessages}\r\n" +
+            $"Pending UI queue      {capture.QueueCount}\r\n" +
+            $"Last payload bytes    {capture.LastPayloadLength}\r\n" +
+            $"Last message UTC      {Utc(capture.LastMessageUtc)}\r\n\r\n" +
+            "KEYWORD / PRIVATE SOUND\r\n" +
+            $"Engine enabled        {notify.Enabled}\r\n" +
+            $"Pending queue         {notify.QueueCount}\r\n" +
+            $"Enqueued / processed  {notify.Enqueued} / {notify.Processed}\r\n" +
+            $"Matched / played      {notify.Matched} / {notify.Played}\r\n" +
+            $"Failed / dropped      {notify.Failed} / {notify.Dropped}\r\n" +
+            $"Last reason           {OneLine(notify.LastReason)}\r\n" +
+            $"Last attempt UTC      {Utc(notify.LastAttemptUtc)}\r\n" +
+            $"Last success UTC      {Utc(notify.LastSuccessUtc)}\r\n" +
+            $"Last error            {OneLine(notify.LastError)}\r\n\r\n" +
+            "TRANSLATION / TTS\r\n" +
+            $"Engine enabled        {speech.Enabled}\r\n" +
+            $"Pending queue         {speech.QueueCount}\r\n" +
+            $"Processed             {speech.Processed}\r\n" +
+            $"Translations shown    {speech.Translated}\r\n" +
+            $"Messages spoken       {speech.Spoken}\r\n" +
+            $"Translation failures  {speech.TranslationFailures}\r\n" +
+            $"TTS failures          {speech.TtsFailures}\r\n" +
+            $"Dropped / stale       {speech.Dropped}\r\n" +
+            $"Last success UTC      {Utc(speech.LastSuccessUtc)}\r\n\r\n" +
+            "TESTING TIP\r\n" +
+            "If Parsed messages stops increasing, inspect capture/parser.\r\n" +
+            "If Parsed increases but TTS Processed does not, inspect channel/TTS settings.\r\n" +
+            "If Processed increases but Messages spoken does not, inspect Google/audio or TTS failures.";
+    }
+
+    private static string Utc(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Never";
+
+    private static string OneLine(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "-";
+        var text = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return text.Length <= 120 ? text : text[..120] + "…";
     }
 }
