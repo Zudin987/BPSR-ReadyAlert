@@ -24,6 +24,24 @@ internal sealed partial class ChatGeneralSettingsForm
         if (FindButtonByText(this, "Close") is { } close)
             close.Text = "Cancel";
 
+        ReplaceV121LabelText(
+            this,
+            "One shared volume for all three sound rules and Private / Talk sounds.",
+            "Keyword rules and Private / Talk sounds only. Independent of Ready / Queue and TTS volume.");
+        ReplaceV121LabelText(
+            this,
+            "A single standardized volume keeps sound setup simple.",
+            "One shared level for chat keyword and Private / Talk sounds; other ReadyAlert audio volumes stay independent.");
+        ReplaceV121LabelText(
+            this,
+            "Click a box and press the combination you want. Backspace clears it.",
+            "Click a box and press the combination you want. Both recovery shortcuts are required; Backspace clears the current entry before choosing another.");
+
+        _soundVolume.AccessibleName = "Chat alert volume";
+        _soundVolume.AccessibleDescription = "Controls keyword rules and Private or Talk chat sounds only.";
+        _ttsVolume.AccessibleName = "TTS volume";
+        _ttsVolume.AccessibleDescription = "Controls spoken Guild and Party or Team chat only.";
+
         SubscribeV121Changes(this);
         _applyStatus.TextChanged += (_, _) =>
         {
@@ -180,6 +198,17 @@ internal sealed partial class ChatGeneralSettingsForm
 
             if (child.HasChildren)
                 AppendV121ControlValues(child, builder, childPath);
+        }
+    }
+
+    private static void ReplaceV121LabelText(Control parent, string oldText, string newText)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child is Label label && string.Equals(label.Text, oldText, StringComparison.Ordinal))
+                label.Text = newText;
+            if (child.HasChildren)
+                ReplaceV121LabelText(child, oldText, newText);
         }
     }
 
