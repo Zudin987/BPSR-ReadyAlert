@@ -10,6 +10,7 @@ namespace BPSR.ReadyAlert;
 internal static class ChatTtsAudioPlayer
 {
     private static readonly SemaphoreSlim PlaybackGate = new(1, 1);
+    private static readonly TimeSpan PlaybackWatchdog = TimeSpan.FromSeconds(45);
     private static int _fileCounter;
 
     internal static async Task PlayAsync(byte[] mp3Bytes, int volume, CancellationToken cancellationToken)
@@ -59,7 +60,20 @@ internal static class ChatTtsAudioPlayer
                     try { output.Stop(); } catch { }
                 });
 
-                var error = await stopped.Task.ConfigureAwait(false);
+                Exception? error;
+                try
+                {
+                    // A WaveOut/driver failure must not be able to hold PlaybackGate
+                    // forever if PlaybackStopped is never delivered. 45 seconds is far
+                    // above the expected duration of one <=200-character Google chunk.
+                    error = await stopped.Task.WaitAsync(PlaybackWatchdog, cancellationToken).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    try { output.Stop(); } catch { }
+                    throw new TimeoutException("TTS playback did not stop within the 45-second safety limit.");
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
                 if (error is not null) throw new InvalidOperationException("TTS playback failed.", error);
                 AppLog.Write("tts: playback completed backend=NAudio/MediaFoundation");
