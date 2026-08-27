@@ -9,8 +9,11 @@ internal static class ChatV120SelfTest
         TestSettingsNormalization();
         TestTtsChunking();
         TestGoogleEnglishSelection();
+        TestGoogleRetryClassification();
         TestContentFilters();
         TestSpeechQueuePriority();
+        TestQueuedSpeechEligibility();
+        TestTranslationResultOrdering();
         TestToolbarTtsToggle();
     }
 
@@ -96,6 +99,17 @@ internal static class ChatV120SelfTest
             "Google TTS uses the English en voice requested for ReadyAlert");
     }
 
+    private static void TestGoogleRetryClassification()
+    {
+        Assert(ChatSpeechTranslationEngine.IsRetryableGoogleStatusForSelfTest(408), "Google HTTP 408 is retryable");
+        Assert(ChatSpeechTranslationEngine.IsRetryableGoogleStatusForSelfTest(429), "Google HTTP 429 is retryable");
+        Assert(ChatSpeechTranslationEngine.IsRetryableGoogleStatusForSelfTest(500), "Google HTTP 500 is retryable");
+        Assert(ChatSpeechTranslationEngine.IsRetryableGoogleStatusForSelfTest(503), "Google HTTP 503 is retryable");
+        Assert(!ChatSpeechTranslationEngine.IsRetryableGoogleStatusForSelfTest(400), "Google HTTP 400 is not retried");
+        Assert(!ChatSpeechTranslationEngine.IsRetryableGoogleStatusForSelfTest(401), "Google HTTP 401 is not retried");
+        Assert(!ChatSpeechTranslationEngine.IsRetryableGoogleStatusForSelfTest(404), "Google HTTP 404 is not retried");
+    }
+
     private static void TestContentFilters()
     {
         Assert(ChatContentVisibility.IsSpriteOnlyEmoji("<sprite=1>"), "sprite 1 is recognized as emoji-only chat");
@@ -110,12 +124,14 @@ internal static class ChatV120SelfTest
         var textEmoji = Message(ChatMessageKind.Text, "<sprite=62>");
         var hypertextKind = Message(ChatMessageKind.Hypertext, "[Hypertext 3000001]");
         var hypertextText = Message(ChatMessageKind.Text, "[Hypertext 1050001] MrHard");
+        var literalMarkerWord = Message(ChatMessageKind.Text, "[Hypertext] is just text I typed");
         var ordinaryWord = Message(ChatMessageKind.Text, "I learned about hypertext today");
         var normal = Message(ChatMessageKind.Text, "what is makan nasi");
 
         Assert(ChatContentVisibility.ShouldSkipSpeech(textEmoji), "sprite-only emoji is never spoken literally");
         Assert(ChatContentVisibility.ShouldSkipSpeech(hypertextKind), "Hypertext kind is never spoken literally");
         Assert(ChatContentVisibility.ShouldSkipSpeech(hypertextText), "Hypertext placeholder text is never spoken literally");
+        Assert(!ChatContentVisibility.ShouldSkipSpeech(literalMarkerWord), "literal [Hypertext] text is not mistaken for a linked item");
         Assert(!ChatContentVisibility.ShouldSkipSpeech(ordinaryWord), "ordinary use of the word hypertext is not mistaken for a linked item");
         Assert(!ChatContentVisibility.ShouldSkipSpeech(normal), "normal chat remains eligible for speech");
 
@@ -123,6 +139,7 @@ internal static class ChatV120SelfTest
         Assert(ChatContentVisibility.ShouldHideInOverlay(textEmoji), "Hide emoji suppresses sprite-only rows");
         Assert(ChatContentVisibility.ShouldHideInOverlay(hypertextKind), "Hide linked items suppresses Hypertext kind rows");
         Assert(ChatContentVisibility.ShouldHideInOverlay(hypertextText), "Hide linked items suppresses parsed Hypertext placeholder rows");
+        Assert(!ChatContentVisibility.ShouldHideInOverlay(literalMarkerWord), "Hide linked items preserves literal [Hypertext] player text");
         Assert(!ChatContentVisibility.ShouldHideInOverlay(ordinaryWord), "Hide linked items preserves ordinary hypertext word usage");
         Assert(!ChatContentVisibility.ShouldHideInOverlay(normal), "content filters preserve normal chat");
 
@@ -142,6 +159,57 @@ internal static class ChatV120SelfTest
         var guildSpeech = Message(ChatMessageKind.Text, "guild speech", ChatChannel.Union, 202);
         Assert(ChatSpeechTranslationEngine.SpeechPriorityPrecedesTranslationForSelfTest(worldTranslation, guildSpeech),
             "Guild/Party speech priority dequeues ahead of older World translation work");
+    }
+
+    private static void TestQueuedSpeechEligibility()
+    {
+        var guild = Message(ChatMessageKind.Text, "guild speech", ChatChannel.Union, 303);
+        var ttsOff = new ChatSpeechTranslationSettings { TtsEnabled = false, TtsGuild = true };
+        var ttsOn = new ChatSpeechTranslationSettings { TtsEnabled = true, TtsGuild = true, TtsVolume = 70 };
+
+        Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOff, ttsOn, TimeSpan.Zero),
+            "turning TTS on does not retroactively speak a job queued while TTS was off");
+        Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOn, ttsOff, TimeSpan.Zero),
+            "turning TTS off suppresses a queued not-yet-playing job");
+        Assert(ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOn, ttsOn, TimeSpan.FromSeconds(1)),
+            "fresh eligible Guild speech remains playable");
+        Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOn, ttsOn, TimeSpan.FromSeconds(21)),
+            "speech older than the stale-job limit is not playable");
+
+        var world = Message(ChatMessageKind.Text, "world", ChatChannel.World, 304);
+        Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(world, ttsOn, ttsOn, TimeSpan.Zero),
+            "World chat remains impossible to speak through queued-job eligibility");
+
+        var ignoredAtEnqueue = new ChatSpeechTranslationSettings
+        {
+            TtsEnabled = true,
+            TtsGuild = true,
+            IgnoreOwnUsername = "Tester"
+        };
+        Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ignoredAtEnqueue, ttsOn, TimeSpan.Zero),
+            "clearing the own-username filter later does not resurrect an old own-message job");
+    }
+
+    private static void TestTranslationResultOrdering()
+    {
+        var settings = new AppSettings { ChatOverlayEnabled = true };
+        settings.Chat.Normalize();
+        settings.SpeechTranslation.TranslationEnabled = true;
+        settings.SpeechTranslation.TranslationGuild = true;
+        settings.SpeechTranslation.ShowTranslationInOverlay = true;
+        settings.SpeechTranslation.Normalize();
+
+        using var form = new ChatOverlayForm(settings, new SettingsStore(
+            Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-translation-order-{Guid.NewGuid():N}.json")), string.Empty, string.Empty);
+        var message = Message(ChatMessageKind.Text, "makan nasi", ChatChannel.Union, 707);
+        form.EnqueueV120TranslationForSelfTest(new ChatTranslationResult(707, "eat rice", "ms"));
+        form.DrainV120TranslationsForSelfTest();
+
+        Assert(form.GetV120TranslationTextForSelfTest(message) == "eat rice",
+            "translation finishing before its UI row is retained instead of discarded");
+        form.AddMessage(message);
+        Assert(form.GetV120TranslationTextForSelfTest(message) == "eat rice",
+            "early translation remains mapped to the same SequenceId after the original row arrives");
     }
 
     private static void TestToolbarTtsToggle()
@@ -168,6 +236,15 @@ internal static class ChatV120SelfTest
 
             form.ToggleV120TtsForSelfTest();
             Assert(!settings.SpeechTranslation.TtsEnabled, "second toolbar click disables TTS again");
+
+            settings.SpeechTranslation.TtsEnabled = true;
+            form.ApplySettingsFromOpenDialog();
+            Assert(form.GetV120TtsToolbarStateForSelfTest().Enabled,
+                "settings-dialog apply immediately synchronizes the toolbar TTS state");
+            settings.SpeechTranslation.TtsEnabled = false;
+            form.ApplySettingsFromOpenDialog();
+            Assert(!form.GetV120TtsToolbarStateForSelfTest().Enabled,
+                "settings-dialog TTS disable immediately synchronizes the toolbar state");
         }
         finally
         {
