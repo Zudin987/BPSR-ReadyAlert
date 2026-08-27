@@ -75,7 +75,7 @@ internal sealed partial class ChatGeneralSettingsForm
                 case CheckBox check:
                     check.CheckedChanged += V121EditorValueChanged;
                     break;
-                case TextBox box when !ReferenceEquals(box, _applyStatus):
+                case TextBox box:
                     box.TextChanged += V121EditorValueChanged;
                     break;
                 case NumericUpDown numeric:
@@ -200,5 +200,18 @@ internal sealed partial class ChatGeneralSettingsForm
         InstallV121UsabilityTracking();
         RefreshV121DirtyStatus();
         return _applyStatus.Text;
+    }
+
+    internal string GetV121CancelButtonTextForSelfTest()
+    {
+        InstallV121UsabilityTracking();
+        return FindButtonByText(this, "Cancel")?.Text ?? string.Empty;
+    }
+
+    internal void SetV121TtsVolumeForSelfTest(int volume)
+    {
+        InstallV121UsabilityTracking();
+        _ttsVolume.Value = Math.Clamp(volume, _ttsVolume.Minimum, _ttsVolume.Maximum);
+        RefreshV121DirtyStatus();
     }
 }
