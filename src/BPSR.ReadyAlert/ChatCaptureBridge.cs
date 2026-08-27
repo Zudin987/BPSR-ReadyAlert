@@ -100,9 +100,9 @@ internal static class ChatCaptureBridge
                 ChatSpeechTranslationEngine.Enqueue(message);
         }
 
-        // Keep the normal UI/history path unchanged. The overlay applies the same
-        // block list while rendering, so a user who is later unblocked can only affect
-        // new messages; old blocked rows are not resurrected with delayed speech.
+        // Keep bounded history routing unchanged so unblocking can reveal any still-
+        // retained rows. While the block is active the overlay hides them, and work
+        // skipped here (keyword/private sound, translation and TTS) is never replayed.
         while (events.Count >= MaxQueuedMessages && events.TryDequeue(out _))
             Interlocked.Increment(ref _droppedQueuedMessages);
 
