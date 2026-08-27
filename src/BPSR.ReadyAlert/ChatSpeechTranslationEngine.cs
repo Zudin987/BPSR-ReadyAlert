@@ -27,7 +27,7 @@ internal readonly record struct ChatSpeechTranslationStatus(
 /// </summary>
 internal static class ChatSpeechTranslationEngine
 {
-    internal const string GoogleTtsLanguage = "ms";
+    internal const string GoogleTtsLanguage = "en";
 
     private const int MaxQueuedJobs = 24;
     private const int MaxTranslationChars = 1_000;
@@ -247,7 +247,7 @@ internal static class ChatSpeechTranslationEngine
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Interlocked.Increment(ref _ttsFailures);
-            AppLog.Write("tts: google ms playback failed " + ex.Message);
+            AppLog.Write("tts: google en playback failed " + ex.Message);
         }
     }
 
@@ -351,17 +351,17 @@ internal static class ChatSpeechTranslationEngine
                         await Task.Delay(150, cancellationToken).ConfigureAwait(false);
                         continue;
                     }
-                    throw new HttpRequestException($"Google ms TTS returned HTTP {status}.");
+                    throw new HttpRequestException($"Google English TTS returned HTTP {status}.");
                 }
 
                 var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
                 if (!mediaType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Google ms TTS returned unexpected content type: " +
+                    throw new InvalidDataException("Google English TTS returned unexpected content type: " +
                                                    (mediaType.Length == 0 ? "unknown" : mediaType));
 
                 var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
                 if (bytes.Length < 200 || LooksLikeHtml(bytes))
-                    throw new InvalidDataException($"Google ms TTS returned invalid audio ({bytes.Length} bytes).");
+                    throw new InvalidDataException($"Google English TTS returned invalid audio ({bytes.Length} bytes).");
                 return bytes;
             }
             catch (HttpRequestException ex) when (attempt == 0 && !cancellationToken.IsCancellationRequested)
@@ -371,7 +371,7 @@ internal static class ChatSpeechTranslationEngine
             }
         }
 
-        throw lastError ?? new HttpRequestException("Google ms TTS request failed.");
+        throw lastError ?? new HttpRequestException("Google English TTS request failed.");
     }
 
     internal static List<string> SplitForTts(string text, int maxChars)
@@ -428,7 +428,7 @@ internal static class ChatSpeechTranslationEngine
     private static HttpClient CreateHttpClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 Malay-TTS-Bot/1.0 ReadyAlert/1.2");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 BPSR-ReadyAlert/1.2");
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
         return client;
     }
