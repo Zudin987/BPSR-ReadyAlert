@@ -7,6 +7,7 @@ internal sealed partial class ChatGeneralSettingsForm
 {
     private ChatSpeechTranslationSettings? _speechSettings;
     private readonly CheckBox _translateEnabled = new() { Text = "Translate non-English chat to English" };
+    private readonly CheckBox _translateWorld = new() { Text = "World" };
     private readonly CheckBox _translateGuild = new() { Text = "Guild" };
     private readonly CheckBox _translateParty = new() { Text = "Party / Team" };
     private readonly CheckBox _translateShowOverlay = new() { Text = "Show English translation under the original message" };
@@ -42,12 +43,12 @@ internal sealed partial class ChatGeneralSettingsForm
 
         var page = CreatePage(
             "Speech & translation",
-            "Translate selected BPSR chat to English and optionally read Guild / Party messages aloud.");
+            "Translate World / Guild / Party chat to English and optionally read Guild / Party messages aloud.");
         var stack = (TableLayoutPanel)page.Tag!;
 
         foreach (var check in new[]
                  {
-                     _translateEnabled, _translateGuild, _translateParty, _translateShowOverlay,
+                     _translateEnabled, _translateWorld, _translateGuild, _translateParty, _translateShowOverlay,
                      _ttsEnabled, _ttsGuild, _ttsParty, _ttsReadSender
                  })
             ChatUiTheme.StyleCheckBox(check);
@@ -63,8 +64,10 @@ internal sealed partial class ChatGeneralSettingsForm
             WrapContents = false,
             Margin = Padding.Empty
         };
-        _translateGuild.Width = 120;
+        _translateWorld.Width = 105;
+        _translateGuild.Width = 105;
         _translateParty.Width = 180;
+        translateChannels.Controls.Add(_translateWorld);
         translateChannels.Controls.Add(_translateGuild);
         translateChannels.Controls.Add(_translateParty);
 
@@ -72,7 +75,7 @@ internal sealed partial class ChatGeneralSettingsForm
         AddStack(translation, _translateEnabled);
         AddStack(translation, MakeFieldBlock(
             "Translate channels",
-            "Guild = BPSR Union. Party / Team covers Team and Group chat.",
+            "World is independent. Guild = BPSR Union. Party / Team covers Team and Group chat.",
             translateChannels));
         AddStack(translation, _translateShowOverlay);
         AddPageCard(stack, MakeCard(
@@ -101,7 +104,7 @@ internal sealed partial class ChatGeneralSettingsForm
         AddStack(tts, _ttsEnabled);
         AddStack(tts, MakeFieldBlock(
             "Read aloud channels",
-            "Only enabled Guild / Party messages enter the speech queue. World chat is never read by this feature.",
+            "Speech is intentionally limited to Guild and Party / Team. World chat is never read aloud.",
             ttsChannels));
         AddStack(tts, _ttsReadSender);
         AddStack(tts, MakeFieldBlock(
@@ -115,19 +118,24 @@ internal sealed partial class ChatGeneralSettingsForm
             _ttsVolumeValue,
             source.TtsVolume,
             0));
+        AddStack(tts, MakeActionRow(
+            "Test Google ms TTS",
+            "Downloads one short no-key Google Malay TTS sample and plays it using ReadyAlert's TTS volume.",
+            "Test voice",
+            () => _ = TestGoogleTtsInteractiveAsync()));
         AddPageCard(stack, MakeCard(
-            "Google gTTS speech",
-            "Messages are queued one at a time so voices never overlap. Stale speech is skipped if chat gets too far ahead.",
+            "Google ms TTS speech",
+            "Uses Google's no-key Malay (ms) Translate TTS voice. Messages are queued one at a time so speech never overlaps.",
             tts));
 
         AddPageCard(stack, MakeInfoBanner(
             "No API key — Google Translate web service",
-            "This uses undocumented Google Translate/gTTS-style web endpoints, not Google Cloud. Only messages needed for enabled translation/TTS channels are sent to Google. The service is free/no-key in normal use but Google can rate-limit or change it without notice; failures never block the overlay or packet capture.",
+            "This uses undocumented Google Translate/gTTS-style web endpoints, not Google Cloud. Only messages needed for enabled translation/TTS channels are sent to Google. Google can rate-limit or change the service without notice; failures never block the overlay or packet capture.",
             ChatUiTheme.Accent));
 
         AddPageCard(stack, MakeInfoBanner(
             "Translation used by TTS",
-            "For TTS-enabled channels, ReadyAlert asks Google to auto-detect/translate the message to English before speaking it. If the source is already English, it is spoken as-is. Overlay translation can be enabled or disabled independently.",
+            "For TTS-enabled channels, ReadyAlert asks Google to auto-detect/translate the message to English first. Google ms then speaks that English text with the Malay voice. If translation fails, the original text is still attempted.",
             ChatUiTheme.Success));
 
         RefreshSpeechControlState();
@@ -137,6 +145,7 @@ internal sealed partial class ChatGeneralSettingsForm
     private void RefreshSpeechControlState()
     {
         var translate = _translateEnabled.Checked;
+        _translateWorld.Enabled = translate;
         _translateGuild.Enabled = translate;
         _translateParty.Enabled = translate;
         _translateShowOverlay.Enabled = translate;
@@ -149,10 +158,30 @@ internal sealed partial class ChatGeneralSettingsForm
         _ttsVolume.Enabled = tts;
     }
 
+    private async Task TestGoogleTtsInteractiveAsync()
+    {
+        try
+        {
+            await ChatSpeechTranslationEngine.TestTtsAsync(_ttsVolume.Value);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("tts: interactive test failed " + ex.Message);
+            MessageBox.Show(
+                this,
+                "Google ms TTS test failed.\r\n\r\n" + ex.Message +
+                "\r\n\r\nThe normal chat overlay is unaffected. Check readyalert.log for details.",
+                "TTS test failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
     private void ApplySpeechTranslationSettings()
     {
         if (_speechSettings is null) return;
         _speechSettings.TranslationEnabled = _translateEnabled.Checked;
+        _speechSettings.TranslationWorld = _translateWorld.Checked;
         _speechSettings.TranslationGuild = _translateGuild.Checked;
         _speechSettings.TranslationPartyTeam = _translateParty.Checked;
         _speechSettings.ShowTranslationInOverlay = _translateShowOverlay.Checked;
@@ -169,6 +198,7 @@ internal sealed partial class ChatGeneralSettingsForm
     private void LoadSpeechTranslationControls(ChatSpeechTranslationSettings source)
     {
         _translateEnabled.Checked = source.TranslationEnabled;
+        _translateWorld.Checked = source.TranslationWorld;
         _translateGuild.Checked = source.TranslationGuild;
         _translateParty.Checked = source.TranslationPartyTeam;
         _translateShowOverlay.Checked = source.ShowTranslationInOverlay;
