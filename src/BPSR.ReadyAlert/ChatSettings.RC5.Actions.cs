@@ -47,14 +47,14 @@ internal sealed partial class ChatGeneralSettingsForm
             : enabled ? "● Ready — matching is case-insensitive." : "● Rule saved but currently disabled.";
     }
 
-    private void ApplyChanges()
+    private bool ApplyChanges()
     {
         if (!ChatFilterExpression.TryValidate(_highlight.Text, out var highlightError))
         {
             ShowPage("Alerts");
             MessageBox.Show(this, highlightError, "Highlight rule is invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             _highlight.Focus();
-            return;
+            return false;
         }
 
         for (var i = 0; i < 3; i++)
@@ -65,14 +65,14 @@ internal sealed partial class ChatGeneralSettingsForm
                 ShowPage("Alerts");
                 MessageBox.Show(this, $"Sound rule {i + 1} is enabled but has no match text.", "Sound rule", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _soundRuleMatch[i].Focus();
-                return;
+                return false;
             }
             if (match.Length > 0 && !ChatFilterExpression.TryValidate(match, out var ruleError))
             {
                 ShowPage("Alerts");
                 MessageBox.Show(this, ruleError, $"Sound rule {i + 1} is invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _soundRuleMatch[i].Focus();
-                return;
+                return false;
             }
         }
 
@@ -81,20 +81,20 @@ internal sealed partial class ChatGeneralSettingsForm
             ShowPage("Interaction");
             MessageBox.Show(this, clickError, "Click-through hotkey is invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             _clickHotkey.Focus();
-            return;
+            return false;
         }
         if (!ChatHotkey.TryParse(_collapseHotkey.Text, out var collapseGesture, out var collapseError))
         {
             ShowPage("Interaction");
             MessageBox.Show(this, collapseError, "Collapse hotkey is invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             _collapseHotkey.Focus();
-            return;
+            return false;
         }
         if (clickGesture.Equals(collapseGesture))
         {
             ShowPage("Interaction");
             MessageBox.Show(this, "Click-through and Collapse cannot use the same hotkey.", "Hotkeys", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
+            return false;
         }
 
         _settings.TopMost = _topMost.Checked;
@@ -141,10 +141,13 @@ internal sealed partial class ChatGeneralSettingsForm
         _settings.Normalize();
         ApplySpeechTranslationSettings();
 
+        var saveSucceeded = true;
         if (Owner is ChatOverlayForm overlay)
         {
-            overlay.ApplySettingsFromOpenDialog();
-            overlay.ApplyV120SpeechSettingsFromOpenDialog();
+            saveSucceeded = overlay.ApplySettingsFromOpenDialog();
+            // The full AppSettings object was just saved above. Reconfigure speech
+            // and translation without a redundant second disk write.
+            overlay.ApplyV120SpeechSettingsFromOpenDialog(save: false);
             TopMost = overlay.TopMost;
             if (TopMost)
             {
@@ -153,7 +156,27 @@ internal sealed partial class ChatGeneralSettingsForm
             }
         }
 
+        if (!saveSucceeded)
+        {
+            // The settings were applied to the current process, but the file write
+            // failed. Treat this exact editor state as the applied baseline so Cancel
+            // only warns about edits made after the failure; do not pretend it is
+            // durably saved across restart.
+            _v121SavedFingerprint = CaptureV121EditorFingerprint();
+            _applyStatus.Text = "Applied — not saved";
+            _applyStatus.ForeColor = ChatUiTheme.Danger;
+            MessageBox.Show(
+                this,
+                "The settings were applied for this ReadyAlert session, but Windows could not save them to disk.\r\n\r\n" +
+                "They may be lost after restart. Check folder permissions or disk availability, then press 'Save changes' again.",
+                "Settings could not be saved",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
+        }
+
         _applyStatus.Text = "Saved ✓";
+        return true;
     }
 
     private void ResetToDefaultsAndApply()
@@ -185,8 +208,8 @@ internal sealed partial class ChatGeneralSettingsForm
         {
             LoadSpeechTranslationControls(speechDefaults);
         }
-        ApplyChanges();
-        _applyStatus.Text = "Defaults restored ✓";
+        if (ApplyChanges())
+            _applyStatus.Text = "Defaults restored ✓";
     }
 
     private void LoadControlsFrom(ChatOverlaySettings source)
