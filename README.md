@@ -5,7 +5,7 @@
 **Website:** https://zudin987.github.io/projects/readyalert/
 
 **Current stable release:** v1.1.2  
-**Experimental branch:** v1.2.0 RC2
+**Experimental branch:** v1.2.0 RC3
 
 ## Highlights
 
@@ -19,7 +19,7 @@
 - Smoother precision mouse-wheel scrolling and a custom dark scrollbar.
 - Stable per-user sender colors so the same player is easy to recognize across messages.
 - Optional no-key Google translation of **World, Guild, and Party / Team** chat to English.
-- Optional no-key **Google ms** text-to-speech for **Guild and Party / Team only**, with its own volume, sender-name toggle, own-username ignore rule, and one-click test button.
+- Optional no-key **Google English (`en`)** text-to-speech for **Guild and Party / Team only**, with its own volume, sender-name toggle, own-username ignore rule, and one-click test button.
 - Click-through mode, compact mode, opacity, fonts, timestamps, channel colors, screen-edge collapse, and Always-on-Top support.
 - The persistent Chat Overlay stays out of Windows Alt+Tab while remaining visible on-screen.
 - IPv4 + IPv6 BPSR TCP capture support.
@@ -66,7 +66,7 @@ This matches the whole words `tina`, `tr`, or `towering`, but not words such as 
 
 Invalid or timed-out regex fails safely instead of blocking the app.
 
-### Translation and TTS — v1.2 RC2
+### Translation and TTS — v1.2 RC3
 
 Open **Chat Overlay → Settings → Speech & translation**.
 
@@ -83,9 +83,9 @@ When enabled, ReadyAlert displays the original BPSR message immediately and adds
 - Guild
 - Party / Team
 
-World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **Malay `ms` voice**, while non-English messages are first translated to English when possible. The TTS volume is independent from Ready/keyword sounds. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
+World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **English `en` voice**. Non-English messages are first translated to English when possible, then spoken by the English voice. The TTS volume is independent from Ready/keyword sounds. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
 
-RC2 replaces RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation**, adds audio MIME validation/retry behavior inspired by the Google fallback used in the user's Discord TTS bot, and includes a **Test Google ms TTS** button in Settings. Use that button first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
+RC2 replaced RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation**, added audio MIME validation/retry behavior inspired by the Google fallback used in the user's Discord TTS bot, and added a one-click test action. RC3 keeps that playback path and switches the Google TTS language from Malay `ms` to English `en`. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
 
 These Google Translate/gTTS-style endpoints do not require a Cloud API key, but they are undocumented and can be rate-limited or changed by Google. Failures are soft: normal ReadyAlert capture and overlay behavior continue.
 
