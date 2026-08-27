@@ -142,6 +142,11 @@ internal static class ChatNotificationEngine
         if (snapshot.BlockedIds.Contains(message.SenderId) && message.SenderId != 0) return false;
         if (snapshot.HideStickers && message.Kind == ChatMessageKind.Sticker) return false;
 
+        // Global content-cleanup settings should be consistent across what the user
+        // sees and what can make noise. If a sprite-only/Hypertext row is hidden from
+        // the overlay, it must not still trigger a keyword or Private/Talk sound.
+        if (ChatContentVisibility.ShouldHideInOverlay(message)) return false;
+
         if (message.Channel == ChatChannel.Private && snapshot.PrivateSoundEnabled)
         {
             MatchAndPlay(message, snapshot, snapshot.PrivateSoundPath, "private", playAudio);
