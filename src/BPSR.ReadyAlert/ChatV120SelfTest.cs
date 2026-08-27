@@ -10,6 +10,7 @@ internal static class ChatV120SelfTest
         TestTtsChunking();
         TestGoogleEnglishSelection();
         TestContentFilters();
+        TestSpeechQueuePriority();
         TestToolbarTtsToggle();
     }
 
@@ -109,27 +110,38 @@ internal static class ChatV120SelfTest
         var textEmoji = Message(ChatMessageKind.Text, "<sprite=62>");
         var hypertextKind = Message(ChatMessageKind.Hypertext, "[Hypertext 3000001]");
         var hypertextText = Message(ChatMessageKind.Text, "[Hypertext 1050001] MrHard");
+        var ordinaryWord = Message(ChatMessageKind.Text, "I learned about hypertext today");
         var normal = Message(ChatMessageKind.Text, "what is makan nasi");
 
         Assert(ChatContentVisibility.ShouldSkipSpeech(textEmoji), "sprite-only emoji is never spoken literally");
         Assert(ChatContentVisibility.ShouldSkipSpeech(hypertextKind), "Hypertext kind is never spoken literally");
         Assert(ChatContentVisibility.ShouldSkipSpeech(hypertextText), "Hypertext placeholder text is never spoken literally");
+        Assert(!ChatContentVisibility.ShouldSkipSpeech(ordinaryWord), "ordinary use of the word hypertext is not mistaken for a linked item");
         Assert(!ChatContentVisibility.ShouldSkipSpeech(normal), "normal chat remains eligible for speech");
 
-        var settings = new ChatSpeechTranslationSettings
-        {
-            HideEmojiMessages = true,
-            HideLinkedItemMessages = true
-        };
-        settings.Normalize();
+        ChatContentVisibility.Configure(hideEmoji: true, hideLinkedItems: true);
         Assert(ChatContentVisibility.ShouldHideInOverlay(textEmoji), "Hide emoji suppresses sprite-only rows");
         Assert(ChatContentVisibility.ShouldHideInOverlay(hypertextKind), "Hide linked items suppresses Hypertext kind rows");
         Assert(ChatContentVisibility.ShouldHideInOverlay(hypertextText), "Hide linked items suppresses parsed Hypertext placeholder rows");
+        Assert(!ChatContentVisibility.ShouldHideInOverlay(ordinaryWord), "Hide linked items preserves ordinary hypertext word usage");
         Assert(!ChatContentVisibility.ShouldHideInOverlay(normal), "content filters preserve normal chat");
 
+        // Normalizing a temporary settings object must not mutate the live global
+        // visibility filter. Runtime filter state is applied explicitly by SettingsStore.
         new ChatSpeechTranslationSettings().Normalize();
-        Assert(!ChatContentVisibility.ShouldHideInOverlay(textEmoji), "content filters default off");
-        Assert(!ChatContentVisibility.ShouldHideInOverlay(hypertextText), "linked-item filter defaults off");
+        Assert(ChatContentVisibility.ShouldHideInOverlay(textEmoji), "settings normalization has no runtime filter side effects");
+
+        ChatContentVisibility.Configure(hideEmoji: false, hideLinkedItems: false);
+        Assert(!ChatContentVisibility.ShouldHideInOverlay(textEmoji), "content filters can be explicitly disabled");
+        Assert(!ChatContentVisibility.ShouldHideInOverlay(hypertextText), "linked-item filter can be explicitly disabled");
+    }
+
+    private static void TestSpeechQueuePriority()
+    {
+        var worldTranslation = Message(ChatMessageKind.Text, "world translation", ChatChannel.World, 101);
+        var guildSpeech = Message(ChatMessageKind.Text, "guild speech", ChatChannel.Union, 202);
+        Assert(ChatSpeechTranslationEngine.SpeechPriorityPrecedesTranslationForSelfTest(worldTranslation, guildSpeech),
+            "Guild/Party speech priority dequeues ahead of older World translation work");
     }
 
     private static void TestToolbarTtsToggle()
@@ -165,15 +177,19 @@ internal static class ChatV120SelfTest
         }
     }
 
-    private static ChatMessageEvent Message(ChatMessageKind kind, string text) => new(
+    private static ChatMessageEvent Message(
+        ChatMessageKind kind,
+        string text,
+        ChatChannel channel = ChatChannel.Union,
+        long sequenceId = 1) => new(
         123,
         "Tester",
         60,
-        ChatChannel.Union,
+        channel,
         DateTime.UtcNow,
         kind,
         text,
-        1);
+        sequenceId);
 
     private static void TryDelete(string path)
     {
