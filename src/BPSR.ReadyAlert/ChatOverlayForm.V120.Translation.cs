@@ -64,8 +64,11 @@ internal sealed partial class ChatOverlayForm
 
     private string GetV120TranslationText(ChatMessageEvent message)
     {
-        if (!_settings.SpeechTranslation.ShowTranslationInOverlay || message.SequenceId == 0)
+        if (message.SequenceId == 0 ||
+            !_settings.SpeechTranslation.ShowTranslationInOverlay ||
+            !_settings.SpeechTranslation.TranslationEnabledFor(message.Channel))
             return string.Empty;
+
         return _v120Translations.TryGetValue(message.SequenceId, out var result)
             ? result.EnglishText
             : string.Empty;
