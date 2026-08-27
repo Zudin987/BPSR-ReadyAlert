@@ -14,6 +14,12 @@ Official site: https://npcap.com/
 
 Source: https://github.com/oleg-st/ZstdSharp
 
+## NAudio
+
+`NAudio` is used in v1.2+ for reliable Windows playback of optional Google TTS MP3 audio through Windows Media Foundation / WaveOut instead of the legacy MCI backend. NAudio is licensed under the MIT License.
+
+Source: https://github.com/naudio/NAudio
+
 ## Alert sound
 
 The bundled `LetsDoThis.wav` is reconstructed at build time from the exact user-supplied audio selected for this project. It is not downloaded from Resonance Logs CN.
