@@ -27,7 +27,6 @@ internal sealed class ChatSpeechTranslationSettings
             .Trim();
         if (IgnoreOwnUsername.Length > 128) IgnoreOwnUsername = IgnoreOwnUsername[..128];
         TtsVolume = Math.Clamp(TtsVolume, 0, 100);
-        ChatContentVisibility.Configure(HideEmojiMessages, HideLinkedItemMessages);
     }
 
     internal bool TranslationEnabledFor(ChatChannel channel) =>
