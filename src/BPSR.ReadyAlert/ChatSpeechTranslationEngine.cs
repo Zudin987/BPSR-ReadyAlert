@@ -29,7 +29,8 @@ internal static class ChatSpeechTranslationEngine
 {
     internal const string GoogleTtsLanguage = "en";
 
-    private const int MaxQueuedJobs = 24;
+    private const int MaxSpeechQueuedJobs = 12;
+    private const int MaxTranslationQueuedJobs = 24;
     private const int MaxTranslationChars = 1_000;
     private const int MaxSpeechChars = 500;
     private const int MaxCacheEntries = 256;
@@ -37,7 +38,12 @@ internal static class ChatSpeechTranslationEngine
     private const int MaxTtsAudioBytes = 4 * 1024 * 1024;
     private static readonly TimeSpan MaxJobAge = TimeSpan.FromSeconds(20);
 
-    private static readonly ConcurrentQueue<SpeechJob> Jobs = new();
+    // Keep a single worker so translation cache access and speech playback remain
+    // serialized, but give jobs that can produce audible Guild/Party speech their
+    // own priority queue. Busy World translation can therefore never sit ahead of
+    // an entire burst of time-sensitive TTS jobs.
+    private static readonly ConcurrentQueue<SpeechJob> SpeechJobs = new();
+    private static readonly ConcurrentQueue<SpeechJob> TranslationJobs = new();
     private static readonly SemaphoreSlim Wake = new(0, int.MaxValue);
     private static readonly CancellationTokenSource ShutdownCts = new();
     private static readonly HttpClient Http = CreateHttpClient();
@@ -65,8 +71,8 @@ internal static class ChatSpeechTranslationEngine
             _enabled = value;
             if (!value)
             {
-                while (Jobs.TryDequeue(out _))
-                    Interlocked.Increment(ref _dropped);
+                DrainQueue(SpeechJobs);
+                DrainQueue(TranslationJobs);
             }
             else if (Volatile.Read(ref _snapshot).HasAnyFeature)
             {
@@ -101,10 +107,12 @@ internal static class ChatSpeechTranslationEngine
         var wantsSpeech = snapshot.TtsEnabledFor(message.Channel) && !snapshot.IsOwnUsername(message.SenderName);
         if (!wantsTranslation && !wantsSpeech) return;
 
-        while (Jobs.Count >= MaxQueuedJobs && Jobs.TryDequeue(out _))
-            Interlocked.Increment(ref _dropped);
+        var job = new SpeechJob(message, DateTime.UtcNow);
+        if (wantsSpeech)
+            EnqueueBounded(SpeechJobs, job, MaxSpeechQueuedJobs);
+        else
+            EnqueueBounded(TranslationJobs, job, MaxTranslationQueuedJobs);
 
-        Jobs.Enqueue(new SpeechJob(message, DateTime.UtcNow));
         EnsureWorker();
         TryWake();
     }
@@ -114,7 +122,7 @@ internal static class ChatSpeechTranslationEngine
         var ticks = Interlocked.Read(ref _lastSuccessUtcTicks);
         return new ChatSpeechTranslationStatus(
             Enabled,
-            Jobs.Count,
+            SpeechJobs.Count + TranslationJobs.Count,
             Interlocked.Read(ref _processed),
             Interlocked.Read(ref _translated),
             Interlocked.Read(ref _spoken),
@@ -126,8 +134,10 @@ internal static class ChatSpeechTranslationEngine
 
     internal static async Task TestTtsAsync(int volume, CancellationToken cancellationToken = default)
     {
-        var audio = await DownloadGoogleTtsAsync("ReadyAlert text to speech test.", cancellationToken).ConfigureAwait(false);
-        await ChatTtsAudioPlayer.PlayAsync(audio, Math.Clamp(volume, 0, 100), cancellationToken).ConfigureAwait(false);
+        var chunks = await DownloadGoogleTtsChunksAsync(
+            "ReadyAlert text to speech test.", cancellationToken).ConfigureAwait(false);
+        foreach (var audio in chunks)
+            await ChatTtsAudioPlayer.PlayAsync(audio, Math.Clamp(volume, 0, 100), cancellationToken).ConfigureAwait(false);
     }
 
     internal static void Shutdown()
@@ -153,6 +163,31 @@ internal static class ChatSpeechTranslationEngine
         catch (ObjectDisposedException) { }
     }
 
+    private static void EnqueueBounded(ConcurrentQueue<SpeechJob> queue, SpeechJob job, int maxCount)
+    {
+        while (queue.Count >= maxCount && queue.TryDequeue(out _))
+            Interlocked.Increment(ref _dropped);
+        queue.Enqueue(job);
+    }
+
+    private static void DrainQueue(ConcurrentQueue<SpeechJob> queue)
+    {
+        while (queue.TryDequeue(out _))
+            Interlocked.Increment(ref _dropped);
+    }
+
+    private static bool TryDequeueNext(out SpeechJob job) =>
+        TryDequeueNext(SpeechJobs, TranslationJobs, out job);
+
+    private static bool TryDequeueNext(
+        ConcurrentQueue<SpeechJob> speech,
+        ConcurrentQueue<SpeechJob> translation,
+        out SpeechJob job)
+    {
+        if (speech.TryDequeue(out job)) return true;
+        return translation.TryDequeue(out job);
+    }
+
     private static async Task WorkerLoopAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -166,7 +201,7 @@ internal static class ChatSpeechTranslationEngine
                 break;
             }
 
-            while (!cancellationToken.IsCancellationRequested && Jobs.TryDequeue(out var job))
+            while (!cancellationToken.IsCancellationRequested && TryDequeueNext(out var job))
             {
                 if (!_enabled || DateTime.UtcNow - job.QueuedUtc > MaxJobAge)
                 {
@@ -225,13 +260,20 @@ internal static class ChatSpeechTranslationEngine
             }
         }
 
-        if (!wantsSpeech || snapshot.TtsVolume <= 0) return;
+        // TTS may have been switched off while the translation request was in flight.
+        // Re-read live settings before any TTS download/playback so the toolbar OFF
+        // action takes effect for the next not-yet-playing phrase.
+        var liveSpeech = Volatile.Read(ref _snapshot);
+        if (!liveSpeech.TtsEnabledFor(message.Channel) ||
+            liveSpeech.IsOwnUsername(message.SenderName) ||
+            liveSpeech.TtsVolume <= 0)
+            return;
 
         var speechText = outcome.Success ? outcome.EnglishText : sourceText;
         speechText = CleanText(speechText, MaxSpeechChars);
         if (speechText.Length == 0) return;
 
-        if (snapshot.ReadSenderName && !string.IsNullOrWhiteSpace(message.SenderName))
+        if (liveSpeech.ReadSenderName && !string.IsNullOrWhiteSpace(message.SenderName))
         {
             var sender = CleanText(message.SenderName, 80);
             if (sender.Length > 0) speechText = sender + ". " + speechText;
@@ -239,8 +281,21 @@ internal static class ChatSpeechTranslationEngine
 
         try
         {
-            var audio = await DownloadGoogleTtsAsync(speechText, cancellationToken).ConfigureAwait(false);
-            await ChatTtsAudioPlayer.PlayAsync(audio, snapshot.TtsVolume, cancellationToken).ConfigureAwait(false);
+            // Decode/play each Google MP3 response independently. Concatenating
+            // separately-generated MP3 streams can produce invalid container/header
+            // transitions on some Media Foundation versions.
+            var audioChunks = await DownloadGoogleTtsChunksAsync(speechText, cancellationToken).ConfigureAwait(false);
+            foreach (var audio in audioChunks)
+            {
+                liveSpeech = Volatile.Read(ref _snapshot);
+                if (!liveSpeech.TtsEnabledFor(message.Channel) ||
+                    liveSpeech.IsOwnUsername(message.SenderName) ||
+                    liveSpeech.TtsVolume <= 0)
+                    return;
+
+                await ChatTtsAudioPlayer.PlayAsync(audio, liveSpeech.TtsVolume, cancellationToken).ConfigureAwait(false);
+            }
+
             Interlocked.Increment(ref _spoken);
             Interlocked.Exchange(ref _lastSuccessUtcTicks, DateTime.UtcNow.Ticks);
         }
@@ -307,21 +362,25 @@ internal static class ChatSpeechTranslationEngine
         }
     }
 
-    private static async Task<byte[]> DownloadGoogleTtsAsync(string text, CancellationToken cancellationToken)
+    private static async Task<List<byte[]>> DownloadGoogleTtsChunksAsync(
+        string text,
+        CancellationToken cancellationToken)
     {
         var parts = SplitForTts(text, MaxTtsChunkChars);
         if (parts.Count == 0) throw new InvalidDataException("There is no text to speak.");
 
-        using var output = new MemoryStream();
+        var output = new List<byte[]>(parts.Count);
+        long totalBytes = 0;
         for (var i = 0; i < parts.Count; i++)
         {
             var bytes = await FetchGoogleTtsChunkWithRetryAsync(parts[i], i, parts.Count, cancellationToken)
                 .ConfigureAwait(false);
-            if (output.Length + bytes.Length > MaxTtsAudioBytes)
+            totalBytes += bytes.Length;
+            if (totalBytes > MaxTtsAudioBytes)
                 throw new InvalidDataException("Google TTS response exceeded the 4 MiB safety limit.");
-            await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+            output.Add(bytes);
         }
-        return output.ToArray();
+        return output;
     }
 
     private static async Task<byte[]> FetchGoogleTtsChunkWithRetryAsync(
@@ -390,6 +449,18 @@ internal static class ChatSpeechTranslationEngine
         }
         if (text.Length > 0) parts.Add(text);
         return parts;
+    }
+
+    internal static bool SpeechPriorityPrecedesTranslationForSelfTest(
+        ChatMessageEvent translationOnly,
+        ChatMessageEvent speechPriority)
+    {
+        var high = new ConcurrentQueue<SpeechJob>();
+        var normal = new ConcurrentQueue<SpeechJob>();
+        normal.Enqueue(new SpeechJob(translationOnly, DateTime.UtcNow));
+        high.Enqueue(new SpeechJob(speechPriority, DateTime.UtcNow));
+        return TryDequeueNext(high, normal, out var first) &&
+               first.Message.SequenceId == speechPriority.SequenceId;
     }
 
     private static string CleanText(string? value, int maxChars)
