@@ -5,17 +5,19 @@ internal sealed partial class ChatOverlayForm
     /// <summary>
     /// Applies settings while the modal Settings window remains open. Keeping the
     /// dialog open makes tuning opacity/fonts/hotkeys much faster and avoids the
-    /// old save-close-reopen loop.
+    /// old save-close-reopen loop. The return value tells the dialog whether the
+    /// settings were also durably persisted to disk.
     /// </summary>
-    internal void ApplySettingsFromOpenDialog()
+    internal bool ApplySettingsFromOpenDialog()
     {
         _settings.Chat.Normalize();
         RemoveOverflowHistoryFromView();
-        _settingsStore.Save(_settings);
+        var saved = _settingsStore.Save(_settings);
         ApplyWindowSettings(registerHotkeys: true);
         RebuildTabBar();
         RebuildVisibleMessages(keepScroll: true);
         UpdateEmptyState();
+        return saved;
     }
 
     /// <summary>
