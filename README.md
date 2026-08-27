@@ -5,7 +5,7 @@
 **Website:** https://zudin987.github.io/projects/readyalert/
 
 **Current stable release:** v1.1.2  
-**Release channel:** Stable
+**Development candidate:** v1.2.0-rc.1
 
 ## Highlights
 
@@ -22,6 +22,7 @@
 - The persistent Chat Overlay stays out of Windows Alt+Tab while remaining visible on-screen.
 - IPv4 + IPv6 BPSR TCP capture support.
 - Richer voice transcript, multilingual-notice, and hypertext extraction for filtering.
+- v1.2 RC: optional English translation and Google gTTS-style speech for Guild / Party chat.
 - Portable self-contained Windows x64 EXE; no .NET installation required.
 
 ## Quick start
@@ -81,6 +82,26 @@ Example exact-word sound rule:
 \b(?:mrhard|mrez)\b
 ```
 
+### Speech & English translation — v1.2 RC
+
+Open **Chat Overlay → Settings → Speech & translation**.
+
+Translation and TTS are opt-in and have separate channel toggles:
+
+- **Guild** maps to BPSR Union chat.
+- **Party / Team** maps to BPSR Team + Group chat.
+- World chat is intentionally never read aloud by this feature.
+- Translation can show `↳ EN: ...` underneath the original non-English message in the overlay.
+- TTS auto-detects/translates the selected message to English before speaking it. Already-English messages are spoken as-is.
+- **Read sender name** optionally announces the player name before the message.
+- **My BPSR username** suppresses TTS for messages sent by that exact username; matching is case-insensitive.
+- **TTS volume** is independent from ReadyAlert's Ready Check / keyword-sound volume.
+- Speech is queued sequentially so messages do not talk over each other; stale queued speech is dropped instead of reading very old chat.
+
+This feature uses undocumented Google Translate / gTTS-style web endpoints and requires an internet connection, but **no Google Cloud project or API key**. Only chat selected for enabled translation/TTS processing is sent to Google. Because the endpoint is not an official compatibility contract, Google can rate-limit or change it. Translation/TTS failures are soft: ReadyAlert's local chat overlay and packet capture keep running normally.
+
+The Google worker is dormant when both translation and TTS are disabled.
+
 ### Scrolling
 
 When you are already following the newest chat, new messages keep the view pinned to the bottom. If you manually scroll upward, ReadyAlert preserves your reading position and shows the **new messages** control instead of snapping you down.
@@ -103,6 +124,8 @@ Collapsing or hiding the overlay affects presentation only. In v1.1.1, chat noti
 
 Starting with v1.1.2, the persistent Chat Overlay is created as a Windows tool/overlay window, so it stays visible on-screen but is excluded from **Alt+Tab** and the taskbar. This applies while expanded, collapsed, click-through, or Always-on-Top. Settings and support dialogs remain normal windows while they are open.
 
+In v1.2 RC, translation/TTS also runs on its own bounded background worker. Hiding or collapsing the overlay does not stop enabled Guild/Party speech processing.
+
 Disabling **Chat Overlay** from the tray stops the chat processing path entirely.
 
 ## Privacy and architecture
@@ -111,7 +134,7 @@ ReadyAlert reads the local BPSR network stream through Npcap. It does not inject
 
 The Chat Overlay reuses the existing capture pipeline. It does **not** create a second Npcap capture handle, TCP reassembler, decompressor, or parallel packet-processing stack just for chat.
 
-Parsed chat is kept in bounded local memory for the overlay and is not uploaded by ReadyAlert.
+Parsed chat is kept in bounded local memory for the overlay. When v1.2 translation/TTS is enabled, only selected message text is sent to Google for that feature; ReadyAlert does not upload unrelated chat itself.
 
 ## Capture diagnostics
 
@@ -130,6 +153,6 @@ The project targets **.NET 10 Windows** and publishes as a self-contained single
 dotnet publish src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true -o dist
 ```
 
-GitHub Actions enforces a **55 MiB** EXE size budget and runs the built EXE with the internal smoke/regression test suite before artifacts or releases are produced.
+GitHub Actions enforces a **55 MiB** EXE size budget and runs the built EXE with the internal smoke/regression test suite before artifacts or releases are produced. The v1.2 smoke suite validates channel selection, own-username suppression, settings normalization, and safe TTS chunking without making network calls to Google.
 
 [Latest release](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
