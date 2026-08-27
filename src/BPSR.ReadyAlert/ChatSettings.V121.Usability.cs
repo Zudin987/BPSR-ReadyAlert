@@ -234,6 +234,14 @@ internal sealed partial class ChatGeneralSettingsForm
         return null;
     }
 
+    private static bool IsDescendantOf(Control child, Control? ancestor)
+    {
+        if (ancestor is null) return false;
+        for (Control? current = child; current is not null; current = current.Parent)
+            if (ReferenceEquals(current, ancestor)) return true;
+        return false;
+    }
+
     internal string GetV121SaveStateForSelfTest()
     {
         InstallV121UsabilityTracking();
@@ -252,5 +260,19 @@ internal sealed partial class ChatGeneralSettingsForm
         InstallV121UsabilityTracking();
         _ttsVolume.Value = Math.Clamp(volume, _ttsVolume.Minimum, _ttsVolume.Maximum);
         RefreshV121DirtyStatus();
+    }
+
+    internal (bool DistinctControls, bool ChatOnAlertsPage, bool TtsOnSpeechPage, string ChatName, string TtsName)
+        GetV121VolumeSeparationForSelfTest()
+    {
+        InstallV121UsabilityTracking();
+        _pages.TryGetValue("Alerts", out var alerts);
+        _pages.TryGetValue("Speech", out var speech);
+        return (
+            !ReferenceEquals(_soundVolume, _ttsVolume),
+            IsDescendantOf(_soundVolume, alerts.Page),
+            IsDescendantOf(_ttsVolume, speech.Page),
+            _soundVolume.AccessibleName ?? string.Empty,
+            _ttsVolume.AccessibleName ?? string.Empty);
     }
 }
