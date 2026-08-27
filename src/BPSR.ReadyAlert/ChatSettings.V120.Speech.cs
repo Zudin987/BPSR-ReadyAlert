@@ -18,6 +18,7 @@ internal sealed partial class ChatGeneralSettingsForm
     private readonly TextBox _ttsOwnUsername = new();
     private readonly TrackBar _ttsVolume = new();
     private readonly Label _ttsVolumeValue = new();
+    private int _ttsTestInProgress;
 
     internal ChatGeneralSettingsForm(
         ChatOverlaySettings settings,
@@ -161,6 +162,9 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private async Task TestGoogleTtsInteractiveAsync()
     {
+        if (Interlocked.CompareExchange(ref _ttsTestInProgress, 1, 0) != 0)
+            return;
+
         try
         {
             await ChatSpeechTranslationEngine.TestTtsAsync(_ttsVolume.Value);
@@ -168,13 +172,20 @@ internal sealed partial class ChatGeneralSettingsForm
         catch (Exception ex)
         {
             AppLog.Write("tts: interactive test failed " + ex.Message);
-            MessageBox.Show(
-                this,
-                "Google English TTS test failed.\r\n\r\n" + ex.Message +
-                "\r\n\r\nThe normal chat overlay is unaffected. Check readyalert.log for details.",
-                "TTS test failed",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            if (!IsDisposed && !Disposing)
+            {
+                MessageBox.Show(
+                    this,
+                    "Google English TTS test failed.\r\n\r\n" + ex.Message +
+                    "\r\n\r\nThe normal chat overlay is unaffected. Check readyalert.log for details.",
+                    "TTS test failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _ttsTestInProgress, 0);
         }
     }
 
