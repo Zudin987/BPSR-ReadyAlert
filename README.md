@@ -4,8 +4,7 @@
 
 **Website:** https://zudin987.github.io/projects/readyalert/
 
-**Current stable release:** v1.1.2  
-**Experimental branch:** v1.2.0 RC6
+**Current stable release:** v1.2.0
 
 ## Highlights
 
@@ -68,7 +67,7 @@ This matches the whole words `tina`, `tr`, or `towering`, but not words such as 
 
 Invalid or timed-out regex fails safely instead of blocking the app.
 
-### Content cleanup — v1.2 RC6
+### Content cleanup — v1.2.0
 
 Open **Chat Overlay → Settings → Interaction**. The global cleanup options are placed together:
 
@@ -78,7 +77,7 @@ Open **Chat Overlay → Settings → Interaction**. The global cleanup options a
 
 The emoji filter is deliberately token-aware: a normal message such as `hello <sprite=31>` remains visible because the row is not emoji-only. Linked-item matching is limited to actual Hypertext message kinds / `[Hypertext ...]` markers, so ordinary chat that merely uses the word “hypertext” remains visible. Sprite-only and Hypertext placeholder messages are also excluded from TTS so ReadyAlert does not literally speak markup such as “sprite equals 31” or “Hypertext 3000001”.
 
-### Translation and TTS — v1.2 RC6
+### Translation and TTS — v1.2.0
 
 Open **Chat Overlay → Settings → Speech & translation**.
 
@@ -99,7 +98,7 @@ World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint 
 
 A compact **TTS** quick-toggle sits directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means enabled. Red strikethrough `TTS` means disabled. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page. The quick toggle does not change the Guild / Party channel selections; it only switches the TTS master setting on or off.
 
-RC2 replaced RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation** and added audio MIME validation/retry behavior. RC3 switched the Google TTS language from Malay `ms` to English `en`. RC4 added global emoji-only and Hypertext/linked-item filters. RC5 added the toolbar TTS toggle. RC6 gives TTS-capable Guild / Party messages priority over translation-only work, re-checks the live TTS switch before playback, and plays long multi-chunk Google MP3 responses as independent audio chunks rather than concatenating separate MP3 streams. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
+During v1.2 development, playback moved from legacy Windows MCI to **NAudio + Windows Media Foundation**, Google TTS switched to the English `en` voice, emoji-only and Hypertext cleanup were added, and the toolbar TTS toggle was introduced. Final hardening gives TTS-capable Guild / Party messages priority over translation-only work, re-checks live speech eligibility before playback, bounds wake/result queues, retries appropriate Google failures, and plays long multi-chunk Google MP3 responses as independent audio chunks. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
 
 These Google Translate/gTTS-style endpoints do not require a Cloud API key, but they are undocumented and can be rate-limited or changed by Google. Failures are soft: normal ReadyAlert capture and overlay behavior continue.
 
