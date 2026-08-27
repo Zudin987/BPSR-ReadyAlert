@@ -8,22 +8,34 @@ internal static class ChatV120SelfTest
         TestOwnUsernameFilter();
         TestSettingsNormalization();
         TestTtsChunking();
+        TestGoogleMsSelection();
     }
 
     private static void TestChannelSelection()
     {
-        Assert(ChatSpeechTranslationSettings.ChannelEnabled(ChatChannel.Union, guild: true, partyTeam: false),
-            "Guild toggle includes Union chat");
-        Assert(!ChatSpeechTranslationSettings.ChannelEnabled(ChatChannel.Team, guild: true, partyTeam: false),
-            "Guild-only toggle excludes Team chat");
-        Assert(ChatSpeechTranslationSettings.ChannelEnabled(ChatChannel.Team, guild: false, partyTeam: true),
-            "Party toggle includes Team chat");
-        Assert(ChatSpeechTranslationSettings.ChannelEnabled(ChatChannel.Group, guild: false, partyTeam: true),
-            "Party toggle includes Group chat");
-        Assert(!ChatSpeechTranslationSettings.ChannelEnabled(ChatChannel.World, guild: true, partyTeam: true),
-            "World chat is never selected by Guild/Party speech toggles");
-        Assert(!ChatSpeechTranslationSettings.ChannelEnabled(ChatChannel.Private, guild: true, partyTeam: true),
-            "Private chat is not implicitly selected");
+        Assert(ChatSpeechTranslationSettings.TranslationChannelEnabled(ChatChannel.World, world: true, guild: false, partyTeam: false),
+            "World translation toggle includes World chat");
+        Assert(!ChatSpeechTranslationSettings.TranslationChannelEnabled(ChatChannel.World, world: false, guild: true, partyTeam: true),
+            "World translation stays independent from Guild/Party toggles");
+        Assert(ChatSpeechTranslationSettings.TranslationChannelEnabled(ChatChannel.Union, world: false, guild: true, partyTeam: false),
+            "Guild translation toggle includes Union chat");
+        Assert(ChatSpeechTranslationSettings.TranslationChannelEnabled(ChatChannel.Team, world: false, guild: false, partyTeam: true),
+            "Party translation toggle includes Team chat");
+        Assert(ChatSpeechTranslationSettings.TranslationChannelEnabled(ChatChannel.Group, world: false, guild: false, partyTeam: true),
+            "Party translation toggle includes Group chat");
+        Assert(!ChatSpeechTranslationSettings.TranslationChannelEnabled(ChatChannel.Private, world: true, guild: true, partyTeam: true),
+            "Private chat is not implicitly translated");
+
+        Assert(ChatSpeechTranslationSettings.TtsChannelEnabled(ChatChannel.Union, guild: true, partyTeam: false),
+            "Guild TTS includes Union chat");
+        Assert(ChatSpeechTranslationSettings.TtsChannelEnabled(ChatChannel.Team, guild: false, partyTeam: true),
+            "Party TTS includes Team chat");
+        Assert(ChatSpeechTranslationSettings.TtsChannelEnabled(ChatChannel.Group, guild: false, partyTeam: true),
+            "Party TTS includes Group chat");
+        Assert(!ChatSpeechTranslationSettings.TtsChannelEnabled(ChatChannel.World, guild: true, partyTeam: true),
+            "World chat is never selected by TTS toggles");
+        Assert(!ChatSpeechTranslationSettings.TtsChannelEnabled(ChatChannel.Private, guild: true, partyTeam: true),
+            "Private chat is not implicitly spoken");
     }
 
     private static void TestOwnUsernameFilter()
@@ -63,16 +75,22 @@ internal static class ChatV120SelfTest
     private static void TestTtsChunking()
     {
         var text = string.Join(' ', Enumerable.Repeat("party-ready-check-message", 45));
-        var chunks = ChatSpeechTranslationEngine.SplitForTts(text, 180);
+        var chunks = ChatSpeechTranslationEngine.SplitForTts(text, 200);
         Assert(chunks.Count > 1, "long TTS text is split into multiple requests");
-        Assert(chunks.All(x => x.Length is > 0 and <= 180), "every Google TTS chunk respects the length ceiling");
+        Assert(chunks.All(x => x.Length is > 0 and <= 200), "every Google TTS chunk respects the 200-character ceiling");
         Assert(string.Join(' ', chunks).Replace("  ", " ", StringComparison.Ordinal).Length > 0,
             "chunking preserves non-empty speech content");
 
         var emoji = string.Concat(Enumerable.Repeat("hello🙂 ", 40));
-        var emojiChunks = ChatSpeechTranslationEngine.SplitForTts(emoji, 31);
+        var emojiChunks = ChatSpeechTranslationEngine.SplitForTts(emoji, 40);
         Assert(emojiChunks.All(x => !x.EndsWith('\uD83D')), "TTS chunking never ends on a dangling high surrogate");
         Assert(emojiChunks.All(x => x.Length == 0 || !char.IsLowSurrogate(x[0])), "TTS chunking never starts on a dangling low surrogate");
+    }
+
+    private static void TestGoogleMsSelection()
+    {
+        Assert(ChatSpeechTranslationEngine.GoogleTtsLanguage == "ms",
+            "Google TTS uses the Malay ms voice requested for ReadyAlert");
     }
 
     private static void Assert(bool condition, string name)
