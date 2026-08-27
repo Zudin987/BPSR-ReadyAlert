@@ -284,6 +284,34 @@ jobs:
             Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
             Requires Npcap to be installed.
 
+      - name: Create v1.2.1 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.1]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.1
+          name: BPSR Ready Alert v1.2.1
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.2.1 is a UI/UX and reliability hardening release for the v1.2 chat translation/TTS feature set.
+
+            Highlights:
+            - makes Ready / Queue, Chat alert, and TTS volume controls explicitly independent and removes unscaled Windows system-sound fallbacks;
+            - adds clear active/off/inactive TTS toolbar states, including muted and no-channel feedback;
+            - makes Settings persistence truthful with Saved, Unsaved, and Applied — not saved states plus safe close warnings;
+            - makes blocked-user behavior consistent across overlay rows, chat sounds, translation, and not-yet-playing TTS while leaving Ready / Queue alerts untouched;
+            - hardens Windows clipboard actions, diagnostics interaction, click-through state synchronization, and Npcap adapter-switch rollback;
+            - bounds chat UI work per timer tick and coalesces redraws for smoother behavior during large message bursts;
+            - expands deterministic single-file regression coverage for volume separation, persistence failures, blocked routing, cleanup filters, TTS state, and burst draining.
+
+            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
+            Requires Npcap to be installed.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
