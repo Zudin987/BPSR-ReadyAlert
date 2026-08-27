@@ -37,6 +37,7 @@ internal static class ChatCaptureBridge
         {
             _enabled = value;
             ChatNotificationEngine.Enabled = value;
+            ChatSpeechTranslationEngine.Enabled = value;
         }
     }
 
@@ -93,10 +94,11 @@ internal static class ChatCaptureBridge
         Interlocked.Increment(ref _parsedMessages);
         Interlocked.Exchange(ref _lastMessageUtcTicks, DateTime.UtcNow.Ticks);
 
-        // Notification matching/audio is intentionally independent from the overlay
-        // UI queue. A collapsed/hidden/busy WinForms window therefore cannot stop a
-        // keyword/private sound from being evaluated.
+        // Notification matching/audio and optional translation/TTS are intentionally
+        // independent from the overlay UI queue. A collapsed/hidden/busy WinForms
+        // window therefore cannot stop either background path.
         ChatNotificationEngine.Enqueue(message);
+        ChatSpeechTranslationEngine.Enqueue(message);
 
         // The UI normally drains every 25 ms. Keep a hard emergency ceiling so a
         // blocked UI thread or malformed packet flood cannot grow memory forever.
