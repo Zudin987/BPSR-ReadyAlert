@@ -6,6 +6,8 @@ namespace BPSR.ReadyAlert;
 
 internal sealed partial class ChatOverlayForm
 {
+    private const int V120PendingTranslationSlack = 64;
+
     private readonly ConcurrentQueue<ChatTranslationResult> _v120TranslationQueue = new();
     private readonly Dictionary<long, ChatTranslationResult> _v120Translations = new();
     private System.Windows.Forms.Timer? _v120TranslationTimer;
@@ -31,9 +33,10 @@ internal sealed partial class ChatOverlayForm
         {
             if (result.SequenceId == 0 || string.IsNullOrWhiteSpace(result.EnglishText)) continue;
 
-            // A translation can finish after its original row has already aged out of
-            // bounded history. Do not resurrect or cache that stale result.
-            if (!_history.Any(x => x.SequenceId == result.SequenceId)) continue;
+            // Google/cache completion can race ahead of TrayApplicationContext's UI
+            // queue. Keep a result even when its original row has not reached history
+            // yet; monotonic SequenceId pruning below distinguishes a future row from
+            // an already-aged-out row.
             _v120Translations[result.SequenceId] = result;
 
             if (!Visible || _collapsed) continue;
@@ -47,20 +50,56 @@ internal sealed partial class ChatOverlayForm
             }
         }
 
-        // Keep translation memory bounded alongside the normal chat history even
-        // during long sessions with steady message turnover.
-        if (_v120Translations.Count > _history.Count)
-        {
-            var live = _history.Where(x => x.SequenceId != 0).Select(x => x.SequenceId).ToHashSet();
-            foreach (var sequenceId in _v120Translations.Keys.Where(x => !live.Contains(x)).ToArray())
-                _v120Translations.Remove(sequenceId);
-        }
+        PruneV120Translations();
 
         // OwnerDrawVariable heights are measured when rows are inserted. Rebuild only
         // when a visible row actually gained a translation so the extra English line
         // gets the correct height while preserving the user's scroll anchor.
         if (changedVisibleRow)
             RebuildVisibleMessages(keepScroll: true);
+    }
+
+    private void PruneV120Translations()
+    {
+        if (_v120Translations.Count == 0) return;
+
+        var live = _history
+            .Where(x => x.SequenceId != 0)
+            .Select(x => x.SequenceId)
+            .ToHashSet();
+        var maxSeenSequence = live.Count == 0 ? 0 : live.Max();
+
+        // Results at or below the newest sequence already seen by the UI cannot be
+        // waiting for a future row. If they are not in bounded history, they are stale.
+        if (maxSeenSequence > 0)
+        {
+            foreach (var sequenceId in _v120Translations.Keys
+                         .Where(x => x <= maxSeenSequence && !live.Contains(x))
+                         .ToArray())
+                _v120Translations.Remove(sequenceId);
+        }
+
+        // The engine result queue is bounded too, but retain a small amount of future
+        // SequenceId slack here for the UI-ordering race. Prefer keeping translations
+        // for live rows and the nearest future rows.
+        var cap = Math.Clamp(_settings.Chat.MaxHistory, 10, 500) + V120PendingTranslationSlack;
+        if (_v120Translations.Count <= cap) return;
+
+        foreach (var sequenceId in _v120Translations.Keys
+                     .Where(x => !live.Contains(x))
+                     .OrderByDescending(x => x)
+                     .ToArray())
+        {
+            if (_v120Translations.Count <= cap) break;
+            _v120Translations.Remove(sequenceId);
+        }
+
+        if (_v120Translations.Count <= cap) return;
+        foreach (var sequenceId in _v120Translations.Keys.OrderBy(x => x).ToArray())
+        {
+            if (_v120Translations.Count <= cap) break;
+            _v120Translations.Remove(sequenceId);
+        }
     }
 
     private string GetV120TranslationText(ChatMessageEvent message)
@@ -89,6 +128,15 @@ internal sealed partial class ChatOverlayForm
         if (message.SequenceId != 0)
             _v120Translations.Remove(message.SequenceId);
     }
+
+    internal void EnqueueV120TranslationForSelfTest(ChatTranslationResult result) =>
+        _v120TranslationQueue.Enqueue(result);
+
+    internal void DrainV120TranslationsForSelfTest() =>
+        DrainV120Translations();
+
+    internal string GetV120TranslationTextForSelfTest(ChatMessageEvent message) =>
+        GetV120TranslationText(message);
 
     private void ClearV120SpeechTranslationUi()
     {
