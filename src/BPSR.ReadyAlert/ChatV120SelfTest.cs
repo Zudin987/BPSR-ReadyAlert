@@ -166,15 +166,38 @@ internal static class ChatV120SelfTest
         var guild = Message(ChatMessageKind.Text, "guild speech", ChatChannel.Union, 303);
         var ttsOff = new ChatSpeechTranslationSettings { TtsEnabled = false, TtsGuild = true };
         var ttsOn = new ChatSpeechTranslationSettings { TtsEnabled = true, TtsGuild = true, TtsVolume = 70 };
+        var ttsMuted = new ChatSpeechTranslationSettings { TtsEnabled = true, TtsGuild = true, TtsVolume = 0 };
 
         Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOff, ttsOn, TimeSpan.Zero),
             "turning TTS on does not retroactively speak a job queued while TTS was off");
+        Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsMuted, ttsOn, TimeSpan.Zero),
+            "raising volume from zero does not resurrect an old muted TTS job");
         Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOn, ttsOff, TimeSpan.Zero),
             "turning TTS off suppresses a queued not-yet-playing job");
         Assert(ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOn, ttsOn, TimeSpan.FromSeconds(1)),
             "fresh eligible Guild speech remains playable");
         Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(guild, ttsOn, ttsOn, TimeSpan.FromSeconds(21)),
             "speech older than the stale-job limit is not playable");
+
+        var mutedFeatures = ChatSpeechTranslationEngine.RequestedFeaturesForSelfTest(guild, ttsMuted);
+        Assert(!mutedFeatures.SpeechRequested, "TTS volume zero does not enqueue silent Google speech work");
+
+        var translationHidden = new ChatSpeechTranslationSettings
+        {
+            TranslationEnabled = true,
+            TranslationGuild = true,
+            ShowTranslationInOverlay = false
+        };
+        var translationVisible = new ChatSpeechTranslationSettings
+        {
+            TranslationEnabled = true,
+            TranslationGuild = true,
+            ShowTranslationInOverlay = true
+        };
+        Assert(!ChatSpeechTranslationEngine.RequestedFeaturesForSelfTest(guild, translationHidden).TranslationRequested,
+            "hidden overlay translation does not enqueue unused Google translation work");
+        Assert(ChatSpeechTranslationEngine.RequestedFeaturesForSelfTest(guild, translationVisible).TranslationRequested,
+            "visible Guild translation remains eligible for Google translation work");
 
         var world = Message(ChatMessageKind.Text, "world", ChatChannel.World, 304);
         Assert(!ChatSpeechTranslationEngine.WouldSpeakQueuedJobForSelfTest(world, ttsOn, ttsOn, TimeSpan.Zero),
