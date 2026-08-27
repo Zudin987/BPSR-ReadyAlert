@@ -1,0 +1,81 @@
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace BPSR.ReadyAlert;
+
+internal sealed partial class ChatOverlayForm
+{
+    private const int V120TtsToolbarWidth = 52;
+    private Button? _v120TtsToggleButton;
+
+    private void EnsureV120TtsToolbarButton()
+    {
+        if (_v120TtsToggleButton is null)
+        {
+            _v120TtsToggleButton = MakeToolbarButton("TTS", V120TtsToolbarWidth, "Toggle chat text-to-speech");
+            _v120TtsToggleButton.AccessibleName = "Chat text-to-speech toggle";
+            _v120TtsToggleButton.Click += (_, _) => ToggleV120TtsFromToolbar();
+
+            // The original action bar was sized exactly for +Tab, Settings,
+            // Collapse and Hide. Reserve one more fixed toolbar slot and insert it
+            // directly between +Tab and Settings, matching the user's requested
+            // order without changing the tab strip itself.
+            _actionBar.Width = Math.Max(_actionBar.Width, 184 + V120TtsToolbarWidth);
+            _actionBar.Controls.Add(_v120TtsToggleButton);
+            _actionBar.Controls.SetChildIndex(_v120TtsToggleButton, 1);
+        }
+
+        UpdateV120TtsToolbarButton();
+    }
+
+    private void ToggleV120TtsFromToolbar()
+    {
+        _settings.SpeechTranslation.TtsEnabled = !_settings.SpeechTranslation.TtsEnabled;
+        _settings.SpeechTranslation.Normalize();
+        _settingsStore.Save(_settings);
+        ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
+        UpdateV120TtsToolbarButton();
+        AppLog.Write("tts: toolbar toggle " + (_settings.SpeechTranslation.TtsEnabled ? "on" : "off"));
+    }
+
+    private void UpdateV120TtsToolbarButton()
+    {
+        if (_v120TtsToggleButton is null) return;
+
+        var enabled = _settings.SpeechTranslation.TtsEnabled;
+        _v120TtsToggleButton.Text = "TTS";
+        _v120TtsToggleButton.Font = ChatUiTheme.UiFont(
+            8.5F,
+            enabled ? FontStyle.Bold : FontStyle.Bold | FontStyle.Strikeout);
+        _v120TtsToggleButton.ForeColor = Color.White;
+        _v120TtsToggleButton.BackColor = enabled
+            ? Color.FromArgb(38, 105, 70)
+            : Color.FromArgb(112, 47, 52);
+        _v120TtsToggleButton.FlatAppearance.BorderSize = 0;
+        _v120TtsToggleButton.FlatAppearance.MouseOverBackColor = enabled
+            ? Color.FromArgb(46, 126, 83)
+            : Color.FromArgb(137, 58, 64);
+        _v120TtsToggleButton.FlatAppearance.MouseDownBackColor = enabled
+            ? Color.FromArgb(31, 86, 58)
+            : Color.FromArgb(91, 38, 43);
+        _v120TtsToggleButton.AccessibleDescription = enabled
+            ? "TTS is on. Press to turn text-to-speech off."
+            : "TTS is off. Press to turn text-to-speech on.";
+        _toolTip.SetToolTip(
+            _v120TtsToggleButton,
+            enabled ? "TTS is ON — click to turn it off" : "TTS is OFF — click to turn it on");
+        _v120TtsToggleButton.Invalidate();
+    }
+
+    internal (bool Enabled, bool Strikeout, Color Background, int ActionIndex) GetV120TtsToolbarStateForSelfTest()
+    {
+        EnsureV120TtsToolbarButton();
+        return (
+            _settings.SpeechTranslation.TtsEnabled,
+            (_v120TtsToggleButton!.Font.Style & FontStyle.Strikeout) != 0,
+            _v120TtsToggleButton.BackColor,
+            _actionBar.Controls.GetChildIndex(_v120TtsToggleButton));
+    }
+
+    internal void ToggleV120TtsForSelfTest() => ToggleV120TtsFromToolbar();
+}
