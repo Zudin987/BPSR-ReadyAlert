@@ -9,8 +9,11 @@ internal static class ChatContentVisibility
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(50));
 
+    // Text-kind fallback detection is deliberately limited to the numeric marker
+    // emitted by BPSR's Hypertext parser. A player literally typing "[Hypertext]"
+    // is normal chat; real Hypertext messages are already caught by Kind above.
     private static readonly Regex HypertextMarkerRegex = new(
-        @"^\s*\[Hypertext(?:\s+\d+)?\](?:\s|$)",
+        @"^\s*\[Hypertext\s+\d+\](?:\s|$)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(50));
 
