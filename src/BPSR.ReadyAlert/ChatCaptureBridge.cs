@@ -92,14 +92,28 @@ internal static class ChatCaptureBridge
         Interlocked.Increment(ref _parsedMessages);
         Interlocked.Exchange(ref _lastMessageUtcTicks, DateTime.UtcNow.Ticks);
 
-        ChatNotificationEngine.Enqueue(message);
-        if (!ChatContentVisibility.ShouldSkipSpeech(message))
-            ChatSpeechTranslationEngine.Enqueue(message);
+        var blocked = ChatNotificationEngine.IsSenderBlocked(message.SenderId);
+        if (!blocked)
+        {
+            ChatNotificationEngine.Enqueue(message);
+            if (ShouldRouteToSpeech(message))
+                ChatSpeechTranslationEngine.Enqueue(message);
+        }
 
+        // Keep the normal UI/history path unchanged. The overlay applies the same
+        // block list while rendering, so a user who is later unblocked can only affect
+        // new messages; old blocked rows are not resurrected with delayed speech.
         while (events.Count >= MaxQueuedMessages && events.TryDequeue(out _))
             Interlocked.Increment(ref _droppedQueuedMessages);
 
         events.Enqueue(message);
         return true;
     }
+
+    private static bool ShouldRouteToSpeech(ChatMessageEvent message) =>
+        !ChatNotificationEngine.IsSenderBlocked(message.SenderId) &&
+        !ChatContentVisibility.ShouldSkipSpeech(message);
+
+    internal static bool ShouldRouteToSpeechForSelfTest(ChatMessageEvent message) =>
+        ShouldRouteToSpeech(message);
 }
