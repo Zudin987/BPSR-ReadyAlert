@@ -48,8 +48,15 @@ internal sealed partial class ChatGeneralSettingsForm
         var reset = FindButtonByText(this, "Reset to defaults");
         if (reset is not null)
         {
+            // The existing Reset handler asks for confirmation and writes this status
+            // only after the user accepts. Clear it before Click so cancelling Reset
+            // cannot accidentally reset these v1.2-only controls.
+            reset.MouseDown += (_, _) => _applyStatus.Text = string.Empty;
             reset.Click += (_, _) =>
             {
+                if (!string.Equals(_applyStatus.Text, "Defaults restored ✓", StringComparison.Ordinal))
+                    return;
+
                 var defaults = new ChatSpeechTranslationSettings();
                 _hideEmoji.Checked = defaults.HideEmojiMessages;
                 _hideLinkedItems.Checked = defaults.HideLinkedItemMessages;
