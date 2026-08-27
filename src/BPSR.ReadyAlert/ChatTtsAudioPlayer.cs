@@ -19,13 +19,17 @@ internal static class ChatTtsAudioPlayer
         if (volume <= 0) return;
 
         await PlaybackGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        var folder = Path.Combine(Path.GetTempPath(), "BPSR-ReadyAlert", "tts");
-        Directory.CreateDirectory(folder);
-        var path = Path.Combine(folder,
-            $"speech-{Environment.ProcessId}-{Interlocked.Increment(ref _fileCounter)}.mp3");
-
+        string? path = null;
         try
         {
+            // Keep every operation after the gate acquisition inside this try/finally.
+            // Even an unwritable/missing temp directory must not strand the process-wide
+            // playback semaphore and deadlock all future speech attempts.
+            var folder = Path.Combine(Path.GetTempPath(), "BPSR-ReadyAlert", "tts");
+            Directory.CreateDirectory(folder);
+            path = Path.Combine(folder,
+                $"speech-{Environment.ProcessId}-{Interlocked.Increment(ref _fileCounter)}.mp3");
+
             await File.WriteAllBytesAsync(path, mp3Bytes, cancellationToken).ConfigureAwait(false);
 
             using var reader = new MediaFoundationReader(path);
@@ -43,13 +47,18 @@ internal static class ChatTtsAudioPlayer
             try
             {
                 output.Init(reader);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Start first, then register cancellation. Cancellation that races
+                // between these two statements causes Register() to invoke Stop()
+                // immediately, while avoiding the old Stop-before-Play race.
+                AppLog.Write($"tts: playback start backend=NAudio/MediaFoundation volume={volume}% bytes={mp3Bytes.Length}");
+                output.Play();
                 using var registration = cancellationToken.Register(() =>
                 {
                     try { output.Stop(); } catch { }
                 });
 
-                AppLog.Write($"tts: playback start backend=NAudio/MediaFoundation volume={volume}% bytes={mp3Bytes.Length}");
-                output.Play();
                 var error = await stopped.Task.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (error is not null) throw new InvalidOperationException("TTS playback failed.", error);
@@ -62,7 +71,10 @@ internal static class ChatTtsAudioPlayer
         }
         finally
         {
-            try { File.Delete(path); } catch { }
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                try { File.Delete(path); } catch { }
+            }
             PlaybackGate.Release();
         }
     }
