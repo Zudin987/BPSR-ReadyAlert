@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
-using System.Media;
 using System.Windows.Forms;
 
 namespace BPSR.ReadyAlert;
@@ -208,7 +207,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(_volumeMenu);
         menu.Items.Add(new ToolStripSeparator());
 
-        var test = new ToolStripMenuItem("Test Alert Sound");
+        var test = new ToolStripMenuItem("Test Ready / Queue Sound");
         test.Click += (_, _) => PlayAlert("test");
         menu.Items.Add(test);
 
@@ -381,7 +380,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void RefreshVolumeMenu()
     {
         if (_volumeMenu is null) return;
-        _volumeMenu.Text = $"Alert Volume: {_settings.AlertVolume}%";
+        _volumeMenu.Text = ReadyQueueVolumeMenuText(_settings.AlertVolume);
+        _volumeMenu.ToolTipText = "Ready Check and Queue Pop sounds only. Chat alert and TTS volumes are separate.";
         _volumeMenu.DropDownItems.Clear();
 
         foreach (var volume in Enumerable.Range(0, 11).Select(i => i * 10))
@@ -395,6 +395,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _volumeMenu.DropDownItems.Add(item);
         }
     }
+
+    internal static string ReadyQueueVolumeMenuText(int volume) =>
+        $"Ready / Queue Volume: {Math.Clamp(volume, 0, 100)}%";
 
     private void SetVolume(int volume)
     {
@@ -476,8 +479,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
+            // Never replace a failed Ready/Queue sound with a Windows SystemSound:
+            // it has an unrelated mixer volume and can violate the user's setting.
             AppLog.Write("audio: play failed " + ex.Message);
-            SystemSounds.Exclamation.Play();
         }
     }
 
