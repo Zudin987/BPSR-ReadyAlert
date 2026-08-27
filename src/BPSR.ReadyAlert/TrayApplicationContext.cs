@@ -7,6 +7,8 @@ namespace BPSR.ReadyAlert;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
+    private const int MaxChatUiMessagesPerTick = 200;
+
     private readonly AppPaths _paths;
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
@@ -357,23 +359,68 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (string.Equals(_settings.NpcapDeviceName, deviceName, StringComparison.OrdinalIgnoreCase))
             return;
 
+        var oldSetting = _settings.NpcapDeviceName;
+        var oldPlan = _capturePlan;
         _settings.NpcapDeviceName = deviceName;
-        _settingsStore.Save(_settings);
-        AppLog.Write("settings: NpcapDeviceName=" + (string.IsNullOrWhiteSpace(deviceName) ? "<auto>" : deviceName));
 
+        NpcapCapturePlan candidatePlan;
         try
         {
+            candidatePlan = NpcapDeviceSelector.SelectPlan(_settings);
+
+            // If Auto/Resonance Logs resolves to the adapter already being captured,
+            // only the preference metadata changed; keep the live capture untouched.
+            if (string.Equals(candidatePlan.Primary.DeviceName, oldPlan.Primary.DeviceName, StringComparison.OrdinalIgnoreCase))
+            {
+                _capturePlan = candidatePlan;
+                _settingsStore.Save(_settings);
+                RefreshAdapterMenu();
+                AppLog.Write($"capture: adapter preference changed without restart; active={candidatePlan.Primary.Description} source={candidatePlan.Primary.Source}");
+                return;
+            }
+
+            // Prove the requested adapter can actually activate before tearing down
+            // the currently working capture. This is a short validation handle only,
+            // not a second packet-processing pipeline.
+            using (var probe = new NpcapCapture(candidatePlan.Primary.DeviceName))
+                AppLog.Write($"capture: adapter preflight ok device={candidatePlan.Primary.Description} datalink={probe.DataLink}");
+
             _engine.Dispose();
-            _capturePlan = NpcapDeviceSelector.SelectPlan(_settings);
-            _engine = new CaptureEngine(_events, _capturePlan);
+            _engine = new CaptureEngine(_events, candidatePlan);
             _engine.Start();
+            _capturePlan = candidatePlan;
+            _settingsStore.Save(_settings);
             RefreshAdapterMenu();
             AppLog.Write($"capture: switched adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
         }
         catch (Exception ex)
         {
-            AppLog.Write("capture: adapter switch failed " + ex);
-            _events.Enqueue(new AlertEvent("error", "BPSR Ready Alert", "Could not switch Npcap adapter: " + ex.Message));
+            _settings.NpcapDeviceName = oldSetting;
+            _capturePlan = oldPlan;
+            _settingsStore.Save(_settings);
+
+            // The normal failure path occurs during preflight, while the old engine
+            // is still alive. If an unexpected failure happened after disposal,
+            // restart the known-good plan rather than leaving ReadyAlert captureless.
+            try
+            {
+                if (_engine is null)
+                {
+                    _engine = new CaptureEngine(_events, oldPlan);
+                    _engine.Start();
+                }
+            }
+            catch (Exception rollbackEx)
+            {
+                AppLog.Write("capture: adapter rollback failed " + rollbackEx);
+            }
+
+            RefreshAdapterMenu();
+            AppLog.Write("capture: adapter switch rejected; restored previous selection. " + ex);
+            _events.Enqueue(new AlertEvent(
+                "error",
+                "BPSR Ready Alert",
+                "Could not switch Npcap adapter. ReadyAlert kept the previous adapter. " + ex.Message));
         }
     }
 
@@ -398,6 +445,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     internal static string ReadyQueueVolumeMenuText(int volume) =>
         $"Ready / Queue Volume: {Math.Clamp(volume, 0, 100)}%";
+
+    internal static int ChatUiDrainLimitForSelfTest => MaxChatUiMessagesPerTick;
 
     private void SetVolume(int volume)
     {
@@ -450,8 +499,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var chatWindow = EnsureChatWindow();
-        while (_chatEvents.TryDequeue(out var chat))
+        var drained = 0;
+        while (drained < MaxChatUiMessagesPerTick && _chatEvents.TryDequeue(out var chat))
+        {
             chatWindow.AddMessage(chat);
+            drained++;
+        }
+
+        // AddMessage coalesces expensive ListBox rebuilds. Flush at our per-tick
+        // boundary so a sustained queue still paints progress instead of looking hung.
+        chatWindow.FlushDeferredMessageBatch();
     }
 
     private static (string Title, string Message) FormatDesktopNotification(AlertEvent evt)
