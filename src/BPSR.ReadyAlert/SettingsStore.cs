@@ -19,6 +19,7 @@ internal sealed class AppSettings
     // Chat capture/overlay is opt-in and can be toggled from the tray menu.
     public bool ChatOverlayEnabled { get; set; } = false;
     public ChatOverlaySettings Chat { get; set; } = new();
+    public ChatSpeechTranslationSettings SpeechTranslation { get; set; } = new();
 }
 
 internal sealed class SettingsStore
@@ -160,6 +161,8 @@ internal sealed class SettingsStore
         settings.NpcapDeviceName ??= string.Empty;
         settings.ResonanceLogsPath ??= string.Empty;
         settings.Chat ??= new ChatOverlaySettings();
+        settings.SpeechTranslation ??= new ChatSpeechTranslationSettings();
         settings.Chat.Normalize();
+        settings.SpeechTranslation.Normalize();
     }
 }
