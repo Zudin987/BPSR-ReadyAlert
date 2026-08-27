@@ -9,8 +9,12 @@ internal static class UiUxV121SelfTest
         TestAudioVolumesStayIndependent();
         TestExplicitReadyQueueVolumeLabel();
         TestHiddenGarbageCannotTriggerChatSounds();
+        TestBlockedUsersSuppressAllChatOutputs();
         TestMutedTtsToolbarState();
         TestSettingsDirtyState();
+        TestSettingsSaveResultIsTruthful();
+        TestChatUiDrainIsBounded();
+        TestSupportDialogMicrocopy();
     }
 
     private static void TestAudioVolumesStayIndependent()
@@ -95,6 +99,45 @@ internal static class UiUxV121SelfTest
         }
     }
 
+    private static void TestBlockedUsersSuppressAllChatOutputs()
+    {
+        var settings = new ChatOverlaySettings
+        {
+            PrivateSoundEnabled = true,
+            BlockedUsers = [new ChatBlockedUser { Id = 77, Name = "Blocked" }]
+        };
+        settings.Normalize();
+        ChatNotificationEngine.Configure(settings, string.Empty);
+
+        try
+        {
+            var blocked = new ChatMessageEvent(
+                77, "Blocked", 80, ChatChannel.Union, DateTime.Now,
+                ChatMessageKind.Text, "hello guild", 701);
+            var normal = blocked with
+            {
+                SenderId = 78,
+                SenderName = "Allowed",
+                SequenceId = 702
+            };
+
+            Assert(ChatNotificationEngine.IsSenderBlocked(blocked.SenderId),
+                "blocked player ID is exposed consistently to shared chat routing");
+            Assert(!ChatCaptureBridge.ShouldRouteToSpeechForSelfTest(blocked),
+                "blocked player messages never reach translation or TTS routing");
+            Assert(ChatCaptureBridge.ShouldRouteToSpeechForSelfTest(normal),
+                "unblocked normal chat remains eligible for translation/TTS routing");
+            Assert(!ChatNotificationEngine.EvaluateForSelfTest(settings, blocked),
+                "blocked player messages cannot trigger keyword/private chat sounds");
+        }
+        finally
+        {
+            var reset = new ChatOverlaySettings();
+            reset.Normalize();
+            ChatNotificationEngine.Configure(reset, string.Empty);
+        }
+    }
+
     private static void TestMutedTtsToolbarState()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v121-toolbar-{Guid.NewGuid():N}.json");
@@ -150,6 +193,47 @@ internal static class UiUxV121SelfTest
         form.SetV121TtsVolumeForSelfTest(changedVolume);
         Assert(form.GetV121SaveStateForSelfTest() == "Unsaved",
             "editing TTS volume immediately clears stale Saved state and marks the editor dirty");
+    }
+
+    private static void TestSettingsSaveResultIsTruthful()
+    {
+        var goodPath = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v121-save-{Guid.NewGuid():N}.json");
+        var blocker = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v121-blocker-{Guid.NewGuid():N}");
+
+        try
+        {
+            var goodStore = new SettingsStore(goodPath);
+            Assert(goodStore.Save(new AppSettings()),
+                "settings store reports true only after a normal durable save succeeds");
+
+            File.WriteAllText(blocker, "not a directory");
+            var badStore = new SettingsStore(Path.Combine(blocker, "settings.json"));
+            Assert(!badStore.Save(new AppSettings()),
+                "settings store reports false when Windows cannot persist the file");
+        }
+        finally
+        {
+            TryDelete(goodPath);
+            TryDelete(goodPath + ".bak");
+            TryDelete(goodPath + ".new");
+            TryDelete(blocker);
+        }
+    }
+
+    private static void TestChatUiDrainIsBounded()
+    {
+        Assert(TrayApplicationContext.ChatUiDrainLimitForSelfTest is > 0 and <= 250,
+            "chat UI work per WinForms timer tick is explicitly bounded to protect responsiveness during bursts");
+    }
+
+    private static void TestSupportDialogMicrocopy()
+    {
+        Assert(BlockedUsersForm.ScopeText.Contains("translation", StringComparison.OrdinalIgnoreCase) &&
+               BlockedUsersForm.ScopeText.Contains("TTS", StringComparison.Ordinal) &&
+               BlockedUsersForm.ScopeText.Contains("Ready / Queue", StringComparison.Ordinal),
+            "blocked-user dialog accurately explains every ReadyAlert chat output it suppresses");
+        Assert(ChatDebugStatusForm.LiveUpdateHint.Contains("pause", StringComparison.OrdinalIgnoreCase),
+            "diagnostics explains that live refresh pauses during selection/scroll interaction");
     }
 
     private static void TryDelete(string path)
