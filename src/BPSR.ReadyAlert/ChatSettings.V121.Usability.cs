@@ -151,18 +151,44 @@ internal sealed partial class ChatGeneralSettingsForm
         if (!_v121DirtyTrackingReady || _v121SuppressDirtyTracking || e.CloseReason != CloseReason.UserClosing)
             return;
 
-        if (string.Equals(CaptureV121EditorFingerprint(), _v121SavedFingerprint, StringComparison.Ordinal))
-            return;
+        var warningKind = GetV121CloseWarningKind();
+        if (warningKind.Length == 0) return;
+
+        var (message, title) = warningKind switch
+        {
+            "dirty+persistence" => (
+                "Some edits have not been applied, and the last applied settings could not be saved to disk.\r\n\r\n" +
+                "Closing will discard the unapplied edits. The settings already applied to this session may also be lost after ReadyAlert restarts. Close anyway?",
+                "Changes are not safely saved"),
+            "persistence" => (
+                "These settings are active for this ReadyAlert session, but Windows could not save them to disk.\r\n\r\n" +
+                "Closing this window keeps them active until ReadyAlert exits, but they may be lost after restart. Close anyway?",
+                "Settings are not saved"),
+            _ => (
+                "Discard the changes you have not applied?\r\n\r\nSettings already applied with 'Save changes' will be kept.",
+                "Unapplied Chat Overlay changes")
+        };
 
         var answer = MessageBox.Show(
             this,
-            "Discard the changes you have not saved?\r\n\r\nSaved settings and changes already applied with 'Save changes' will be kept.",
-            "Unsaved Chat Overlay changes",
+            message,
+            title,
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Warning,
             MessageBoxDefaultButton.Button2);
         if (answer != DialogResult.Yes)
             e.Cancel = true;
+    }
+
+    private string GetV121CloseWarningKind()
+    {
+        var dirty = !string.Equals(
+            CaptureV121EditorFingerprint(),
+            _v121SavedFingerprint,
+            StringComparison.Ordinal);
+        if (dirty && _v121AppliedNotPersisted) return "dirty+persistence";
+        if (dirty) return "dirty";
+        return _v121AppliedNotPersisted ? "persistence" : string.Empty;
     }
 
     private string CaptureV121EditorFingerprint()
@@ -260,6 +286,19 @@ internal sealed partial class ChatGeneralSettingsForm
         InstallV121UsabilityTracking();
         _ttsVolume.Value = Math.Clamp(volume, _ttsVolume.Minimum, _ttsVolume.Maximum);
         RefreshV121DirtyStatus();
+    }
+
+    internal void SetV121AppliedNotPersistedForSelfTest(bool value)
+    {
+        InstallV121UsabilityTracking();
+        _v121AppliedNotPersisted = value;
+        _v121SavedFingerprint = CaptureV121EditorFingerprint();
+    }
+
+    internal string GetV121CloseWarningKindForSelfTest()
+    {
+        InstallV121UsabilityTracking();
+        return GetV121CloseWarningKind();
     }
 
     internal (bool DistinctControls, bool ChatOnAlertsPage, bool TtsOnSpeechPage, string ChatName, string TtsName)
