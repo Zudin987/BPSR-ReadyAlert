@@ -38,18 +38,7 @@ internal sealed partial class ChatOverlayForm
                 return;
             }
 
-            _deferredUiRefresh = false;
-            if (!Visible || _collapsed || _settings.Chat.Tabs.Count == 0)
-            {
-                _deferredVisibleMessages = 0;
-                return;
-            }
-
-            if (!_followLatest && _deferredVisibleMessages > 0)
-                _unseenMessages += _deferredVisibleMessages;
-            _deferredVisibleMessages = 0;
-            RebuildVisibleMessages(keepScroll: true);
-            UpdateNewMessagesButton();
+            FlushDeferredMessageBatch();
             return;
         }
 
@@ -75,6 +64,35 @@ internal sealed partial class ChatOverlayForm
             _unseenMessages++;
             UpdateNewMessagesButton();
         }
+    }
+
+    /// <summary>
+    /// Flush a coalesced burst even when the shared UI queue still contains more
+    /// messages. TrayApplicationContext caps work per timer tick, so this prevents a
+    /// sustained burst from making the visible list look frozen until the queue is
+    /// completely empty.
+    /// </summary>
+    internal void FlushDeferredMessageBatch()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(FlushDeferredMessageBatch));
+            return;
+        }
+        if (!_deferredUiRefresh && _deferredVisibleMessages == 0) return;
+
+        _deferredUiRefresh = false;
+        if (!Visible || _collapsed || _settings.Chat.Tabs.Count == 0)
+        {
+            _deferredVisibleMessages = 0;
+            return;
+        }
+
+        if (!_followLatest && _deferredVisibleMessages > 0)
+            _unseenMessages += _deferredVisibleMessages;
+        _deferredVisibleMessages = 0;
+        RebuildVisibleMessages(keepScroll: true);
+        UpdateNewMessagesButton();
     }
 
     private void TrimHistoryOnly()
@@ -133,10 +151,10 @@ internal sealed partial class ChatOverlayForm
             AppLog.Write("chat: click-through enabled; use " + _settings.Chat.ClickThroughHotkey + " to toggle it");
     }
 
-    internal void ApplyV120SpeechSettingsFromOpenDialog()
+    internal void ApplyV120SpeechSettingsFromOpenDialog(bool save = true)
     {
         _settings.SpeechTranslation.Normalize();
-        _settingsStore.Save(_settings);
+        if (save) _settingsStore.Save(_settings);
         ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
         RebuildVisibleMessages(keepScroll: true);
     }
@@ -197,14 +215,16 @@ internal sealed partial class ChatOverlayForm
         var copyName = new ToolStripMenuItem("Copy player name");
         copyName.Click += (_, _) =>
         {
-            if (_contextMessage is { } msg && !string.IsNullOrEmpty(msg.SenderName)) Clipboard.SetText(msg.SenderName);
+            if (_contextMessage is { } msg && !string.IsNullOrEmpty(msg.SenderName))
+                ChatClipboard.TrySetText(this, msg.SenderName, "copy-player-name");
         };
         var copyUid = new ToolStripMenuItem("Copy UID");
         copyUid.Click += (_, _) =>
         {
-            if (_contextMessage is { } msg && msg.SenderId != 0) Clipboard.SetText(msg.SenderId.ToString());
+            if (_contextMessage is { } msg && msg.SenderId != 0)
+                ChatClipboard.TrySetText(this, msg.SenderId.ToString(), "copy-player-uid");
         };
-        var block = new ToolStripMenuItem("Block player in overlay");
+        var block = new ToolStripMenuItem("Block player in ReadyAlert chat");
         block.Click += (_, _) =>
         {
             if (_contextMessage is { } msg) BlockUser(msg);
