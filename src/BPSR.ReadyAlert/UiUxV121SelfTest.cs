@@ -8,6 +8,7 @@ internal static class UiUxV121SelfTest
     {
         TestAudioVolumesStayIndependent();
         TestExplicitReadyQueueVolumeLabel();
+        TestVolumeControlsStaySeparatedInUi();
         TestHiddenGarbageCannotTriggerChatSounds();
         TestBlockedUsersSuppressAllChatOutputs();
         TestMutedTtsToolbarState();
@@ -52,6 +53,24 @@ internal static class UiUxV121SelfTest
             "tray volume label explicitly identifies Ready / Queue sounds");
         Assert(!label.Equals("Alert Volume: 35%", StringComparison.Ordinal),
             "tray no longer uses the ambiguous generic Alert Volume label");
+    }
+
+    private static void TestVolumeControlsStaySeparatedInUi()
+    {
+        var chat = new ChatOverlaySettings();
+        chat.Normalize();
+        var speech = new ChatSpeechTranslationSettings();
+        speech.Normalize();
+
+        using var form = new ChatGeneralSettingsForm(chat, speech);
+        var layout = form.GetV121VolumeSeparationForSelfTest();
+        Assert(layout.DistinctControls,
+            "Chat alert and TTS volumes are physically different slider controls");
+        Assert(layout.ChatOnAlertsPage && layout.TtsOnSpeechPage,
+            "Chat alert and TTS volume sliders remain on separate Settings pages and cannot overlap");
+        Assert(layout.ChatName.Contains("Chat alert", StringComparison.OrdinalIgnoreCase) &&
+               layout.TtsName.Contains("TTS", StringComparison.Ordinal),
+            "both independent volume sliders have unambiguous accessibility names");
     }
 
     private static void TestHiddenGarbageCannotTriggerChatSounds()
