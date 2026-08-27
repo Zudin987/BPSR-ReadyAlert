@@ -59,9 +59,11 @@ internal static class Program
             var launcher = new ResonanceLogsLauncher(settings, settingsStore);
 
             // Prime independent background snapshots before capture can emit the
-            // first chat packet. Neither worker owns packet capture or blocks it.
+            // first chat packet. The optional Google worker is not started at all
+            // for users who leave both translation and TTS disabled.
             ChatNotificationEngine.Configure(settings.Chat, paths.AlertSoundPath);
-            ChatSpeechTranslationEngine.Configure(settings.SpeechTranslation);
+            if (settings.SpeechTranslation.TranslationEnabled || settings.SpeechTranslation.TtsEnabled)
+                ChatSpeechTranslationEngine.Configure(settings.SpeechTranslation);
 
             StartMenuShortcut.TryCreateOrRefresh(paths.AppIconPath);
             if (settings.AutoLaunchResonanceLogs)
