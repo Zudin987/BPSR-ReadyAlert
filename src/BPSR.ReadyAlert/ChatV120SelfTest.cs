@@ -9,6 +9,7 @@ internal static class ChatV120SelfTest
         TestSettingsNormalization();
         TestTtsChunking();
         TestGoogleEnglishSelection();
+        TestContentFilters();
     }
 
     private static void TestChannelSelection()
@@ -92,6 +93,53 @@ internal static class ChatV120SelfTest
         Assert(ChatSpeechTranslationEngine.GoogleTtsLanguage == "en",
             "Google TTS uses the English en voice requested for ReadyAlert");
     }
+
+    private static void TestContentFilters()
+    {
+        Assert(ChatContentVisibility.IsSpriteOnlyEmoji("<sprite=1>"), "sprite 1 is recognized as emoji-only chat");
+        Assert(ChatContentVisibility.IsSpriteOnlyEmoji(" <sprite=63> "), "sprite 63 is recognized with whitespace");
+        Assert(ChatContentVisibility.IsSpriteOnlyEmoji("<sprite=31><sprite=31> <sprite=100>"),
+            "multiple sprite tokens through 100 are recognized");
+        Assert(!ChatContentVisibility.IsSpriteOnlyEmoji("<sprite=0>"), "sprite 0 is outside the supported emoji range");
+        Assert(!ChatContentVisibility.IsSpriteOnlyEmoji("<sprite=101>"), "sprite 101 is not hidden preemptively");
+        Assert(!ChatContentVisibility.IsSpriteOnlyEmoji("hello <sprite=31>"),
+            "normal text containing an emoji token is not hidden as an emoji-only message");
+
+        var textEmoji = Message(ChatMessageKind.Text, "<sprite=62>");
+        var hypertextKind = Message(ChatMessageKind.Hypertext, "[Hypertext 3000001]");
+        var hypertextText = Message(ChatMessageKind.Text, "[Hypertext 1050001] MrHard");
+        var normal = Message(ChatMessageKind.Text, "what is makan nasi");
+
+        Assert(ChatContentVisibility.ShouldSkipSpeech(textEmoji), "sprite-only emoji is never spoken literally");
+        Assert(ChatContentVisibility.ShouldSkipSpeech(hypertextKind), "Hypertext kind is never spoken literally");
+        Assert(ChatContentVisibility.ShouldSkipSpeech(hypertextText), "Hypertext placeholder text is never spoken literally");
+        Assert(!ChatContentVisibility.ShouldSkipSpeech(normal), "normal chat remains eligible for speech");
+
+        var settings = new ChatSpeechTranslationSettings
+        {
+            HideEmojiMessages = true,
+            HideLinkedItemMessages = true
+        };
+        settings.Normalize();
+        Assert(ChatContentVisibility.ShouldHideInOverlay(textEmoji), "Hide emoji suppresses sprite-only rows");
+        Assert(ChatContentVisibility.ShouldHideInOverlay(hypertextKind), "Hide linked items suppresses Hypertext kind rows");
+        Assert(ChatContentVisibility.ShouldHideInOverlay(hypertextText), "Hide linked items suppresses parsed Hypertext placeholder rows");
+        Assert(!ChatContentVisibility.ShouldHideInOverlay(normal), "content filters preserve normal chat");
+
+        new ChatSpeechTranslationSettings().Normalize();
+        Assert(!ChatContentVisibility.ShouldHideInOverlay(textEmoji), "content filters default off");
+        Assert(!ChatContentVisibility.ShouldHideInOverlay(hypertextText), "linked-item filter defaults off");
+    }
+
+    private static ChatMessageEvent Message(ChatMessageKind kind, string text) => new(
+        123,
+        "Tester",
+        60,
+        ChatChannel.Union,
+        DateTime.UtcNow,
+        kind,
+        text,
+        1);
 
     private static void Assert(bool condition, string name)
     {
