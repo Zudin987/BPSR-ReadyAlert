@@ -9,6 +9,9 @@ internal static class ChatTabFilter
 {
     internal static bool PassesTextRules(ChatMessageEvent message, ChatTabSettings tab)
     {
+        if (ChatContentVisibility.ShouldHideInOverlay(message))
+            return false;
+
         var searchable = SearchableText(message);
 
         if (!string.IsNullOrWhiteSpace(tab.ShowIfMatches) &&
