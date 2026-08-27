@@ -9,6 +9,11 @@ internal static class ChatContentVisibility
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(50));
 
+    private static readonly Regex HypertextMarkerRegex = new(
+        @"^\s*\[Hypertext(?:\s+\d+)?\](?:\s|$)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(50));
+
     private static volatile bool _hideEmoji;
     private static volatile bool _hideLinkedItems;
 
@@ -35,8 +40,11 @@ internal static class ChatContentVisibility
         catch (RegexMatchTimeoutException) { return false; }
     }
 
-    internal static bool IsLinkedItem(ChatMessageEvent message) =>
-        message.Kind == ChatMessageKind.Hypertext ||
-        (!string.IsNullOrWhiteSpace(message.Text) &&
-         message.Text.Contains("Hypertext", StringComparison.OrdinalIgnoreCase));
+    internal static bool IsLinkedItem(ChatMessageEvent message)
+    {
+        if (message.Kind == ChatMessageKind.Hypertext) return true;
+        if (string.IsNullOrWhiteSpace(message.Text)) return false;
+        try { return HypertextMarkerRegex.IsMatch(message.Text); }
+        catch (RegexMatchTimeoutException) { return false; }
+    }
 }
