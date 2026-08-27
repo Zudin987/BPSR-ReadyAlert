@@ -96,7 +96,7 @@ When enabled, ReadyAlert displays the original BPSR message immediately and adds
 
 World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **English `en` voice**. Non-English messages are first translated to English when possible, then spoken by the English voice. The TTS volume is independent from Ready/keyword sounds. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
 
-RC5 adds a compact **TTS** quick-toggle directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means enabled. Red strikethrough `TTS` means disabled. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page.
+RC5 adds a compact **TTS** quick-toggle directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means enabled. Red strikethrough `TTS` means disabled. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page. The quick toggle does not change the Guild / Party channel selections; it only switches the TTS master setting on or off.
 
 RC2 replaced RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation**, added audio MIME validation/retry behavior inspired by the Google fallback used in the user's Discord TTS bot, and added a one-click test action. RC3 switched the Google TTS language from Malay `ms` to English `en`. RC4 added global emoji-only and Hypertext/linked-item filters. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
 
