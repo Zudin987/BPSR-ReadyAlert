@@ -163,6 +163,8 @@ internal sealed partial class ChatGeneralSettingsForm
             // only warns about edits made after the failure; do not pretend it is
             // durably saved across restart.
             _v121SavedFingerprint = CaptureV121EditorFingerprint();
+            _v121EverSaved = false;
+            _v121AppliedNotPersisted = true;
             _applyStatus.Text = "Applied — not saved";
             _applyStatus.ForeColor = ChatUiTheme.Danger;
             MessageBox.Show(
