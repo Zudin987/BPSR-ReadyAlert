@@ -227,6 +227,33 @@ jobs:
 
             Requires Npcap to be installed.
 
+      - name: Create v1.1.2 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.1.2]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.2
+          name: BPSR Ready Alert v1.1.2
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.1.2 is a small Chat Overlay usability patch.
+
+            Highlights:
+            - the persistent Chat Overlay is now excluded from Windows Alt+Tab;
+            - the overlay remains visible on-screen and stays out of the taskbar;
+            - the behavior is preserved while expanded, collapsed, click-through, or Always-on-Top;
+            - Settings and support dialogs remain normal switchable windows while open;
+            - adds regression coverage for the required Windows extended window styles.
+
+            Includes all reliability, scrolling, notification, IPv6, and rich-chat improvements from v1.1.1.
+
+            Requires Npcap to be installed.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2

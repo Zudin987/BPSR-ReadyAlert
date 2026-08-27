@@ -4,7 +4,7 @@
 
 **Website:** https://zudin987.github.io/projects/readyalert/
 
-**Current stable release:** v1.1.1  
+**Current stable release:** v1.1.2  
 **Release channel:** Stable
 
 ## Highlights
@@ -19,6 +19,7 @@
 - Smoother precision mouse-wheel scrolling and a custom dark scrollbar.
 - Stable per-user sender colors so the same player is easy to recognize across messages.
 - Click-through mode, compact mode, opacity, fonts, timestamps, channel colors, screen-edge collapse, and Always-on-Top support.
+- The persistent Chat Overlay stays out of Windows Alt+Tab while remaining visible on-screen.
 - IPv4 + IPv6 BPSR TCP capture support.
 - Richer voice transcript, multilingual-notice, and hypertext extraction for filtering.
 - Portable self-contained Windows x64 EXE; no .NET installation required.
@@ -96,9 +97,11 @@ v1.1.1 also:
 
 Usernames receive deterministic contrast-safe colors. The same BPSR sender ID keeps the same color across messages and restarts, making consecutive speakers easier to distinguish. A name-based fallback is used when an ID is unavailable.
 
-## Collapse, hide, and sounds
+## Collapse, hide, Alt+Tab, and sounds
 
 Collapsing or hiding the overlay affects presentation only. In v1.1.1, chat notification matching runs independently from overlay rendering, so keyword/private sound evaluation does not depend on the window being expanded, repainted, or actively draining UI rows.
+
+Starting with v1.1.2, the persistent Chat Overlay is created as a Windows tool/overlay window, so it stays visible on-screen but is excluded from **Alt+Tab** and the taskbar. This applies while expanded, collapsed, click-through, or Always-on-Top. Settings and support dialogs remain normal windows while they are open.
 
 Disabling **Chat Overlay** from the tray stops the chat processing path entirely.
 
