@@ -97,6 +97,17 @@ internal static class ChatNotificationEngine
         Volatile.Write(ref _snapshot, snapshot);
     }
 
+    /// <summary>
+    /// The block list is a ReadyAlert-chat policy, not merely a rendering detail.
+    /// Capture routing uses the same immutable snapshot as the notification worker so
+    /// blocked senders cannot disappear visually yet still reach translation/TTS.
+    /// </summary>
+    internal static bool IsSenderBlocked(long senderId)
+    {
+        if (senderId == 0) return false;
+        return Volatile.Read(ref _snapshot).BlockedIds.Contains(senderId);
+    }
+
     internal static void Enqueue(ChatMessageEvent message)
     {
         if (!Enabled) return;
@@ -141,6 +152,11 @@ internal static class ChatNotificationEngine
     {
         if (snapshot.BlockedIds.Contains(message.SenderId) && message.SenderId != 0) return false;
         if (snapshot.HideStickers && message.Kind == ChatMessageKind.Sticker) return false;
+
+        // Global content-cleanup settings should be consistent across what the user
+        // sees and what can make noise. If a sprite-only/Hypertext row is hidden from
+        // the overlay, it must not still trigger a keyword or Private/Talk sound.
+        if (ChatContentVisibility.ShouldHideInOverlay(message)) return false;
 
         if (message.Channel == ChatChannel.Private && snapshot.PrivateSoundEnabled)
         {

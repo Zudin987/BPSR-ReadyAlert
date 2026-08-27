@@ -58,7 +58,7 @@ internal sealed class SettingsStore
         if (TryLoadFile(_backupPath, out settings, out var backupError))
         {
             AppLog.Write("settings: recovered from backup " + _backupPath);
-            Save(settings);
+            _ = Save(settings);
             return settings;
         }
 
@@ -67,14 +67,20 @@ internal sealed class SettingsStore
 
         settings = new AppSettings();
         Normalize(settings);
-        Save(settings);
+        _ = Save(settings);
         return settings;
     }
 
-    internal void Save(AppSettings settings)
+    /// <summary>
+    /// Persist settings atomically. Runtime state is still normalized/applied even if
+    /// disk persistence fails, but callers that present a "Saved" confirmation can now
+    /// distinguish a real durable save from a soft filesystem failure.
+    /// </summary>
+    internal bool Save(AppSettings settings)
     {
         lock (_saveLock)
         {
+            var success = false;
             try
             {
                 Normalize(settings);
@@ -112,6 +118,8 @@ internal sealed class SettingsStore
                     // already corrupt; the freshly validated temp becomes the primary.
                     File.Move(_tempPath, _path, overwrite: true);
                 }
+
+                success = true;
             }
             catch (Exception ex)
             {
@@ -121,6 +129,8 @@ internal sealed class SettingsStore
             {
                 TryDeleteStaleTemp();
             }
+
+            return success;
         }
     }
 

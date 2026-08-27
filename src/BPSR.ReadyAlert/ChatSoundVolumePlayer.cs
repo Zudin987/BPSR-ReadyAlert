@@ -1,5 +1,3 @@
-using System.Media;
-
 namespace BPSR.ReadyAlert;
 
 /// <summary>
@@ -48,7 +46,11 @@ internal static class ChatSoundVolumePlayer
             error = !string.IsNullOrWhiteSpace(preferredError)
                 ? preferredError
                 : "No usable chat notification WAV was available.";
-            try { SystemSounds.Asterisk.Play(); } catch { }
+
+            // Do not substitute a Windows SystemSound here. System sounds bypass
+            // Chat alert volume, so a broken/missing WAV could otherwise produce a
+            // much louder sound than the user selected. Fail softly and report it
+            // through diagnostics/logging instead.
             return false;
         }
     }

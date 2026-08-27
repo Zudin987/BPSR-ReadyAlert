@@ -115,20 +115,25 @@ internal sealed partial class ChatGeneralSettingsForm
             _ttsOwnUsername));
         AddStack(tts, MakeSliderRow(
             "TTS volume",
-            "Separate from ReadyAlert keyword/Ready Check sound volume.",
+            "Guild / Party speech only. Independent of Ready / Queue volume in the tray and Chat alert volume under Highlights & sounds.",
             _ttsVolume,
             _ttsVolumeValue,
             source.TtsVolume,
             0));
         AddStack(tts, MakeActionRow(
             "Test Google English TTS",
-            "Downloads one short no-key Google English TTS sample and plays it using ReadyAlert's TTS volume.",
+            "Plays one short Google English TTS sample at the TTS volume above. It does not use either alert-sound volume.",
             "Test voice",
             () => _ = TestGoogleTtsInteractiveAsync()));
         AddPageCard(stack, MakeCard(
             "Google English TTS speech",
-            "Uses Google's no-key English (en) Translate TTS voice. Messages are queued one at a time so speech never overlaps.",
+            "Uses Google's no-key English (en) Translate TTS voice. Messages are queued one at a time so speech never overlaps itself.",
             tts));
+
+        AddPageCard(stack, MakeInfoBanner(
+            "Three independent audio volumes",
+            "Ready / Queue volume is in the tray menu. Chat alert volume controls keyword and Private / Talk sounds. TTS volume above controls spoken Guild / Party chat only. Changing one does not change either of the others.",
+            ChatUiTheme.Warning));
 
         AddPageCard(stack, MakeInfoBanner(
             "No API key — Google Translate web service",
@@ -162,6 +167,17 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private async Task TestGoogleTtsInteractiveAsync()
     {
+        if (_ttsVolume.Value <= 0)
+        {
+            MessageBox.Show(
+                this,
+                "TTS volume is muted at 0%. Raise the TTS volume before testing the voice.",
+                "TTS is muted",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
         if (Interlocked.CompareExchange(ref _ttsTestInProgress, 1, 0) != 0)
             return;
 

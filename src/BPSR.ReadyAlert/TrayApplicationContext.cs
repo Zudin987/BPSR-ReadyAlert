@@ -1,13 +1,14 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
-using System.Media;
 using System.Windows.Forms;
 
 namespace BPSR.ReadyAlert;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
+    private const int MaxChatUiMessagesPerTick = 200;
+
     private readonly AppPaths _paths;
     private readonly AppSettings _settings;
     private readonly SettingsStore _settingsStore;
@@ -208,7 +209,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(_volumeMenu);
         menu.Items.Add(new ToolStripSeparator());
 
-        var test = new ToolStripMenuItem("Test Alert Sound");
+        var test = new ToolStripMenuItem("Test Ready / Queue Sound");
         test.Click += (_, _) => PlayAlert("test");
         menu.Items.Add(test);
 
@@ -358,30 +359,121 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (string.Equals(_settings.NpcapDeviceName, deviceName, StringComparison.OrdinalIgnoreCase))
             return;
 
+        var oldSetting = _settings.NpcapDeviceName;
+        var oldPlan = _capturePlan;
+        var previousEngine = _engine;
+        var oldCaptureStopped = false;
         _settings.NpcapDeviceName = deviceName;
-        _settingsStore.Save(_settings);
-        AppLog.Write("settings: NpcapDeviceName=" + (string.IsNullOrWhiteSpace(deviceName) ? "<auto>" : deviceName));
 
         try
         {
-            _engine.Dispose();
-            _capturePlan = NpcapDeviceSelector.SelectPlan(_settings);
-            _engine = new CaptureEngine(_events, _capturePlan);
-            _engine.Start();
+            var candidatePlan = NpcapDeviceSelector.SelectPlan(_settings);
+
+            // If Auto/Resonance Logs resolves to the adapter already being captured,
+            // only the preference metadata changed; keep the live capture untouched.
+            if (string.Equals(candidatePlan.Primary.DeviceName, oldPlan.Primary.DeviceName, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!_settingsStore.Save(_settings))
+                {
+                    _settings.NpcapDeviceName = oldSetting;
+                    _capturePlan = oldPlan;
+                    RefreshAdapterMenu();
+                    _events.Enqueue(new AlertEvent("error", "BPSR Ready Alert", "Could not save the new adapter preference. The previous preference was kept."));
+                    return;
+                }
+
+                _capturePlan = candidatePlan;
+                RefreshAdapterMenu();
+                AppLog.Write($"capture: adapter preference changed without restart; active={candidatePlan.Primary.Description} source={candidatePlan.Primary.Source}");
+                return;
+            }
+
+            // Prove the requested adapter can actually activate before tearing down
+            // the currently working capture. This is a short validation handle only,
+            // not a second packet-processing pipeline.
+            using (var probe = new NpcapCapture(candidatePlan.Primary.DeviceName))
+                AppLog.Write($"capture: adapter preflight ok device={candidatePlan.Primary.Description} datalink={probe.DataLink}");
+
+            previousEngine.Dispose();
+            oldCaptureStopped = true;
+
+            var replacement = new CaptureEngine(_events, candidatePlan);
+            try
+            {
+                replacement.Start();
+                _engine = replacement;
+            }
+            catch
+            {
+                replacement.Dispose();
+                throw;
+            }
+
+            _capturePlan = candidatePlan;
+            var saved = _settingsStore.Save(_settings);
             RefreshAdapterMenu();
             AppLog.Write($"capture: switched adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
+            if (!saved)
+            {
+                _events.Enqueue(new AlertEvent(
+                    "error",
+                    "BPSR Ready Alert",
+                    "The adapter switched for this session, but the preference could not be saved. It may revert after restart."));
+            }
         }
         catch (Exception ex)
         {
-            AppLog.Write("capture: adapter switch failed " + ex);
-            _events.Enqueue(new AlertEvent("error", "BPSR Ready Alert", "Could not switch Npcap adapter: " + ex.Message));
+            _settings.NpcapDeviceName = oldSetting;
+            _capturePlan = oldPlan;
+            _settingsStore.Save(_settings);
+
+            // The normal failure path occurs during preflight, while the old engine
+            // is still alive. If an unexpected failure happened after disposal,
+            // stop any partial replacement and restart the known-good plan.
+            if (oldCaptureStopped)
+            {
+                try
+                {
+                    if (!ReferenceEquals(_engine, previousEngine))
+                        _engine.Dispose();
+                }
+                catch (Exception disposeEx)
+                {
+                    AppLog.Write("capture: failed disposing partial replacement " + disposeEx.Message);
+                }
+
+                try
+                {
+                    _engine = new CaptureEngine(_events, oldPlan);
+                    _engine.Start();
+                    AppLog.Write($"capture: rollback restored adapter={oldPlan.Primary.Description}");
+                }
+                catch (Exception rollbackEx)
+                {
+                    AppLog.Write("capture: adapter rollback failed " + rollbackEx);
+                    _events.Enqueue(new AlertEvent(
+                        "error",
+                        "BPSR Ready Alert",
+                        "Adapter switch failed and ReadyAlert could not restart the previous capture. Restart ReadyAlert. " + rollbackEx.Message));
+                    RefreshAdapterMenu();
+                    return;
+                }
+            }
+
+            RefreshAdapterMenu();
+            AppLog.Write("capture: adapter switch rejected; restored previous selection. " + ex);
+            _events.Enqueue(new AlertEvent(
+                "error",
+                "BPSR Ready Alert",
+                "Could not switch Npcap adapter. ReadyAlert kept the previous adapter. " + ex.Message));
         }
     }
 
     private void RefreshVolumeMenu()
     {
         if (_volumeMenu is null) return;
-        _volumeMenu.Text = $"Alert Volume: {_settings.AlertVolume}%";
+        _volumeMenu.Text = ReadyQueueVolumeMenuText(_settings.AlertVolume);
+        _volumeMenu.ToolTipText = "Ready Check and Queue Pop sounds only. Chat alert and TTS volumes are separate.";
         _volumeMenu.DropDownItems.Clear();
 
         foreach (var volume in Enumerable.Range(0, 11).Select(i => i * 10))
@@ -395,6 +487,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _volumeMenu.DropDownItems.Add(item);
         }
     }
+
+    internal static string ReadyQueueVolumeMenuText(int volume) =>
+        $"Ready / Queue Volume: {Math.Clamp(volume, 0, 100)}%";
+
+    internal static int ChatUiDrainLimitForSelfTest => MaxChatUiMessagesPerTick;
 
     private void SetVolume(int volume)
     {
@@ -447,8 +544,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var chatWindow = EnsureChatWindow();
-        while (_chatEvents.TryDequeue(out var chat))
+        var drained = 0;
+        while (drained < MaxChatUiMessagesPerTick && _chatEvents.TryDequeue(out var chat))
+        {
             chatWindow.AddMessage(chat);
+            drained++;
+        }
+
+        // AddMessage coalesces expensive ListBox rebuilds. Flush at our per-tick
+        // boundary so a sustained queue still paints progress instead of looking hung.
+        chatWindow.FlushDeferredMessageBatch();
     }
 
     private static (string Title, string Message) FormatDesktopNotification(AlertEvent evt)
@@ -476,8 +581,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
+            // Never replace a failed Ready/Queue sound with a Windows SystemSound:
+            // it has an unrelated mixer volume and can violate the user's setting.
             AppLog.Write("audio: play failed " + ex.Message);
-            SystemSounds.Exclamation.Play();
         }
     }
 

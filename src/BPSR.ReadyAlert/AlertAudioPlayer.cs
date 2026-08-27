@@ -54,8 +54,11 @@ internal sealed class AlertAudioPlayer : IDisposable
             }
             catch (Exception ex)
             {
+                // Never fall back to SystemSounds here. Windows system sounds use
+                // their own mixer volume and can therefore be much louder than the
+                // Ready / Queue volume selected by the user. A playback failure is
+                // safer as a logged soft failure than as an unscaled surprise sound.
                 AppLog.Write("audio: SoundPlayer failed " + ex.Message);
-                SystemSounds.Exclamation.Play();
             }
         }
     }

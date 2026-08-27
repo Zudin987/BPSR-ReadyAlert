@@ -56,7 +56,7 @@ internal static class ChatSpeechTranslationEngine
     private static readonly Dictionary<string, TranslationOutcome> TranslationCache = new(StringComparer.Ordinal);
     private static readonly Queue<string> TranslationCacheOrder = new();
 
-    private static volatile SpeechSnapshot _snapshot = SpeechSnapshot.Disabled;
+    private static SpeechSnapshot _snapshot = SpeechSnapshot.Disabled;
     private static ConcurrentQueue<ChatTranslationResult>? _translationResults;
     private static Task? _worker;
     private static volatile bool _enabled;
@@ -106,6 +106,7 @@ internal static class ChatSpeechTranslationEngine
     {
         if (!_enabled || message.SequenceId == 0 || string.IsNullOrWhiteSpace(message.Text)) return;
         if (message.Kind is ChatMessageKind.Sticker or ChatMessageKind.Picture) return;
+        if (ChatNotificationEngine.IsSenderBlocked(message.SenderId)) return;
 
         var snapshot = Volatile.Read(ref _snapshot);
         var (wantsTranslation, wantsSpeech) = RequestedFeatures(snapshot, message);
@@ -214,7 +215,7 @@ internal static class ChatSpeechTranslationEngine
 
             while (!cancellationToken.IsCancellationRequested && TryDequeueNext(out var job))
             {
-                if (!_enabled || IsJobStale(job))
+                if (!_enabled || IsJobStale(job) || ChatNotificationEngine.IsSenderBlocked(job.Message.SenderId))
                 {
                     Interlocked.Increment(ref _dropped);
                     continue;
@@ -239,6 +240,12 @@ internal static class ChatSpeechTranslationEngine
     private static async Task ProcessJobAsync(SpeechJob job, CancellationToken cancellationToken)
     {
         var message = job.Message;
+        if (ChatNotificationEngine.IsSenderBlocked(message.SenderId))
+        {
+            Interlocked.Increment(ref _dropped);
+            return;
+        }
+
         var snapshot = Volatile.Read(ref _snapshot);
         var wantsOverlayTranslation = job.TranslationRequested &&
                                       snapshot.ShowTranslationInOverlay &&
@@ -270,12 +277,17 @@ internal static class ChatSpeechTranslationEngine
             outcome = new TranslationOutcome(sourceText, string.Empty, false, false);
         }
 
-        // Settings can change while Google is in flight. Never resurrect a message
-        // after the overlay/capture pipeline was disabled, and never emit a result for
-        // a channel that was not translation-eligible when this job was queued.
+        // Settings/block state can change while Google is in flight. Never resurrect
+        // a message after the overlay/capture pipeline was disabled or the sender was
+        // blocked, and never emit a result for a channel that was not translation-
+        // eligible when this job was queued.
         var live = Volatile.Read(ref _snapshot);
-        if (_enabled && job.TranslationRequested && live.TranslationEnabledFor(message.Channel) &&
-            live.ShowTranslationInOverlay && outcome.WasTranslated)
+        if (_enabled &&
+            !ChatNotificationEngine.IsSenderBlocked(message.SenderId) &&
+            job.TranslationRequested &&
+            live.TranslationEnabledFor(message.Channel) &&
+            live.ShowTranslationInOverlay &&
+            outcome.WasTranslated)
         {
             var results = Volatile.Read(ref _translationResults);
             if (results is not null)
@@ -289,9 +301,9 @@ internal static class ChatSpeechTranslationEngine
         }
 
         // TTS may have been switched off, the overlay may have been disabled, the
-        // username filter may have changed, or the job may have become stale while
-        // translation was in flight. Re-check every one of those conditions before
-        // making any TTS request.
+        // sender may have been blocked, the username filter may have changed, or the
+        // job may have become stale while translation was in flight. Re-check every
+        // one of those conditions before making any TTS request.
         live = Volatile.Read(ref _snapshot);
         if (!CanSpeakJob(job, live, enabled: _enabled))
         {
@@ -347,6 +359,9 @@ internal static class ChatSpeechTranslationEngine
         SpeechSnapshot snapshot,
         ChatMessageEvent message)
     {
+        if (ChatNotificationEngine.IsSenderBlocked(message.SenderId))
+            return (false, false);
+
         var translation = snapshot.ShowTranslationInOverlay && snapshot.TranslationEnabledFor(message.Channel);
         var speech = snapshot.TtsVolume > 0 &&
                      snapshot.TtsEnabledFor(message.Channel) &&
@@ -361,6 +376,7 @@ internal static class ChatSpeechTranslationEngine
         enabled &&
         job.SpeechRequested &&
         !IsJobStale(job) &&
+        !ChatNotificationEngine.IsSenderBlocked(job.Message.SenderId) &&
         live.TtsEnabledFor(job.Message.Channel) &&
         !live.IsOwnUsername(job.Message.SenderName) &&
         live.TtsVolume > 0;
