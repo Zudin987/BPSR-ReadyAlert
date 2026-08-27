@@ -107,11 +107,11 @@ internal sealed partial class ChatGeneralSettingsForm
 
         if (dirty)
         {
-            if (_applyStatus.Text != "Unsaved changes")
-                _applyStatus.Text = "Unsaved changes";
+            if (_applyStatus.Text != "Unsaved")
+                _applyStatus.Text = "Unsaved";
             _applyStatus.ForeColor = ChatUiTheme.Warning;
         }
-        else if (_applyStatus.Text == "Unsaved changes")
+        else if (_applyStatus.Text == "Unsaved")
         {
             _applyStatus.Text = _v121EverSaved ? "Saved ✓" : string.Empty;
             _applyStatus.ForeColor = _v121EverSaved ? ChatUiTheme.Success : ChatUiTheme.Muted;
