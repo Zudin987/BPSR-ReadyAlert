@@ -5,7 +5,7 @@
 **Website:** https://zudin987.github.io/projects/readyalert/
 
 **Current stable release:** v1.1.2  
-**Experimental branch:** v1.2.0 RC3
+**Experimental branch:** v1.2.0 RC4
 
 ## Highlights
 
@@ -13,6 +13,7 @@
 - Optional floating Chat Overlay using the same capture pipeline — no second Npcap engine.
 - World, Guild/Team, All, and custom chat tabs.
 - Channel selection, minimum-level filters, Show/Hide expressions, OR/AND matching, and advanced regex.
+- Optional global cleanup for sticker messages, emoji-only `<sprite=1>` through `<sprite=100>` messages, and linked-item / Hypertext messages.
 - Up to 3 prioritized message-only sound rules with one shared chat-alert volume.
 - Private/Talk highlighting and optional sound.
 - Smart follow-latest scrolling with history preservation when old rows are trimmed.
@@ -66,7 +67,17 @@ This matches the whole words `tina`, `tr`, or `towering`, but not words such as 
 
 Invalid or timed-out regex fails safely instead of blocking the app.
 
-### Translation and TTS — v1.2 RC3
+### Content cleanup — v1.2 RC4
+
+Open **Chat Overlay → Settings → Interaction**. The global cleanup options are placed together:
+
+- **Hide sticker messages** — existing sticker filter.
+- **Hide emoji-only messages** — recognizes BPSR sprite tokens from `<sprite=1>` through `<sprite=100>`, including rows containing several sprite tokens.
+- **Hide linked-item / Hypertext messages** — hides parsed Hypertext chat and placeholder rows such as `[Hypertext 3000001]` or `[Hypertext 1050001] MrHard`.
+
+The emoji filter is deliberately token-aware: a normal message such as `hello <sprite=31>` remains visible because the row is not emoji-only. Sprite-only and Hypertext placeholder messages are also excluded from TTS so ReadyAlert does not literally speak markup such as “sprite equals 31” or “Hypertext 3000001”.
+
+### Translation and TTS — v1.2 RC4
 
 Open **Chat Overlay → Settings → Speech & translation**.
 
@@ -85,7 +96,7 @@ When enabled, ReadyAlert displays the original BPSR message immediately and adds
 
 World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **English `en` voice**. Non-English messages are first translated to English when possible, then spoken by the English voice. The TTS volume is independent from Ready/keyword sounds. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
 
-RC2 replaced RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation**, added audio MIME validation/retry behavior inspired by the Google fallback used in the user's Discord TTS bot, and added a one-click test action. RC3 keeps that playback path and switches the Google TTS language from Malay `ms` to English `en`. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
+RC2 replaced RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation**, added audio MIME validation/retry behavior inspired by the Google fallback used in the user's Discord TTS bot, and added a one-click test action. RC3 switched the Google TTS language from Malay `ms` to English `en`. RC4 keeps that audio path and adds the emoji/linked-item cleanup filters. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
 
 These Google Translate/gTTS-style endpoints do not require a Cloud API key, but they are undocumented and can be rate-limited or changed by Google. Failures are soft: normal ReadyAlert capture and overlay behavior continue.
 
@@ -136,7 +147,7 @@ ReadyAlert reads the local BPSR network stream through Npcap. It does not inject
 
 The Chat Overlay reuses the existing capture pipeline. It does **not** create a second Npcap capture handle, TCP reassembler, decompressor, or parallel packet-processing stack just for chat.
 
-Parsed chat is kept in bounded local memory for the overlay. When optional translation/TTS is enabled, only messages selected by those channel toggles are sent to Google's Translate/gTTS web services.
+Parsed chat is kept in bounded local memory for the overlay. When optional translation/TTS is enabled, only messages selected by those channel toggles are sent to Google's Translate/gTTS web services. Sprite-only and Hypertext placeholder rows are excluded from the speech/translation pipeline.
 
 ## Capture diagnostics
 
