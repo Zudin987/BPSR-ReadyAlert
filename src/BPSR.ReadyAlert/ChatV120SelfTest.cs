@@ -8,7 +8,7 @@ internal static class ChatV120SelfTest
         TestOwnUsernameFilter();
         TestSettingsNormalization();
         TestTtsChunking();
-        TestGoogleMsSelection();
+        TestGoogleEnglishSelection();
     }
 
     private static void TestChannelSelection()
@@ -87,10 +87,10 @@ internal static class ChatV120SelfTest
         Assert(emojiChunks.All(x => x.Length == 0 || !char.IsLowSurrogate(x[0])), "TTS chunking never starts on a dangling low surrogate");
     }
 
-    private static void TestGoogleMsSelection()
+    private static void TestGoogleEnglishSelection()
     {
-        Assert(ChatSpeechTranslationEngine.GoogleTtsLanguage == "ms",
-            "Google TTS uses the Malay ms voice requested for ReadyAlert");
+        Assert(ChatSpeechTranslationEngine.GoogleTtsLanguage == "en",
+            "Google TTS uses the English en voice requested for ReadyAlert");
     }
 
     private static void Assert(bool condition, string name)
