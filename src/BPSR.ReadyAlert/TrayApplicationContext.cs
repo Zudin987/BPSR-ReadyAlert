@@ -361,19 +361,28 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var oldSetting = _settings.NpcapDeviceName;
         var oldPlan = _capturePlan;
+        var previousEngine = _engine;
+        var oldCaptureStopped = false;
         _settings.NpcapDeviceName = deviceName;
 
-        NpcapCapturePlan candidatePlan;
         try
         {
-            candidatePlan = NpcapDeviceSelector.SelectPlan(_settings);
+            var candidatePlan = NpcapDeviceSelector.SelectPlan(_settings);
 
             // If Auto/Resonance Logs resolves to the adapter already being captured,
             // only the preference metadata changed; keep the live capture untouched.
             if (string.Equals(candidatePlan.Primary.DeviceName, oldPlan.Primary.DeviceName, StringComparison.OrdinalIgnoreCase))
             {
+                if (!_settingsStore.Save(_settings))
+                {
+                    _settings.NpcapDeviceName = oldSetting;
+                    _capturePlan = oldPlan;
+                    RefreshAdapterMenu();
+                    _events.Enqueue(new AlertEvent("error", "BPSR Ready Alert", "Could not save the new adapter preference. The previous preference was kept."));
+                    return;
+                }
+
                 _capturePlan = candidatePlan;
-                _settingsStore.Save(_settings);
                 RefreshAdapterMenu();
                 AppLog.Write($"capture: adapter preference changed without restart; active={candidatePlan.Primary.Description} source={candidatePlan.Primary.Source}");
                 return;
@@ -385,13 +394,32 @@ internal sealed class TrayApplicationContext : ApplicationContext
             using (var probe = new NpcapCapture(candidatePlan.Primary.DeviceName))
                 AppLog.Write($"capture: adapter preflight ok device={candidatePlan.Primary.Description} datalink={probe.DataLink}");
 
-            _engine.Dispose();
-            _engine = new CaptureEngine(_events, candidatePlan);
-            _engine.Start();
+            previousEngine.Dispose();
+            oldCaptureStopped = true;
+
+            var replacement = new CaptureEngine(_events, candidatePlan);
+            try
+            {
+                replacement.Start();
+                _engine = replacement;
+            }
+            catch
+            {
+                replacement.Dispose();
+                throw;
+            }
+
             _capturePlan = candidatePlan;
-            _settingsStore.Save(_settings);
+            var saved = _settingsStore.Save(_settings);
             RefreshAdapterMenu();
             AppLog.Write($"capture: switched adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
+            if (!saved)
+            {
+                _events.Enqueue(new AlertEvent(
+                    "error",
+                    "BPSR Ready Alert",
+                    "The adapter switched for this session, but the preference could not be saved. It may revert after restart."));
+            }
         }
         catch (Exception ex)
         {
@@ -401,18 +429,35 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             // The normal failure path occurs during preflight, while the old engine
             // is still alive. If an unexpected failure happened after disposal,
-            // restart the known-good plan rather than leaving ReadyAlert captureless.
-            try
+            // stop any partial replacement and restart the known-good plan.
+            if (oldCaptureStopped)
             {
-                if (_engine is null)
+                try
+                {
+                    if (!ReferenceEquals(_engine, previousEngine))
+                        _engine.Dispose();
+                }
+                catch (Exception disposeEx)
+                {
+                    AppLog.Write("capture: failed disposing partial replacement " + disposeEx.Message);
+                }
+
+                try
                 {
                     _engine = new CaptureEngine(_events, oldPlan);
                     _engine.Start();
+                    AppLog.Write($"capture: rollback restored adapter={oldPlan.Primary.Description}");
                 }
-            }
-            catch (Exception rollbackEx)
-            {
-                AppLog.Write("capture: adapter rollback failed " + rollbackEx);
+                catch (Exception rollbackEx)
+                {
+                    AppLog.Write("capture: adapter rollback failed " + rollbackEx);
+                    _events.Enqueue(new AlertEvent(
+                        "error",
+                        "BPSR Ready Alert",
+                        "Adapter switch failed and ReadyAlert could not restart the previous capture. Restart ReadyAlert. " + rollbackEx.Message));
+                    RefreshAdapterMenu();
+                    return;
+                }
             }
 
             RefreshAdapterMenu();
