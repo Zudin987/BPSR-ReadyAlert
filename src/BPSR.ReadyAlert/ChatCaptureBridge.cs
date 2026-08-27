@@ -72,8 +72,6 @@ internal static class ChatCaptureBridge
         if (service != ChatProtocol.ServiceId || method != ChatProtocol.NotifyNewestChitChatMsgs)
             return false;
 
-        // Keep Chat Overlay OFF almost free: after the two integer ID comparisons,
-        // skip counters, protobuf parsing, queue work and every UI/audio path.
         if (!_enabled) return true;
 
         Interlocked.Increment(ref _matchingNotifies);
@@ -94,14 +92,10 @@ internal static class ChatCaptureBridge
         Interlocked.Increment(ref _parsedMessages);
         Interlocked.Exchange(ref _lastMessageUtcTicks, DateTime.UtcNow.Ticks);
 
-        // Notification matching/audio and optional translation/TTS are intentionally
-        // independent from the overlay UI queue. A collapsed/hidden/busy WinForms
-        // window therefore cannot stop either background path.
         ChatNotificationEngine.Enqueue(message);
-        ChatSpeechTranslationEngine.Enqueue(message);
+        if (!ChatContentVisibility.ShouldSkipSpeech(message))
+            ChatSpeechTranslationEngine.Enqueue(message);
 
-        // The UI normally drains every 25 ms. Keep a hard emergency ceiling so a
-        // blocked UI thread or malformed packet flood cannot grow memory forever.
         while (events.Count >= MaxQueuedMessages && events.TryDequeue(out _))
             Interlocked.Increment(ref _droppedQueuedMessages);
 
