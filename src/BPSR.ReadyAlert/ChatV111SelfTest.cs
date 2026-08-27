@@ -10,6 +10,7 @@ internal static class ChatV111SelfTest
         TestSenderColorsAreStable();
         TestBottomAlignmentMath();
         TestHistoryTrimKeepsFollowingLatest();
+        TestOverlayStaysOutOfAltTab();
     }
 
     private static void TestSenderColorsAreStable()
@@ -66,6 +67,28 @@ internal static class ChatV111SelfTest
             var state = form.GetV111ScrollStateForSelfTest();
             Assert(state.FollowLatest && state.AtBottom,
                 "overlay remains at latest chat after the oldest row is evicted");
+        }
+        finally
+        {
+            TryDelete(tempPath);
+            TryDelete(tempPath + ".bak");
+            TryDelete(tempPath + ".new");
+        }
+    }
+
+    private static void TestOverlayStaysOutOfAltTab()
+    {
+        var settings = new AppSettings { ChatOverlayEnabled = true };
+        settings.Chat.Normalize();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-alttab-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            using var form = new ChatOverlayForm(settings, new SettingsStore(tempPath), string.Empty, string.Empty);
+            var styles = form.GetAltTabWindowStylesForSelfTest();
+            Assert(styles.ToolWindow, "chat overlay uses WS_EX_TOOLWINDOW so Windows excludes it from Alt+Tab");
+            Assert(!styles.AppWindow, "chat overlay does not force WS_EX_APPWINDOW");
+            Assert(!form.ShowInTaskbar, "chat overlay remains hidden from the taskbar");
         }
         finally
         {
