@@ -119,13 +119,13 @@ internal sealed partial class ChatGeneralSettingsForm
             source.TtsVolume,
             0));
         AddStack(tts, MakeActionRow(
-            "Test Google ms TTS",
-            "Downloads one short no-key Google Malay TTS sample and plays it using ReadyAlert's TTS volume.",
+            "Test Google English TTS",
+            "Downloads one short no-key Google English TTS sample and plays it using ReadyAlert's TTS volume.",
             "Test voice",
             () => _ = TestGoogleTtsInteractiveAsync()));
         AddPageCard(stack, MakeCard(
-            "Google ms TTS speech",
-            "Uses Google's no-key Malay (ms) Translate TTS voice. Messages are queued one at a time so speech never overlaps.",
+            "Google English TTS speech",
+            "Uses Google's no-key English (en) Translate TTS voice. Messages are queued one at a time so speech never overlaps.",
             tts));
 
         AddPageCard(stack, MakeInfoBanner(
@@ -135,7 +135,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
         AddPageCard(stack, MakeInfoBanner(
             "Translation used by TTS",
-            "For TTS-enabled channels, ReadyAlert asks Google to auto-detect/translate the message to English first. Google ms then speaks that English text with the Malay voice. If translation fails, the original text is still attempted.",
+            "For TTS-enabled channels, ReadyAlert asks Google to auto-detect/translate the message to English first. Google English TTS then speaks that English text. If translation fails, the original text is still attempted.",
             ChatUiTheme.Success));
 
         RefreshSpeechControlState();
@@ -169,7 +169,7 @@ internal sealed partial class ChatGeneralSettingsForm
             AppLog.Write("tts: interactive test failed " + ex.Message);
             MessageBox.Show(
                 this,
-                "Google ms TTS test failed.\r\n\r\n" + ex.Message +
+                "Google English TTS test failed.\r\n\r\n" + ex.Message +
                 "\r\n\r\nThe normal chat overlay is unaffected. Check readyalert.log for details.",
                 "TTS test failed",
                 MessageBoxButtons.OK,
