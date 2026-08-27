@@ -141,6 +141,8 @@ internal sealed class ChannelColorsForm : Form
 
 internal sealed class BlockedUsersForm : Form
 {
+    internal const string ScopeText = "Blocked players are ignored by ReadyAlert chat: hidden from the overlay and skipped by keyword/private sounds, translation and TTS. Ready / Queue alerts are unaffected.";
+
     private readonly List<ChatBlockedUser> _blockedUsers;
     private readonly ListBox _list = new();
     private readonly Label _empty = new();
@@ -152,8 +154,8 @@ internal sealed class BlockedUsersForm : Form
         Text = "Blocked Chat Users";
         StartPosition = FormStartPosition.CenterParent;
         ShowInTaskbar = false;
-        ClientSize = new Size(620, 470);
-        MinimumSize = new Size(520, 380);
+        ClientSize = new Size(620, 490);
+        MinimumSize = new Size(520, 400);
 
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = ChatUiTheme.Surface, Padding = new Padding(16, 14, 16, 14) };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
@@ -167,9 +169,9 @@ internal sealed class BlockedUsersForm : Form
         footer.Controls.Add(buttons);
 
         var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(24), BackColor = ChatUiTheme.Window };
-        var header = new Panel { Dock = DockStyle.Top, Height = 82 };
+        var header = new Panel { Dock = DockStyle.Top, Height = 106 };
         var title = ChatUiTheme.Heading("Blocked users", 17F); title.Location = new Point(0, 0);
-        var hint = ChatUiTheme.Subheading("Blocked players are hidden only inside ReadyAlert Chat Overlay."); hint.Location = new Point(0, 34);
+        var hint = ChatUiTheme.Subheading(ScopeText); hint.Location = new Point(0, 34); hint.MaximumSize = new Size(540, 0);
         header.Controls.Add(title); header.Controls.Add(hint);
 
         _list.Dock = DockStyle.Fill;
@@ -218,6 +220,8 @@ internal sealed class BlockedUsersForm : Form
 
 internal sealed class ChatDebugStatusForm : Form
 {
+    internal const string LiveUpdateHint = "Live counters refresh every 0.5 seconds. Updates pause while the status box has focus so scrolling and text selection stay in place.";
+
     private readonly TextBox _status = new();
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 500 };
 
@@ -227,8 +231,8 @@ internal sealed class ChatDebugStatusForm : Form
         Text = "Chat Capture Status";
         StartPosition = FormStartPosition.CenterParent;
         ShowInTaskbar = false;
-        ClientSize = new Size(700, 610);
-        MinimumSize = new Size(580, 440);
+        ClientSize = new Size(700, 630);
+        MinimumSize = new Size(580, 460);
 
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = ChatUiTheme.Surface, Padding = new Padding(16, 14, 16, 14) };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
@@ -236,15 +240,19 @@ internal sealed class ChatDebugStatusForm : Form
         var copy = new Button { Text = "Copy status", Width = 108, Height = 36, Margin = new Padding(0, 0, 8, 0) };
         ChatUiTheme.StylePrimaryButton(close);
         ChatUiTheme.StyleSecondaryButton(copy);
-        copy.Click += (_, _) => { if (!string.IsNullOrEmpty(_status.Text)) Clipboard.SetText(_status.Text); };
+        copy.Click += (_, _) =>
+        {
+            if (!string.IsNullOrEmpty(_status.Text))
+                ChatClipboard.TrySetText(this, _status.Text, "copy-chat-status");
+        };
         buttons.Controls.Add(close);
         buttons.Controls.Add(copy);
         footer.Controls.Add(buttons);
 
         var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(24), BackColor = ChatUiTheme.Window };
-        var header = new Panel { Dock = DockStyle.Top, Height = 82 };
+        var header = new Panel { Dock = DockStyle.Top, Height = 100 };
         var title = ChatUiTheme.Heading("Chat capture status", 17F); title.Location = new Point(0, 0);
-        var hint = ChatUiTheme.Subheading("Live capture, notification, translation, and TTS counters for troubleshooting."); hint.Location = new Point(0, 34);
+        var hint = ChatUiTheme.Subheading(LiveUpdateHint); hint.Location = new Point(0, 34); hint.MaximumSize = new Size(590, 0);
         header.Controls.Add(title); header.Controls.Add(hint);
 
         _status.Dock = DockStyle.Fill;
@@ -262,13 +270,22 @@ internal sealed class ChatDebugStatusForm : Form
         AcceptButton = close;
 
         _timer.Tick += (_, _) => RefreshStatus();
-        FormClosed += (_, _) => _timer.Stop();
+        FormClosed += (_, _) =>
+        {
+            _timer.Stop();
+            _timer.Dispose();
+        };
         RefreshStatus();
         _timer.Start();
     }
 
     private void RefreshStatus()
     {
+        // Replacing Text every 500 ms resets selection/scroll. Treat focus as an
+        // explicit user-interaction pause; updates resume as soon as focus moves to
+        // Copy status, Done, or another window.
+        if (_status.Focused && _status.TextLength > 0) return;
+
         var capture = ChatCaptureBridge.GetStatus();
         var notify = ChatNotificationEngine.GetStatus();
         var speech = ChatSpeechTranslationEngine.GetStatus();
