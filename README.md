@@ -5,7 +5,7 @@
 **Website:** https://zudin987.github.io/projects/readyalert/
 
 **Current stable release:** v1.1.2  
-**Experimental branch:** v1.2.0 RC5
+**Experimental branch:** v1.2.0 RC6
 
 ## Highlights
 
@@ -21,6 +21,7 @@
 - Stable per-user sender colors so the same player is easy to recognize across messages.
 - Optional no-key Google translation of **World, Guild, and Party / Team** chat to English.
 - Optional no-key **Google English (`en`)** text-to-speech for **Guild and Party / Team only**, with its own volume, sender-name toggle, own-username ignore rule, one-click test button, and a toolbar TTS on/off quick toggle.
+- TTS-priority scheduling keeps Guild / Party speech responsive even when World translation is busy.
 - Click-through mode, compact mode, opacity, fonts, timestamps, channel colors, screen-edge collapse, and Always-on-Top support.
 - The persistent Chat Overlay stays out of Windows Alt+Tab while remaining visible on-screen.
 - IPv4 + IPv6 BPSR TCP capture support.
@@ -67,7 +68,7 @@ This matches the whole words `tina`, `tr`, or `towering`, but not words such as 
 
 Invalid or timed-out regex fails safely instead of blocking the app.
 
-### Content cleanup — v1.2 RC4
+### Content cleanup — v1.2 RC6
 
 Open **Chat Overlay → Settings → Interaction**. The global cleanup options are placed together:
 
@@ -75,9 +76,9 @@ Open **Chat Overlay → Settings → Interaction**. The global cleanup options a
 - **Hide emoji-only messages** — recognizes BPSR sprite tokens from `<sprite=1>` through `<sprite=100>`, including rows containing several sprite tokens.
 - **Hide linked-item / Hypertext messages** — hides parsed Hypertext chat and placeholder rows such as `[Hypertext 3000001]` or `[Hypertext 1050001] MrHard`.
 
-The emoji filter is deliberately token-aware: a normal message such as `hello <sprite=31>` remains visible because the row is not emoji-only. Sprite-only and Hypertext placeholder messages are also excluded from TTS so ReadyAlert does not literally speak markup such as “sprite equals 31” or “Hypertext 3000001”.
+The emoji filter is deliberately token-aware: a normal message such as `hello <sprite=31>` remains visible because the row is not emoji-only. Linked-item matching is limited to actual Hypertext message kinds / `[Hypertext ...]` markers, so ordinary chat that merely uses the word “hypertext” remains visible. Sprite-only and Hypertext placeholder messages are also excluded from TTS so ReadyAlert does not literally speak markup such as “sprite equals 31” or “Hypertext 3000001”.
 
-### Translation and TTS — v1.2 RC5
+### Translation and TTS — v1.2 RC6
 
 Open **Chat Overlay → Settings → Speech & translation**.
 
@@ -96,9 +97,9 @@ When enabled, ReadyAlert displays the original BPSR message immediately and adds
 
 World chat is never read aloud. TTS uses Google's no-key Translate TTS endpoint with the **English `en` voice**. Non-English messages are first translated to English when possible, then spoken by the English voice. The TTS volume is independent from Ready/keyword sounds. `Read sender name` is optional, and **My BPSR username** suppresses speech for the user's own messages using an exact case-insensitive name match.
 
-RC5 adds a compact **TTS** quick-toggle directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means enabled. Red strikethrough `TTS` means disabled. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page. The quick toggle does not change the Guild / Party channel selections; it only switches the TTS master setting on or off.
+A compact **TTS** quick-toggle sits directly between `+ Tab` and Settings in the overlay toolbar. Green `TTS` means enabled. Red strikethrough `TTS` means disabled. Clicking the button changes and saves the same master TTS setting used on the Speech & translation page. The quick toggle does not change the Guild / Party channel selections; it only switches the TTS master setting on or off.
 
-RC2 replaced RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation**, added audio MIME validation/retry behavior inspired by the Google fallback used in the user's Discord TTS bot, and added a one-click test action. RC3 switched the Google TTS language from Malay `ms` to English `en`. RC4 added global emoji-only and Hypertext/linked-item filters. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
+RC2 replaced RC1's legacy Windows MCI MP3 playback with **NAudio + Windows Media Foundation** and added audio MIME validation/retry behavior. RC3 switched the Google TTS language from Malay `ms` to English `en`. RC4 added global emoji-only and Hypertext/linked-item filters. RC5 added the toolbar TTS toggle. RC6 gives TTS-capable Guild / Party messages priority over translation-only work, re-checks the live TTS switch before playback, and plays long multi-chunk Google MP3 responses as independent audio chunks rather than concatenating separate MP3 streams. Use **Test Google English TTS** first when checking a PC: if the test voice plays, the Google/audio backend is healthy and any remaining issue is channel/message selection rather than playback.
 
 These Google Translate/gTTS-style endpoints do not require a Cloud API key, but they are undocumented and can be rate-limited or changed by Google. Failures are soft: normal ReadyAlert capture and overlay behavior continue.
 
@@ -157,7 +158,7 @@ Open:
 
 **Chat Overlay → Settings → Advanced → Chat capture status**
 
-Use this when debugging missing chat or notification sounds. The diagnostics expose capture/parser activity and the independent notification engine status so you can distinguish capture issues, parser issues, rule mismatches, playback failures, and notification-queue drops.
+The v1.2 diagnostics show capture/parser counters, keyword/private notification counters, and translation/TTS processing/failure/drop counters. This helps distinguish packet-capture problems, parser problems, channel/TTS selection, Google failures, and audio-playback failures without guessing.
 
 ## Build
 
