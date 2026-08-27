@@ -7,11 +7,15 @@ internal sealed partial class ChatOverlayForm
 {
     private const int V120TtsToolbarWidth = 52;
     private Button? _v120TtsToggleButton;
+    private Font? _v120TtsOnFont;
+    private Font? _v120TtsOffFont;
 
     private void EnsureV120TtsToolbarButton()
     {
         if (_v120TtsToggleButton is null)
         {
+            _v120TtsOnFont = ChatUiTheme.UiFont(8.5F, FontStyle.Bold);
+            _v120TtsOffFont = ChatUiTheme.UiFont(8.5F, FontStyle.Bold | FontStyle.Strikeout);
             _v120TtsToggleButton = MakeToolbarButton("TTS", V120TtsToolbarWidth, "Toggle chat text-to-speech");
             _v120TtsToggleButton.AccessibleName = "Chat text-to-speech toggle";
             _v120TtsToggleButton.Click += (_, _) => ToggleV120TtsFromToolbar();
@@ -23,6 +27,14 @@ internal sealed partial class ChatOverlayForm
             _actionBar.Width = Math.Max(_actionBar.Width, 184 + V120TtsToolbarWidth);
             _actionBar.Controls.Add(_v120TtsToggleButton);
             _actionBar.Controls.SetChildIndex(_v120TtsToggleButton, 1);
+
+            Disposed += (_, _) =>
+            {
+                _v120TtsOnFont?.Dispose();
+                _v120TtsOffFont?.Dispose();
+                _v120TtsOnFont = null;
+                _v120TtsOffFont = null;
+            };
         }
 
         UpdateV120TtsToolbarButton();
@@ -44,9 +56,8 @@ internal sealed partial class ChatOverlayForm
 
         var enabled = _settings.SpeechTranslation.TtsEnabled;
         _v120TtsToggleButton.Text = "TTS";
-        _v120TtsToggleButton.Font = ChatUiTheme.UiFont(
-            8.5F,
-            enabled ? FontStyle.Bold : FontStyle.Bold | FontStyle.Strikeout);
+        if (_v120TtsOnFont is not null && _v120TtsOffFont is not null)
+            _v120TtsToggleButton.Font = enabled ? _v120TtsOnFont : _v120TtsOffFont;
         _v120TtsToggleButton.ForeColor = Color.White;
         _v120TtsToggleButton.BackColor = enabled
             ? Color.FromArgb(38, 105, 70)
