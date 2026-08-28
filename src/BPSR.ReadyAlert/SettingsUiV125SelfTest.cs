@@ -8,6 +8,7 @@ internal static class SettingsUiV125SelfTest
     internal static void Run()
     {
         TestOverlayTabStripStaysScrollbarFree();
+        TestMessageSeparatorReachesScrollbarEdge();
         TestSettingsPolishContract();
     }
 
@@ -56,6 +57,17 @@ internal static class SettingsUiV125SelfTest
             TryDelete(path);
             TryDelete(path + ".bak");
         }
+    }
+
+    private static void TestMessageSeparatorReachesScrollbarEdge()
+    {
+        var bounds = new Rectangle(0, 0, 700, 48);
+        var right = ChatOverlayForm.GetV125MessageSeparatorRightForSelfTest(bounds);
+
+        Check(179, right == bounds.Right - 2,
+            "message divider uses the full ListBox row width rather than subtracting the overlaid custom scrollbar twice");
+        Check(180, bounds.Right - right <= 2,
+            "message divider finishes at the visible scrollbar edge without the old empty gap");
     }
 
     private static void TestSettingsPolishContract()
