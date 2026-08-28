@@ -13,8 +13,8 @@ internal sealed partial class ChatGeneralSettingsForm
         if (_v120ContentFiltersInstalled) return;
         _v120ContentFiltersInstalled = true;
 
-        ChatUiTheme.StyleCheckBox(_hideEmoji);
-        ChatUiTheme.StyleCheckBox(_hideLinkedItems);
+        ChatUiTheme.StyleSettingsCheckBox(_hideEmoji);
+        ChatUiTheme.StyleSettingsCheckBox(_hideLinkedItems);
 
         if (_hideStickers.Parent is not FlowLayoutPanel behavior) return;
 
