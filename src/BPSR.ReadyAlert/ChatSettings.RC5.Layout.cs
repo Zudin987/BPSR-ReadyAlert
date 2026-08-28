@@ -5,9 +5,9 @@ namespace BPSR.ReadyAlert;
 
 internal sealed partial class ChatGeneralSettingsForm
 {
-    private static Panel CreatePage(string title, string subtitle)
+    private static ChatSettingsPagePanel CreatePage(string title, string subtitle)
     {
-        var page = new Panel
+        var page = new ChatSettingsPagePanel
         {
             Dock = DockStyle.Fill,
             AutoScroll = true,
