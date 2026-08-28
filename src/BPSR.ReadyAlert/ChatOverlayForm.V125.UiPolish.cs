@@ -64,15 +64,29 @@ internal sealed partial class ChatOverlayForm
         var preferred = new int[buttons.Length];
         for (var i = 0; i < buttons.Length; i++)
         {
-            var measured = TextRenderer.MeasureText(
-                buttons[i].Text,
-                buttons[i].Font,
-                Size.Empty,
-                TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
+            var button = buttons[i];
 
-            // Do not cap the natural width. A long tab should keep its complete name
-            // whenever there is room; ellipsis is a fallback for actual overflow only.
-            preferred[i] = Math.Max(64, measured + 28);
+            // Tab names are user content, not menu captions. Render '&' literally
+            // instead of letting WinForms consume it as a mnemonic marker.
+            button.UseMnemonic = false;
+            button.Padding = new Padding(8, 0, 8, 0);
+            button.MinimumSize = new Size(0, 32);
+
+            var measured = TextRenderer.MeasureText(
+                button.Text,
+                button.Font,
+                Size.Empty,
+                TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width;
+
+            // Measure the literal text, then reserve the real button padding plus a
+            // small renderer safety allowance. v1.2.6 used only measured+28, which
+            // was a few pixels too small for WinForms' actual button text rectangle
+            // and could hard-clip the final glyph even while AutoEllipsis was false.
+            // The preferred-size value is also considered so theme/font/DPI changes
+            // cannot silently make the manual estimate too optimistic.
+            var rendererSafe = measured + button.Padding.Horizontal + 20;
+            var controlPreferred = button.GetPreferredSize(Size.Empty).Width + 4;
+            preferred[i] = Math.Max(64, Math.Max(rendererSafe, controlPreferred));
         }
 
         var fitted = FitV126TabWidths(preferred, usable);
@@ -84,8 +98,6 @@ internal sealed partial class ChatOverlayForm
             {
                 var button = buttons[i];
                 button.AutoSize = false;
-                button.MinimumSize = new Size(0, 32);
-                button.Padding = new Padding(8, 0, 8, 0);
                 button.Width = fitted[i];
                 button.AutoEllipsis = fitted[i] < preferred[i];
 
@@ -172,6 +184,26 @@ internal sealed partial class ChatOverlayForm
         var outer = buttons.Sum(x => x.Width + x.Margin.Horizontal);
         var available = Math.Max(0, _tabBar.ClientSize.Width - _tabBar.Padding.Horizontal);
         return (_tabBar.AutoScroll, buttons.Length, outer, available, outer <= available);
+    }
+
+    internal (string Text, int Width, int NaturalWidth, bool AutoEllipsis, bool UseMnemonic)[]
+        GetV127TabButtonMetricsForSelfTest()
+    {
+        return _tabBar.Controls
+            .OfType<ChatTabButton>()
+            .Select(button =>
+            {
+                var measured = TextRenderer.MeasureText(
+                    button.Text,
+                    button.Font,
+                    Size.Empty,
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width;
+                var natural = Math.Max(64, Math.Max(
+                    measured + button.Padding.Horizontal + 20,
+                    button.GetPreferredSize(Size.Empty).Width + 4));
+                return (button.Text, button.Width, natural, button.AutoEllipsis, button.UseMnemonic);
+            })
+            .ToArray();
     }
 
     internal static int[] FitV126TabWidthsForSelfTest(int[] preferred, int usable) =>
