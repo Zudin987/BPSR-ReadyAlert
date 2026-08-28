@@ -9,6 +9,7 @@ internal static class SettingsUiV125SelfTest
     {
         TestOverlayTabStripStaysScrollbarFree();
         TestTabNamesStayFullUntilSpaceRunsOut();
+        TestLiteralTabLabelsStayCompleteWhenRoomy();
         TestMessageSeparatorReachesScrollbarEdge();
         TestSettingsPolishContract();
     }
@@ -75,6 +76,62 @@ internal static class SettingsUiV125SelfTest
             "short tab names remain full while only the genuinely long tab is shortened first");
         Check(184, tight[3] < natural[3],
             "ellipsis pressure is reserved for a tab that cannot fit at its complete natural width");
+    }
+
+    private static void TestLiteralTabLabelsStayCompleteWhenRoomy()
+    {
+        var settings = new AppSettings { ChatOverlayEnabled = true };
+        settings.Chat.Normalize();
+        settings.Chat.Tabs.Clear();
+        settings.Chat.Tabs.Add(new ChatTabSettings
+        {
+            Name = "General",
+            MinLevel = 1,
+            Channels = [(int)ChatChannel.World]
+        });
+        settings.Chat.Tabs.Add(new ChatTabSettings
+        {
+            Name = "Guild&Team",
+            MinLevel = 1,
+            Channels = [(int)ChatChannel.Union, (int)ChatChannel.Team, (int)ChatChannel.Group]
+        });
+        settings.Chat.Tabs.Add(new ChatTabSettings
+        {
+            Name = "123456789",
+            MinLevel = 1,
+            Channels = [(int)ChatChannel.Local]
+        });
+        settings.Chat.LastSelectedTabId = settings.Chat.Tabs[0].Id;
+
+        var path = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v127-tabs-{Guid.NewGuid():N}.json");
+        try
+        {
+            using var form = new ChatOverlayForm(settings, new SettingsStore(path), string.Empty, string.Empty)
+            {
+                ShowInTaskbar = false,
+                Opacity = 0d,
+                Size = new Size(760, 430)
+            };
+            form.Show();
+            Application.DoEvents();
+            form.RebuildV125TabBarForSelfTest();
+            Application.DoEvents();
+
+            var tabs = form.GetV127TabButtonMetricsForSelfTest();
+            Check(188, tabs.Select(x => x.Text).SequenceEqual(new[] { "General", "Guild&Team", "123456789" }),
+                "tab controls retain the exact configured text including ampersands and final characters");
+            Check(189, tabs.All(x => !x.UseMnemonic),
+                "chat tab labels render ampersands literally instead of consuming them as keyboard mnemonics");
+            Check(190, tabs.All(x => !x.AutoEllipsis),
+                "roomy overlay does not enable ellipsis for General, Guild&Team, or 123456789");
+            Check(191, tabs.All(x => x.Width >= x.NaturalWidth),
+                "roomy tab buttons receive enough renderer-safe width for their complete final glyph");
+        }
+        finally
+        {
+            TryDelete(path);
+            TryDelete(path + ".bak");
+        }
     }
 
     private static void TestMessageSeparatorReachesScrollbarEdge()
