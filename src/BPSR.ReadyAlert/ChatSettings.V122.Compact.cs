@@ -139,7 +139,7 @@ internal sealed partial class ChatGeneralSettingsForm
         ["Control how the overlay behaves while you play. Hotkeys work globally while ReadyAlert is running."] = "Mouse behavior, hotkeys, docking and history.",
         ["Keep the overlay out of the way without making it impossible to recover."] = "Click-through and sticker visibility.",
         ["When click-through is ON, mouse clicks pass to the game. Use the recovery hotkey below to turn it OFF. If that hotkey cannot register, ReadyAlert automatically disables click-through."] = "Keep a recovery hotkey for click-through. If it cannot register, ReadyAlert turns click-through off.",
-        ["Click a box and press the combination you want. Backspace clears it."] = "Press the shortcut you want. Backspace clears it.",
+        ["Click a box and press the combination you want. Backspace clears it."] = "Both recovery shortcuts are required. Backspace clears the current entry.",
         ["Click a box and press the combination you want. Both recovery shortcuts are required; Backspace clears the current entry before choosing another."] = "Both recovery shortcuts are required. Backspace clears the current entry.",
         ["Choose where the compact edge handle lives and how much recent chat is retained."] = "Collapsed edge and retained chat.",
         ["Highlight important chat visually and configure up to three different keyword sounds. Nothing is sent outside your PC."] = "Keyword highlights and chat sounds.",
