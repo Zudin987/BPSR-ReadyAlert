@@ -19,29 +19,31 @@ internal static class SettingsUiV122SelfTest
         speech.Normalize();
 
         using var form = new ChatGeneralSettingsForm(chat, speech);
+
+        // Density targets are logical WinForms dimensions. Check them before native
+        // handle creation, then separately verify the DPI-scaled result fits after
+        // WinForms performs its monitor-specific autoscaling.
+        var logical = form.GetV122DpiSafeMetricsForSelfTest();
+        Check(91, logical.BufferedHost, "Settings content host is double-buffered");
+        Check(92, logical.SidebarWidth is > 0 and <= 180, "Settings sidebar stays compact");
+        Check(93, logical.FooterHeight is > 0 and <= 62, "Settings footer stays compact");
+        Check(94, logical.MaxRuleHeight <= 70, "Settings multiline rule inputs are not oversized");
+        Check(95, logical.MaxNavHeight <= 36, "Settings navigation uses compact rows");
+        Check(96, logical.SelectedPages == 1 && logical.ActiveKey == "Appearance",
+            "Settings starts with exactly one selected page");
+        Check(124, form.GetV122MaxBoundedInputWidthForSelfTest() <= 340,
+            "Settings single-line editor fields stay bounded instead of filling the whole page");
+
         _ = form.Handle;
         form.CreateControl();
         form.Size = form.MinimumSize;
         PerformLayoutTree(form);
 
-        var metrics = form.GetV122DpiSafeMetricsForSelfTest();
-        Check(91, metrics.BufferedHost, "Settings content host is double-buffered");
-        Check(92, metrics.SidebarWidth > 0 && metrics.SidebarWidth <= ScaleLogical(form, 180),
-            "Settings sidebar stays compact");
-        Check(93, metrics.FooterHeight > 0 && metrics.FooterHeight <= ScaleLogical(form, 62),
-            "Settings footer stays compact");
-        Check(94, metrics.MaxRuleHeight <= ScaleLogical(form, 70), "Settings multiline rule inputs are not oversized");
-        Check(95, metrics.MaxNavHeight <= ScaleLogical(form, 36), "Settings navigation uses compact rows");
-        Check(96, metrics.SelectedPages == 1 && metrics.ActiveKey == "Appearance",
-            "Settings starts with exactly one selected page");
-        Check(124, form.GetV122MaxBoundedInputWidthForSelfTest() <= ScaleLogical(form, 340),
-            "Settings single-line editor fields stay bounded instead of filling the whole page");
-
         foreach (var key in new[] { "Interaction", "Alerts", "Speech", "Advanced", "Appearance" })
         {
             form.ShowV122PageForSelfTest(key);
             PerformLayoutTree(form);
-            metrics = form.GetV122DpiSafeMetricsForSelfTest();
+            var metrics = form.GetV122DpiSafeMetricsForSelfTest();
             Check(97, metrics.SelectedPages == 1, "page switching keeps exactly one selected navigation item");
             Check(98, metrics.ActiveKey == key, "page switching activates only the requested page");
         }
@@ -82,25 +84,19 @@ internal static class SettingsUiV122SelfTest
         };
 
         using var form = new ChatTabEditorForm(tab, isNew: true);
+        var logical = form.GetV122CompactMetricsForSelfTest();
+        Check(111, logical.DefaultClient.Width <= 740 && logical.DefaultClient.Height <= 660,
+            "Add Chat Tab opens at a compact default size");
+        Check(112, logical.MinimumWindow.Width <= 640 && logical.MinimumWindow.Height <= 520,
+            "Add Chat Tab keeps a compact resizable minimum");
+        Check(113, logical.ChannelsHeight <= 160, "channel picker is compact");
+        Check(114, logical.ShowHeight <= 70 && logical.HideHeight <= 70, "filter boxes are compact");
+        Check(115, logical.NameWidth <= 320, "tab-name input is bounded instead of stretching across the dialog");
+        Check(116, logical.FooterHeight <= 60, "tab-editor footer is compact");
+        Check(117, logical.CancelText == "Cancel", "tab editor clearly labels the discard action as Cancel");
+
         _ = form.Handle;
         form.CreateControl();
-        PerformLayoutTree(form);
-
-        var metrics = form.GetV122CompactMetricsForSelfTest();
-        Check(111, metrics.DefaultClient.Width <= ScaleLogical(form, 740) &&
-                   metrics.DefaultClient.Height <= ScaleLogical(form, 660),
-            "Add Chat Tab opens at a compact default size");
-        Check(112, metrics.MinimumWindow.Width <= ScaleLogical(form, 640) &&
-                   metrics.MinimumWindow.Height <= ScaleLogical(form, 520),
-            "Add Chat Tab keeps a compact resizable minimum");
-        Check(113, metrics.ChannelsHeight <= ScaleLogical(form, 160), "channel picker is compact");
-        Check(114, metrics.ShowHeight <= ScaleLogical(form, 70) && metrics.HideHeight <= ScaleLogical(form, 70),
-            "filter boxes are compact");
-        Check(115, metrics.NameWidth <= ScaleLogical(form, 320),
-            "tab-name input is bounded instead of stretching across the dialog");
-        Check(116, metrics.FooterHeight <= ScaleLogical(form, 60), "tab-editor footer is compact");
-        Check(117, metrics.CancelText == "Cancel", "tab editor clearly labels the discard action as Cancel");
-
         form.Size = form.MinimumSize;
         PerformLayoutTree(form);
         var save = RequireButton(form, "Save tab", 118);
@@ -109,12 +105,6 @@ internal static class SettingsUiV122SelfTest
         AssertInsideClient(form, cancel, "tab-editor Cancel button", 121);
         AssertButtonTextFits(save, "tab-editor Save button", 122);
         AssertButtonTextFits(cancel, "tab-editor Cancel button", 123);
-    }
-
-    private static int ScaleLogical(Form form, int logicalPixels)
-    {
-        var dpi = Math.Max(96, form.DeviceDpi);
-        return (int)Math.Ceiling(logicalPixels * dpi / 96d);
     }
 
     private static void PerformLayoutTree(Control parent)
