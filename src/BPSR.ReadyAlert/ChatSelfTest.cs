@@ -152,8 +152,15 @@ internal static class ChatSelfTest
             TextOpacity = 0,
             WindowOpacity = 500,
             FontSize = 99,
+            CollapseHotkey = "Ctrl+Alt+F9",
             CollapseSide = "Diagonal",
-            MaxHistory = 9
+            MaxHistory = 9,
+            HighlightSoundRules =
+            [
+                new ChatSoundRule { Enabled = true, Match = "one" },
+                new ChatSoundRule { Enabled = true, Match = "two" },
+                new ChatSoundRule { Enabled = true, Match = "three" }
+            ]
         };
         settings.Normalize();
 
@@ -164,11 +171,13 @@ internal static class ChatSelfTest
         Assert(all.Channels.Contains((int)ChatChannel.Null), "All includes Null");
         Assert(all.Channels.Contains((int)ChatChannel.Newbie), "All includes Newbie");
         Assert(all.Channels.Contains((int)ChatChannel.Play), "All includes Play");
-        Assert(settings.BackgroundOpacity == 10, "background opacity clamp");
-        Assert(settings.ToolbarOpacity == 100, "toolbar opacity clamp");
-        Assert(settings.TextOpacity == 40, "text opacity clamp");
+        Assert(settings.BackgroundOpacity == 82, "removed background opacity uses fixed v1.2.4 preset");
+        Assert(settings.ToolbarOpacity == 92, "removed toolbar opacity uses fixed v1.2.4 preset");
+        Assert(settings.TextOpacity == 100, "removed text opacity uses fixed v1.2.4 preset");
         Assert(settings.WindowOpacity == 100, "window opacity clamp");
         Assert(Math.Abs(settings.FontSize - 24F) < 0.01F, "font size clamp");
+        Assert(settings.CollapseHotkey.Length == 0, "removed collapse hotkey is cleared during normalization");
+        Assert(settings.HighlightSoundRules.Count == 2, "v1.2.4 keeps at most two sound rules");
         Assert(settings.CollapseSide == "Right", "collapse side normalization");
         Assert(settings.MaxHistory == 10, "history clamp");
         Assert(!settings.ChannelColors.ContainsKey(12345), "unknown channel color removed");
