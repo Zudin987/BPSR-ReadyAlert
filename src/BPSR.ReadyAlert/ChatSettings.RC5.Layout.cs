@@ -244,6 +244,9 @@ internal sealed partial class ChatGeneralSettingsForm
         value.ForeColor = ChatUiTheme.SettingsText;
         value.Font = ChatUiTheme.UiFont(9F);
         value.TextAlign = ContentAlignment.MiddleRight;
+        value.AutoSize = false;
+        value.Dock = DockStyle.Fill;
+        value.Margin = Padding.Empty;
 
         var syncing = false;
         visual.ValueChanged += (_, _) =>
