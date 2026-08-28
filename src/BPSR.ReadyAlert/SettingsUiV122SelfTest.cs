@@ -26,8 +26,10 @@ internal static class SettingsUiV122SelfTest
 
         var metrics = form.GetV122CompactMetricsForSelfTest();
         Check(91, metrics.BufferedHost, "Settings content host is double-buffered");
-        Check(92, metrics.SidebarWidth is > 0 and <= ScaleLogical(form, 180), "Settings sidebar stays compact");
-        Check(93, metrics.FooterHeight is > 0 and <= ScaleLogical(form, 62), "Settings footer stays compact");
+        Check(92, metrics.SidebarWidth > 0 && metrics.SidebarWidth <= ScaleLogical(form, 180),
+            "Settings sidebar stays compact");
+        Check(93, metrics.FooterHeight > 0 && metrics.FooterHeight <= ScaleLogical(form, 62),
+            "Settings footer stays compact");
         Check(94, metrics.MaxRuleHeight <= ScaleLogical(form, 70), "Settings multiline rule inputs are not oversized");
         Check(95, metrics.MaxNavHeight <= ScaleLogical(form, 36), "Settings navigation uses compact rows");
         Check(96, metrics.SelectedPages == 1 && metrics.ActiveKey == "Appearance",
