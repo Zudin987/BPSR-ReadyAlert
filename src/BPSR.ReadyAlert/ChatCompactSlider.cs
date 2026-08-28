@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -17,6 +18,8 @@ internal sealed class ChatCompactSlider : Control
 
     internal event EventHandler? ValueChanged;
 
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal int Minimum
     {
         get => _minimum;
@@ -29,6 +32,8 @@ internal sealed class ChatCompactSlider : Control
         }
     }
 
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal int Maximum
     {
         get => _maximum;
@@ -40,6 +45,8 @@ internal sealed class ChatCompactSlider : Control
         }
     }
 
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal int Value
     {
         get => _value;
