@@ -46,9 +46,9 @@ internal sealed partial class ChatGeneralSettingsForm : Form
 
     private readonly CheckBox[] _soundRuleEnabled =
     [
-        new() { Text = "Sound rule 1" },
-        new() { Text = "Sound rule 2" },
-        new() { Text = "Sound rule 3" }
+        new() { Text = "Enable sound rule 1" },
+        new() { Text = "Enable sound rule 2" },
+        new() { Text = "Enable sound rule 3" }
     ];
     private readonly TextBox[] _soundRuleMatch = [new(), new(), new()];
     private readonly TextBox[] _soundRulePath = [new(), new(), new()];
