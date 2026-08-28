@@ -14,6 +14,11 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         if (IsDisposed || Disposing) return;
 
+        // Keep v1.2.5 geometry out of the visible gear-click path. Normally this was
+        // already applied during hidden prewarm; this also covers the soft fallback
+        // path where Settings had to be constructed only when the gear was clicked.
+        ApplyV125SettingsPolish();
+
         _v121DirtyRefreshTimer.Stop();
         var previousSuppress = _v121SuppressDirtyTracking;
         _v121SuppressDirtyTracking = true;
@@ -76,6 +81,9 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         if (IsDisposed || Disposing || Visible) return;
 
+        // v1.2.5 Alerts widths must be part of the hidden/prewarmed geometry rather
+        // than causing a visible relayout on the first Settings open.
+        ApplyV125SettingsPolish();
         Owner = owner;
         TopMost = owner.TopMost;
         CreateV124ControlTree(this);

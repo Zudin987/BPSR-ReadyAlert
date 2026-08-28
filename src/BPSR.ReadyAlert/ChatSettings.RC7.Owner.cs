@@ -11,6 +11,7 @@ internal sealed partial class ChatGeneralSettingsForm
         // v1.2.4: always use the native Standard/AutoCheck interaction path for
         // Settings checkboxes. Do this after every page (including Speech) exists.
         ApplyV124InteractiveCheckboxes();
+        ApplyV125SettingsPolish();
         InstallV121UsabilityTracking();
 
         // WinForms has already applied monitor DPI scaling by this point. Refresh

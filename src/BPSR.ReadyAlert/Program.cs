@@ -28,6 +28,7 @@ internal static class Program
                 RunSmokeStep(SettingsUiV122SelfTest.Run, 21);
                 RunSmokeStep(SettingsUiV123SelfTest.Run, 22);
                 RunSmokeStep(SettingsUiV124SelfTest.Run, 23);
+                RunSmokeStep(SettingsUiV125SelfTest.Run, 24);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -143,11 +144,11 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            // A nested assertion is free to use its own diagnostics internally, but
-            // the process exit code must identify the top-level smoke suite that
-            // actually failed. This prevents stale assertion numbers from masking
-            // which regression group needs inspection.
-            Environment.ExitCode = failureCode;
+            // Preserve high-range assertion codes from newer focused suites so CI
+            // identifies the exact contract that failed. Older suites keep their
+            // established top-level group code to avoid changing release diagnostics.
+            var specificCode = Environment.ExitCode;
+            Environment.ExitCode = specificCode >= 100 ? specificCode : failureCode;
             var owner = step.Method.DeclaringType?.Name ?? "unknown";
             throw new InvalidOperationException(
                 $"Smoke step {failureCode} ({owner}.{step.Method.Name}) failed.",
