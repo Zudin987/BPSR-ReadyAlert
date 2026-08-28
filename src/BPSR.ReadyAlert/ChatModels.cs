@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace BPSR.ReadyAlert;
 
 internal enum ChatChannel
@@ -5,43 +7,50 @@ internal enum ChatChannel
     Null = 0,
     World = 1,
     Local = 2,
-    Team = 3,
-    Union = 4,
+    Group = 3,
+    Team = 4,
     Private = 5,
-    Group = 6,
-    TopNotice = 7,
-    Play = 8,
+    Union = 6,
+    System = 7,
+    TopNotice = 8,
     Newbie = 9,
-    System = 99
+    Play = 10
 }
 
 internal enum ChatMessageKind
 {
-    Text = 0,
-    TextNotice = 1,
-    MultiLanguageNotice = 2,
-    Sticker = 3,
-    Picture = 4,
-    Voice = 5,
-    Hypertext = 6
+    Text,
+    Sticker,
+    Voice,
+    Image,
+    Unknown
 }
 
-internal readonly record struct ChatMessageEvent(
+internal sealed record ChatMessageEvent(
+    long SequenceId,
+    DateTime Timestamp,
+    ChatChannel Channel,
+    ChatMessageKind Kind,
     long SenderId,
     string SenderName,
     int SenderLevel,
-    ChatChannel Channel,
-    DateTime Timestamp,
-    ChatMessageKind Kind,
     string Text,
-    long SequenceId = 0);
+    int PayloadLength,
+    int Flags);
+
+internal sealed class ChatBlockedUser
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateTime BlockedAtUtc { get; set; } = DateTime.UtcNow;
+}
 
 internal sealed class ChatTabSettings
 {
     public long Id { get; set; } = DateTime.UtcNow.Ticks;
-    public string Name { get; set; } = "New Tab";
+    public string Name { get; set; } = "Chat";
     public List<int> Channels { get; set; } = [];
-    public int MinLevel { get; set; } = 50;
+    public int MinLevel { get; set; } = 1;
     public string ShowIfMatches { get; set; } = string.Empty;
     public string HideIfMatches { get; set; } = string.Empty;
 
@@ -54,13 +63,6 @@ internal sealed class ChatTabSettings
         ShowIfMatches = ShowIfMatches,
         HideIfMatches = HideIfMatches
     };
-}
-
-internal sealed class ChatBlockedUser
-{
-    public long Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public DateTime BlockedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 internal sealed class ChatSoundRule
@@ -85,9 +87,9 @@ internal sealed class ChatOverlaySettings
     public bool ShowTimeAsAgo { get; set; } = true;
     public bool HideStickers { get; set; } = false;
 
-    // Overlay presentation. WindowOpacity is the real Win32 whole-window alpha.
-    // Background/toolbar/text opacity are rendered independently inside the
-    // owner-drawn overlay so text can stay readable without a heavy solid window.
+    // v1.2.4 exposes one user-facing transparency control: WindowOpacity. The
+    // internal layer values remain serialized only for backward-compatible reads
+    // and are normalized to one stable rendering preset.
     public int BackgroundOpacity { get; set; } = 82;
     public int ToolbarOpacity { get; set; } = 92;
     public int TextOpacity { get; set; } = 100;
@@ -100,15 +102,13 @@ internal sealed class ChatOverlaySettings
     public bool ShowZebraStripes { get; set; } = true;
     public bool ShowColorBand { get; set; } = true;
 
-    // Game-overlay interaction. Click-through always has a global hotkey so the
-    // user cannot permanently lock themselves out of the window with the mouse.
+    // Click-through keeps one global recovery hotkey. Collapse remains available
+    // from the overlay button but no longer has a global hotkey in v1.2.4.
     public bool ClickThrough { get; set; } = false;
     public string ClickThroughHotkey { get; set; } = "Ctrl+Shift+F10";
-    public string CollapseHotkey { get; set; } = "Ctrl+Shift+F9";
+    public string CollapseHotkey { get; set; } = string.Empty;
     public string CollapseSide { get; set; } = "Right";
 
-    // Visual highlight rule. Sound rules are independent so each keyword can use
-    // a different notification WAV while sharing one standardized volume.
     public string HighlightIfMatches { get; set; } = string.Empty;
     public string HighlightColor { get; set; } = "#6B5A3A";
     public List<ChatSoundRule> HighlightSoundRules { get; set; } = [];
@@ -136,15 +136,15 @@ internal sealed class ChatOverlaySettings
 
     internal void Normalize()
     {
-        BackgroundOpacity = Math.Clamp(BackgroundOpacity, 10, 100);
-        ToolbarOpacity = Math.Clamp(ToolbarOpacity, 15, 100);
-        TextOpacity = Math.Clamp(TextOpacity, 40, 100);
+        BackgroundOpacity = 82;
+        ToolbarOpacity = 92;
+        TextOpacity = 100;
         WindowOpacity = Math.Clamp(WindowOpacity, 25, 100);
         FontFamily = string.IsNullOrWhiteSpace(FontFamily) ? "Segoe UI" : FontFamily.Trim();
         if (FontFamily.Length > 100) FontFamily = FontFamily[..100];
         FontSize = Math.Clamp(float.IsFinite(FontSize) ? FontSize : 9F, 8F, 24F);
         ClickThroughHotkey = NormalizeHotkeyText(ClickThroughHotkey, "Ctrl+Shift+F10");
-        CollapseHotkey = NormalizeHotkeyText(CollapseHotkey, "Ctrl+Shift+F9");
+        CollapseHotkey = string.Empty;
         CollapseSide = NormalizeCollapseSide(CollapseSide);
 
         HighlightIfMatches ??= string.Empty;
@@ -169,7 +169,7 @@ internal sealed class ChatOverlaySettings
 
         HighlightSoundRules = HighlightSoundRules
             .Where(x => x is not null)
-            .Take(3)
+            .Take(2)
             .Select(x => x!)
             .ToList();
         foreach (var rule in HighlightSoundRules)
@@ -181,8 +181,6 @@ internal sealed class ChatOverlaySettings
             if (string.IsNullOrWhiteSpace(rule.Match)) rule.Enabled = false;
         }
 
-        // Clear migrated legacy values so deleting all modern rules does not make
-        // an old RC8 rule reappear on the next settings load.
         HighlightSoundEnabled = false;
         HighlightSoundPath = string.Empty;
 
@@ -248,70 +246,63 @@ internal sealed class ChatOverlaySettings
         [(int)ChatChannel.Local] = "#8FED8F",
         [(int)ChatChannel.Team] = "#FFB5C2",
         [(int)ChatChannel.Union] = "#FFD600",
-        [(int)ChatChannel.Private] = "#FFA1FF",
-        [(int)ChatChannel.Group] = "#ADD8E6",
-        [(int)ChatChannel.TopNotice] = "#FF8C00",
-        [(int)ChatChannel.Play] = "#C6A8FF",
-        [(int)ChatChannel.Newbie] = "#9FA8B2",
-        [(int)ChatChannel.System] = "#FF6347"
+        [(int)ChatChannel.Private] = "#D7A4FF",
+        [(int)ChatChannel.Group] = "#FFB5C2",
+        [(int)ChatChannel.System] = "#AFC8FF",
+        [(int)ChatChannel.TopNotice] = "#FF7A7A",
+        [(int)ChatChannel.Newbie] = "#86DEFF",
+        [(int)ChatChannel.Play] = "#C9B8FF"
     };
 
-    private static string NormalizeHotkeyText(string? value, string fallback)
+    private void AddDefaultTabs()
     {
-        value = value?.Trim() ?? string.Empty;
-        return value.Length is > 0 and <= 80 ? value : fallback;
-    }
-
-    private static string NormalizeCollapseSide(string? value)
-    {
-        if (string.Equals(value, "Left", StringComparison.OrdinalIgnoreCase)) return "Left";
-        if (string.Equals(value, "Top", StringComparison.OrdinalIgnoreCase)) return "Top";
-        if (string.Equals(value, "Bottom", StringComparison.OrdinalIgnoreCase)) return "Bottom";
-        return "Right";
+        var world = new ChatTabSettings
+        {
+            Id = 1001,
+            Name = "World",
+            Channels = [(int)ChatChannel.World, (int)ChatChannel.Newbie],
+            MinLevel = 1
+        };
+        var guild = new ChatTabSettings
+        {
+            Id = 1002,
+            Name = "Guild/Team",
+            Channels = [(int)ChatChannel.Union, (int)ChatChannel.Team, (int)ChatChannel.Group],
+            MinLevel = 1
+        };
+        var all = new ChatTabSettings
+        {
+            Id = 1003,
+            Name = "All",
+            Channels =
+            [
+                (int)ChatChannel.World, (int)ChatChannel.Newbie,
+                (int)ChatChannel.Local, (int)ChatChannel.Union,
+                (int)ChatChannel.Team, (int)ChatChannel.Group,
+                (int)ChatChannel.Private
+            ],
+            MinLevel = 1
+        };
+        Tabs = [world, guild, all];
+        LastSelectedTabId = world.Id;
     }
 
     private static string NormalizeHexColor(string? value, string fallback)
     {
         if (string.IsNullOrWhiteSpace(value)) return fallback;
-        value = value.Trim();
-        if (value.Length != 7 || value[0] != '#') return fallback;
-        for (var i = 1; i < value.Length; i++)
-        {
-            if (!Uri.IsHexDigit(value[i])) return fallback;
-        }
-        return value.ToUpperInvariant();
+        var text = value.Trim();
+        if (text.Length == 7 && text[0] == '#' &&
+            text.AsSpan(1).ToString().All(Uri.IsHexDigit)) return text.ToUpperInvariant();
+        return fallback;
     }
 
-    private void AddDefaultTabs()
+    private static string NormalizeHotkeyText(string? value, string fallback)
     {
-        Tabs.Add(new ChatTabSettings
-        {
-            Name = "World",
-            Channels = [(int)ChatChannel.World]
-        });
-        Tabs.Add(new ChatTabSettings
-        {
-            Name = "Guild / Team",
-            Channels = [(int)ChatChannel.Union, (int)ChatChannel.Group, (int)ChatChannel.Team]
-        });
-        Tabs.Add(new ChatTabSettings
-        {
-            Name = "All",
-            Channels =
-            [
-                (int)ChatChannel.Null,
-                (int)ChatChannel.World,
-                (int)ChatChannel.Local,
-                (int)ChatChannel.Team,
-                (int)ChatChannel.Union,
-                (int)ChatChannel.Private,
-                (int)ChatChannel.Group,
-                (int)ChatChannel.TopNotice,
-                (int)ChatChannel.Play,
-                (int)ChatChannel.Newbie,
-                (int)ChatChannel.System
-            ],
-            MinLevel = 1
-        });
+        var text = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        if (text.Length > 80) text = text[..80];
+        return text;
     }
+
+    private static string NormalizeCollapseSide(string? value) =>
+        value is "Left" or "Right" or "Top" or "Bottom" ? value : "Right";
 }
