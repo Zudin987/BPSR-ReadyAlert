@@ -20,13 +20,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ConcurrentQueue<ChatMessageEvent> _chatEvents = new();
     private CaptureEngine _engine;
     private ChatOverlayForm? _chatWindow;
-    private readonly AlertAudioPlayer _player;
+    private readonly CoreAlertAudioPlayer _player;
     private readonly Icon _appIcon;
     private ToolStripMenuItem? _adapterMenu;
     private ToolStripMenuItem? _volumeMenu;
     private ToolStripMenuItem? _chatMenuItem;
-    private ToolStripMenuItem? _showChatMenuItem;
-    private ToolStripMenuItem? _hideChatMenuItem;
     private bool _updatingChatToggle;
 
     internal TrayApplicationContext(
@@ -41,7 +39,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _settingsStore = settingsStore;
         _launcher = launcher;
         _capturePlan = capturePlan;
-        _player = new AlertAudioPlayer(_paths.AlertSoundPath, _settings.AlertVolume);
+        _player = new CoreAlertAudioPlayer(_paths, _settings.AlertVolume);
 
         // NotifyIcon is a small-icon surface. Explicitly request the exact 16x16
         // frame from App.ico instead of relying on Windows/System.Drawing to pick
@@ -58,13 +56,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         AppLog.Write(
             $"settings: queue={_settings.QueuePopAlert} ready={_settings.ReadyCheckAlert} " +
+            $"partyInvite={_settings.PartyInviteAlert} partyRequest={_settings.PartyRequestAlert} " +
             $"notification={_settings.DesktopNotification} chat={_settings.ChatOverlayEnabled} " +
             $"autoLaunch={_settings.AutoLaunchResonanceLogs} volume={_settings.AlertVolume}% " +
             $"adapter={_settings.NpcapDeviceName}");
         AppLog.Write($"capture: selected adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
 
-        // Party invite/request alerts are a core ReadyAlert consumer. They share the
-        // existing capture and Ready/Queue audio path, but do not depend on Chat Overlay.
+        // Party invite/request alerts are core ReadyAlert consumers. They reuse the
+        // existing capture path but have independent toggles and dedicated sounds.
         PartyAlertCaptureBridge.Configure(_events);
         ChatCaptureBridge.Configure(_chatEvents);
         ChatCaptureBridge.Enabled = _settings.ChatOverlayEnabled;
@@ -145,6 +144,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
             AppLog.Write("settings: ReadyCheckAlert=" + _settings.ReadyCheckAlert);
         };
 
+        var partyInviteItem = new ToolStripMenuItem("Party Invite Alert")
+        {
+            Checked = _settings.PartyInviteAlert,
+            CheckOnClick = true
+        };
+        partyInviteItem.CheckedChanged += (_, _) =>
+        {
+            _settings.PartyInviteAlert = partyInviteItem.Checked;
+            _settingsStore.Save(_settings);
+            AppLog.Write("settings: PartyInviteAlert=" + _settings.PartyInviteAlert);
+        };
+
+        var partyRequestItem = new ToolStripMenuItem("Party Request Alert")
+        {
+            Checked = _settings.PartyRequestAlert,
+            CheckOnClick = true
+        };
+        partyRequestItem.CheckedChanged += (_, _) =>
+        {
+            _settings.PartyRequestAlert = partyRequestItem.Checked;
+            _settingsStore.Save(_settings);
+            AppLog.Write("settings: PartyRequestAlert=" + _settings.PartyRequestAlert);
+        };
+
         var notificationItem = new ToolStripMenuItem("Desktop Notification")
         {
             Checked = _settings.DesktopNotification,
@@ -167,23 +190,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             SetChatOverlayEnabled(_chatMenuItem.Checked);
         };
 
-        _showChatMenuItem = new ToolStripMenuItem("Show Chat");
-        _showChatMenuItem.Click += (_, _) =>
-        {
-            if (!_settings.ChatOverlayEnabled)
-                SetChatOverlayEnabled(true);
-            else
-                EnsureChatWindow().ShowOverlay();
-            RefreshChatMenuState();
-        };
-
-        _hideChatMenuItem = new ToolStripMenuItem("Hide Chat");
-        _hideChatMenuItem.Click += (_, _) =>
-        {
-            _chatWindow?.HideOverlay();
-            RefreshChatMenuState();
-        };
-
         var autoLaunchItem = new ToolStripMenuItem("Auto-launch Resonance Logs CN")
         {
             Checked = _settings.AutoLaunchResonanceLogs,
@@ -197,10 +203,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         menu.Items.Add(queueItem);
         menu.Items.Add(readyItem);
+        menu.Items.Add(partyInviteItem);
+        menu.Items.Add(partyRequestItem);
         menu.Items.Add(notificationItem);
         menu.Items.Add(_chatMenuItem);
-        menu.Items.Add(_showChatMenuItem);
-        menu.Items.Add(_hideChatMenuItem);
         menu.Items.Add(autoLaunchItem);
 
         _adapterMenu = new ToolStripMenuItem();
@@ -212,8 +218,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(_volumeMenu);
         menu.Items.Add(new ToolStripSeparator());
 
-        var test = new ToolStripMenuItem("Test Ready / Queue Sound");
-        test.Click += (_, _) => PlayAlert("test");
+        var test = new ToolStripMenuItem("Test Alert Sounds");
+        var testQueue = new ToolStripMenuItem("Queue Pop");
+        testQueue.Click += (_, _) => PlayAlert("queue");
+        var testReady = new ToolStripMenuItem("Ready Check");
+        testReady.Click += (_, _) => PlayAlert("ready");
+        var testInvite = new ToolStripMenuItem("Party Invite");
+        testInvite.Click += (_, _) => PlayAlert("party-invite");
+        var testRequest = new ToolStripMenuItem("Party Request");
+        testRequest.Click += (_, _) => PlayAlert("party-request");
+        test.DropDownItems.Add(testQueue);
+        test.DropDownItems.Add(testReady);
+        test.DropDownItems.Add(testInvite);
+        test.DropDownItems.Add(testRequest);
         menu.Items.Add(test);
 
         var launch = new ToolStripMenuItem("Launch Resonance Logs CN");
@@ -318,12 +335,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             try { _chatMenuItem.Checked = _settings.ChatOverlayEnabled; }
             finally { _updatingChatToggle = false; }
         }
-
-        var visible = _chatWindow is { IsDisposed: false, Visible: true };
-        if (_showChatMenuItem is not null)
-            _showChatMenuItem.Enabled = !visible;
-        if (_hideChatMenuItem is not null)
-            _hideChatMenuItem.Enabled = _settings.ChatOverlayEnabled && visible;
     }
 
     private void RefreshAdapterMenu()
@@ -476,7 +487,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (_volumeMenu is null) return;
         _volumeMenu.Text = ReadyQueueVolumeMenuText(_settings.AlertVolume);
-        _volumeMenu.ToolTipText = "Ready Check and Queue Pop sounds only. Chat alert and TTS volumes are separate.";
+        _volumeMenu.ToolTipText = "Queue Pop, Ready Check, Party Invite and Party Request sounds. Chat alert and TTS volumes are separate.";
         _volumeMenu.DropDownItems.Clear();
 
         foreach (var volume in Enumerable.Range(0, 11).Select(i => i * 10))
@@ -492,9 +503,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     }
 
     internal static string ReadyQueueVolumeMenuText(int volume) =>
-        $"Ready / Queue Volume: {Math.Clamp(volume, 0, 100)}%";
+        $"Ready / Queue / Party Volume: {Math.Clamp(volume, 0, 100)}%";
 
     internal static int ChatUiDrainLimitForSelfTest => MaxChatUiMessagesPerTick;
+
+    internal static string[] CoreAlertMenuOrderForSelfTest =>
+        ["Queue Pop Alert", "Ready Check Alert", "Party Invite Alert", "Party Request Alert"];
+
+    internal static bool LegacyShowHideChatItemsForSelfTest => false;
 
     private void SetVolume(int volume)
     {
@@ -512,12 +528,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         while (_events.TryDequeue(out var evt))
         {
-            var enabled = evt.Kind switch
-            {
-                "queue" => _settings.QueuePopAlert,
-                "ready" => _settings.ReadyCheckAlert,
-                _ => true
-            };
+            var enabled = IsAlertEnabled(_settings, evt.Kind);
 
             AppLog.Write($"dispatch: kind={evt.Kind} enabled={enabled}");
             if (!enabled)
@@ -559,6 +570,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         chatWindow.FlushDeferredMessageBatch();
     }
 
+    private static bool IsAlertEnabled(AppSettings settings, string kind) => kind switch
+    {
+        "queue" => settings.QueuePopAlert,
+        "ready" => settings.ReadyCheckAlert,
+        "party-invite" => settings.PartyInviteAlert,
+        "party-request" => settings.PartyRequestAlert,
+        _ => true
+    };
+
+    internal static bool IsAlertEnabledForSelfTest(AppSettings settings, string kind) =>
+        IsAlertEnabled(settings, kind);
+
     private static bool IsCoreSoundEvent(string kind) =>
         kind is "queue" or "ready" or "party-invite" or "party-request";
 
@@ -589,7 +612,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            // Never replace a failed Ready/Queue sound with a Windows SystemSound:
+            // Never replace a failed core alert sound with a Windows SystemSound:
             // it has an unrelated mixer volume and can violate the user's setting.
             AppLog.Write("audio: play failed " + ex.Message);
         }
