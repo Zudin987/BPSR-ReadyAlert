@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -13,7 +14,7 @@ internal sealed partial class ChatGeneralSettingsForm : Form
 
     private readonly ChatBufferedPanel _contentHost = new();
     private readonly FlowLayoutPanel _navHost = new();
-    private readonly Dictionary<string, (ChatNavButton Button, Control Page)> _pages = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (ChatNavButton Button, ChatSettingsPagePanel Page)> _pages = new(StringComparer.Ordinal);
     private string _activePageKey = string.Empty;
     private readonly CheckBox _topMost = new() { Text = "Always on top" };
     private readonly CheckBox _compact = new() { Text = "Compact messages" };
@@ -194,13 +195,24 @@ internal sealed partial class ChatGeneralSettingsForm : Form
 
     private void RegisterPage(string key, string navText, Control page)
     {
+        if (page is not ChatSettingsPagePanel settingsPage)
+            throw new InvalidOperationException("Settings pages must use ChatSettingsPagePanel.");
+
         var button = new ChatNavButton { Text = navText, Height = 28 };
         button.Click += (_, _) => ShowPage(key);
         _navHost.Controls.Add(button);
-        page.Dock = DockStyle.Fill;
-        page.Visible = false;
-        _contentHost.Controls.Add(page);
-        _pages[key] = (button, page);
+
+        settingsPage.Dock = DockStyle.Fill;
+        settingsPage.Visible = true;
+        settingsPage.ActivePage = false;
+        _contentHost.Controls.Add(settingsPage);
+
+        // Speech is registered by the derived constructor after Appearance is
+        // already active. New background pages must not cover the active page.
+        if (_activePageKey.Length > 0)
+            settingsPage.SendToBack();
+
+        _pages[key] = (button, settingsPage);
     }
 
     private void ShowPage(string key)
@@ -208,29 +220,44 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         if (!_pages.TryGetValue(key, out var target)) return;
         if (string.Equals(_activePageKey, key, StringComparison.Ordinal))
         {
-            if (!target.Page.Visible) target.Page.Visible = true;
+            target.Page.ActivePage = true;
+            _contentHost.SuspendLayout();
+            try { _contentHost.Controls.SetChildIndex(target.Page, 0); }
+            finally { _contentHost.ResumeLayout(performLayout: false); }
             return;
         }
 
+        var started = Stopwatch.GetTimestamp();
         _contentHost.SuspendLayout();
         _navHost.SuspendLayout();
         try
         {
             if (_activePageKey.Length > 0 && _pages.TryGetValue(_activePageKey, out var previous))
             {
+                if (previous.Page.ContainsFocus)
+                    target.Button.Select();
+
                 previous.Button.Selected = false;
-                previous.Page.Visible = false;
+                previous.Page.ActivePage = false;
             }
 
             target.Button.Selected = true;
-            target.Page.Visible = true;
-            target.Page.BringToFront();
+            target.Page.ActivePage = true;
+
+            // Critical v1.2.4 change: all pages stay visible and fully realized.
+            // Changing sibling z-order is cheap; toggling Visible on these AutoSize
+            // trees caused recursive layout/handle work on every tab click.
+            _contentHost.Controls.SetChildIndex(target.Page, 0);
             _activePageKey = key;
         }
         finally
         {
             _navHost.ResumeLayout(performLayout: false);
-            _contentHost.ResumeLayout(performLayout: true);
+            _contentHost.ResumeLayout(performLayout: false);
         }
+
+        var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        if (elapsedMs >= 16d)
+            AppLog.Write($"settings: slow tab switch key={key} elapsedMs={elapsedMs:F1}");
     }
 }
