@@ -39,11 +39,11 @@ internal static class ChatUiSelfTest
         using var form = new ChatGeneralSettingsForm(settings);
         PrepareAtMinimumSize(form);
 
-        var save = FindButton(form, "Save changes") ?? throw new InvalidOperationException("Chat UI self-test failed: settings Save changes button missing");
+        var save = FindButton(form, "Save") ?? throw new InvalidOperationException("Chat UI self-test failed: settings Save button missing");
         AssertInsideClient(form, save, "settings Save");
         Assert(FindButton(form, "Appearance") is not null, "settings Appearance navigation exists");
         Assert(FindButton(form, "Interaction") is not null, "settings Interaction navigation exists");
-        Assert(FindButton(form, "Highlights & sounds") is not null, "settings alerts navigation exists");
+        Assert(FindButton(form, "Alerts") is not null, "settings Alerts navigation exists");
         Assert(FindButton(form, "Advanced") is not null, "settings Advanced navigation exists");
     }
 
