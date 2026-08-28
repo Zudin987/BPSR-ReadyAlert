@@ -24,7 +24,7 @@ internal static class SettingsUiV122SelfTest
         form.Size = form.MinimumSize;
         PerformLayoutTree(form);
 
-        var metrics = form.GetV122CompactMetricsForSelfTest();
+        var metrics = form.GetV122DpiSafeMetricsForSelfTest();
         Check(91, metrics.BufferedHost, "Settings content host is double-buffered");
         Check(92, metrics.SidebarWidth > 0 && metrics.SidebarWidth <= ScaleLogical(form, 180),
             "Settings sidebar stays compact");
@@ -41,7 +41,7 @@ internal static class SettingsUiV122SelfTest
         {
             form.ShowV122PageForSelfTest(key);
             PerformLayoutTree(form);
-            metrics = form.GetV122CompactMetricsForSelfTest();
+            metrics = form.GetV122DpiSafeMetricsForSelfTest();
             Check(97, metrics.SelectedPages == 1, "page switching keeps exactly one selected navigation item");
             Check(98, metrics.ActiveKey == key, "page switching activates only the requested page");
         }
@@ -49,7 +49,7 @@ internal static class SettingsUiV122SelfTest
         // Clicking the already-active page must be a no-op instead of forcing another
         // large WinForms visibility/layout cycle.
         form.ShowV122PageForSelfTest("Appearance");
-        var repeated = form.GetV122CompactMetricsForSelfTest();
+        var repeated = form.GetV122DpiSafeMetricsForSelfTest();
         Check(99, repeated.SelectedPages == 1 && repeated.ActiveKey == "Appearance",
             "reselecting the active Settings page is a stable no-op");
 
