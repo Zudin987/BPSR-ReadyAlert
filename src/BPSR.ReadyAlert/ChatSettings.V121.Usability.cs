@@ -13,11 +13,6 @@ internal sealed partial class ChatGeneralSettingsForm
     private string _v121SavedFingerprint = string.Empty;
     private readonly System.Windows.Forms.Timer _v121DirtyRefreshTimer = new() { Interval = 80 };
 
-    /// <summary>
-    /// Settings apply live but the window intentionally stays open. Track the
-    /// current editor state so an old "Saved" badge can never remain visible after
-    /// another edit, and make closing with unapplied changes an explicit choice.
-    /// </summary>
     private void InstallV121UsabilityTracking()
     {
         if (_v121DirtyTrackingInstalled) return;
@@ -62,9 +57,6 @@ internal sealed partial class ChatGeneralSettingsForm
             _v121SuppressDirtyTracking = true;
             try
             {
-                // RegisterHotkeys can safely turn click-through back OFF when its
-                // recovery shortcut cannot register. Reflect that runtime correction
-                // back into the still-open editor instead of leaving a false ON box.
                 _clickThrough.Checked = _settings.ClickThrough;
                 _clickHotkey.Text = _settings.ClickThroughHotkey;
                 _collapseHotkey.Text = _settings.CollapseHotkey;
@@ -128,10 +120,6 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         if (!_v121DirtyTrackingReady || _v121SuppressDirtyTracking) return;
 
-        // Rapid slider drags/text entry can fire dozens of events per second. Mark
-        // the editor dirty immediately, but defer the full tree fingerprint until
-        // input has been idle briefly. This keeps Settings interaction responsive
-        // while still detecting an exact revert back to the saved state.
         if (_applyStatus.Text != "Unsaved")
             _applyStatus.Text = "Unsaved";
         _applyStatus.ForeColor = ChatUiTheme.Warning;
@@ -165,7 +153,7 @@ internal sealed partial class ChatGeneralSettingsForm
             else
             {
                 _applyStatus.Text = _v121EverSaved ? "Saved ✓" : string.Empty;
-                _applyStatus.ForeColor = _v121EverSaved ? ChatUiTheme.Success : ChatUiTheme.Muted;
+                _applyStatus.ForeColor = _v121EverSaved ? ChatUiTheme.Success : ChatUiTheme.SettingsMuted;
             }
         }
     }
@@ -190,7 +178,7 @@ internal sealed partial class ChatGeneralSettingsForm
                 "Closing this window keeps them active until ReadyAlert exits, but they may be lost after restart. Close anyway?",
                 "Settings are not saved"),
             _ => (
-                "Discard the changes you have not applied?\r\n\r\nSettings already applied with 'Save changes' will be kept.",
+                "Discard the changes you have not applied?\r\n\r\nSettings already applied with 'Save' will be kept.",
                 "Unapplied Chat Overlay changes")
         };
 
@@ -303,7 +291,7 @@ internal sealed partial class ChatGeneralSettingsForm
     internal string GetV121CancelButtonTextForSelfTest()
     {
         InstallV121UsabilityTracking();
-        return FindButtonByText(this, "Cancel")?.Text ?? string.Empty;
+        return FindButtonByText(this, "Close")?.Text ?? string.Empty;
     }
 
     internal void SetV121TtsVolumeForSelfTest(int volume)

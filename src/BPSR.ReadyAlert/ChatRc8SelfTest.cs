@@ -31,12 +31,12 @@ internal static class ChatRc8SelfTest
         form.CreateControl();
         PerformLayoutTree(form);
 
-        var save = FindButton(form, "Save changes") ?? throw new InvalidOperationException("RC8 self-test: Save changes button missing");
-        var reset = FindButton(form, "Reset defaults") ?? throw new InvalidOperationException("RC8 self-test: Reset defaults button missing");
-        var cancel = FindButton(form, "Cancel") ?? throw new InvalidOperationException("RC8 self-test: Settings Cancel button missing");
+        var save = FindButton(form, "Save") ?? throw new InvalidOperationException("RC8 self-test: Settings Save button missing");
+        var reset = FindButton(form, "Reset") ?? throw new InvalidOperationException("RC8 self-test: Settings Reset button missing");
+        var close = FindButton(form, "Close") ?? throw new InvalidOperationException("RC8 self-test: Settings Close button missing");
         Assert(save.DialogResult == DialogResult.None, "settings Save does not carry a closing DialogResult");
         Assert(reset.DialogResult == DialogResult.None, "settings Reset does not carry a closing DialogResult");
-        Assert(cancel.DialogResult == DialogResult.Cancel, "settings Cancel is the explicit closing/discard action");
+        Assert(close.DialogResult == DialogResult.Cancel, "settings Close is the explicit closing/discard action");
 
         save.PerformClick();
         Assert(!form.IsDisposed && form.DialogResult == DialogResult.None, "settings Save applies without closing the dialog");

@@ -8,10 +8,8 @@ internal sealed partial class ChatGeneralSettingsForm
     private readonly HashSet<Control> _v122CompactedPages = [];
 
     /// <summary>
-    /// v1.2.2 density pass: keep the WinForms UI native and immediate, but reduce
-    /// unnecessary whitespace, oversized fields and repeated explanatory copy.
-    /// Each page tree receives geometry compaction only once because Speech is
-    /// registered by the outer constructor after the base Settings pages are built.
+    /// Shared density pass. v1.2.3 keeps the proven one-shot/DPI-safe behavior from
+    /// v1.2.2 but applies it to the new ZDPS-style top-tab/flat-section layout.
     /// </summary>
     private void InstallV122CompactUi()
     {
@@ -25,30 +23,25 @@ internal sealed partial class ChatGeneralSettingsForm
         {
             if (!_v122CompactedPages.Add(entry.Page)) continue;
 
-            entry.Button.Height = 36;
-            entry.Button.Padding = new Padding(12, 0, 7, 0);
-            entry.Button.Margin = new Padding(0, 0, 0, 2);
-
-            entry.Page.Padding = new Padding(20, 16, 20, 20);
-            if (entry.Page.Tag is TableLayoutPanel stack && stack.Controls.Count > 0)
-                stack.Controls[0].Margin = new Padding(0, 0, 0, 12);
+            entry.Button.Height = 28;
+            entry.Button.Padding = new Padding(10, 0, 10, 0);
+            entry.Button.Margin = new Padding(0, 0, 2, 0);
+            entry.Page.Padding = new Padding(7);
 
             CompactV122Tree(entry.Page);
         }
 
-        _highlight.Height = 70;
-        foreach (var box in _soundRuleMatch) box.Height = 58;
-        _ttsOwnUsername.Width = Math.Min(320, Math.Max(240, _ttsOwnUsername.Width));
-        _ttsOwnUsername.MaximumSize = new Size(320, 0);
-        _fontFamily.Width = Math.Min(300, Math.Max(220, _fontFamily.Width));
-        _fontFamily.MaximumSize = new Size(300, 0);
-        _clickHotkey.MaximumSize = new Size(300, 0);
-        _collapseHotkey.MaximumSize = new Size(300, 0);
+        _highlight.Height = 54;
+        foreach (var box in _soundRuleMatch) box.Height = 48;
+        _ttsOwnUsername.Width = Math.Min(280, Math.Max(220, _ttsOwnUsername.Width));
+        _ttsOwnUsername.MaximumSize = new Size(280, 0);
+        _fontFamily.Width = Math.Min(260, Math.Max(200, _fontFamily.Width));
+        _fontFamily.MaximumSize = new Size(260, 0);
+        _clickHotkey.MaximumSize = new Size(260, 0);
+        _collapseHotkey.MaximumSize = new Size(260, 0);
 
         var footer = FindV122Footer();
-        if (footer is not null) footer.Height = 60;
-        var sidebar = FindV122Sidebar();
-        if (sidebar is not null) sidebar.Width = 176;
+        if (footer is not null) footer.Height = 52;
     }
 
     private static void CompactV122Tree(Control parent)
@@ -57,51 +50,51 @@ internal sealed partial class ChatGeneralSettingsForm
         {
             switch (child)
             {
-                case ChatCardPanel card:
-                    card.Padding = new Padding(14);
-                    card.Margin = new Padding(0, 0, 0, 10);
+                case ChatSettingsSectionPanel section:
+                    section.Padding = Padding.Empty;
+                    section.Margin = new Padding(0, 0, 0, 8);
+                    section.BackColor = ChatUiTheme.SettingsWindow;
                     break;
 
                 case TableLayoutPanel table:
+                    table.BackColor = ChatUiTheme.SettingsWindow;
                     CompactV122Columns(table);
                     break;
 
                 case FlowLayoutPanel flow:
-                    if (flow.Padding.Bottom >= 12)
-                        flow.Padding = new Padding(flow.Padding.Left, flow.Padding.Top, flow.Padding.Right, 8);
+                    flow.BackColor = ChatUiTheme.SettingsWindow;
+                    break;
+
+                case CheckBox check:
+                    ChatUiTheme.StyleSettingsCheckBox(check);
                     break;
 
                 case TrackBar slider:
+                    // Backing TrackBars are intentionally hidden behind the compact
+                    // custom slider surface but remain in the tree for state/tests.
                     slider.AutoSize = false;
-                    slider.Height = 30;
+                    if (slider.Visible) slider.Height = 24;
                     break;
 
-                case TextBox box when box.Multiline:
-                    box.Height = Math.Min(box.Height, 70);
-                    break;
-
-                case TextBox box when !box.ReadOnly:
-                    box.MaximumSize = new Size(340, 0);
+                case TextBox box:
+                    ChatUiTheme.StyleSettingsTextBox(box, box.Multiline);
+                    if (box.Multiline) box.Height = Math.Min(box.Height, 54);
+                    else if (!box.ReadOnly) box.MaximumSize = new Size(300, 0);
                     break;
 
                 case ComboBox combo:
-                    combo.MaximumSize = new Size(320, 0);
+                    ChatUiTheme.StyleSettingsComboBox(combo);
+                    combo.MaximumSize = new Size(280, 0);
                     break;
 
                 case NumericUpDown numeric:
-                    numeric.Width = Math.Min(numeric.Width, 110);
+                    ChatUiTheme.StyleSettingsNumeric(numeric);
+                    numeric.Width = Math.Min(numeric.Width, 100);
                     break;
 
                 case Label label:
-                    if (label.Margin.Bottom >= 14)
-                        label.Margin = new Padding(label.Margin.Left, label.Margin.Top, label.Margin.Right, 8);
-                    if (label.Font.Size >= 17F)
-                        label.Font = ChatUiTheme.UiFont(16F, label.Font.Style);
-                    break;
-
-                case Panel panel when panel.Height == 54:
-                    panel.Height = 44;
-                    panel.Padding = new Padding(panel.Padding.Left, Math.Min(panel.Padding.Top, 3), panel.Padding.Right, Math.Min(panel.Padding.Bottom, 8));
+                    if (label.ForeColor == ChatUiTheme.Muted)
+                        label.ForeColor = ChatUiTheme.SettingsMuted;
                     break;
             }
 
@@ -112,10 +105,6 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private static void CompactV122Columns(TableLayoutPanel table)
     {
-        // Keep field/slider label columns at their proven widths so localized/DPI-scaled
-        // text cannot spill into the control column. Compact only secondary action/value
-        // columns where the content has a fixed short label. Page-level one-shot
-        // compaction above prevents a 132 -> 112 result being compacted again as 112.
         for (var i = 0; i < table.ColumnStyles.Count; i++)
         {
             var style = table.ColumnStyles[i];
@@ -165,7 +154,7 @@ internal sealed partial class ChatGeneralSettingsForm
         ["Three independent audio volumes"] = "Audio volumes",
         ["Ready / Queue volume is in the tray menu. Chat alert volume controls keyword and Private / Talk sounds. TTS volume above controls spoken Guild / Party chat only. Changing one does not change either of the others."] = "Ready / Queue, Chat alerts and TTS each keep their own volume.",
         ["No API key — Google Translate web service"] = "Google web service",
-        ["This uses undocumented Google Translate/gTTS-style web endpoints, not Google Cloud. Only messages needed for enabled translation/TTS channels are sent to Google. Google can rate-limit or change the service without notice; failures never block the overlay or packet capture."] = "No API key. Only enabled translation/TTS chat is sent to Google. TTS translates to English first when possible. Google can rate-limit or change these web endpoints."
+        ["This uses undocumented Google Translate/gTTS-style web endpoints, not Google Cloud. Only messages needed for enabled translation/TTS channels are sent to Google. Google can rate-limit or change the service without notice; failures never block the overlay or packet capture."] = "No API key. Only enabled translation/TTS chat is sent to Google. Google can rate-limit or change these endpoints."
     };
 
     private static void ReplaceV122Copy(Control parent)
@@ -204,11 +193,7 @@ internal sealed partial class ChatGeneralSettingsForm
     private Panel? FindV122Footer() =>
         Controls.OfType<Panel>().FirstOrDefault(x => x.Dock == DockStyle.Bottom);
 
-    private Panel? FindV122Sidebar()
-    {
-        var shell = Controls.OfType<Panel>().FirstOrDefault(x => x.Dock == DockStyle.Fill);
-        return shell?.Controls.OfType<Panel>().FirstOrDefault(x => x.Dock == DockStyle.Left);
-    }
+    private Panel? FindV122Sidebar() => null;
 
     internal void ShowV122PageForSelfTest(string key) => ShowPage(key);
 }

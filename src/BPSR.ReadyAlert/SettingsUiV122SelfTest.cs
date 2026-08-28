@@ -19,12 +19,9 @@ internal static class SettingsUiV122SelfTest
         speech.Normalize();
 
         using var form = new ChatGeneralSettingsForm(chat, speech);
-
-        // Logical compact dimensions are now production constants used directly by
-        // the UI. The regression value comes from testing the actual WinForms result,
-        // not tautological constant-vs-literal assertions.
         var initial = form.GetV122DpiSafeMetricsForSelfTest();
         Check(91, initial.BufferedHost, "Settings content host is double-buffered");
+        Check(92, initial.SidebarWidth == 0, "Settings no longer reserves a left sidebar");
         Check(96, initial.SelectedPages == 1 && initial.ActiveKey == "Appearance",
             "Settings starts with exactly one selected page");
 
@@ -42,24 +39,22 @@ internal static class SettingsUiV122SelfTest
             Check(98, metrics.ActiveKey == key, "page switching activates only the requested page");
         }
 
-        // Clicking the already-active page must be a no-op instead of forcing another
-        // large WinForms visibility/layout cycle.
         form.ShowV122PageForSelfTest("Appearance");
         var repeated = form.GetV122DpiSafeMetricsForSelfTest();
         Check(99, repeated.SelectedPages == 1 && repeated.ActiveKey == "Appearance",
             "reselecting the active Settings page is a stable no-op");
 
-        var save = RequireButton(form, "Save changes", 100);
-        var cancel = RequireButton(form, "Cancel", 101);
-        var reset = RequireButton(form, "Reset defaults", 102);
+        var save = RequireButton(form, "Save", 100);
+        var close = RequireButton(form, "Close", 101);
+        var reset = RequireButton(form, "Reset", 102);
         AssertInsideClient(form, save, "Settings Save button", 103);
-        AssertInsideClient(form, cancel, "Settings Cancel button", 104);
+        AssertInsideClient(form, close, "Settings Close button", 104);
         AssertInsideClient(form, reset, "Settings Reset button", 105);
         AssertButtonTextFits(save, "Settings Save button", 106);
-        AssertButtonTextFits(cancel, "Settings Cancel button", 107);
+        AssertButtonTextFits(close, "Settings Close button", 107);
         AssertButtonTextFits(reset, "Settings Reset button", 108);
 
-        foreach (var text in new[] { "Appearance", "Interaction", "Highlights & sounds", "Speech", "Advanced" })
+        foreach (var text in new[] { "Appearance", "Interaction", "Alerts", "Speech", "Advanced" })
         {
             var nav = RequireButton(form, text, 109);
             AssertButtonTextFits(nav, $"Settings navigation '{text}'", 110);
@@ -113,7 +108,7 @@ internal static class SettingsUiV122SelfTest
         var result = FindButton(parent, text);
         if (result is not null) return result;
         Fail(code, $"'{text}' button missing");
-        throw new InvalidOperationException(); // unreachable; keeps nullable flow explicit
+        throw new InvalidOperationException();
     }
 
     private static Button? FindButton(Control parent, string text)
@@ -160,6 +155,6 @@ internal static class SettingsUiV122SelfTest
     private static void Fail(int code, string name)
     {
         Environment.ExitCode = code;
-        throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: " + name);
+        throw new InvalidOperationException("Settings UI self-test failed: " + name);
     }
 }

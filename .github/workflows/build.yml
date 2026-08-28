@@ -338,6 +338,34 @@ jobs:
             Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
             Requires Npcap to be installed.
 
+      - name: Create v1.2.3 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.3]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.3
+          name: BPSR Ready Alert v1.2.3
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.2.3 overhauls Settings with a compact ZDPS-inspired interface while preserving the existing capture, alert, translation, and TTS behavior.
+
+            Highlights:
+            - replaces the large left navigation/sidebar layout with compact horizontal top tabs;
+            - replaces large Settings cards with flat separator-style sections and a neutral charcoal palette;
+            - adds slim keyboard-accessible, DPI-aware custom sliders while retaining the existing TrackBars as hidden backing values for persistence and compatibility;
+            - keeps Ready / Queue, Chat alert, and TTS volumes fully independent, including v1.2.2 per-sample TTS volume isolation;
+            - gives Add/Edit Chat Tab the same compact Settings design without removing dirty-state or persistence safeguards;
+            - keeps buffered old-page/new-page switching and avoids post-handle geometry rewrites for responsive, DPI-safe Settings navigation;
+            - expands deterministic single-file regression coverage for slider synchronization, keyboard input, enabled state, scoped styling, top tabs, flat sections, and minimum-size behavior.
+
+            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
+            Requires Npcap to be installed.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2

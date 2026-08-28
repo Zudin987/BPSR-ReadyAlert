@@ -70,30 +70,31 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         _highlightColorValue = settings.HighlightColor;
         _privateColorValue = settings.PrivateHighlightColor;
 
-        ChatUiTheme.ApplyForm(this);
-        Text = "Chat Overlay Settings";
+        ChatUiTheme.ApplySettingsForm(this);
+        Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(920, 660);
-        MinimumSize = new Size(760, 560);
+        ClientSize = new Size(760, 680);
+        MinimumSize = new Size(620, 500);
 
         var footer = BuildFooter();
-        var shell = new Panel { Dock = DockStyle.Fill, BackColor = ChatUiTheme.Window };
-        var sidebar = BuildSidebar();
+        var shell = new Panel { Dock = DockStyle.Fill, BackColor = ChatUiTheme.SettingsWindow };
+        var topTabs = BuildTopTabs();
         _contentHost.Dock = DockStyle.Fill;
-        _contentHost.BackColor = ChatUiTheme.Window;
+        _contentHost.BackColor = ChatUiTheme.SettingsWindow;
+        _contentHost.Padding = new Padding(5, 4, 5, 4);
 
         shell.Controls.Add(_contentHost);
-        shell.Controls.Add(sidebar);
+        shell.Controls.Add(topTabs);
         Controls.Add(shell);
         Controls.Add(footer);
 
         RegisterPage("Appearance", "Appearance", BuildAppearancePage());
         RegisterPage("Interaction", "Interaction", BuildInteractionPage());
-        RegisterPage("Alerts", "Highlights & sounds", BuildAlertsPage());
+        RegisterPage("Alerts", "Alerts", BuildAlertsPage());
         RegisterPage("Advanced", "Advanced", BuildAdvancedPage());
         ShowPage("Appearance");
         InstallV122CompactUi();
@@ -104,23 +105,17 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = V122LogicalFooterHeight,
-            BackColor = ChatUiTheme.Surface,
+            Height = 52,
+            BackColor = ChatUiTheme.SettingsWindow,
             Padding = Padding.Empty
         };
-        var root = new TableLayoutPanel
+
+        var border = new Panel
         {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            BackColor = ChatUiTheme.Surface
+            Dock = DockStyle.Top,
+            Height = 1,
+            BackColor = ChatUiTheme.SettingsBorder
         };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 1F));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        root.Controls.Add(new Panel { Dock = DockStyle.Fill, BackColor = ChatUiTheme.Border, Margin = Padding.Empty }, 0, 0);
 
         var actions = new TableLayoutPanel
         {
@@ -128,29 +123,24 @@ internal sealed partial class ChatGeneralSettingsForm : Form
             ColumnCount = 7,
             RowCount = 1,
             Margin = Padding.Empty,
-            Padding = new Padding(14, 10, 14, 10),
-            BackColor = ChatUiTheme.Surface
+            Padding = new Padding(4, 8, 4, 6),
+            BackColor = ChatUiTheme.SettingsWindow
         };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        // Keep enough room for the truthful persistence state "Applied — not saved".
-        // This value deliberately sits outside the generic compact-column ranges.
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 144F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));
         actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        var reset = new Button { Text = "Reset defaults", Dock = DockStyle.Fill, Margin = Padding.Empty };
-        var save = new Button { Text = "Save changes", Dock = DockStyle.Fill, Margin = Padding.Empty };
-        var cancel = new Button { Text = "Cancel", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel, Margin = Padding.Empty };
-        ChatUiTheme.StyleSecondaryButton(reset);
-        ChatUiTheme.StylePrimaryButton(save);
-        ChatUiTheme.StyleSecondaryButton(cancel);
-        reset.Margin = Padding.Empty;
-        save.Margin = Padding.Empty;
-        cancel.Margin = Padding.Empty;
+        var save = new Button { Text = "Save", Dock = DockStyle.Fill, Margin = Padding.Empty };
+        var reset = new Button { Text = "Reset", Dock = DockStyle.Fill, Margin = Padding.Empty };
+        var cancel = new Button { Text = "Close", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel, Margin = Padding.Empty };
+        ChatUiTheme.StyleSettingsSaveButton(save);
+        ChatUiTheme.StyleSettingsButton(reset);
+        ChatUiTheme.StyleSettingsCloseButton(cancel);
 
         _applyStatus.Dock = DockStyle.Fill;
         _applyStatus.TextAlign = ContentAlignment.MiddleRight;
@@ -158,58 +148,53 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         _applyStatus.Font = ChatUiTheme.UiFont(8.5F, FontStyle.Bold);
         _applyStatus.Text = string.Empty;
 
-        reset.Click += (_, _) => ResetToDefaultsAndApply();
         save.Click += (_, _) => ApplyChanges();
-        actions.Controls.Add(reset, 0, 0);
-        actions.Controls.Add(_applyStatus, 3, 0);
-        actions.Controls.Add(cancel, 4, 0);
-        actions.Controls.Add(save, 6, 0);
-        root.Controls.Add(actions, 0, 1);
-        footer.Controls.Add(root);
+        reset.Click += (_, _) => ResetToDefaultsAndApply();
+        actions.Controls.Add(save, 0, 0);
+        actions.Controls.Add(reset, 2, 0);
+        actions.Controls.Add(_applyStatus, 4, 0);
+        actions.Controls.Add(cancel, 6, 0);
+
+        footer.Controls.Add(actions);
+        footer.Controls.Add(border);
         AcceptButton = save;
         CancelButton = cancel;
         return footer;
     }
 
-    private Panel BuildSidebar()
+    private Panel BuildTopTabs()
     {
-        var sidebar = new Panel
-        {
-            Dock = DockStyle.Left,
-            Width = V122LogicalSidebarWidth,
-            BackColor = ChatUiTheme.Window,
-            Padding = new Padding(12, 14, 10, 10)
-        };
-        var brand = new Label
+        var host = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 38,
-            Text = "SETTINGS",
-            ForeColor = ChatUiTheme.Muted,
-            Font = ChatUiTheme.UiFont(8.5F, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(8, 0, 0, 0)
-        };
-        _navHost.Dock = DockStyle.Fill;
-        _navHost.FlowDirection = FlowDirection.TopDown;
-        _navHost.WrapContents = false;
-        _navHost.AutoScroll = false;
-        _navHost.Padding = new Padding(0, 4, 0, 0);
-        _navHost.Margin = Padding.Empty;
-        _navHost.SizeChanged += (_, _) =>
-        {
-            foreach (Control child in _navHost.Controls)
-                child.Width = Math.Max(126, _navHost.ClientSize.Width - 2);
+            Height = 34,
+            BackColor = ChatUiTheme.SettingsWindow,
+            Padding = Padding.Empty
         };
 
-        sidebar.Controls.Add(_navHost);
-        sidebar.Controls.Add(brand);
-        return sidebar;
+        _navHost.Dock = DockStyle.Fill;
+        _navHost.FlowDirection = FlowDirection.LeftToRight;
+        _navHost.WrapContents = false;
+        _navHost.AutoScroll = true;
+        _navHost.Padding = new Padding(4, 3, 4, 2);
+        _navHost.Margin = Padding.Empty;
+        _navHost.BackColor = ChatUiTheme.SettingsWindow;
+
+        var accentLine = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 1,
+            BackColor = ChatUiTheme.SettingsAccent
+        };
+
+        host.Controls.Add(_navHost);
+        host.Controls.Add(accentLine);
+        return host;
     }
 
     private void RegisterPage(string key, string navText, Control page)
     {
-        var button = new ChatNavButton { Text = navText, Width = 152, Height = V122LogicalNavHeight };
+        var button = new ChatNavButton { Text = navText, Height = 28 };
         button.Click += (_, _) => ShowPage(key);
         _navHost.Controls.Add(button);
         page.Dock = DockStyle.Fill;

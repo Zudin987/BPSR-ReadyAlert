@@ -9,6 +9,7 @@ Windows companion for **Blue Protocol: Star Resonance** Ready/queue alerts with 
 - **English translation** — optional no-key translation for World, Guild and Party / Team chat.
 - **English TTS** — optional Guild / Party speech only, with its own volume and quick toggle.
 - **Independent audio controls** — Ready / Queue, Chat alerts and TTS each use a separate volume.
+- **Compact Settings** — ZDPS-inspired top tabs, flat sections, and slim accessible sliders.
 - **Portable** — self-contained Windows x64 EXE; no .NET installation required.
 
 ## Use

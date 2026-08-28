@@ -204,8 +204,8 @@ internal static class UiUxV121SelfTest
         speech.Normalize();
 
         using var form = new ChatGeneralSettingsForm(chat, speech);
-        Assert(form.GetV121CancelButtonTextForSelfTest() == "Cancel",
-            "settings footer uses Cancel rather than ambiguous Close for unapplied edits");
+        Assert(form.GetV121CancelButtonTextForSelfTest() == "Close",
+            "settings footer uses the compact Close action while unsaved-change protection remains active");
         Assert(string.IsNullOrEmpty(form.GetV121SaveStateForSelfTest()),
             "newly opened settings do not falsely claim there are unsaved edits");
 
