@@ -222,7 +222,11 @@ internal sealed partial class ChatGeneralSettingsForm
         _speechSettings.HideEmojiMessages = _hideEmoji.Checked;
         _speechSettings.HideLinkedItemMessages = _hideLinkedItems.Checked;
         _speechSettings.Normalize();
-        ChatSpeechTranslationEngine.Configure(_speechSettings);
+
+        // Only copy editor values here. The owning overlay reconfigures the shared
+        // translation/TTS engine once, with its translation-result queue attached.
+        // Avoiding a second Configure() call keeps Save responsive and prevents a
+        // needless wake/reconfiguration of the background speech worker.
     }
 
     private void LoadSpeechTranslationControls(ChatSpeechTranslationSettings source)
