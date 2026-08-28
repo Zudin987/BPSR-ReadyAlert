@@ -4,9 +4,9 @@ using System.Windows.Forms;
 namespace BPSR.ReadyAlert;
 
 /// <summary>
-/// Settings page that can stay visible/realized behind the active page without
-/// allowing keyboard focus into the background page. Keeping pages realized avoids
-/// WinForms recursively re-running Visible/AutoSize layout on every tab click.
+/// Settings page that stays visible/realized behind the active page. Keeping page
+/// trees realized avoids WinForms recursively re-running Visible/AutoSize layout on
+/// every tab click. The form owns focus routing when the logical active page changes.
 /// </summary>
 internal sealed class ChatSettingsPagePanel : Panel
 {
@@ -19,6 +19,4 @@ internal sealed class ChatSettingsPagePanel : Panel
         get => _activePage;
         set => _activePage = value;
     }
-
-    protected override bool CanSelectCore => _activePage && base.CanSelectCore;
 }
