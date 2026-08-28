@@ -5,11 +5,13 @@ namespace BPSR.ReadyAlert;
 
 internal sealed partial class ChatGeneralSettingsForm
 {
+    private readonly HashSet<Control> _v122CompactedPages = [];
+
     /// <summary>
     /// v1.2.2 density pass: keep the WinForms UI native and immediate, but reduce
     /// unnecessary whitespace, oversized fields and repeated explanatory copy.
-    /// This method is intentionally idempotent because the Speech page is registered
-    /// by the outer constructor after the base Settings pages are built.
+    /// Each page tree receives geometry compaction only once because Speech is
+    /// registered by the outer constructor after the base Settings pages are built.
     /// </summary>
     private void InstallV122CompactUi()
     {
@@ -21,6 +23,8 @@ internal sealed partial class ChatGeneralSettingsForm
 
         foreach (var entry in _pages.Values)
         {
+            if (!_v122CompactedPages.Add(entry.Page)) continue;
+
             entry.Button.Height = 36;
             entry.Button.Padding = new Padding(12, 0, 7, 0);
             entry.Button.Margin = new Padding(0, 0, 0, 2);
@@ -110,7 +114,8 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         // Keep field/slider label columns at their proven widths so localized/DPI-scaled
         // text cannot spill into the control column. Compact only secondary action/value
-        // columns where the content has a fixed short label.
+        // columns where the content has a fixed short label. Page-level one-shot
+        // compaction above prevents a 132 -> 112 result being compacted again as 112.
         for (var i = 0; i < table.ColumnStyles.Count; i++)
         {
             var style = table.ColumnStyles[i];
@@ -206,23 +211,4 @@ internal sealed partial class ChatGeneralSettingsForm
     }
 
     internal void ShowV122PageForSelfTest(string key) => ShowPage(key);
-
-    internal (int SelectedPages, bool BufferedHost, int SidebarWidth, int FooterHeight, int MaxRuleHeight, int MaxNavHeight, string ActiveKey)
-        GetV122CompactMetricsForSelfTest()
-    {
-        InstallV122CompactUi();
-        var selected = _pages.Values.Count(x => x.Button.Selected);
-        var sidebar = FindV122Sidebar();
-        var footer = FindV122Footer();
-        var maxRuleHeight = new[] { _highlight.Height }.Concat(_soundRuleMatch.Select(x => x.Height)).Max();
-        var maxNav = _pages.Values.Select(x => x.Button.Height).DefaultIfEmpty(0).Max();
-        return (
-            selected,
-            _contentHost is ChatBufferedPanel,
-            sidebar?.Width ?? 0,
-            footer?.Height ?? 0,
-            maxRuleHeight,
-            maxNav,
-            _activePageKey);
-    }
 }
