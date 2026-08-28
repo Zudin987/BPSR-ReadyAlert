@@ -312,6 +312,32 @@ jobs:
             Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
             Requires Npcap to be installed.
 
+      - name: Create v1.2.2 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.2]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.2
+          name: BPSR Ready Alert v1.2.2
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.2.2 fixes TTS volume isolation and refreshes the Settings experience.
+
+            Highlights:
+            - TTS volume is now applied directly to decoded speech samples instead of the shared Windows WaveOut session, so it cannot reduce Ready / Queue or chat-alert playback;
+            - Settings page switching updates only the outgoing/incoming page on a buffered surface to reduce WinForms layout/repaint work;
+            - Settings uses a more compact, minimalist layout with shorter copy, smaller controls, bounded input widths, and safer minimum-size behavior;
+            - Add/Edit Chat Tab is smaller and cleaner with compact filters/channel selection, a clear Cancel action, and unsaved-change protection;
+            - regression coverage verifies TTS sample gain isolation, compact UI dimensions, navigation state, and minimum-size action placement.
+
+            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
+            Requires Npcap to be installed.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
