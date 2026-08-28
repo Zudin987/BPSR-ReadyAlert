@@ -83,11 +83,20 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private static void CreateV124ControlTree(Control control)
     {
-        control.CreateControl();
+        // CreateControl() may skip effectively-hidden descendants. Accessing Handle
+        // explicitly realizes them even though the modal form itself is not shown.
+        // This is intentional: the cost is paid during idle prewarm, not on click.
+        if (!control.IsHandleCreated)
+            _ = control.Handle;
+
         foreach (Control child in control.Controls)
             CreateV124ControlTree(child);
         control.PerformLayout();
     }
 
     internal bool AreV124InstalledFontsDeferredForSelfTest() => !_fontFamiliesLoaded;
+
+    internal (bool HandleReady, bool Visible, DialogResult Result, int TtsVolume)
+        GetV124ReuseStateForSelfTest() =>
+        (IsHandleCreated, Visible, DialogResult, _ttsVolume.Value);
 }
