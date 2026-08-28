@@ -234,6 +234,7 @@ internal sealed partial class ChatGeneralSettingsForm
             Value = slider.Value,
             Dock = DockStyle.Fill,
             AccessibleName = label,
+            AccessibleDescription = hint,
             BackColor = ChatUiTheme.SettingsWindow,
             ForeColor = ChatUiTheme.SettingsText,
             Enabled = slider.Enabled
@@ -289,24 +290,16 @@ internal sealed partial class ChatGeneralSettingsForm
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 44F));
         row.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        var labels = new FlowLayoutPanel
+        var labels = new Panel
         {
             Dock = DockStyle.Fill,
-            AutoSize = false,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            Padding = new Padding(0, 2, 12, 0),
+            Padding = new Padding(0, 5, 12, 0),
             Margin = Padding.Empty,
             BackColor = ChatUiTheme.SettingsWindow
         };
-        labels.Controls.Add(ChatUiTheme.SettingsFieldLabel(label));
-        if (!string.IsNullOrWhiteSpace(hint))
-        {
-            var hintLabel = ChatUiTheme.SettingsHint(hint);
-            hintLabel.MaximumSize = new Size(195, 0);
-            hintLabel.Margin = new Padding(20, 0, 0, 0);
-            labels.Controls.Add(hintLabel);
-        }
+        var labelControl = ChatUiTheme.SettingsFieldLabel(label);
+        labelControl.Dock = DockStyle.Top;
+        labels.Controls.Add(labelControl);
 
         row.Controls.Add(labels, 0, 0);
         row.Controls.Add(sliderHost, 1, 0);
@@ -336,10 +329,10 @@ internal sealed partial class ChatGeneralSettingsForm
         var titleLabel = ChatUiTheme.SettingsFieldLabel(title);
         titleLabel.ForeColor = accent;
         content.Controls.Add(titleLabel);
-        var hint = ChatUiTheme.SettingsHint(text);
-        hint.MaximumSize = new Size(540, 0);
-        hint.Margin = new Padding(0, 1, 0, 0);
-        content.Controls.Add(hint);
+        var hintLabel = ChatUiTheme.SettingsHint(text);
+        hintLabel.MaximumSize = new Size(540, 0);
+        hintLabel.Margin = new Padding(0, 1, 0, 0);
+        content.Controls.Add(hintLabel);
         panel.Controls.Add(content);
         return panel;
     }
@@ -370,10 +363,10 @@ internal sealed partial class ChatGeneralSettingsForm
         text.Controls.Add(ChatUiTheme.SettingsFieldLabel(title));
         if (!string.IsNullOrWhiteSpace(description))
         {
-            var hint = ChatUiTheme.SettingsHint(description);
-            hint.MaximumSize = new Size(430, 0);
-            hint.Margin = new Padding(20, 1, 0, 0);
-            text.Controls.Add(hint);
+            var descriptionLabel = ChatUiTheme.SettingsHint(description);
+            descriptionLabel.MaximumSize = new Size(430, 0);
+            descriptionLabel.Margin = new Padding(20, 1, 0, 0);
+            text.Controls.Add(descriptionLabel);
         }
         var button = new Button { Text = buttonText, Width = 96, Height = 28, Dock = DockStyle.Top, Margin = new Padding(8, 0, 0, 0) };
         ChatUiTheme.StyleSettingsButton(button);
