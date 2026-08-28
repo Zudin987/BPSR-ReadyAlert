@@ -299,8 +299,9 @@ internal static class ChatUiTheme
     };
 }
 
-// Generic card used by the overlay/support UI. Keep its pre-v1.2.3 semantics so
-// compact Settings styling cannot leak into unrelated windows.
+// Generic card used by the overlay/support UI. Keep its pre-v1.2.3 defaults so
+// compact Settings styling cannot leak into unrelated windows. Legacy Settings
+// callers that explicitly zero the padding still receive the flat section look.
 internal sealed class ChatCardPanel : Panel
 {
     internal ChatCardPanel()
@@ -312,9 +313,27 @@ internal sealed class ChatCardPanel : Panel
         Margin = new Padding(0, 0, 0, 14);
     }
 
+    protected override void OnPaddingChanged(EventArgs e)
+    {
+        base.OnPaddingChanged(e);
+        if (Padding == Padding.Empty)
+        {
+            BackColor = ChatUiTheme.SettingsWindow;
+            ForeColor = ChatUiTheme.SettingsText;
+        }
+        else
+        {
+            BackColor = ChatUiTheme.Surface;
+            ForeColor = ChatUiTheme.Text;
+        }
+        Invalidate();
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
+        if (Padding == Padding.Empty) return;
+
         using var pen = new Pen(ChatUiTheme.Border);
         var rect = ClientRectangle;
         rect.Width -= 1;
