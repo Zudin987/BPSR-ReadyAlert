@@ -247,7 +247,7 @@ internal sealed partial class ChatOverlayForm
         return menu;
     }
 
-    private static (TableLayoutPanel Panel, Label Title, Label Hint, Button StatusButton) BuildEmptyState()
+    private (TableLayoutPanel Panel, Label Title, Label Hint, Button StatusButton) BuildEmptyState()
     {
         var panel = new TableLayoutPanel
         {
@@ -277,7 +277,7 @@ internal sealed partial class ChatOverlayForm
         status.Click += (_, _) =>
         {
             using var dialog = new ChatDebugStatusForm();
-            dialog.ShowDialog();
+            dialog.ShowDialog(this);
         };
 
         panel.Controls.Add(new Panel(), 0, 0);
@@ -327,9 +327,23 @@ internal sealed partial class ChatOverlayForm
             Name = message.SenderName,
             BlockedAtUtc = DateTime.UtcNow
         });
-        _settingsStore.Save(_settings);
+
+        // Make the block effective in the running process before touching disk. This
+        // immediately suppresses chat sounds plus queued translation/TTS routing and
+        // removes the player's rows even if settings persistence is temporarily down.
         ChatNotificationEngine.Configure(_settings.Chat, _defaultSoundPath);
         RebuildVisibleMessages(keepScroll: true);
+
+        if (_settingsStore.Save(_settings)) return;
+
+        AppLog.Write($"chat: block active for session but settings save failed sender={message.SenderId}");
+        MessageBox.Show(
+            this,
+            $"{message.SenderName} is blocked for this ReadyAlert session, but Windows could not save the block to disk.\r\n\r\n" +
+            "It may be lost after ReadyAlert restarts. Check folder permissions or disk availability.",
+            "Block was not saved",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
     }
 
     private void RebuildTabBar()
