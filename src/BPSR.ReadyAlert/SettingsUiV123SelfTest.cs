@@ -24,6 +24,8 @@ internal static class SettingsUiV123SelfTest
         form.CreateControl();
         PerformLayoutTree(form);
 
+        Assert(form.Text == "Settings", "Settings window keeps the compact ZDPS-style title");
+
         var nav = FindTopNavigation(form);
         Assert(nav is not null, "top Settings tab bar exists");
         Assert(nav!.FlowDirection == FlowDirection.LeftToRight && !nav.WrapContents,
@@ -67,6 +69,11 @@ internal static class SettingsUiV123SelfTest
                    visual.TreatsKeyAsInputForSelfTest(Keys.PageUp) &&
                    visual.TreatsKeyAsInputForSelfTest(Keys.Home),
                 "compact slider keeps navigation keys for slider input instead of dialog focus navigation");
+
+            var sliderRow = visual.Parent?.Parent as TableLayoutPanel;
+            var valueLabel = sliderRow?.GetControlFromPosition(2, 0) as Label;
+            Assert(valueLabel is not null && valueLabel.Dock == DockStyle.Fill && valueLabel.Margin == Padding.Empty,
+                "compact slider percentage stays constrained to its value cell");
         }
 
         var save = FindButton(form, "Save");
