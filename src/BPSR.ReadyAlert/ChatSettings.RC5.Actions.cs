@@ -282,13 +282,17 @@ internal sealed partial class ChatGeneralSettingsForm
         button.Margin = new Padding(0, 6, 0, 10);
     }
 
-    private static void ChooseColor(ref string target, Button button)
+    private void ChooseColor(ref string target, Button button)
     {
         using var dialog = new ColorDialog { FullOpen = true, Color = ChatColorUtil.Parse(target, Color.DimGray) };
-        if (dialog.ShowDialog() != DialogResult.OK) return;
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
         target = ChatColorUtil.ToHtml(dialog.Color);
         button.BackColor = dialog.Color;
         button.ForeColor = ContrastText(dialog.Color);
+
+        // Color values live outside ordinary TextBox/CheckBox controls, so mark the
+        // editor dirty explicitly instead of relying on modal-window activation.
+        RefreshV121DirtyStatus();
     }
 
     private void BrowseSound(TextBox target)

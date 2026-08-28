@@ -1,11 +1,13 @@
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace BPSR.ReadyAlert;
 
 /// <summary>
 /// Reliable Windows MP3 playback for Google Translate TTS responses.
-/// Media Foundation performs the MP3 decode and WaveOutEvent owns the application
-/// volume, avoiding the legacy MCI backend used by the first v1.2 RC.
+/// Media Foundation performs the MP3 decode. TTS gain is applied to the
+/// decoded sample stream before WaveOut so the TTS slider never changes the
+/// process-wide Windows audio-session volume used by Ready / Queue alerts.
 /// </summary>
 internal static class ChatTtsAudioPlayer
 {
@@ -37,9 +39,14 @@ internal static class ChatTtsAudioPlayer
             using var output = new WaveOutEvent
             {
                 DesiredLatency = 90,
-                NumberOfBuffers = 3,
-                Volume = Math.Clamp(volume, 0, 100) / 100f
+                NumberOfBuffers = 3
             };
+
+            // IMPORTANT: do not assign WaveOutEvent.Volume here. On modern Windows,
+            // waveOut volume can map to the application's shared audio session, which
+            // would also scale Ready / Queue and chat-alert playback from this process.
+            // Apply TTS-only gain to the decoded samples instead.
+            var ttsSamples = CreateVolumeProvider(reader.ToSampleProvider(), volume);
 
             var stopped = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
             void PlaybackStopped(object? sender, StoppedEventArgs args) => stopped.TrySetResult(args.Exception);
@@ -47,13 +54,15 @@ internal static class ChatTtsAudioPlayer
 
             try
             {
-                output.Init(reader);
+                // Convert back to 16-bit PCM for broad WaveOut compatibility after
+                // applying gain in the floating-point sample domain.
+                output.Init(ttsSamples, convertTo16Bit: true);
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Start first, then register cancellation. Cancellation that races
                 // between these two statements causes Register() to invoke Stop()
                 // immediately, while avoiding the old Stop-before-Play race.
-                AppLog.Write($"tts: playback start backend=NAudio/MediaFoundation volume={volume}% bytes={mp3Bytes.Length}");
+                AppLog.Write($"tts: playback start backend=NAudio/MediaFoundation streamVolume={volume}% bytes={mp3Bytes.Length}");
                 output.Play();
                 using var registration = cancellationToken.Register(() =>
                 {
@@ -92,4 +101,16 @@ internal static class ChatTtsAudioPlayer
             PlaybackGate.Release();
         }
     }
+
+    private static ISampleProvider CreateVolumeProvider(ISampleProvider source, int volume)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return new VolumeSampleProvider(source)
+        {
+            Volume = Math.Clamp(volume, 0, 100) / 100f
+        };
+    }
+
+    internal static ISampleProvider CreateVolumeProviderForSelfTest(ISampleProvider source, int volume) =>
+        CreateVolumeProvider(source, volume);
 }

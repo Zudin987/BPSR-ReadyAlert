@@ -11,6 +11,7 @@ internal sealed partial class ChatGeneralSettingsForm
     private bool _v121EverSaved;
     private bool _v121AppliedNotPersisted;
     private string _v121SavedFingerprint = string.Empty;
+    private readonly System.Windows.Forms.Timer _v121DirtyRefreshTimer = new() { Interval = 80 };
 
     /// <summary>
     /// Settings apply live but the window intentionally stays open. Track the
@@ -21,9 +22,6 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         if (_v121DirtyTrackingInstalled) return;
         _v121DirtyTrackingInstalled = true;
-
-        if (FindButtonByText(this, "Close") is { } close)
-            close.Text = "Cancel";
 
         ReplaceV121LabelText(
             this,
@@ -43,12 +41,24 @@ internal sealed partial class ChatGeneralSettingsForm
         _ttsVolume.AccessibleName = "TTS volume";
         _ttsVolume.AccessibleDescription = "Controls spoken Guild and Party or Team chat only.";
 
+        _v121DirtyRefreshTimer.Tick += (_, _) =>
+        {
+            _v121DirtyRefreshTimer.Stop();
+            RefreshV121DirtyStatus();
+        };
+        Disposed += (_, _) =>
+        {
+            _v121DirtyRefreshTimer.Stop();
+            _v121DirtyRefreshTimer.Dispose();
+        };
+
         SubscribeV121Changes(this);
         _applyStatus.TextChanged += (_, _) =>
         {
             if (_v121SuppressDirtyTracking) return;
             if (_applyStatus.Text is not ("Saved ✓" or "Defaults restored ✓")) return;
 
+            _v121DirtyRefreshTimer.Stop();
             _v121SuppressDirtyTracking = true;
             try
             {
@@ -114,7 +124,21 @@ internal sealed partial class ChatGeneralSettingsForm
         }
     }
 
-    private void V121EditorValueChanged(object? sender, EventArgs e) => RefreshV121DirtyStatus();
+    private void V121EditorValueChanged(object? sender, EventArgs e)
+    {
+        if (!_v121DirtyTrackingReady || _v121SuppressDirtyTracking) return;
+
+        // Rapid slider drags/text entry can fire dozens of events per second. Mark
+        // the editor dirty immediately, but defer the full tree fingerprint until
+        // input has been idle briefly. This keeps Settings interaction responsive
+        // while still detecting an exact revert back to the saved state.
+        if (_applyStatus.Text != "Unsaved")
+            _applyStatus.Text = "Unsaved";
+        _applyStatus.ForeColor = ChatUiTheme.Warning;
+
+        _v121DirtyRefreshTimer.Stop();
+        _v121DirtyRefreshTimer.Start();
+    }
 
     private void RefreshV121DirtyStatus()
     {
@@ -151,6 +175,7 @@ internal sealed partial class ChatGeneralSettingsForm
         if (!_v121DirtyTrackingReady || _v121SuppressDirtyTracking || e.CloseReason != CloseReason.UserClosing)
             return;
 
+        _v121DirtyRefreshTimer.Stop();
         var warningKind = GetV121CloseWarningKind();
         if (warningKind.Length == 0) return;
 
@@ -285,6 +310,7 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         InstallV121UsabilityTracking();
         _ttsVolume.Value = Math.Clamp(volume, _ttsVolume.Minimum, _ttsVolume.Maximum);
+        _v121DirtyRefreshTimer.Stop();
         RefreshV121DirtyStatus();
     }
 

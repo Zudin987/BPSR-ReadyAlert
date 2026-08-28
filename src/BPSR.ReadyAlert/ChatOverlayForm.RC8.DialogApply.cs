@@ -26,13 +26,15 @@ internal sealed partial class ChatOverlayForm
     /// <summary>
     /// Applies Add/Edit Tab changes live while the editor stays open. For a new
     /// tab, the first Apply inserts it; later Apply presses update the same tab.
+    /// Returns the persistence result so the editor never claims "Saved" when the
+    /// tab is only active in the current process.
     /// </summary>
-    internal void ApplyTabFromOpenDialog(ChatTabSettings source, bool isNew)
+    internal bool ApplyTabFromOpenDialog(ChatTabSettings source, bool isNew)
     {
         var existing = _settings.Chat.Tabs.FirstOrDefault(x => x.Id == source.Id);
         if (existing is null)
         {
-            if (!isNew) return;
+            if (!isNew) return false;
             existing = source;
             _settings.Chat.Tabs.Add(existing);
         }
@@ -47,9 +49,10 @@ internal sealed partial class ChatOverlayForm
 
         _settings.Chat.LastSelectedTabId = existing.Id;
         _settings.Chat.Normalize();
-        _settingsStore.Save(_settings);
+        var saved = _settingsStore.Save(_settings);
         RebuildTabBar();
         RebuildVisibleMessages(keepScroll: false);
         UpdateEmptyState();
+        return saved;
     }
 }

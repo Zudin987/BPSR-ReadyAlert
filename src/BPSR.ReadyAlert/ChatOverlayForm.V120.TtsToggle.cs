@@ -44,10 +44,24 @@ internal sealed partial class ChatOverlayForm
     {
         _settings.SpeechTranslation.TtsEnabled = !_settings.SpeechTranslation.TtsEnabled;
         _settings.SpeechTranslation.Normalize();
-        _settingsStore.Save(_settings);
+
+        // Make the toolbar action effective immediately; disk I/O should never
+        // delay stopping/starting speech. Persist afterward and tell the user if the
+        // preference is session-only rather than silently pretending it was saved.
         ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
         UpdateV120TtsToolbarButton();
         AppLog.Write("tts: toolbar toggle " + (_settings.SpeechTranslation.TtsEnabled ? "on" : "off"));
+
+        if (_settingsStore.Save(_settings)) return;
+
+        AppLog.Write("tts: toolbar toggle applied for session but settings save failed");
+        MessageBox.Show(
+            this,
+            "TTS was changed for this ReadyAlert session, but Windows could not save the preference to disk.\r\n\r\n" +
+            "It may revert after ReadyAlert restarts. Check folder permissions or disk availability.",
+            "TTS preference was not saved",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
     }
 
     private void UpdateV120TtsToolbarButton()

@@ -4,8 +4,8 @@ namespace BPSR.ReadyAlert;
 
 internal sealed partial class ChatGeneralSettingsForm
 {
-    private readonly CheckBox _hideEmoji = new() { Text = "Hide emoji-only messages (<sprite=1> … <sprite=100>)" };
-    private readonly CheckBox _hideLinkedItems = new() { Text = "Hide linked-item / Hypertext messages" };
+    private readonly CheckBox _hideEmoji = new() { Text = "Hide emoji-only messages" };
+    private readonly CheckBox _hideLinkedItems = new() { Text = "Hide linked items / Hypertext" };
     private bool _v120ContentFiltersInstalled;
 
     private void InstallV120ContentFilters()

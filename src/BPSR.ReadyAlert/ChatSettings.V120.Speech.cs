@@ -35,6 +35,11 @@ internal sealed partial class ChatGeneralSettingsForm
             var advancedIndex = _navHost.Controls.GetChildIndex(advanced.Button);
             _navHost.Controls.SetChildIndex(speech.Button, advancedIndex);
         }
+
+        // Speech is registered after the base constructor's compact pass. Apply its
+        // geometry now, before the form handle exists, so WinForms scales every page
+        // together for the monitor DPI instead of receiving raw 96-DPI sizes later.
+        InstallV122CompactUi();
     }
 
     private Control BuildSpeechTranslationPage()
@@ -222,7 +227,11 @@ internal sealed partial class ChatGeneralSettingsForm
         _speechSettings.HideEmojiMessages = _hideEmoji.Checked;
         _speechSettings.HideLinkedItemMessages = _hideLinkedItems.Checked;
         _speechSettings.Normalize();
-        ChatSpeechTranslationEngine.Configure(_speechSettings);
+
+        // Only copy editor values here. The owning overlay reconfigures the shared
+        // translation/TTS engine once, with its translation-result queue attached.
+        // Avoiding a second Configure() call keeps Save responsive and prevents a
+        // needless wake/reconfiguration of the background speech worker.
     }
 
     private void LoadSpeechTranslationControls(ChatSpeechTranslationSettings source)

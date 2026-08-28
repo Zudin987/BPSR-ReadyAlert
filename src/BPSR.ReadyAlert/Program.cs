@@ -24,11 +24,31 @@ internal static class Program
                 RunSmokeStep(ChatRc2SelfTest.Run, 17);
                 RunSmokeStep(ChatV120SelfTest.Run, 18);
                 RunSmokeStep(UiUxV121SelfTest.Run, 19);
+                RunSmokeStep(TtsVolumeIsolationSelfTest.Run, 20);
+                RunSmokeStep(SettingsUiV122SelfTest.Run, 21);
                 Environment.ExitCode = 0;
                 return;
             }
-            catch
+            catch (Exception ex)
             {
+                // Do not hide the useful reason behind a numeric smoke-test code.
+                // GitHub Actions can normally inherit stderr from this WinExe. Keep a
+                // sidecar too so a local/published smoke run remains diagnosable even
+                // when the parent process does not expose console handles.
+                try
+                {
+                    Console.Error.WriteLine("BPSR ReadyAlert smoke test failed:");
+                    Console.Error.WriteLine(ex);
+                }
+                catch { }
+                try
+                {
+                    File.WriteAllText(
+                        Path.Combine(AppContext.BaseDirectory, "smoke-test-error.txt"),
+                        ex.ToString());
+                }
+                catch { }
+
                 if (Environment.ExitCode == 0) Environment.ExitCode = 1;
                 return;
             }
@@ -113,8 +133,23 @@ internal static class Program
 
     private static void RunSmokeStep(Action step, int failureCode)
     {
-        Environment.ExitCode = failureCode;
-        step();
-        Environment.ExitCode = 0;
+        try
+        {
+            Environment.ExitCode = failureCode;
+            step();
+            Environment.ExitCode = 0;
+        }
+        catch (Exception ex)
+        {
+            // A nested assertion is free to use its own diagnostics internally, but
+            // the process exit code must identify the top-level smoke suite that
+            // actually failed. This prevents stale assertion numbers from masking
+            // which regression group needs inspection.
+            Environment.ExitCode = failureCode;
+            var owner = step.Method.DeclaringType?.Name ?? "unknown";
+            throw new InvalidOperationException(
+                $"Smoke step {failureCode} ({owner}.{step.Method.Name}) failed.",
+                ex);
+        }
     }
 }

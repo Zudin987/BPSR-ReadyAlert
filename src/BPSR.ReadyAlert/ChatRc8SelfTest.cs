@@ -32,11 +32,11 @@ internal static class ChatRc8SelfTest
         PerformLayoutTree(form);
 
         var save = FindButton(form, "Save changes") ?? throw new InvalidOperationException("RC8 self-test: Save changes button missing");
-        var reset = FindButton(form, "Reset to defaults") ?? throw new InvalidOperationException("RC8 self-test: Reset to defaults button missing");
-        var close = FindButton(form, "Close") ?? throw new InvalidOperationException("RC8 self-test: Settings Close button missing");
+        var reset = FindButton(form, "Reset defaults") ?? throw new InvalidOperationException("RC8 self-test: Reset defaults button missing");
+        var cancel = FindButton(form, "Cancel") ?? throw new InvalidOperationException("RC8 self-test: Settings Cancel button missing");
         Assert(save.DialogResult == DialogResult.None, "settings Save does not carry a closing DialogResult");
         Assert(reset.DialogResult == DialogResult.None, "settings Reset does not carry a closing DialogResult");
-        Assert(close.DialogResult == DialogResult.Cancel, "settings Close is the explicit closing action");
+        Assert(cancel.DialogResult == DialogResult.Cancel, "settings Cancel is the explicit closing/discard action");
 
         save.PerformClick();
         Assert(!form.IsDisposed && form.DialogResult == DialogResult.None, "settings Save applies without closing the dialog");
@@ -57,9 +57,9 @@ internal static class ChatRc8SelfTest
         PerformLayoutTree(form);
 
         var save = FindButton(form, "Save tab") ?? throw new InvalidOperationException("RC8 self-test: Save tab button missing");
-        var close = FindButton(form, "Close") ?? throw new InvalidOperationException("RC8 self-test: tab editor Close button missing");
+        var cancel = FindButton(form, "Cancel") ?? throw new InvalidOperationException("RC8 self-test: tab editor Cancel button missing");
         Assert(save.DialogResult == DialogResult.None, "tab Save does not carry a closing DialogResult");
-        Assert(close.DialogResult == DialogResult.Cancel, "tab Close is the explicit closing action");
+        Assert(cancel.DialogResult == DialogResult.Cancel, "tab Cancel is the explicit closing/discard action");
 
         save.PerformClick();
         Assert(!form.IsDisposed && form.DialogResult == DialogResult.None, "tab Save applies without closing the editor");
