@@ -78,6 +78,15 @@ internal sealed class ChatCompactSlider : Control
         AccessibleRole = AccessibleRole.Slider;
     }
 
+    protected override bool IsInputKey(Keys keyData)
+    {
+        var key = keyData & Keys.KeyCode;
+        if (key is Keys.Left or Keys.Right or Keys.Up or Keys.Down or
+            Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End)
+            return true;
+        return base.IsInputKey(keyData);
+    }
+
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
@@ -102,13 +111,31 @@ internal sealed class ChatCompactSlider : Control
         Capture = false;
     }
 
+    protected override void OnMouseCaptureChanged(EventArgs e)
+    {
+        base.OnMouseCaptureChanged(e);
+        if (!Capture) _dragging = false;
+    }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        if (!Enabled)
+        {
+            _dragging = false;
+            if (Capture) Capture = false;
+        }
+        base.OnEnabledChanged(e);
+        Invalidate();
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
         if (!Enabled) return;
 
-        var small = Math.Max(1, (_maximum - _minimum) / 20);
-        var large = Math.Max(1, (_maximum - _minimum) / 10);
+        var span = Math.Max(0, _maximum - _minimum);
+        var small = Math.Max(1, Math.Min(5, span));
+        var large = Math.Max(1, Math.Min(10, span));
         var handled = true;
         switch (e.KeyCode)
         {
@@ -189,6 +216,8 @@ internal sealed class ChatCompactSlider : Control
             ControlPaint.DrawFocusRectangle(e.Graphics, focus, ForeColor, BackColor);
         }
     }
+
+    internal bool TreatsKeyAsInputForSelfTest(Keys keyData) => IsInputKey(keyData);
 
     private void SetFromMouse(int x)
     {
