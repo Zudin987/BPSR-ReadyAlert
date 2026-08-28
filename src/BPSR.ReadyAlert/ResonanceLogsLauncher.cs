@@ -62,20 +62,16 @@ internal sealed class ResonanceLogsLauncher
 
     internal bool IsRunning()
     {
+        // Process.MainModule is surprisingly expensive and may trigger access checks
+        // for every process on the machine. The executable stem is enough to detect
+        // Resonance Logs CN, so keep this startup/launch check on the cheap path.
         foreach (var process in Process.GetProcesses())
         {
             using (process)
             {
                 try
                 {
-                    var fileName = process.MainModule?.FileName;
-                    if (LooksLikeResonanceLogsExecutable(fileName)) return true;
-                }
-                catch { }
-
-                try
-                {
-                    if (process.ProcessName.Equals("resonance-logs-cn", StringComparison.OrdinalIgnoreCase))
+                    if (LooksLikeResonanceLogsProcessName(process.ProcessName))
                         return true;
                 }
                 catch { }
@@ -89,20 +85,9 @@ internal sealed class ResonanceLogsLauncher
         if (IsValidExecutable(_settings.ResonanceLogsPath))
             return _settings.ResonanceLogsPath;
 
-        foreach (var process in Process.GetProcesses())
-        {
-            using (process)
-            {
-                try
-                {
-                    var path = process.MainModule?.FileName;
-                    if (LooksLikeResonanceLogsExecutable(path) && IsValidExecutable(path))
-                        return path;
-                }
-                catch { }
-            }
-        }
-
+        // If Resonance Logs is not already running, probing MainModule for every
+        // unrelated process only adds latency. Prefer deterministic install paths and
+        // uninstall metadata instead.
         foreach (var candidate in GetCommonPaths())
             if (IsValidExecutable(candidate)) return candidate;
 
@@ -131,7 +116,11 @@ internal sealed class ResonanceLogsLauncher
 
     private void SavePath(string path)
     {
-        _settings.ResonanceLogsPath = Path.GetFullPath(path);
+        var fullPath = Path.GetFullPath(path);
+        if (string.Equals(_settings.ResonanceLogsPath, fullPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _settings.ResonanceLogsPath = fullPath;
         _store.Save(_settings);
     }
 
@@ -139,6 +128,13 @@ internal sealed class ResonanceLogsLauncher
         !string.IsNullOrWhiteSpace(path) &&
         File.Exists(path) &&
         path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeResonanceLogsProcessName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        return name.Equals("resonance-logs-cn", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("resonance-logs", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool LooksLikeResonanceLogsExecutable(string? path)
     {
@@ -234,4 +230,7 @@ internal sealed class ResonanceLogsLauncher
         if (exeIndex >= 0) return raw[..(exeIndex + 4)].Trim('"', ' ');
         return raw.Trim('"');
     }
+
+    internal static bool LooksLikeResonanceLogsProcessNameForSelfTest(string? name) =>
+        LooksLikeResonanceLogsProcessName(name);
 }
