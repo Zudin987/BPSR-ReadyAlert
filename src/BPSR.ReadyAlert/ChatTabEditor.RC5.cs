@@ -30,6 +30,10 @@ internal sealed class ChatTabEditorForm : Form
     private readonly Label _validation = new();
     private readonly Label _applyStatus = new();
     private readonly Button _save = new();
+    private readonly Button _cancel = new();
+    private string _savedFingerprint = string.Empty;
+    private bool _trackingReady;
+    private bool _everSaved;
 
     internal ChatTabEditorForm(ChatTabSettings tab, bool isNew)
     {
@@ -42,16 +46,16 @@ internal sealed class ChatTabEditorForm : Form
         MaximizeBox = true;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(820, 760);
-        MinimumSize = new Size(720, 620);
+        ClientSize = new Size(720, 640);
+        MinimumSize = new Size(620, 500);
 
         var footer = BuildFooter();
-        var scroll = new Panel
+        var scroll = new ChatBufferedPanel
         {
             Dock = DockStyle.Fill,
             AutoScroll = true,
             BackColor = ChatUiTheme.Window,
-            Padding = new Padding(24, 22, 24, 26)
+            Padding = new Padding(18, 16, 18, 20)
         };
         var stack = new TableLayoutPanel
         {
@@ -67,8 +71,8 @@ internal sealed class ChatTabEditorForm : Form
         stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
         AddStack(stack, BuildHeader(
-            isNew ? "Create a chat tab" : "Edit chat tab",
-            "Choose what this tab shows. Save applies immediately and keeps this window open."));
+            isNew ? "Create chat tab" : "Edit chat tab",
+            "Choose channels and optional filters."));
         AddStack(stack, BuildBasicsCard(tab));
         AddStack(stack, BuildChannelsCard(tab));
         AddStack(stack, BuildFiltersCard(tab));
@@ -78,9 +82,30 @@ internal sealed class ChatTabEditorForm : Form
         Controls.Add(footer);
 
         AcceptButton = _save;
-        _show.TextChanged += (_, _) => RefreshValidation();
-        _hide.TextChanged += (_, _) => RefreshValidation();
+        CancelButton = _cancel;
+
+        _show.TextChanged += (_, _) =>
+        {
+            RefreshValidation();
+            RefreshDirtyState();
+        };
+        _hide.TextChanged += (_, _) =>
+        {
+            RefreshValidation();
+            RefreshDirtyState();
+        };
+        _name.TextChanged += (_, _) => RefreshDirtyState();
+        _minLevel.ValueChanged += (_, _) => RefreshDirtyState();
+        _channels.ItemCheck += (_, _) =>
+        {
+            if (!IsHandleCreated || IsDisposed) return;
+            BeginInvoke(new Action(RefreshDirtyState));
+        };
+        FormClosing += TabEditorFormClosing;
+
         RefreshValidation();
+        _savedFingerprint = CaptureFingerprint();
+        _trackingReady = true;
     }
 
     protected override void OnShown(EventArgs e)
@@ -99,7 +124,7 @@ internal sealed class ChatTabEditorForm : Form
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 70,
+            Height = 60,
             BackColor = ChatUiTheme.Surface,
             Padding = Padding.Empty
         };
@@ -124,14 +149,14 @@ internal sealed class ChatTabEditorForm : Form
             ColumnCount = 5,
             RowCount = 1,
             Margin = Padding.Empty,
-            Padding = new Padding(18, 14, 18, 14),
+            Padding = new Padding(14, 10, 14, 10),
             BackColor = ChatUiTheme.Surface
         };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 84F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104F));
         actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         _applyStatus.Dock = DockStyle.Fill;
@@ -145,28 +170,24 @@ internal sealed class ChatTabEditorForm : Form
         ChatUiTheme.StylePrimaryButton(_save);
         _save.Click += (_, _) => ApplyTab();
 
-        var close = new Button
-        {
-            Text = "Close",
-            Dock = DockStyle.Fill,
-            DialogResult = DialogResult.Cancel,
-            Margin = Padding.Empty
-        };
-        ChatUiTheme.StyleSecondaryButton(close);
-        close.Margin = Padding.Empty;
+        _cancel.Text = "Cancel";
+        _cancel.Dock = DockStyle.Fill;
+        _cancel.DialogResult = DialogResult.Cancel;
+        _cancel.Margin = Padding.Empty;
+        ChatUiTheme.StyleSecondaryButton(_cancel);
+        _cancel.Margin = Padding.Empty;
 
         actions.Controls.Add(_applyStatus, 1, 0);
-        actions.Controls.Add(close, 2, 0);
+        actions.Controls.Add(_cancel, 2, 0);
         actions.Controls.Add(_save, 4, 0);
         root.Controls.Add(actions, 0, 1);
         footer.Controls.Add(root);
-        CancelButton = close;
         return footer;
     }
 
     private static Control BuildHeader(string title, string subtitle)
     {
-        var panel = new Panel { AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0, 0, 0, 18) };
+        var panel = new Panel { AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0, 0, 0, 12) };
         var flow = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -176,7 +197,7 @@ internal sealed class ChatTabEditorForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
-        flow.Controls.Add(ChatUiTheme.Heading(title, 17F));
+        flow.Controls.Add(ChatUiTheme.Heading(title, 16F));
         flow.Controls.Add(ChatUiTheme.Subheading(subtitle));
         panel.Controls.Add(flow);
         return panel;
@@ -186,17 +207,20 @@ internal sealed class ChatTabEditorForm : Form
     {
         _name.Text = tab.Name;
         _name.MaxLength = 40;
+        _name.Width = 320;
+        _name.MaximumSize = new Size(320, 0);
         ChatUiTheme.StyleTextBox(_name);
+
         _minLevel.Minimum = 1;
         _minLevel.Maximum = 100;
         _minLevel.Value = Math.Clamp(tab.MinLevel, 1, 100);
-        _minLevel.Width = 110;
+        _minLevel.Width = 100;
         ChatUiTheme.StyleNumeric(_minLevel);
 
         var table = MakeFieldTable();
-        AddFieldRow(table, "Tab name", "Short name shown on the overlay.", _name, 0);
-        AddFieldRow(table, "Minimum player level", "Messages from lower-level players are hidden when their level is known.", _minLevel, 1);
-        return MakeCard("Basics", "Name the tab and choose its player-level floor.", table);
+        AddFieldRow(table, "Tab name", "Shown on the overlay.", _name, 0);
+        AddFieldRow(table, "Minimum level", "Hide lower-level senders when known.", _minLevel, 1);
+        return MakeCard("Basics", "Name and level filter.", table);
     }
 
     private ChatCardPanel BuildChannelsCard(ChatTabSettings tab)
@@ -205,7 +229,7 @@ internal sealed class ChatTabEditorForm : Form
         _channels.BackColor = ChatUiTheme.Input;
         _channels.ForeColor = ChatUiTheme.Text;
         _channels.BorderStyle = BorderStyle.FixedSingle;
-        _channels.Height = 210;
+        _channels.Height = 150;
         _channels.Dock = DockStyle.Top;
         _channels.IntegralHeight = false;
 
@@ -222,10 +246,10 @@ internal sealed class ChatTabEditorForm : Form
             AutoSize = true,
             WrapContents = false,
             FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(0, 10, 0, 0)
+            Margin = new Padding(0, 8, 0, 0)
         };
-        var selectAll = new Button { Text = "Select all", Width = 100, Height = 32 };
-        var clear = new Button { Text = "Clear", Width = 82, Height = 32 };
+        var selectAll = new Button { Text = "Select all", Width = 88, Height = 34 };
+        var clear = new Button { Text = "Clear", Width = 72, Height = 34 };
         ChatUiTheme.StyleSecondaryButton(selectAll);
         ChatUiTheme.StyleSecondaryButton(clear);
         selectAll.Click += (_, _) =>
@@ -252,7 +276,7 @@ internal sealed class ChatTabEditorForm : Form
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         content.Controls.Add(_channels, 0, 0);
         content.Controls.Add(quick, 0, 1);
-        return MakeCard("Channels", "Check every BPSR chat channel that belongs in this tab.", content);
+        return MakeCard("Channels", "Choose chat channels.", content);
     }
 
     private ChatCardPanel BuildFiltersCard(ChatTabSettings tab)
@@ -273,12 +297,12 @@ internal sealed class ChatTabEditorForm : Form
         fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
         AddStack(fields, MakeFieldBlock(
-            "Show only if message matches",
-            "Leave empty to show every message that passes the channel and level rules.",
+            "Show only if",
+            "Empty = show everything that passes channel and level.",
             _show));
         AddStack(fields, MakeFieldBlock(
-            "Hide if message matches",
-            "Anything matching this rule is removed even if it passes the Show rule.",
+            "Hide if",
+            "Matching messages are removed after the Show rule.",
             _hide));
 
         var syntax = new Panel
@@ -286,22 +310,21 @@ internal sealed class ChatTabEditorForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             BackColor = ChatUiTheme.SurfaceRaised,
-            Padding = new Padding(12),
-            Margin = new Padding(0, 4, 0, 10)
+            Padding = new Padding(10, 8, 10, 8),
+            Margin = new Padding(0, 2, 0, 8)
         };
-        var syntaxText = ChatUiTheme.Hint(
-            "Quick examples:  serum | food | raid   •   one pattern per line = OR   •   boss AND hard\r\n" +
-            "Matching ignores letter case. Advanced regex is also supported, for example (raid|dungeon). Invalid regex is blocked safely.");
+        var syntaxText = ChatUiTheme.Hint("Examples: serum | food | raid  •  boss AND hard  •  regex: (raid|dungeon)");
         syntaxText.Dock = DockStyle.Top;
+        syntaxText.MaximumSize = new Size(560, 0);
         syntax.Controls.Add(syntaxText);
         AddStack(fields, syntax);
 
         _validation.AutoSize = true;
-        _validation.Font = ChatUiTheme.UiFont(9F, FontStyle.Bold);
-        _validation.Margin = new Padding(0, 2, 0, 0);
+        _validation.Font = ChatUiTheme.UiFont(8.5F, FontStyle.Bold);
+        _validation.Margin = new Padding(0, 0, 0, 0);
         AddStack(fields, _validation);
 
-        return MakeCard("Filters", "Optional rules for finding useful chat without making users write complicated regex.", fields);
+        return MakeCard("Filters", "Optional message filters.", fields);
     }
 
     private static TableLayoutPanel MakeFieldTable()
@@ -316,7 +339,7 @@ internal sealed class ChatTabEditorForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220F));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170F));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         return table;
     }
@@ -332,32 +355,25 @@ internal sealed class ChatTabEditorForm : Form
             AutoSize = true,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            Padding = new Padding(0, 5, 16, 14),
+            Padding = new Padding(0, 3, 12, 8),
             Margin = Padding.Empty
         };
         labelBox.Controls.Add(ChatUiTheme.FieldLabel(label));
         var hintLabel = ChatUiTheme.Hint(hint);
-        hintLabel.MaximumSize = new Size(195, 0);
-        hintLabel.Margin = new Padding(0, 3, 0, 0);
+        hintLabel.MaximumSize = new Size(155, 0);
+        hintLabel.Margin = new Padding(0, 2, 0, 0);
         labelBox.Controls.Add(hintLabel);
 
         var host = new Panel
         {
             Dock = DockStyle.Fill,
-            Height = 52,
-            Padding = new Padding(0, 4, 0, 14),
+            Height = 44,
+            Padding = new Padding(0, 3, 0, 8),
             Margin = Padding.Empty
         };
-        if (control is TextBox)
-        {
-            control.Dock = DockStyle.Fill;
-            control.Margin = Padding.Empty;
-        }
-        else
-        {
-            control.Dock = DockStyle.Top;
-            control.Margin = Padding.Empty;
-        }
+        control.Dock = DockStyle.None;
+        control.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        control.Margin = Padding.Empty;
         host.Controls.Add(control);
 
         table.Controls.Add(labelBox, 0, row);
@@ -373,13 +389,13 @@ internal sealed class ChatTabEditorForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
             RowCount = 3,
-            Margin = new Padding(0, 0, 0, 16),
+            Margin = new Padding(0, 0, 0, 10),
             Padding = Padding.Empty
         };
         block.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         var labelControl = ChatUiTheme.FieldLabel(label);
         var hintControl = ChatUiTheme.Hint(hint);
-        hintControl.Margin = new Padding(0, 3, 0, 8);
+        hintControl.Margin = new Padding(0, 2, 0, 6);
         control.Dock = DockStyle.Top;
         control.Margin = Padding.Empty;
         block.Controls.Add(labelControl, 0, 0);
@@ -394,7 +410,9 @@ internal sealed class ChatTabEditorForm : Form
         {
             Dock = DockStyle.Top,
             AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(14),
+            Margin = new Padding(0, 0, 0, 10)
         };
         var stack = new TableLayoutPanel
         {
@@ -407,9 +425,10 @@ internal sealed class ChatTabEditorForm : Form
             Padding = Padding.Empty
         };
         stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        var titleLabel = ChatUiTheme.Heading(title, 11F);
+        var titleLabel = ChatUiTheme.Heading(title, 10.5F);
         var subtitleLabel = ChatUiTheme.Subheading(subtitle);
-        subtitleLabel.Margin = new Padding(0, 4, 0, 14);
+        subtitleLabel.Margin = new Padding(0, 2, 0, 8);
+        subtitleLabel.MaximumSize = new Size(520, 0);
         content.Dock = DockStyle.Top;
         stack.Controls.Add(titleLabel, 0, 0);
         stack.Controls.Add(subtitleLabel, 0, 1);
@@ -429,31 +448,73 @@ internal sealed class ChatTabEditorForm : Form
     private static void ConfigureFilterBox(TextBox box, string value)
     {
         box.Text = value;
-        box.Height = 96;
+        box.Height = 64;
         ChatUiTheme.StyleTextBox(box, multiline: true);
     }
 
     private void RefreshValidation()
     {
-        _applyStatus.Text = string.Empty;
         if (!ChatFilterExpression.TryValidate(_show.Text, out var showError))
         {
             _validation.ForeColor = ChatUiTheme.Danger;
-            _validation.Text = "● Show rule needs attention: " + showError;
+            _validation.Text = "● Show: " + showError;
             _save.Enabled = false;
             return;
         }
         if (!ChatFilterExpression.TryValidate(_hide.Text, out var hideError))
         {
             _validation.ForeColor = ChatUiTheme.Danger;
-            _validation.Text = "● Hide rule needs attention: " + hideError;
+            _validation.Text = "● Hide: " + hideError;
             _save.Enabled = false;
             return;
         }
 
         _validation.ForeColor = ChatUiTheme.Success;
-        _validation.Text = "● Filters are valid — matching is case-insensitive.";
+        _validation.Text = "● Filters valid";
         _save.Enabled = true;
+    }
+
+    private void RefreshDirtyState()
+    {
+        if (!_trackingReady) return;
+        var dirty = !string.Equals(CaptureFingerprint(), _savedFingerprint, StringComparison.Ordinal);
+        if (dirty)
+        {
+            _applyStatus.Text = "Unsaved";
+            _applyStatus.ForeColor = ChatUiTheme.Warning;
+        }
+        else
+        {
+            _applyStatus.Text = _everSaved ? "Saved ✓" : string.Empty;
+            _applyStatus.ForeColor = _everSaved ? ChatUiTheme.Success : ChatUiTheme.Muted;
+        }
+    }
+
+    private string CaptureFingerprint()
+    {
+        var channels = string.Join(',', Enumerable.Range(0, _channels.Items.Count)
+            .Where(_channels.GetItemChecked));
+        return string.Join('|',
+            _name.Text,
+            _minLevel.Value,
+            channels,
+            _show.Text,
+            _hide.Text);
+    }
+
+    private void TabEditorFormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (!_trackingReady || e.CloseReason != CloseReason.UserClosing) return;
+        if (string.Equals(CaptureFingerprint(), _savedFingerprint, StringComparison.Ordinal)) return;
+
+        var answer = MessageBox.Show(
+            this,
+            "Discard changes that have not been saved?",
+            "Unsaved tab changes",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+        if (answer != DialogResult.Yes) e.Cancel = true;
     }
 
     private void ApplyTab()
@@ -506,6 +567,24 @@ internal sealed class ChatTabEditorForm : Form
 
         _isNew = false;
         Text = $"Edit Chat Tab — {_tab.Name}";
+        _savedFingerprint = CaptureFingerprint();
+        _everSaved = true;
         _applyStatus.Text = "Saved ✓";
+        _applyStatus.ForeColor = ChatUiTheme.Success;
+    }
+
+    internal (Size DefaultClient, Size MinimumWindow, int ChannelsHeight, int ShowHeight, int HideHeight, int NameWidth, int FooterHeight, string CancelText)
+        GetV122CompactMetricsForSelfTest()
+    {
+        var footer = Controls.OfType<Panel>().FirstOrDefault(x => x.Dock == DockStyle.Bottom);
+        return (
+            ClientSize,
+            MinimumSize,
+            _channels.Height,
+            _show.Height,
+            _hide.Height,
+            _name.Width,
+            footer?.Height ?? 0,
+            _cancel.Text);
     }
 }
