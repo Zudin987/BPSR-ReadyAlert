@@ -18,8 +18,8 @@ internal sealed partial class ChatOverlayForm
     /// Native FlowLayoutPanel AutoScroll adds a bright horizontal scrollbar as soon
     /// as one more custom tab no longer fits. Besides clashing with the overlay theme,
     /// the bar also steals height until the user resizes the window. Keep the tab
-    /// strip scrollbar-free and compact the visible tab buttons to the width that is
-    /// actually available instead.
+    /// strip scrollbar-free and only compact tab names when the complete set genuinely
+    /// cannot fit in the width that is available.
     /// </summary>
     private void InstallV125TabStripLayout()
     {
@@ -62,7 +62,6 @@ internal sealed partial class ChatOverlayForm
         var usable = Math.Max(1, available - marginWidth);
 
         var preferred = new int[buttons.Length];
-        var preferredTotal = 0;
         for (var i = 0; i < buttons.Length; i++)
         {
             var measured = TextRenderer.MeasureText(
@@ -70,13 +69,13 @@ internal sealed partial class ChatOverlayForm
                 buttons[i].Font,
                 Size.Empty,
                 TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
-            preferred[i] = Math.Clamp(measured + 28, 64, 160);
-            preferredTotal += preferred[i];
+
+            // Do not cap the natural width. A long tab should keep its complete name
+            // whenever there is room; ellipsis is a fallback for actual overflow only.
+            preferred[i] = Math.Max(64, measured + 28);
         }
 
-        var compact = preferredTotal > usable;
-        var equalWidth = compact ? Math.Max(1, usable / buttons.Length) : 0;
-        var remainder = compact ? Math.Max(0, usable - (equalWidth * buttons.Length)) : 0;
+        var fitted = FitV126TabWidths(preferred, usable);
 
         _tabBar.SuspendLayout();
         try
@@ -86,9 +85,9 @@ internal sealed partial class ChatOverlayForm
                 var button = buttons[i];
                 button.AutoSize = false;
                 button.MinimumSize = new Size(0, 32);
-                button.AutoEllipsis = true;
                 button.Padding = new Padding(8, 0, 8, 0);
-                button.Width = compact ? equalWidth + (i < remainder ? 1 : 0) : preferred[i];
+                button.Width = fitted[i];
+                button.AutoEllipsis = fitted[i] < preferred[i];
 
                 if (button.Tag is ChatTabSettings tab)
                     _toolTip.SetToolTip(button, tab.Name);
@@ -100,6 +99,63 @@ internal sealed partial class ChatOverlayForm
         }
 
         _tabBar.Invalidate();
+    }
+
+    /// <summary>
+    /// Preserve every tab's preferred width when possible. If the row actually
+    /// overflows, cap only the longer tabs first instead of forcing all tabs to an
+    /// equal width. This keeps short labels such as General, Guild / Team and Team
+    /// readable for as long as the available width permits.
+    /// </summary>
+    private static int[] FitV126TabWidths(int[] preferred, int usable)
+    {
+        if (preferred.Length == 0) return [];
+
+        usable = Math.Max(1, usable);
+        var natural = preferred.Select(x => Math.Max(1, x)).ToArray();
+        if (natural.Sum() <= usable) return natural;
+
+        var minimum = Math.Max(1, Math.Min(64, usable / natural.Length));
+        var minimumTotal = natural.Sum(x => Math.Min(x, minimum));
+
+        // Extremely narrow windows can make even the normal compact minimum
+        // impossible. Distribute the remaining pixels deterministically in that case.
+        if (minimumTotal > usable)
+        {
+            var equal = Math.Max(1, usable / natural.Length);
+            var remainder = Math.Max(0, usable - (equal * natural.Length));
+            return natural
+                .Select((width, index) => Math.Min(width, equal + (index < remainder ? 1 : 0)))
+                .ToArray();
+        }
+
+        // Find the largest shared cap that fits. Tabs already shorter than the cap
+        // keep their full natural width; only genuinely long tabs are shortened.
+        var low = minimum;
+        var high = natural.Max();
+        while (low < high)
+        {
+            var mid = low + ((high - low + 1) / 2);
+            var total = natural.Sum(x => Math.Min(x, mid));
+            if (total <= usable)
+                low = mid;
+            else
+                high = mid - 1;
+        }
+
+        var fitted = natural.Select(x => Math.Min(x, low)).ToArray();
+        var leftover = usable - fitted.Sum();
+
+        // The binary cap can leave fewer than one pixel per truncated tab unused.
+        // Give those pixels back without exceeding any tab's natural width.
+        for (var i = 0; i < fitted.Length && leftover > 0; i++)
+        {
+            if (fitted[i] >= natural[i]) continue;
+            fitted[i]++;
+            leftover--;
+        }
+
+        return fitted;
     }
 
     internal void RebuildV125TabBarForSelfTest()
@@ -117,4 +173,7 @@ internal sealed partial class ChatOverlayForm
         var available = Math.Max(0, _tabBar.ClientSize.Width - _tabBar.Padding.Horizontal);
         return (_tabBar.AutoScroll, buttons.Length, outer, available, outer <= available);
     }
+
+    internal static int[] FitV126TabWidthsForSelfTest(int[] preferred, int usable) =>
+        FitV126TabWidths(preferred, usable);
 }
