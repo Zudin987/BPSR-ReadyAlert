@@ -6,7 +6,7 @@ internal sealed partial class ChatGeneralSettingsForm
 {
     // One compact cleanup switch replaces the two overlapping content-cleanup
     // options. It drives both legacy settings fields for backward-compatible JSON.
-    private readonly CheckBox _hideRichNoise = new() { Text = "Hide emoji-only + linked items / Hypertext" };
+    private readonly CheckBox _hideRichNoise = new() { Text = "Hide emoji + linked items / Hypertext" };
     private bool _v120ContentFiltersInstalled;
 
     private void InstallV120ContentFilters()
