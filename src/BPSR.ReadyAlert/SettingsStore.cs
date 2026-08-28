@@ -6,6 +6,8 @@ internal sealed class AppSettings
 {
     public bool QueuePopAlert { get; set; } = true;
     public bool ReadyCheckAlert { get; set; } = true;
+    public bool PartyInviteAlert { get; set; } = true;
+    public bool PartyRequestAlert { get; set; } = true;
     public bool DesktopNotification { get; set; } = false;
     public bool AutoLaunchResonanceLogs { get; set; } = true;
     public string ResonanceLogsPath { get; set; } = string.Empty;
