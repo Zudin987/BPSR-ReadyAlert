@@ -18,4 +18,11 @@ internal sealed partial class ChatGeneralSettingsForm
         foreach (var page in _pages.Values.Select(x => x.Page))
             page.VisibleChanged += (_, _) => callback();
     }
+
+    internal void SubscribeV124LayoutForSelfTest(Action callback)
+    {
+        _contentHost.Layout += (_, _) => callback();
+        foreach (var page in _pages.Values.Select(x => x.Page))
+            page.Layout += (_, _) => callback();
+    }
 }
