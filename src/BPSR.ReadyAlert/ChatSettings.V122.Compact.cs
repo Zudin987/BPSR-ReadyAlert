@@ -208,17 +208,17 @@ internal sealed partial class ChatGeneralSettingsForm
 
     internal void ShowV122PageForSelfTest(string key) => ShowPage(key);
 
-    internal (int VisiblePages, bool BufferedHost, int SidebarWidth, int FooterHeight, int MaxRuleHeight, int MaxNavHeight, string ActiveKey)
+    internal (int SelectedPages, bool BufferedHost, int SidebarWidth, int FooterHeight, int MaxRuleHeight, int MaxNavHeight, string ActiveKey)
         GetV122CompactMetricsForSelfTest()
     {
         InstallV122CompactUi();
-        var visible = _pages.Values.Count(x => x.Page.Visible);
+        var selected = _pages.Values.Count(x => x.Button.Selected);
         var sidebar = FindV122Sidebar();
         var footer = FindV122Footer();
         var maxRuleHeight = new[] { _highlight.Height }.Concat(_soundRuleMatch.Select(x => x.Height)).Max();
         var maxNav = _pages.Values.Select(x => x.Button.Height).DefaultIfEmpty(0).Max();
         return (
-            visible,
+            selected,
             _contentHost is ChatBufferedPanel,
             sidebar?.Width ?? 0,
             footer?.Height ?? 0,
