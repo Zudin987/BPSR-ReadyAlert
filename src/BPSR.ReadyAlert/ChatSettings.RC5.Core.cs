@@ -104,7 +104,7 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 60,
+            Height = V122LogicalFooterHeight,
             BackColor = ChatUiTheme.Surface,
             Padding = Padding.Empty
         };
@@ -134,7 +134,9 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132F));
+        // Keep enough room for the truthful persistence state "Applied — not saved".
+        // This value deliberately sits outside the generic compact-column ranges.
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 144F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116F));
@@ -174,7 +176,7 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         var sidebar = new Panel
         {
             Dock = DockStyle.Left,
-            Width = 176,
+            Width = V122LogicalSidebarWidth,
             BackColor = ChatUiTheme.Window,
             Padding = new Padding(12, 14, 10, 10)
         };
@@ -207,7 +209,7 @@ internal sealed partial class ChatGeneralSettingsForm : Form
 
     private void RegisterPage(string key, string navText, Control page)
     {
-        var button = new ChatNavButton { Text = navText, Width = 152, Height = 36 };
+        var button = new ChatNavButton { Text = navText, Width = 152, Height = V122LogicalNavHeight };
         button.Click += (_, _) => ShowPage(key);
         _navHost.Controls.Add(button);
         page.Dock = DockStyle.Fill;
