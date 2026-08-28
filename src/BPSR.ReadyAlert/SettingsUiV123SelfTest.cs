@@ -7,6 +7,12 @@ internal static class SettingsUiV123SelfTest
 {
     internal static void Run()
     {
+        TestMainSettingsShell();
+        TestCompactTabEditorStyling();
+    }
+
+    private static void TestMainSettingsShell()
+    {
         var chat = new ChatOverlaySettings();
         chat.Normalize();
         var speech = new ChatSpeechTranslationSettings();
@@ -62,6 +68,36 @@ internal static class SettingsUiV123SelfTest
         Assert(sections.Count > 0, "Settings still has semantic section containers");
         Assert(sections.All(x => x.Padding == Padding.Empty && x.BackColor == ChatUiTheme.SettingsWindow),
             "Settings sections are flat rather than large bordered cards");
+    }
+
+    private static void TestCompactTabEditorStyling()
+    {
+        var tab = new ChatTabSettings
+        {
+            Name = "World",
+            Channels = [(int)ChatChannel.World],
+            MinLevel = 1
+        };
+
+        using var form = new ChatTabEditorForm(tab, isNew: true);
+        _ = form.Handle;
+        form.CreateControl();
+        PerformLayoutTree(form);
+
+        var metrics = form.GetV122CompactMetricsForSelfTest();
+        Assert(metrics.DefaultClient.Width <= 680 && metrics.DefaultClient.Height <= 600,
+            "Add/Edit Tab keeps a compact default footprint");
+        Assert(metrics.ChannelsHeight <= 132 && metrics.ShowHeight <= 54 && metrics.HideHeight <= 54,
+            "Add/Edit Tab keeps channel and filter editors compact");
+        Assert(metrics.NameWidth <= 280, "Add/Edit Tab keeps the name field bounded");
+        Assert(metrics.FooterHeight <= 54, "Add/Edit Tab uses a compact footer");
+
+        var save = FindButton(form, "Save tab");
+        var cancel = FindButton(form, "Cancel");
+        Assert(save is not null && save.BackColor == ChatUiTheme.SettingsSave,
+            "Add/Edit Tab Save uses the same green Settings action");
+        Assert(cancel is not null && cancel.BackColor == ChatUiTheme.SettingsClose,
+            "Add/Edit Tab Cancel uses the same red close action");
     }
 
     private static FlowLayoutPanel? FindTopNavigation(Control parent)
