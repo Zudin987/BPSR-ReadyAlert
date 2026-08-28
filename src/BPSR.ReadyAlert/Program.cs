@@ -25,6 +25,7 @@ internal static class Program
                 RunSmokeStep(ChatV120SelfTest.Run, 18);
                 RunSmokeStep(UiUxV121SelfTest.Run, 19);
                 RunSmokeStep(TtsVolumeIsolationSelfTest.Run, 20);
+                RunSmokeStep(SettingsUiV122SelfTest.Run, 21);
                 Environment.ExitCode = 0;
                 return;
             }
