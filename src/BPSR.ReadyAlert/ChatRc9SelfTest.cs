@@ -9,7 +9,7 @@ internal static class ChatRc9SelfTest
         Environment.ExitCode = 91;
         TestLegacyRc8SoundMigration();
         Environment.ExitCode = 92;
-        TestThreeRuleCapAndPriority();
+        TestTwoRuleCapAndPriority();
         Environment.ExitCode = 93;
         TestSoundRuleUi();
         Environment.ExitCode = 0;
@@ -32,7 +32,7 @@ internal static class ChatRc9SelfTest
         Assert(!settings.HighlightSoundEnabled && settings.HighlightSoundPath.Length == 0, "legacy sound fields clear after migration");
     }
 
-    private static void TestThreeRuleCapAndPriority()
+    private static void TestTwoRuleCapAndPriority()
     {
         var settings = new ChatOverlaySettings
         {
@@ -45,7 +45,7 @@ internal static class ChatRc9SelfTest
             ]
         };
         settings.Normalize();
-        Assert(settings.HighlightSoundRules.Count == 3, "sound rules are capped at three");
+        Assert(settings.HighlightSoundRules.Count == 2, "v1.2.4 sound rules are capped at two");
 
         var first = ChatSoundRuleMatcher.FindFirstMatch(settings.HighlightSoundRules, "PA raid serum");
         Assert(ReferenceEquals(first, settings.HighlightSoundRules[0]), "first matching sound rule wins");
@@ -53,7 +53,7 @@ internal static class ChatRc9SelfTest
         // Avoid words such as "party" here because simple PA intentionally uses
         // normal substring/regex matching and would correctly match the "pa" in it.
         var second = ChatSoundRuleMatcher.FindFirstMatch(settings.HighlightSoundRules, "need RAID group");
-        Assert(ReferenceEquals(second, settings.HighlightSoundRules[1]), "later rule matches when earlier rule does not");
+        Assert(ReferenceEquals(second, settings.HighlightSoundRules[1]), "rule 2 matches when rule 1 does not");
 
         settings.HighlightSoundRules[0].Enabled = false;
         first = ChatSoundRuleMatcher.FindFirstMatch(settings.HighlightSoundRules, "PA raid");
@@ -84,8 +84,9 @@ internal static class ChatRc9SelfTest
         form.CreateControl();
         PerformLayoutTree(form);
 
-        for (var i = 1; i <= 3; i++)
-            Assert(FindCheckBox(form, $"Enable sound rule {i}") is not null, $"sound rule {i} editor exists");
+        Assert(FindCheckBox(form, "Enable sound rule 1") is not null, "sound rule 1 editor exists");
+        Assert(FindCheckBox(form, "Enable sound rule 2") is not null, "sound rule 2 editor exists");
+        Assert(FindCheckBox(form, "Enable sound rule 3") is null, "sound rule 3 editor is removed in v1.2.4");
 
         Assert(FindControlText(form, "Cooldown") is null, "no cooldown UI is exposed");
         Assert(FindControlText(form, "Chat alert volume") is not null, "one shared chat alert volume is present");
