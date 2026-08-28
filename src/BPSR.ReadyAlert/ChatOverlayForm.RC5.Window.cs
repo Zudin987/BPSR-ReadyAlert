@@ -9,8 +9,7 @@ internal sealed partial class ChatOverlayForm
     {
         // RC2 notification matching/audio is owned by ChatNotificationEngine and is
         // dispatched directly from ChatCaptureBridge after parsing. Keep this legacy
-        // call site as a no-op so the UI can never double-play a sound and collapse/
-        // hide/repaint state cannot affect notification delivery.
+        // call site as a no-op so the UI can never double-play a sound.
     }
 
     private void RegisterHotkeys(bool showErrors)
@@ -19,25 +18,25 @@ internal sealed partial class ChatOverlayForm
         UnregisterHotkeys();
         var problems = new List<string>();
 
-        ChatHotkeyGesture clickGesture = default;
-        var clickValid = ChatHotkey.TryParse(_settings.Chat.ClickThroughHotkey, out clickGesture, out var clickError);
-        if (clickValid)
+        if (ChatHotkey.TryParse(_settings.Chat.ClickThroughHotkey, out var clickGesture, out var clickError))
         {
-            _clickThroughRegistered = ChatNativeMethods.RegisterHotKey(Handle, ClickThroughHotkeyId, clickGesture.NativeModifiers, (uint)clickGesture.Key);
-            if (!_clickThroughRegistered) problems.Add("Click-through hotkey is already in use by another app.");
+            _clickThroughRegistered = ChatNativeMethods.RegisterHotKey(
+                Handle,
+                ClickThroughHotkeyId,
+                clickGesture.NativeModifiers,
+                (uint)clickGesture.Key);
+            if (!_clickThroughRegistered)
+                problems.Add("Click-through hotkey is already in use by another app.");
         }
-        else problems.Add("Click-through hotkey: " + clickError);
+        else
+        {
+            problems.Add("Click-through hotkey: " + clickError);
+        }
 
-        if (ChatHotkey.TryParse(_settings.Chat.CollapseHotkey, out var collapseGesture, out var collapseError))
-        {
-            if (clickValid && clickGesture.Equals(collapseGesture)) problems.Add("Click-through and collapse hotkeys cannot be the same.");
-            else
-            {
-                _collapseRegistered = ChatNativeMethods.RegisterHotKey(Handle, CollapseHotkeyId, collapseGesture.NativeModifiers, (uint)collapseGesture.Key);
-                if (!_collapseRegistered) problems.Add("Collapse hotkey is already in use by another app.");
-            }
-        }
-        else problems.Add("Collapse hotkey: " + collapseError);
+        // v1.2.4 intentionally removes the collapse/expand global shortcut. Collapse
+        // remains available from the overlay button, while Settings exposes only the
+        // safety-critical click-through recovery hotkey.
+        _collapseRegistered = false;
 
         if (!_clickThroughRegistered && _settings.Chat.ClickThrough)
         {
@@ -50,9 +49,10 @@ internal sealed partial class ChatOverlayForm
         foreach (var problem in problems) AppLog.Write("chat: hotkey " + problem);
         if (showErrors && problems.Count > 0)
         {
-            MessageBox.Show(this,
+            MessageBox.Show(
+                this,
                 string.Join(Environment.NewLine, problems) + Environment.NewLine + Environment.NewLine +
-                "Change these shortcuts in Chat Overlay Settings > Interaction.",
+                "Change the shortcut in Chat Overlay Settings > Interaction.",
                 "Chat Overlay hotkey",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -67,6 +67,9 @@ internal sealed partial class ChatOverlayForm
             _ = ChatNativeMethods.UnregisterHotKey(Handle, ClickThroughHotkeyId);
             _clickThroughRegistered = false;
         }
+
+        // Backward cleanup: if an older build left the collapse ID registered on this
+        // handle, unregister it once. v1.2.4 never registers it again.
         if (_collapseRegistered)
         {
             _ = ChatNativeMethods.UnregisterHotKey(Handle, CollapseHotkeyId);
