@@ -131,9 +131,24 @@ internal sealed partial class ChatOverlayForm
         if (_settings.Chat.ShowSeparators)
         {
             using var pen = new Pen(ChatColorUtil.Blend(Color.White, back, 10));
-            e.Graphics.DrawLine(pen, e.Bounds.Left + 9, e.Bounds.Bottom - 1, e.Bounds.Right - 9 - scrollInset, e.Bounds.Bottom - 1);
+            e.Graphics.DrawLine(
+                pen,
+                e.Bounds.Left + 9,
+                e.Bounds.Bottom - 1,
+                GetMessageSeparatorRight(e.Bounds),
+                e.Bounds.Bottom - 1);
         }
     }
+
+    // The custom dark scrollbar is overlaid on top of the ListBox rather than
+    // consuming ListBox client width. Text intentionally keeps a scrollbar inset,
+    // but the row divider should continue underneath that overlay so the visible
+    // line reaches the scrollbar edge instead of stopping ~one scrollbar too early.
+    private static int GetMessageSeparatorRight(Rectangle bounds) =>
+        Math.Max(bounds.Left + 9, bounds.Right - 2);
+
+    internal static int GetV125MessageSeparatorRightForSelfTest(Rectangle bounds) =>
+        GetMessageSeparatorRight(bounds);
 
     private int DrawInline(Graphics graphics, string text, Font font, Color color, Color background, int x, int y)
     {
