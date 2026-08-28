@@ -49,9 +49,9 @@ internal sealed partial class ChatGeneralSettingsForm
         stack.Controls.Add(control, 0, row);
     }
 
-    private static ChatCardPanel MakeCard(string title, string subtitle, Control content)
+    private static ChatSettingsSectionPanel MakeCard(string title, string subtitle, Control content)
     {
-        var section = new ChatCardPanel
+        var section = new ChatSettingsSectionPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
