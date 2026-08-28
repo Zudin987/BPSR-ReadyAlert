@@ -25,12 +25,12 @@ internal static class SettingsUiV122SelfTest
         PerformLayoutTree(form);
 
         var metrics = form.GetV122CompactMetricsForSelfTest();
-        Assert(metrics.BufferedHost, "Settings content host is double-buffered");
-        Assert(metrics.SidebarWidth is > 0 and <= 180, "Settings sidebar stays compact");
-        Assert(metrics.FooterHeight is > 0 and <= 62, "Settings footer stays compact");
-        Assert(metrics.MaxRuleHeight <= 70, "Settings multiline rule inputs are not oversized");
-        Assert(metrics.MaxNavHeight <= 36, "Settings navigation uses compact rows");
-        Assert(metrics.SelectedPages == 1 && metrics.ActiveKey == "Appearance",
+        Check(91, metrics.BufferedHost, "Settings content host is double-buffered");
+        Check(92, metrics.SidebarWidth is > 0 and <= 180, "Settings sidebar stays compact");
+        Check(93, metrics.FooterHeight is > 0 and <= 62, "Settings footer stays compact");
+        Check(94, metrics.MaxRuleHeight <= 70, "Settings multiline rule inputs are not oversized");
+        Check(95, metrics.MaxNavHeight <= 36, "Settings navigation uses compact rows");
+        Check(96, metrics.SelectedPages == 1 && metrics.ActiveKey == "Appearance",
             "Settings starts with exactly one selected page");
 
         foreach (var key in new[] { "Interaction", "Alerts", "Speech", "Advanced", "Appearance" })
@@ -38,20 +38,21 @@ internal static class SettingsUiV122SelfTest
             form.ShowV122PageForSelfTest(key);
             PerformLayoutTree(form);
             metrics = form.GetV122CompactMetricsForSelfTest();
-            Assert(metrics.SelectedPages == 1, "page switching keeps exactly one selected navigation item");
-            Assert(metrics.ActiveKey == key, "page switching activates only the requested page");
+            Check(97, metrics.SelectedPages == 1, "page switching keeps exactly one selected navigation item");
+            Check(98, metrics.ActiveKey == key, "page switching activates only the requested page");
         }
 
         // Clicking the already-active page must be a no-op instead of forcing another
         // large WinForms visibility/layout cycle.
         form.ShowV122PageForSelfTest("Appearance");
         var repeated = form.GetV122CompactMetricsForSelfTest();
-        Assert(repeated.SelectedPages == 1 && repeated.ActiveKey == "Appearance",
+        Check(99, repeated.SelectedPages == 1 && repeated.ActiveKey == "Appearance",
             "reselecting the active Settings page is a stable no-op");
 
+        Environment.ExitCode = 100;
         var save = FindButton(form, "Save changes") ??
             throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: Save changes button missing");
-        AssertInsideClient(form, save, "Settings Save button");
+        AssertInsideClient(form, save, "Settings Save button", 100);
     }
 
     private static void TestCompactTabEditor()
@@ -67,26 +68,28 @@ internal static class SettingsUiV122SelfTest
 
         using var form = new ChatTabEditorForm(tab, isNew: true);
         var metrics = form.GetV122CompactMetricsForSelfTest();
-        Assert(metrics.DefaultClient.Width <= 740 && metrics.DefaultClient.Height <= 660,
+        Check(101, metrics.DefaultClient.Width <= 740 && metrics.DefaultClient.Height <= 660,
             "Add Chat Tab opens at a compact default size");
-        Assert(metrics.MinimumWindow.Width <= 640 && metrics.MinimumWindow.Height <= 520,
+        Check(102, metrics.MinimumWindow.Width <= 640 && metrics.MinimumWindow.Height <= 520,
             "Add Chat Tab keeps a compact resizable minimum");
-        Assert(metrics.ChannelsHeight <= 160, "channel picker is compact");
-        Assert(metrics.ShowHeight <= 70 && metrics.HideHeight <= 70, "filter boxes are compact");
-        Assert(metrics.NameWidth <= 320, "tab-name input is bounded instead of stretching across the dialog");
-        Assert(metrics.FooterHeight <= 60, "tab-editor footer is compact");
-        Assert(metrics.CancelText == "Cancel", "tab editor clearly labels the discard action as Cancel");
+        Check(103, metrics.ChannelsHeight <= 160, "channel picker is compact");
+        Check(104, metrics.ShowHeight <= 70 && metrics.HideHeight <= 70, "filter boxes are compact");
+        Check(105, metrics.NameWidth <= 320, "tab-name input is bounded instead of stretching across the dialog");
+        Check(106, metrics.FooterHeight <= 60, "tab-editor footer is compact");
+        Check(107, metrics.CancelText == "Cancel", "tab editor clearly labels the discard action as Cancel");
 
         form.Size = form.MinimumSize;
         _ = form.Handle;
         form.CreateControl();
         PerformLayoutTree(form);
+        Environment.ExitCode = 108;
         var save = FindButton(form, "Save tab") ??
             throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: Save tab button missing");
+        Environment.ExitCode = 109;
         var cancel = FindButton(form, "Cancel") ??
             throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: Cancel button missing");
-        AssertInsideClient(form, save, "tab-editor Save button");
-        AssertInsideClient(form, cancel, "tab-editor Cancel button");
+        AssertInsideClient(form, save, "tab-editor Save button", 110);
+        AssertInsideClient(form, cancel, "tab-editor Cancel button", 111);
     }
 
     private static void PerformLayoutTree(Control parent)
@@ -108,20 +111,22 @@ internal static class SettingsUiV122SelfTest
         return null;
     }
 
-    private static void AssertInsideClient(Form form, Control control, string name)
+    private static void AssertInsideClient(Form form, Control control, string name, int code)
     {
         var rect = control.Bounds;
         for (Control? parent = control.Parent; parent is not null && !ReferenceEquals(parent, form); parent = parent.Parent)
             rect.Offset(parent.Left, parent.Top);
 
         var client = form.ClientRectangle;
-        Assert(rect.Left >= client.Left - 1 && rect.Top >= client.Top - 1 &&
-               rect.Right <= client.Right + 1 && rect.Bottom <= client.Bottom + 1,
+        Check(code,
+            rect.Left >= client.Left - 1 && rect.Top >= client.Top - 1 &&
+            rect.Right <= client.Right + 1 && rect.Bottom <= client.Bottom + 1,
             name + " stays inside the client area at minimum size");
     }
 
-    private static void Assert(bool condition, string name)
+    private static void Check(int code, bool condition, string name)
     {
+        Environment.ExitCode = code;
         if (!condition) throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: " + name);
     }
 }
