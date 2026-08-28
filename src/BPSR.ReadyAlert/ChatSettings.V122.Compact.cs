@@ -50,7 +50,7 @@ internal sealed partial class ChatGeneralSettingsForm
         {
             switch (child)
             {
-                case ChatCardPanel section:
+                case ChatSettingsSectionPanel section:
                     section.Padding = Padding.Empty;
                     section.Margin = new Padding(0, 0, 0, 8);
                     section.BackColor = ChatUiTheme.SettingsWindow;
