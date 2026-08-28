@@ -29,8 +29,26 @@ internal static class Program
                 Environment.ExitCode = 0;
                 return;
             }
-            catch
+            catch (Exception ex)
             {
+                // Do not hide the useful reason behind a numeric smoke-test code.
+                // GitHub Actions can normally inherit stderr from this WinExe. Keep a
+                // sidecar too so a local/published smoke run remains diagnosable even
+                // when the parent process does not expose console handles.
+                try
+                {
+                    Console.Error.WriteLine("BPSR ReadyAlert smoke test failed:");
+                    Console.Error.WriteLine(ex);
+                }
+                catch { }
+                try
+                {
+                    File.WriteAllText(
+                        Path.Combine(AppContext.BaseDirectory, "smoke-test-error.txt"),
+                        ex.ToString());
+                }
+                catch { }
+
                 if (Environment.ExitCode == 0) Environment.ExitCode = 1;
                 return;
             }
