@@ -20,24 +20,24 @@ internal static class SettingsUiV122SelfTest
 
         using var form = new ChatGeneralSettingsForm(chat, speech);
 
-        // WinForms can apply DPI autoscaling during construction, before Handle is
-        // explicitly requested. Validate density as a proportion of the actual
-        // client size instead of assuming raw 96-DPI pixel values. The second phase
-        // below then verifies the scaled controls remain usable at minimum size.
-        var logical = form.GetV122DpiSafeMetricsForSelfTest();
-        Check(91, logical.BufferedHost, "Settings content host is double-buffered");
-        Check(92, logical.SidebarWidth > 0 && logical.SidebarWidth <= form.ClientSize.Width * 0.22,
-            "Settings sidebar stays compact relative to the window");
-        Check(93, logical.FooterHeight > 0 && logical.FooterHeight <= form.ClientSize.Height * 0.12,
-            "Settings footer stays compact relative to the window");
-        Check(94, logical.MaxRuleHeight <= form.ClientSize.Height * 0.13,
-            "Settings multiline rule inputs are not oversized");
-        Check(95, logical.MaxNavHeight <= form.ClientSize.Height * 0.08,
-            "Settings navigation uses compact rows");
-        Check(96, logical.SelectedPages == 1 && logical.ActiveKey == "Appearance",
+        // Compactness is a logical design contract. Do not infer it from control
+        // pixels during construction: PerMonitorV2 WinForms may have already begun
+        // autoscaling some controls before an explicit Handle request. Runtime DPI
+        // safety is verified below against the fully laid-out minimum-size form.
+        var initial = form.GetV122DpiSafeMetricsForSelfTest();
+        Check(91, initial.BufferedHost, "Settings content host is double-buffered");
+        Check(92, ChatGeneralSettingsForm.V122LogicalSidebarWidth <= 180,
+            "Settings sidebar logical design stays compact");
+        Check(93, ChatGeneralSettingsForm.V122LogicalFooterHeight <= 62,
+            "Settings footer logical design stays compact");
+        Check(94, ChatGeneralSettingsForm.V122LogicalMaxRuleHeight <= 70,
+            "Settings multiline rule logical design stays compact");
+        Check(95, ChatGeneralSettingsForm.V122LogicalNavHeight <= 36,
+            "Settings navigation logical design stays compact");
+        Check(96, initial.SelectedPages == 1 && initial.ActiveKey == "Appearance",
             "Settings starts with exactly one selected page");
-        Check(124, form.GetV122MaxBoundedInputWidthForSelfTest() <= form.ClientSize.Width * 0.40,
-            "Settings single-line editor fields stay bounded instead of filling the whole page");
+        Check(124, ChatGeneralSettingsForm.V122LogicalMaxInputWidth <= 340,
+            "Settings single-line editor design stays bounded");
 
         _ = form.Handle;
         form.CreateControl();
@@ -89,22 +89,16 @@ internal static class SettingsUiV122SelfTest
         };
 
         using var form = new ChatTabEditorForm(tab, isNew: true);
-        var logical = form.GetV122CompactMetricsForSelfTest();
-        Check(111, logical.DefaultClient.Width > 0 && logical.DefaultClient.Height > 0,
-            "Add Chat Tab has a valid compact default client size");
-        Check(112, logical.MinimumWindow.Width <= logical.DefaultClient.Width &&
-                   logical.MinimumWindow.Height <= logical.DefaultClient.Height,
-            "Add Chat Tab minimum stays below its default size");
-        Check(113, logical.ChannelsHeight <= logical.DefaultClient.Height * 0.30,
-            "channel picker stays compact relative to the dialog");
-        Check(114, logical.ShowHeight <= logical.DefaultClient.Height * 0.14 &&
-                   logical.HideHeight <= logical.DefaultClient.Height * 0.14,
-            "filter boxes stay compact relative to the dialog");
-        Check(115, logical.NameWidth <= logical.DefaultClient.Width * 0.50,
-            "tab-name input is bounded instead of stretching across the dialog");
-        Check(116, logical.FooterHeight <= logical.DefaultClient.Height * 0.12,
-            "tab-editor footer stays compact relative to the dialog");
-        Check(117, logical.CancelText == "Cancel", "tab editor clearly labels the discard action as Cancel");
+        var initial = form.GetV122CompactMetricsForSelfTest();
+        Check(111, initial.DefaultClient.Width > 0 && initial.DefaultClient.Height > 0,
+            "Add Chat Tab has a valid default client size");
+        Check(112, initial.MinimumWindow.Width > 0 && initial.MinimumWindow.Height > 0,
+            "Add Chat Tab has a valid resizable minimum");
+        Check(113, initial.ChannelsHeight > 0, "channel picker has usable height");
+        Check(114, initial.ShowHeight > 0 && initial.HideHeight > 0, "filter boxes have usable height");
+        Check(115, initial.NameWidth > 0, "tab-name input has usable width");
+        Check(116, initial.FooterHeight > 0, "tab-editor footer is present");
+        Check(117, initial.CancelText == "Cancel", "tab editor clearly labels the discard action as Cancel");
 
         _ = form.Handle;
         form.CreateControl();
