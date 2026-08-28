@@ -8,6 +8,9 @@ internal static class SettingsUiV124SelfTest
     {
         TestHiddenPrewarmAndReuse();
         TestRealizedTabSwitching();
+        TestScreenshotDrivenSimplification();
+        TestSavedStateClosesWithoutWarning();
+        TestCompactChannelEditor();
     }
 
     private static void TestHiddenPrewarmAndReuse()
@@ -38,8 +41,6 @@ internal static class SettingsUiV124SelfTest
         Check(142, form.AreV124InstalledFontsDeferredForSelfTest(),
             "hidden prewarm still defers the installed-font scan until the dropdown is used");
 
-        // First display installs the existing dirty-state tracker. Hide rather than
-        // dispose to model the cached overlay-owned dialog.
         form.Show();
         Application.DoEvents();
         form.Hide();
@@ -60,7 +61,6 @@ internal static class SettingsUiV124SelfTest
         Check(146, form.GetV121SaveStateForSelfTest() != "Unsaved",
             "reopening cached Settings refreshes the dirty-state baseline");
 
-        // A second prepare must be idempotent because every later gear click uses it.
         form.PrepareV124ForOpen(owner);
         var preparedAgain = form.GetV124ReuseStateForSelfTest();
         Check(147, preparedAgain.HandleReady && preparedAgain.TtsVolume == sourceTtsVolume,
@@ -118,6 +118,100 @@ internal static class SettingsUiV124SelfTest
             "repeated Settings tab switching does not relayout the content host or page trees");
 
         form.Hide();
+    }
+
+    private static void TestScreenshotDrivenSimplification()
+    {
+        var chat = new ChatOverlaySettings();
+        chat.Normalize();
+        var speech = new ChatSpeechTranslationSettings();
+        speech.Normalize();
+
+        using var form = new ChatGeneralSettingsForm(chat, speech)
+        {
+            ShowInTaskbar = false,
+            Opacity = 0d
+        };
+        form.Show();
+        Application.DoEvents();
+
+        var ui = form.GetV124SimplifiedUiForSelfTest();
+        Check(148, ui.OnlyWindowOpacity,
+            "Appearance exposes only Window opacity and removes background/toolbar/text opacity controls");
+        Check(149, ui.CombinedCleanup,
+            "Interaction exposes one combined emoji/link cleanup checkbox");
+        Check(150, ui.ClickThroughCheckboxRemoved,
+            "Interaction no longer exposes a Click-through state checkbox");
+        Check(151, ui.CollapseHotkeyRemoved,
+            "Interaction no longer exposes the collapse/expand hotkey editor");
+        Check(152, ui.HighlightSingleLine,
+            "visual highlight expression is a one-line input");
+        Check(153, ui.TwoSoundRulesOnly,
+            "Alerts exposes only sound rules 1 and 2");
+        Check(154, ui.SoundRulesSingleLine,
+            "both sound rule match expressions are one-line inputs");
+
+        Check(155, form.ToggleV124CheckboxForSelfTest("Always on top"),
+            "active Settings checkboxes are enabled and toggle state reliably");
+        Check(156, form.ToggleV124CheckboxForSelfTest("Hide emoji-only + linked items / Hypertext"),
+            "combined cleanup checkbox is enabled and toggles state reliably");
+
+        form.Hide();
+    }
+
+    private static void TestSavedStateClosesWithoutWarning()
+    {
+        var chat = new ChatOverlaySettings();
+        chat.Normalize();
+        var speech = new ChatSpeechTranslationSettings();
+        speech.Normalize();
+
+        using var form = new ChatGeneralSettingsForm(chat, speech)
+        {
+            ShowInTaskbar = false,
+            Opacity = 0d
+        };
+        form.Show();
+        Application.DoEvents();
+
+        var changedVolume = speech.TtsVolume == 72 ? 71 : 72;
+        form.SetV121TtsVolumeForSelfTest(changedVolume);
+        Check(157, form.GetV121CloseWarningKindForSelfTest() == "dirty",
+            "an actual unsaved change still requires a close warning");
+
+        // Model the successful Save baseline directly: after saving, closing must be
+        // silent unless another edit occurs or persistence itself failed.
+        speech.TtsVolume = changedVolume;
+        speech.Normalize();
+        form.MarkV121SavedForSelfTest();
+        Check(158, form.GetV121CloseWarningKindForSelfTest().Length == 0,
+            "a successfully saved Settings state closes without an unapplied-changes warning");
+        Check(159, form.GetV121SaveStateForSelfTest() == "Saved ✓",
+            "successful Save remains visibly marked as saved rather than flipping back to Unsaved");
+
+        form.Hide();
+    }
+
+    private static void TestCompactChannelEditor()
+    {
+        var tab = new ChatTabSettings
+        {
+            Name = "Raid",
+            Channels = [(int)ChatChannel.World, (int)ChatChannel.Newbie, (int)ChatChannel.Union],
+            ShowIfMatches = "raid | boss",
+            HideIfMatches = "spam"
+        };
+        using var form = new ChatTabEditorForm(tab, isNew: false);
+        var contract = form.GetV124ChannelEditorForSelfTest();
+
+        Check(160, contract.Labels.SequenceEqual(new[]
+        {
+            "World + Newbie", "Guild", "Team + Group", "Private", "Local"
+        }), "Chat Tab editor exposes exactly the requested five grouped channel choices");
+        Check(161, contract.SingleLineShow && contract.SingleLineHide,
+            "Chat Tab Show/Hide filters are one-line inputs");
+        Check(162, !contract.HasScrollableChannelList,
+            "Chat Tab editor removes the old scrollable channel checklist");
     }
 
     private static void Check(int code, bool condition, string name)
