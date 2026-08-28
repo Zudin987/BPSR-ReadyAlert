@@ -19,17 +19,17 @@ internal static class SettingsUiV122SelfTest
         speech.Normalize();
 
         using var form = new ChatGeneralSettingsForm(chat, speech);
-        form.Size = form.MinimumSize;
         _ = form.Handle;
         form.CreateControl();
+        form.Size = form.MinimumSize;
         PerformLayoutTree(form);
 
         var metrics = form.GetV122CompactMetricsForSelfTest();
         Check(91, metrics.BufferedHost, "Settings content host is double-buffered");
-        Check(92, metrics.SidebarWidth is > 0 and <= 180, "Settings sidebar stays compact");
-        Check(93, metrics.FooterHeight is > 0 and <= 62, "Settings footer stays compact");
-        Check(94, metrics.MaxRuleHeight <= 70, "Settings multiline rule inputs are not oversized");
-        Check(95, metrics.MaxNavHeight <= 36, "Settings navigation uses compact rows");
+        Check(92, metrics.SidebarWidth is > 0 and <= ScaleLogical(form, 180), "Settings sidebar stays compact");
+        Check(93, metrics.FooterHeight is > 0 and <= ScaleLogical(form, 62), "Settings footer stays compact");
+        Check(94, metrics.MaxRuleHeight <= ScaleLogical(form, 70), "Settings multiline rule inputs are not oversized");
+        Check(95, metrics.MaxNavHeight <= ScaleLogical(form, 36), "Settings navigation uses compact rows");
         Check(96, metrics.SelectedPages == 1 && metrics.ActiveKey == "Appearance",
             "Settings starts with exactly one selected page");
 
@@ -67,20 +67,26 @@ internal static class SettingsUiV122SelfTest
         };
 
         using var form = new ChatTabEditorForm(tab, isNew: true);
+        _ = form.Handle;
+        form.CreateControl();
+        PerformLayoutTree(form);
+
         var metrics = form.GetV122CompactMetricsForSelfTest();
-        Check(101, metrics.DefaultClient.Width <= 740 && metrics.DefaultClient.Height <= 660,
+        Check(101, metrics.DefaultClient.Width <= ScaleLogical(form, 740) &&
+                   metrics.DefaultClient.Height <= ScaleLogical(form, 660),
             "Add Chat Tab opens at a compact default size");
-        Check(102, metrics.MinimumWindow.Width <= 640 && metrics.MinimumWindow.Height <= 520,
+        Check(102, metrics.MinimumWindow.Width <= ScaleLogical(form, 640) &&
+                   metrics.MinimumWindow.Height <= ScaleLogical(form, 520),
             "Add Chat Tab keeps a compact resizable minimum");
-        Check(103, metrics.ChannelsHeight <= 160, "channel picker is compact");
-        Check(104, metrics.ShowHeight <= 70 && metrics.HideHeight <= 70, "filter boxes are compact");
-        Check(105, metrics.NameWidth <= 320, "tab-name input is bounded instead of stretching across the dialog");
-        Check(106, metrics.FooterHeight <= 60, "tab-editor footer is compact");
+        Check(103, metrics.ChannelsHeight <= ScaleLogical(form, 160), "channel picker is compact");
+        Check(104, metrics.ShowHeight <= ScaleLogical(form, 70) && metrics.HideHeight <= ScaleLogical(form, 70),
+            "filter boxes are compact");
+        Check(105, metrics.NameWidth <= ScaleLogical(form, 320),
+            "tab-name input is bounded instead of stretching across the dialog");
+        Check(106, metrics.FooterHeight <= ScaleLogical(form, 60), "tab-editor footer is compact");
         Check(107, metrics.CancelText == "Cancel", "tab editor clearly labels the discard action as Cancel");
 
         form.Size = form.MinimumSize;
-        _ = form.Handle;
-        form.CreateControl();
         PerformLayoutTree(form);
         Environment.ExitCode = 108;
         var save = FindButton(form, "Save tab") ??
@@ -90,6 +96,12 @@ internal static class SettingsUiV122SelfTest
             throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: Cancel button missing");
         AssertInsideClient(form, save, "tab-editor Save button", 110);
         AssertInsideClient(form, cancel, "tab-editor Cancel button", 111);
+    }
+
+    private static int ScaleLogical(Form form, int logicalPixels)
+    {
+        var dpi = Math.Max(96, form.DeviceDpi);
+        return (int)Math.Ceiling(logicalPixels * dpi / 96d);
     }
 
     private static void PerformLayoutTree(Control parent)
