@@ -142,13 +142,13 @@ internal sealed partial class ChatGeneralSettingsForm : Form
 
         var reset = new Button { Text = "Reset defaults", Dock = DockStyle.Fill, Margin = Padding.Empty };
         var save = new Button { Text = "Save changes", Dock = DockStyle.Fill, Margin = Padding.Empty };
-        var close = new Button { Text = "Close", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel, Margin = Padding.Empty };
+        var cancel = new Button { Text = "Cancel", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel, Margin = Padding.Empty };
         ChatUiTheme.StyleSecondaryButton(reset);
         ChatUiTheme.StylePrimaryButton(save);
-        ChatUiTheme.StyleSecondaryButton(close);
+        ChatUiTheme.StyleSecondaryButton(cancel);
         reset.Margin = Padding.Empty;
         save.Margin = Padding.Empty;
-        close.Margin = Padding.Empty;
+        cancel.Margin = Padding.Empty;
 
         _applyStatus.Dock = DockStyle.Fill;
         _applyStatus.TextAlign = ContentAlignment.MiddleRight;
@@ -160,12 +160,12 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         save.Click += (_, _) => ApplyChanges();
         actions.Controls.Add(reset, 0, 0);
         actions.Controls.Add(_applyStatus, 3, 0);
-        actions.Controls.Add(close, 4, 0);
+        actions.Controls.Add(cancel, 4, 0);
         actions.Controls.Add(save, 6, 0);
         root.Controls.Add(actions, 0, 1);
         footer.Controls.Add(root);
         AcceptButton = save;
-        CancelButton = close;
+        CancelButton = cancel;
         return footer;
     }
 
