@@ -1,0 +1,95 @@
+name: Release v1.2.6
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: contains(github.event.head_commit.message, '[release-v1.2.6]')
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Prepare and verify embedded runtime assets
+        shell: pwsh
+        run: ./scripts/prepare-build-assets.ps1
+
+      - name: Restore
+        run: dotnet restore src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj
+
+      - name: Publish single-file EXE
+        run: >-
+          dotnet publish src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:PublishTrimmed=false
+          -p:EnableCompressionInSingleFile=true
+          -o dist
+
+      - name: Enforce EXE size budget
+        shell: pwsh
+        run: |
+          $exe = Get-Item ./dist/BPSR-ReadyAlert.exe
+          $limit = 55MB
+          Write-Host ("BPSR-ReadyAlert.exe: {0:N2} MiB (budget: {1:N2} MiB)" -f ($exe.Length / 1MB), ($limit / 1MB))
+          if ($exe.Length -gt $limit) {
+            throw "Release EXE exceeded the 55 MiB size budget."
+          }
+
+      - name: Smoke-test release EXE
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ./dist/BPSR-ReadyAlert.exe -ArgumentList '--build-smoke-test' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Release EXE smoke test failed with exit code $($process.ExitCode)" }
+          Write-Host "Release EXE smoke test passed with exit code $($process.ExitCode)."
+
+      - name: Prepare release files
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | Where-Object { $_.Name -ne 'BPSR-ReadyAlert.exe' } | Remove-Item -Force
+          $hash = (Get-FileHash dist/BPSR-ReadyAlert.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  BPSR-ReadyAlert.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          Write-Host "BPSR-ReadyAlert.exe SHA-256: $hash"
+          Get-ChildItem dist | Format-Table Name,Length
+
+      - name: Publish v1.2.6 stable release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.6
+          name: BPSR Ready Alert v1.2.6
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.2.6 is a final UI smoothness and tab-layout polish release.
+
+            Highlights:
+            - keeps complete chat-tab names whenever the row has enough room and only truncates tabs that genuinely need compression;
+            - preserves shorter tab names first when the overlay becomes constrained, while retaining the scrollbar-free compact tab strip;
+            - removes expensive per-process MainModule probing from Resonance Logs CN detection and avoids redundant path saves;
+            - moves automatic Start Menu shortcut refresh off the startup-critical UI path;
+            - defers optional Resonance Logs CN auto-launch until after the WinForms message loop starts, so the tray/overlay can become responsive first;
+            - adds startup timing diagnostics for Npcap plan selection and tray-context readiness;
+            - adds release regression gates for Settings construction, hidden prewarm, cached Settings opening, repeated Settings tab transitions, and Resonance Logs process scanning;
+            - retains all v1.2.5 reliability, independent audio-volume, translation/TTS, and chat-overlay improvements.
+
+            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
+            Requires Npcap to be installed.
