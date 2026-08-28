@@ -89,8 +89,6 @@ internal sealed partial class ChatGeneralSettingsForm
                     break;
 
                 case Label label:
-                    if (label.MaximumSize.Width is >= 380 and <= 460)
-                        label.MaximumSize = new Size(560, 0);
                     if (label.Margin.Bottom >= 14)
                         label.Margin = new Padding(label.Margin.Left, label.Margin.Top, label.Margin.Right, 8);
                     if (label.Font.Size >= 17F)
@@ -110,14 +108,15 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private static void CompactV122Columns(TableLayoutPanel table)
     {
+        // Keep field/slider label columns at their proven widths so localized/DPI-scaled
+        // text cannot spill into the control column. Compact only secondary action/value
+        // columns where the content has a fixed short label.
         for (var i = 0; i < table.ColumnStyles.Count; i++)
         {
             var style = table.ColumnStyles[i];
             if (style.SizeType != SizeType.Absolute) continue;
             style.Width = style.Width switch
             {
-                >= 225F and <= 235F => 185F,
-                >= 188F and <= 192F => 160F,
                 >= 130F and <= 134F => 112F,
                 >= 110F and <= 114F => 100F,
                 >= 56F and <= 60F => 50F,
