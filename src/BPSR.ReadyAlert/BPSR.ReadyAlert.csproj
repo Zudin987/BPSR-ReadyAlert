@@ -8,9 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BPSR-ReadyAlert</AssemblyName>
     <RootNamespace>BPSR.ReadyAlert</RootNamespace>
-    <Version>1.2.7</Version>
+    <Version>1.3.0</Version>
     <Authors>Zudin987</Authors>
-    <Description>Portable matchmaking, Ready Check, optional chat overlay, translation, and TTS companion for Blue Protocol: Star Resonance.</Description>
+    <Description>Portable Ready Check, matchmaking, party-invite/request alerts, and optional chat overlay companion for Blue Protocol: Star Resonance.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\App.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
