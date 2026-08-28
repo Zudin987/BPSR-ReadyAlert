@@ -63,6 +63,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             $"adapter={_settings.NpcapDeviceName}");
         AppLog.Write($"capture: selected adapter={_capturePlan.Primary.Description} source={_capturePlan.Primary.Source}");
 
+        // Party invite/request alerts are a core ReadyAlert consumer. They share the
+        // existing capture and Ready/Queue audio path, but do not depend on Chat Overlay.
+        PartyAlertCaptureBridge.Configure(_events);
         ChatCaptureBridge.Configure(_chatEvents);
         ChatCaptureBridge.Enabled = _settings.ChatOverlayEnabled;
 
@@ -523,7 +526,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 continue;
             }
 
-            if (evt.Kind is "queue" or "ready")
+            if (IsCoreSoundEvent(evt.Kind))
                 PlayAlert(evt.Kind);
 
             if (_settings.DesktopNotification || evt.Kind == "error")
@@ -555,6 +558,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // boundary so a sustained queue still paints progress instead of looking hung.
         chatWindow.FlushDeferredMessageBatch();
     }
+
+    private static bool IsCoreSoundEvent(string kind) =>
+        kind is "queue" or "ready" or "party-invite" or "party-request";
+
+    internal static bool IsCoreSoundEventForSelfTest(string kind) => IsCoreSoundEvent(kind);
 
     private static (string Title, string Message) FormatDesktopNotification(AlertEvent evt)
     {
