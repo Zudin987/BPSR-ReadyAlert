@@ -9,6 +9,7 @@ internal static class SettingsUiV123SelfTest
     {
         TestMainSettingsShell();
         TestCompactTabEditorStyling();
+        TestSettingsStylingStaysScoped();
     }
 
     private static void TestMainSettingsShell()
@@ -54,6 +55,18 @@ internal static class SettingsUiV123SelfTest
                 : visual.Maximum;
             backing.Value = fromBacking;
             Assert(visual.Value == fromBacking, "existing settings updates flow back to the compact slider");
+
+            var originalEnabled = backing.Enabled;
+            backing.Enabled = !originalEnabled;
+            Assert(visual.Enabled == backing.Enabled, "compact slider mirrors the backing control enabled state");
+            backing.Enabled = originalEnabled;
+            Assert(visual.Enabled == originalEnabled, "compact slider restores the backing control enabled state");
+
+            Assert(visual.TreatsKeyAsInputForSelfTest(Keys.Left) &&
+                   visual.TreatsKeyAsInputForSelfTest(Keys.Right) &&
+                   visual.TreatsKeyAsInputForSelfTest(Keys.PageUp) &&
+                   visual.TreatsKeyAsInputForSelfTest(Keys.Home),
+                "compact slider keeps navigation keys for slider input instead of dialog focus navigation");
         }
 
         var save = FindButton(form, "Save");
@@ -63,8 +76,8 @@ internal static class SettingsUiV123SelfTest
         Assert(close is not null && close.BackColor == ChatUiTheme.SettingsClose,
             "Settings Close uses the compact red closing action");
 
-        var sections = FindControls<ChatCardPanel>(form).ToList();
-        Assert(sections.Count > 0, "Settings still has semantic section containers");
+        var sections = FindControls<ChatSettingsSectionPanel>(form).ToList();
+        Assert(sections.Count > 0, "Settings uses dedicated semantic section containers");
         Assert(sections.All(x => x.Padding == Padding.Empty && x.BackColor == ChatUiTheme.SettingsWindow),
             "Settings sections are flat rather than large bordered cards");
     }
@@ -93,13 +106,34 @@ internal static class SettingsUiV123SelfTest
             "Add/Edit Tab uses the same compact Settings surface");
 
         var sections = FindControls<ChatCardPanel>(form).ToList();
-        Assert(sections.Count >= 3 && sections.All(x => x.Padding == Padding.Empty),
+        Assert(sections.Count >= 3 && sections.All(x =>
+                x.Padding == Padding.Empty && x.BackColor == ChatUiTheme.SettingsWindow),
             "Add/Edit Tab uses flat Basics, Channels and Filters sections");
 
         // Physical-size/clipping checks intentionally stay in SettingsUiV122SelfTest,
         // which lays the form out at its real minimum size after WinForms DPI scaling.
         var metrics = form.GetV122CompactMetricsForSelfTest();
         Assert(metrics.CancelText == "Cancel", "Add/Edit Tab keeps explicit discard semantics");
+    }
+
+    private static void TestSettingsStylingStaysScoped()
+    {
+        using var genericButton = new Button { Height = 10 };
+        ChatUiTheme.StylePrimaryButton(genericButton);
+        Assert(genericButton.Height >= 34,
+            "generic overlay/support buttons keep the established touch target");
+
+        using var settingsButton = new Button { Height = 10 };
+        ChatUiTheme.StyleSettingsButton(settingsButton);
+        Assert(settingsButton.Height >= 30 && settingsButton.Height < genericButton.Height,
+            "Settings buttons can be compact without shrinking unrelated UI");
+
+        using var genericCard = new ChatCardPanel();
+        Assert(genericCard.Padding != Padding.Empty && genericCard.BackColor == ChatUiTheme.Surface,
+            "generic cards keep their pre-v1.2.3 visual defaults");
+        genericCard.Padding = Padding.Empty;
+        Assert(genericCard.BackColor == ChatUiTheme.SettingsWindow,
+            "legacy compact tab-editor cards explicitly opt into the flat Settings surface");
     }
 
     private static FlowLayoutPanel? FindTopNavigation(Control parent)
