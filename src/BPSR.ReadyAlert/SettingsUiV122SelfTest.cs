@@ -121,9 +121,10 @@ internal static class SettingsUiV122SelfTest
 
     private static Button RequireButton(Control parent, string text, int code)
     {
-        Environment.ExitCode = code;
-        return FindButton(parent, text) ??
-               throw new InvalidOperationException($"v1.2.2 Settings UI self-test failed: '{text}' button missing");
+        var result = FindButton(parent, text);
+        if (result is not null) return result;
+        Fail(code, $"'{text}' button missing");
+        throw new InvalidOperationException(); // unreachable; keeps nullable flow explicit
     }
 
     private static Button? FindButton(Control parent, string text)
@@ -164,7 +165,15 @@ internal static class SettingsUiV122SelfTest
 
     private static void Check(int code, bool condition, string name)
     {
+        if (!condition) Fail(code, name);
+    }
+
+    private static void Fail(int code, string name)
+    {
+        // Only a real assertion failure owns its diagnostic exit code. Unexpected
+        // exceptions retain Program.RunSmokeStep's parent code (21), preventing a
+        // previously passing assertion from being misreported as the culprit.
         Environment.ExitCode = code;
-        if (!condition) throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: " + name);
+        throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: " + name);
     }
 }
