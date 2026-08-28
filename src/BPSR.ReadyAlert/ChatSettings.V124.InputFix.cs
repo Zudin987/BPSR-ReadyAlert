@@ -37,6 +37,12 @@ internal sealed partial class ChatGeneralSettingsForm
 
     internal bool ToggleV124CheckboxForSelfTest(string text)
     {
+        // v1.2.5 shortens the user-facing copy by removing "only". Keep the older
+        // regression helper compatible so the v1.2.4 interaction test still exercises
+        // the same real checkbox instead of failing only because its label changed.
+        if (string.Equals(text, "Hide emoji-only + linked items / Hypertext", StringComparison.Ordinal))
+            text = "Hide emoji + linked items / Hypertext";
+
         var check = FindV124Checkbox(this, text);
         if (check is null) return false;
         var before = check.Checked;
