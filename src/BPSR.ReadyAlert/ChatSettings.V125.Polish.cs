@@ -27,16 +27,19 @@ internal sealed partial class ChatGeneralSettingsForm
         box.MinimumSize = Size.Empty;
         box.AutoSize = false;
         box.Height = 24;
+
+        // Dock=Top already stretches the control horizontally inside the one-column
+        // field block. Do not also assign Anchor: WinForms treats Dock and Anchor as
+        // mutually exclusive layout modes and the later Anchor assignment can undo
+        // the full-width dock, leaving the editor at its old narrow width.
         box.Dock = DockStyle.Top;
-        box.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
     }
 
     internal (bool HighlightFluid, bool Rule1Fluid, bool Rule2Fluid, bool SingleLine)
         GetV125AlertInputMetricsForSelfTest()
     {
         static bool Fluid(TextBox box) => box.MaximumSize.Width == 0 &&
-                                           box.Dock == DockStyle.Top &&
-                                           (box.Anchor & AnchorStyles.Right) != 0;
+                                           box.Dock == DockStyle.Top;
         return (
             Fluid(_highlight),
             Fluid(_soundRuleMatch[0]),
@@ -47,8 +50,10 @@ internal sealed partial class ChatGeneralSettingsForm
     internal (int Highlight, int Rule1, int Rule2, int AlertsPageWidth)
         GetV125AlertInputWidthsForSelfTest()
     {
-        _pages.TryGetValue("Alerts", out var alerts);
-        return (_highlight.Width, _soundRuleMatch[0].Width, _soundRuleMatch[1].Width, alerts.Page?.ClientSize.Width ?? 0);
+        var pageWidth = _pages.TryGetValue("Alerts", out var alerts)
+            ? alerts.Page.ClientSize.Width
+            : 0;
+        return (_highlight.Width, _soundRuleMatch[0].Width, _soundRuleMatch[1].Width, pageWidth);
     }
 
     internal bool AreV125SettingsScrollbarsDarkThemedForSelfTest() =>
