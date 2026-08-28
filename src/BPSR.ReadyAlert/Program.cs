@@ -28,6 +28,7 @@ internal static class Program
                 RunSmokeStep(SettingsUiV122SelfTest.Run, 21);
                 RunSmokeStep(SettingsUiV123SelfTest.Run, 22);
                 RunSmokeStep(SettingsUiV124SelfTest.Run, 23);
+                RunSmokeStep(SettingsUiV125SelfTest.Run, 24);
                 Environment.ExitCode = 0;
                 return;
             }
