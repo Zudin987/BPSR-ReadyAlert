@@ -29,16 +29,12 @@ internal sealed partial class ChatGeneralSettingsForm
         RegisterPage("Speech", "Speech & translation", BuildSpeechTranslationPage());
         InstallV120ContentFilters();
 
-        // Keep the troubleshooting page last in the sidebar.
         if (_pages.TryGetValue("Speech", out var speech) && _pages.TryGetValue("Advanced", out var advanced))
         {
             var advancedIndex = _navHost.Controls.GetChildIndex(advanced.Button);
             _navHost.Controls.SetChildIndex(speech.Button, advancedIndex);
         }
 
-        // Speech is registered after the base constructor's compact pass. Apply its
-        // geometry now, before the form handle exists, so WinForms scales every page
-        // together for the monitor DPI instead of receiving raw 96-DPI sizes later.
         InstallV122CompactUi();
     }
 
@@ -224,14 +220,9 @@ internal sealed partial class ChatGeneralSettingsForm
         _speechSettings.ReadSenderName = _ttsReadSender.Checked;
         _speechSettings.IgnoreOwnUsername = _ttsOwnUsername.Text;
         _speechSettings.TtsVolume = _ttsVolume.Value;
-        _speechSettings.HideEmojiMessages = _hideEmoji.Checked;
-        _speechSettings.HideLinkedItemMessages = _hideLinkedItems.Checked;
+        _speechSettings.HideEmojiMessages = _hideRichNoise.Checked;
+        _speechSettings.HideLinkedItemMessages = _hideRichNoise.Checked;
         _speechSettings.Normalize();
-
-        // Only copy editor values here. The owning overlay reconfigures the shared
-        // translation/TTS engine once, with its translation-result queue attached.
-        // Avoiding a second Configure() call keeps Save responsive and prevents a
-        // needless wake/reconfiguration of the background speech worker.
     }
 
     private void LoadSpeechTranslationControls(ChatSpeechTranslationSettings source)
@@ -246,8 +237,9 @@ internal sealed partial class ChatGeneralSettingsForm
         _ttsParty.Checked = source.TtsPartyTeam;
         _ttsReadSender.Checked = source.ReadSenderName;
         _ttsOwnUsername.Text = source.IgnoreOwnUsername;
-        _hideEmoji.Checked = source.HideEmojiMessages;
-        _hideLinkedItems.Checked = source.HideLinkedItemMessages;
+
+        // Migrate either old independent cleanup switch into the new combined one.
+        _hideRichNoise.Checked = source.HideEmojiMessages || source.HideLinkedItemMessages;
 
         if (_ttsVolume.Minimum == 0 && _ttsVolume.Maximum == 10)
         {
