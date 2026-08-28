@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -227,7 +226,6 @@ internal sealed partial class ChatGeneralSettingsForm : Form
             return;
         }
 
-        var started = Stopwatch.GetTimestamp();
         _contentHost.SuspendLayout();
         _navHost.SuspendLayout();
         try
@@ -255,9 +253,5 @@ internal sealed partial class ChatGeneralSettingsForm : Form
             _navHost.ResumeLayout(performLayout: false);
             _contentHost.ResumeLayout(performLayout: false);
         }
-
-        var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        if (elapsedMs >= 16d)
-            AppLog.Write($"settings: slow tab switch key={key} elapsedMs={elapsedMs:F1}");
     }
 }
