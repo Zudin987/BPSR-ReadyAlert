@@ -32,6 +32,8 @@ internal static class SettingsUiV122SelfTest
         Check(95, metrics.MaxNavHeight <= ScaleLogical(form, 36), "Settings navigation uses compact rows");
         Check(96, metrics.SelectedPages == 1 && metrics.ActiveKey == "Appearance",
             "Settings starts with exactly one selected page");
+        Check(124, form.GetV122MaxBoundedInputWidthForSelfTest() <= ScaleLogical(form, 340),
+            "Settings single-line editor fields stay bounded instead of filling the whole page");
 
         foreach (var key in new[] { "Interaction", "Alerts", "Speech", "Advanced", "Appearance" })
         {
