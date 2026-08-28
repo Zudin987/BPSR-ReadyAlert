@@ -35,6 +35,11 @@ internal sealed partial class ChatGeneralSettingsForm
             var advancedIndex = _navHost.Controls.GetChildIndex(advanced.Button);
             _navHost.Controls.SetChildIndex(speech.Button, advancedIndex);
         }
+
+        // Speech is registered after the base constructor's compact pass. Apply its
+        // geometry now, before the form handle exists, so WinForms scales every page
+        // together for the monitor DPI instead of receiving raw 96-DPI sizes later.
+        InstallV122CompactUi();
     }
 
     private Control BuildSpeechTranslationPage()
