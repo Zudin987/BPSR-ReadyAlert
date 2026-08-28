@@ -13,8 +13,9 @@ internal readonly record struct ChatCaptureStatus(
     DateTime? LastMessageUtc);
 
 /// <summary>
-/// Cheap opt-in chat consumer for CaptureEngine's existing decoded Notify stream.
-/// It deliberately owns no Npcap handle, TCP flow state, decompressor, or capture thread.
+/// Lightweight Notify dispatcher attached to CaptureEngine's existing decoded stream.
+/// Chat remains opt-in, while independent core consumers such as party alerts can
+/// inspect their own exact Notify methods without owning another Npcap/TCP pipeline.
 /// </summary>
 internal static class ChatCaptureBridge
 {
@@ -63,12 +64,15 @@ internal static class ChatCaptureBridge
     }
 
     /// <summary>
-    /// Returns true when this Notify belongs to the chat service/method, even when
-    /// chat is disabled. That lets CaptureEngine stop dispatching this known packet
-    /// without doing any protobuf work while the feature is off.
+    /// Dispatches core Notify consumers first, then handles the optional chat packet.
+    /// Party alerts therefore remain active even when Chat Overlay/TTS is disabled.
+    /// Returns true when a known consumer owns the Notify.
     /// </summary>
     internal static bool TryHandle(ulong service, uint method, byte[] payload)
     {
+        if (PartyAlertCaptureBridge.TryHandle(service, method, payload))
+            return true;
+
         if (service != ChatProtocol.ServiceId || method != ChatProtocol.NotifyNewestChitChatMsgs)
             return false;
 
