@@ -30,7 +30,6 @@ internal static class SettingsUiV123SelfTest
         var navButtons = nav.Controls.OfType<ChatNavButton>().ToList();
         Assert(navButtons.Count == 5, "Settings exposes five compact top tabs");
         Assert(navButtons.Count(x => x.Selected) == 1, "exactly one top tab is selected");
-        Assert(navButtons.All(x => x.Height <= 30), "top tabs stay compact");
 
         var compactSliders = FindControls<ChatCompactSlider>(form).ToList();
         Assert(compactSliders.Count >= 6,
@@ -84,20 +83,23 @@ internal static class SettingsUiV123SelfTest
         form.CreateControl();
         PerformLayoutTree(form);
 
-        var metrics = form.GetV122CompactMetricsForSelfTest();
-        Assert(metrics.DefaultClient.Width <= 680 && metrics.DefaultClient.Height <= 600,
-            "Add/Edit Tab keeps a compact default footprint");
-        Assert(metrics.ChannelsHeight <= 132 && metrics.ShowHeight <= 54 && metrics.HideHeight <= 54,
-            "Add/Edit Tab keeps channel and filter editors compact");
-        Assert(metrics.NameWidth <= 280, "Add/Edit Tab keeps the name field bounded");
-        Assert(metrics.FooterHeight <= 54, "Add/Edit Tab uses a compact footer");
-
         var save = FindButton(form, "Save tab");
         var cancel = FindButton(form, "Cancel");
         Assert(save is not null && save.BackColor == ChatUiTheme.SettingsSave,
             "Add/Edit Tab Save uses the same green Settings action");
         Assert(cancel is not null && cancel.BackColor == ChatUiTheme.SettingsClose,
             "Add/Edit Tab Cancel uses the same red close action");
+        Assert(form.BackColor == ChatUiTheme.SettingsWindow,
+            "Add/Edit Tab uses the same compact Settings surface");
+
+        var sections = FindControls<ChatCardPanel>(form).ToList();
+        Assert(sections.Count >= 3 && sections.All(x => x.Padding == Padding.Empty),
+            "Add/Edit Tab uses flat Basics, Channels and Filters sections");
+
+        // Physical-size/clipping checks intentionally stay in SettingsUiV122SelfTest,
+        // which lays the form out at its real minimum size after WinForms DPI scaling.
+        var metrics = form.GetV122CompactMetricsForSelfTest();
+        Assert(metrics.CancelText == "Cancel", "Add/Edit Tab keeps explicit discard semantics");
     }
 
     private static FlowLayoutPanel? FindTopNavigation(Control parent)
