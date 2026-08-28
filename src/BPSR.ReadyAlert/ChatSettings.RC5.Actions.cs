@@ -145,8 +145,6 @@ internal sealed partial class ChatGeneralSettingsForm
         if (Owner is ChatOverlayForm overlay)
         {
             saveSucceeded = overlay.ApplySettingsFromOpenDialog();
-            // The full AppSettings object was just saved above. Reconfigure speech
-            // and translation without a redundant second disk write.
             overlay.ApplyV120SpeechSettingsFromOpenDialog(save: false);
             TopMost = overlay.TopMost;
             if (TopMost)
@@ -158,10 +156,8 @@ internal sealed partial class ChatGeneralSettingsForm
 
         if (!saveSucceeded)
         {
-            // The settings were applied to the current process, but the file write
-            // failed. Treat this exact editor state as the applied baseline so Cancel
-            // only warns about edits made after the failure; do not pretend it is
-            // durably saved across restart.
+            // Runtime state is already active. Keep it as the editor baseline, but
+            // never imply that Close is safe across restart when persistence failed.
             _v121SavedFingerprint = CaptureV121EditorFingerprint();
             _v121EverSaved = false;
             _v121AppliedNotPersisted = true;
@@ -170,7 +166,7 @@ internal sealed partial class ChatGeneralSettingsForm
             MessageBox.Show(
                 this,
                 "The settings were applied for this ReadyAlert session, but Windows could not save them to disk.\r\n\r\n" +
-                "They may be lost after restart. Check folder permissions or disk availability, then press 'Save changes' again.",
+                "They may be lost after restart. Check folder permissions or disk availability, then press 'Save' again.",
                 "Settings could not be saved",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -199,8 +195,6 @@ internal sealed partial class ChatGeneralSettingsForm
         var speechDefaults = new ChatSpeechTranslationSettings();
         speechDefaults.Normalize();
 
-        // Factory-reset the chat configuration while deliberately preserving the
-        // current window placement so the overlay does not jump during live use.
         _settings.Tabs = defaults.Tabs.Select(x => x.Clone()).ToList();
         _settings.LastSelectedTabId = _settings.Tabs[0].Id;
         _blockedWorking = [];
@@ -245,7 +239,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
         _highlight.Text = source.HighlightIfMatches;
         _highlightColorValue = source.HighlightColor;
-        ConfigureColorButton(_highlightColor, _highlightColorValue, "Choose highlight color");
+        ConfigureColorButton(_highlightColor, _highlightColorValue, "Highlight color");
 
         for (var i = 0; i < 3; i++)
         {
@@ -258,7 +252,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
         _privateHighlight.Checked = source.PrivateHighlightEnabled;
         _privateColorValue = source.PrivateHighlightColor;
-        ConfigureColorButton(_privateColor, _privateColorValue, "Choose Private / Talk color");
+        ConfigureColorButton(_privateColor, _privateColorValue, "Private / Talk color");
         _privateSound.Checked = source.PrivateSoundEnabled;
         _privateSoundPath.Text = source.PrivateSoundPath;
         _soundVolume.Value = Math.Clamp(source.ChatSoundVolume, _soundVolume.Minimum, _soundVolume.Maximum);
@@ -271,15 +265,17 @@ internal sealed partial class ChatGeneralSettingsForm
     private static void ConfigureColorButton(Button button, string colorValue, string text)
     {
         button.Text = text;
-        button.Width = 230;
-        button.Height = 34;
+        button.Width = 180;
+        button.Height = 28;
         button.BackColor = ChatColorUtil.Parse(colorValue, Color.DimGray);
         button.ForeColor = ContrastText(button.BackColor);
         button.FlatStyle = FlatStyle.Flat;
+        button.UseVisualStyleBackColor = false;
         button.FlatAppearance.BorderSize = 1;
-        button.FlatAppearance.BorderColor = ChatUiTheme.BorderStrong;
+        button.FlatAppearance.BorderColor = ChatUiTheme.SettingsBorder;
         button.Cursor = Cursors.Hand;
-        button.Margin = new Padding(0, 6, 0, 10);
+        button.Margin = new Padding(20, 3, 0, 5);
+        button.Padding = new Padding(8, 0, 8, 0);
     }
 
     private void ChooseColor(ref string target, Button button)
@@ -289,9 +285,6 @@ internal sealed partial class ChatGeneralSettingsForm
         target = ChatColorUtil.ToHtml(dialog.Color);
         button.BackColor = dialog.Color;
         button.ForeColor = ContrastText(dialog.Color);
-
-        // Color values live outside ordinary TextBox/CheckBox controls, so mark the
-        // editor dirty explicitly instead of relying on modal-window activation.
         RefreshV121DirtyStatus();
     }
 
