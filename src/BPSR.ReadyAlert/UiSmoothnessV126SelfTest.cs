@@ -49,25 +49,32 @@ internal static class UiSmoothnessV126SelfTest
         }
         var switchBurstMs = timer.ElapsedMilliseconds;
 
-        AppLog.Write(
-            $"selftest: v1.2.6 settings timing construct={constructMs}ms prewarm={prewarmMs}ms " +
-            $"cachedPrepare={prepareMs}ms switches100={switchBurstMs}ms");
+        var metrics =
+            $"v1.2.6 settings timing: construct={constructMs}ms prewarm={prewarmMs}ms " +
+            $"cachedPrepare={prepareMs}ms switches100={switchBurstMs}ms";
+        try { Console.Error.WriteLine(metrics); } catch { }
+        AppLog.Write("selftest: " + metrics);
 
         // These are deliberately broad release regression gates, not microbenchmarks.
-        // Their purpose is to catch a future accidental return to multi-second gear
-        // clicks or recursive page-layout work while remaining stable on hosted CI.
-        Check(181, prepareMs < 1_500,
+        // Their purpose is to catch a future accidental return to multi-second form
+        // realization, gear clicks, or recursive page-layout work while remaining
+        // stable on hosted CI.
+        Check(181, constructMs < 1_500,
+            $"Settings construction exceeded 1500 ms ({constructMs} ms)");
+        Check(182, prewarmMs < 1_500,
+            $"hidden Settings prewarm exceeded 1500 ms ({prewarmMs} ms)");
+        Check(183, prepareMs < 1_500,
             $"cached Settings preparation exceeded 1500 ms ({prepareMs} ms)");
-        Check(182, switchBurstMs < 1_000,
+        Check(184, switchBurstMs < 1_000,
             $"100 realized Settings tab switches exceeded 1000 ms ({switchBurstMs} ms)");
     }
 
     private static void TestLauncherProcessScan()
     {
-        Check(183,
+        Check(185,
             ResonanceLogsLauncher.LooksLikeResonanceLogsProcessNameForSelfTest("resonance-logs-cn"),
             "launcher recognizes the normal Resonance Logs process name");
-        Check(184,
+        Check(186,
             !ResonanceLogsLauncher.LooksLikeResonanceLogsProcessNameForSelfTest("explorer"),
             "launcher rejects unrelated process names");
 
@@ -79,8 +86,9 @@ internal static class UiSmoothnessV126SelfTest
             var timer = Stopwatch.StartNew();
             _ = launcher.IsRunning();
             var scanMs = timer.ElapsedMilliseconds;
+            try { Console.Error.WriteLine($"v1.2.6 launcher process scan: {scanMs}ms"); } catch { }
             AppLog.Write($"selftest: v1.2.6 process-name scan={scanMs}ms");
-            Check(185, scanMs < 1_500,
+            Check(187, scanMs < 1_500,
                 $"process-name-only Resonance Logs scan exceeded 1500 ms ({scanMs} ms)");
         }
         finally
