@@ -65,9 +65,6 @@ internal sealed partial class ChatGeneralSettingsForm
         _colorBand.Checked = _settings.ShowColorBand;
 
         ChatUiTheme.StyleSettingsComboBox(_fontFamily);
-
-        // Keep the Settings-open hot path cheap. The current font is enough for the
-        // first frame; enumerate the full Windows font collection only on demand.
         if (!_fontFamily.Items.Contains(_settings.FontFamily))
             _fontFamily.Items.Add(_settings.FontFamily);
         _fontFamily.SelectedItem = _settings.FontFamily;
@@ -136,8 +133,6 @@ internal sealed partial class ChatGeneralSettingsForm
             Margin = Padding.Empty
         };
         behavior.Controls.Add(_hideStickers);
-        // The combined emoji/link cleanup checkbox is inserted immediately after
-        // Hide stickers by InstallV120ContentFilters() once Speech settings exist.
         AddPageCard(stack, MakeCard("Overlay behavior", string.Empty, behavior));
 
         _clickHotkey.Text = _settings.ClickThroughHotkey;
@@ -191,15 +186,12 @@ internal sealed partial class ChatGeneralSettingsForm
         _highlightColor.Click += (_, _) => ChooseColor(ref _highlightColorValue, _highlightColor);
 
         var keywordContent = MakeSingleColumnTable();
-        AddStack(keywordContent, MakeFieldBlock(
-            "Visual highlight rule",
-            "Example: serum | food | raid",
-            _highlight));
+        AddStack(keywordContent, MakeFieldBlock("Visual highlight rule", "Example: serum | food | raid", _highlight));
         AddStack(keywordContent, _highlightValidation);
         AddStack(keywordContent, _highlightColor);
         AddPageCard(stack, MakeCard("Visual keyword highlight", string.Empty, keywordContent));
 
-        for (var i = 0; i < _soundRuleEnabled.Length; i++)
+        for (var i = 0; i < V124SoundRuleCount; i++)
             AddPageCard(stack, BuildSoundRuleCard(i));
 
         _privateHighlight.Checked = _settings.PrivateHighlightEnabled;
@@ -220,7 +212,7 @@ internal sealed partial class ChatGeneralSettingsForm
         AddPageCard(stack, MakeCard("Private / Talk", string.Empty, privateContent));
 
         RefreshHighlightValidation();
-        for (var i = 0; i < _soundRuleEnabled.Length; i++) RefreshSoundRuleValidation(i);
+        for (var i = 0; i < V124SoundRuleCount; i++) RefreshSoundRuleValidation(i);
         return page;
     }
 
@@ -247,16 +239,9 @@ internal sealed partial class ChatGeneralSettingsForm
 
         var content = MakeSingleColumnTable();
         AddStack(content, _soundRuleEnabled[index]);
-        AddStack(content, MakeFieldBlock(
-            "Match",
-            "Use | for OR, AND for all terms, or regex.",
-            _soundRuleMatch[index]));
+        AddStack(content, MakeFieldBlock("Match", "Use | for OR, AND for all terms, or regex.", _soundRuleMatch[index]));
         AddStack(content, _soundRuleValidation[index]);
-        AddStack(content, MakePathRow(
-            _soundRulePath[index],
-            () => BrowseSound(_soundRulePath[index]),
-            "Sound file",
-            "Empty = built-in alert sound."));
+        AddStack(content, MakePathRow(_soundRulePath[index], () => BrowseSound(_soundRulePath[index]), "Sound file", "Empty = built-in alert sound."));
 
         var priority = index == 0
             ? "Highest priority; first matching sound wins."
@@ -270,41 +255,26 @@ internal sealed partial class ChatGeneralSettingsForm
         var stack = (TableLayoutPanel)page.Tag!;
 
         var customize = MakeSingleColumnTable();
-        AddStack(customize, MakeActionRow(
-            "Channel colors",
-            string.Empty,
-            "Customize…",
-            () =>
-            {
-                using var dialog = new ChannelColorsForm(_channelColorsWorking);
-                if (dialog.ShowDialog(this) == DialogResult.OK) _channelColorsWorking = dialog.Result;
-            }));
-        AddStack(customize, MakeActionRow(
-            "Blocked users",
-            string.Empty,
-            "Manage…",
-            () =>
-            {
-                using var dialog = new BlockedUsersForm(_blockedWorking);
-                dialog.ShowDialog(this);
-            }));
+        AddStack(customize, MakeActionRow("Channel colors", string.Empty, "Customize…", () =>
+        {
+            using var dialog = new ChannelColorsForm(_channelColorsWorking);
+            if (dialog.ShowDialog(this) == DialogResult.OK) _channelColorsWorking = dialog.Result;
+        }));
+        AddStack(customize, MakeActionRow("Blocked users", string.Empty, "Manage…", () =>
+        {
+            using var dialog = new BlockedUsersForm(_blockedWorking);
+            dialog.ShowDialog(this);
+        }));
         AddPageCard(stack, MakeCard("Customization", string.Empty, customize));
 
-        var diagnostics = MakeActionRow(
-            "Chat capture status",
-            "Shared capture counters",
-            "Open status…",
-            () =>
-            {
-                using var dialog = new ChatDebugStatusForm();
-                dialog.ShowDialog(this);
-            });
+        var diagnostics = MakeActionRow("Chat capture status", "Shared capture counters", "Open status…", () =>
+        {
+            using var dialog = new ChatDebugStatusForm();
+            dialog.ShowDialog(this);
+        });
         AddPageCard(stack, MakeCard("Diagnostics", string.Empty, diagnostics));
 
-        AddPageCard(stack, MakeInfoBanner(
-            "Local and view-only",
-            "ReadyAlert reads the existing BPSR packet stream; it cannot send chat or automate gameplay.",
-            ChatUiTheme.Accent));
+        AddPageCard(stack, MakeInfoBanner("Local and view-only", "ReadyAlert reads the existing BPSR packet stream; it cannot send chat or automate gameplay.", ChatUiTheme.Accent));
         return page;
     }
 
