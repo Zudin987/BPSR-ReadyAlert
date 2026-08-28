@@ -135,13 +135,17 @@ internal static class NpcapDeviceSelector
     {
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var roots = new[] { local, roaming }
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var results = new List<string>();
 
-        foreach (var root in new[] { local, roaming })
+        // Yield the deterministic normal install locations first. Because this is a
+        // lazy iterator, TryReadResonanceLogsDevice can return as soon as a normal
+        // config is found without paying for broad directory enumeration at all.
+        foreach (var root in roots)
         {
-            if (string.IsNullOrWhiteSpace(root)) continue;
-
             foreach (var appDirName in new[] { "com.resonance-logs-cn", "resonance-logs-cn", "resonance-logs" })
             {
                 foreach (var relative in new[]
@@ -151,10 +155,16 @@ internal static class NpcapDeviceSelector
                 })
                 {
                     var candidate = Path.Combine(root, relative);
-                    if (seen.Add(candidate)) results.Add(candidate);
+                    if (seen.Add(candidate)) yield return candidate;
                 }
             }
+        }
 
+        // Nonstandard installations are the fallback only. This used to execute on
+        // every startup because candidates were materialized into a List before the
+        // caller could inspect the first normal path.
+        foreach (var root in roots)
+        {
             string[] directories;
             try { directories = Directory.GetDirectories(root, "*resonance*", SearchOption.TopDirectoryOnly); }
             catch { directories = Array.Empty<string>(); }
@@ -169,12 +179,10 @@ internal static class NpcapDeviceSelector
                     Path.Combine(dir, "packetCapture.json")
                 })
                 {
-                    if (seen.Add(candidate)) results.Add(candidate);
+                    if (seen.Add(candidate)) yield return candidate;
                 }
             }
         }
-
-        return results;
     }
 
     private static bool IsUsableInterface(NetworkInterface nic)

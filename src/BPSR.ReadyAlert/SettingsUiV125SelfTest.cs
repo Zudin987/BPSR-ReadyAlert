@@ -8,6 +8,7 @@ internal static class SettingsUiV125SelfTest
     internal static void Run()
     {
         TestOverlayTabStripStaysScrollbarFree();
+        TestTabNamesStayFullUntilSpaceRunsOut();
         TestMessageSeparatorReachesScrollbarEdge();
         TestSettingsPolishContract();
     }
@@ -57,6 +58,23 @@ internal static class SettingsUiV125SelfTest
             TryDelete(path);
             TryDelete(path + ".bak");
         }
+    }
+
+    private static void TestTabNamesStayFullUntilSpaceRunsOut()
+    {
+        var natural = new[] { 78, 112, 82, 236 };
+
+        var roomy = ChatOverlayForm.FitV126TabWidthsForSelfTest(natural, 620);
+        Check(181, roomy.SequenceEqual(natural),
+            "tab names keep their complete natural widths when the row has enough room");
+
+        var tight = ChatOverlayForm.FitV126TabWidthsForSelfTest(natural, 410);
+        Check(182, tight.Sum() <= 410,
+            "tab fitting still stays inside the available row when compaction is actually required");
+        Check(183, tight[0] == natural[0] && tight[1] == natural[1] && tight[2] == natural[2],
+            "short tab names remain full while only the genuinely long tab is shortened first");
+        Check(184, tight[3] < natural[3],
+            "ellipsis pressure is reserved for a tab that cannot fit at its complete natural width");
     }
 
     private static void TestMessageSeparatorReachesScrollbarEdge()
@@ -121,6 +139,6 @@ internal static class SettingsUiV125SelfTest
     {
         if (condition) return;
         Environment.ExitCode = code;
-        throw new InvalidOperationException("v1.2.5 UI self-test failed: " + name);
+        throw new InvalidOperationException("v1.2.5+ UI self-test failed: " + name);
     }
 }

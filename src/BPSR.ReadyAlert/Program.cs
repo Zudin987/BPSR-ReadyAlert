@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -29,6 +30,7 @@ internal static class Program
                 RunSmokeStep(SettingsUiV123SelfTest.Run, 22);
                 RunSmokeStep(SettingsUiV124SelfTest.Run, 23);
                 RunSmokeStep(SettingsUiV125SelfTest.Run, 24);
+                RunSmokeStep(UiSmoothnessV126SelfTest.Run, 25);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -68,6 +70,7 @@ internal static class Program
             return;
         }
 
+        var startup = Stopwatch.StartNew();
         ApplicationConfiguration.Initialize();
 
         try
@@ -89,11 +92,9 @@ internal static class Program
             if (settings.SpeechTranslation.TranslationEnabled || settings.SpeechTranslation.TtsEnabled)
                 ChatSpeechTranslationEngine.Configure(settings.SpeechTranslation);
 
-            StartMenuShortcut.TryCreateOrRefresh(paths.AppIconPath);
-            if (settings.AutoLaunchResonanceLogs)
-                launcher.EnsureRunningInteractive();
-
+            var beforeNpcap = startup.ElapsedMilliseconds;
             var capturePlan = NpcapDeviceSelector.SelectPlan(settings);
+            AppLog.Write($"startup: Npcap plan selected in {startup.ElapsedMilliseconds - beforeNpcap} ms");
 
             if (!string.IsNullOrWhiteSpace(settings.NpcapDeviceName) &&
                 !capturePlan.AvailableDevices.Any(d =>
@@ -104,7 +105,21 @@ internal static class Program
                 settingsStore.Save(settings);
             }
 
-            Application.Run(new TrayApplicationContext(paths, settings, settingsStore, launcher, capturePlan));
+            // The tray/capture context is the startup-critical path. Creating a Start
+            // Menu shortcut through WScript.Shell and probing/launching a companion app
+            // used to happen before this point, which made ReadyAlert feel slow even
+            // though neither task is required for the tray to become usable.
+            var context = new TrayApplicationContext(paths, settings, settingsStore, launcher, capturePlan);
+            AppLog.Write($"startup: tray context ready in {startup.ElapsedMilliseconds} ms");
+
+            QueueStartMenuShortcutRefresh(paths.AppIconPath);
+
+            using var autoLaunchTimer = settings.AutoLaunchResonanceLogs
+                ? CreateDeferredAutoLaunchTimer(launcher)
+                : null;
+            autoLaunchTimer?.Start();
+
+            Application.Run(context);
         }
         catch (DllNotFoundException ex)
         {
@@ -132,6 +147,39 @@ internal static class Program
             ChatSpeechTranslationEngine.Shutdown();
             try { mutex.ReleaseMutex(); } catch { }
         }
+    }
+
+    private static void QueueStartMenuShortcutRefresh(string iconPath)
+    {
+        // WScript.Shell shortcut creation is COM/shell I/O. It is useful maintenance,
+        // but it should never delay the tray or chat overlay becoming responsive.
+        var thread = new Thread(() =>
+        {
+            try { StartMenuShortcut.TryCreateOrRefresh(iconPath); }
+            catch (Exception ex) { AppLog.Write("shortcut: background refresh failed " + ex.Message); }
+        })
+        {
+            IsBackground = true,
+            Name = "BPSR-ReadyAlert-ShortcutRefresh"
+        };
+
+        try { thread.SetApartmentState(ApartmentState.STA); }
+        catch { }
+        thread.Start();
+    }
+
+    private static System.Windows.Forms.Timer CreateDeferredAutoLaunchTimer(ResonanceLogsLauncher launcher)
+    {
+        // Let the WinForms message loop start and paint the tray/overlay before the
+        // optional companion-app discovery or file picker runs.
+        var timer = new System.Windows.Forms.Timer { Interval = 100 };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            try { launcher.EnsureRunningInteractive(); }
+            catch (Exception ex) { AppLog.Write("launcher: deferred auto-launch failed " + ex); }
+        };
+        return timer;
     }
 
     private static void RunSmokeStep(Action step, int failureCode)
