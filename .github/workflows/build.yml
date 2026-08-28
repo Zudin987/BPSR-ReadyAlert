@@ -366,6 +366,38 @@ jobs:
             Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
             Requires Npcap to be installed.
 
+      - name: Create v1.2.4 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.4]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.4
+          name: BPSR Ready Alert v1.2.4
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            BPSR Ready Alert v1.2.4 focuses on Settings responsiveness and simplifies the Chat Overlay configuration from real-machine feedback.
+
+            Highlights:
+            - keeps all Settings pages realized and switches tabs by lightweight z-order/state updates, removing the visible pause during tab changes;
+            - prewarms and reuses the Settings dialog and defers installed-font enumeration to reduce gear-button opening latency;
+            - fixes checkbox interaction so selecting Settings options changes their actual state reliably;
+            - simplifies Appearance to one Window opacity control while keeping stable internal layer-opacity defaults;
+            - combines emoji-only and linked-item/Hypertext cleanup into one option;
+            - removes the Click-through state checkbox and collapse hotkey editor, leaving the click-through recovery toggle hotkey as the only global Settings hotkey;
+            - reduces visual-highlight and sound-rule expressions to compact one-line inputs and keeps only two prioritized sound rules;
+            - rebuilds Add/Edit Chat Tab into a compact fixed five-group channel layout with one-line Show/Hide filters;
+            - fixes successful Save baseline tracking so closing immediately after Save does not show a false unapplied-changes warning;
+            - preserves independent Ready / Queue, Chat alert and TTS volumes, including per-sample TTS isolation from v1.2.2;
+            - expands published single-file regression coverage for the simplified UI contract, checkbox behavior, save/close state, compact channel editor, Settings prewarm and zero-layout tab switching.
+
+            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
+            Requires Npcap to be installed.
+
       - name: Create versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
