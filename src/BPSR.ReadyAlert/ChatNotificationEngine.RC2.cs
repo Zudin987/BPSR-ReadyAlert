@@ -17,13 +17,6 @@ internal readonly record struct ChatNotificationStatus(
     DateTime? LastSuccessUtc,
     string LastError);
 
-/// <summary>
-/// Notification-only chat consumer. It is deliberately independent of the WinForms
-/// overlay so keyword/private sounds continue while the overlay is collapsed, hidden,
-/// repainting, resizing, or temporarily busy. CaptureEngine only enqueues a tiny value
-/// object; matching/audio runs on one ThreadPool worker at a time and never creates a
-/// second Npcap handle or TCP parser.
-/// </summary>
 internal static class ChatNotificationEngine
 {
     private const int MaxQueuedNotifications = 256;
@@ -65,9 +58,7 @@ internal static class ChatNotificationEngine
         {
             _enabled = value;
             if (!value)
-            {
                 while (Queue.TryDequeue(out _)) { }
-            }
         }
     }
 
@@ -89,7 +80,7 @@ internal static class ChatNotificationEngine
             DefaultSoundPath = defaultSoundPath ?? string.Empty,
             Rules = settings.HighlightSoundRules
                 .Where(x => x is not null && x.Enabled && !string.IsNullOrWhiteSpace(x.Match))
-                .Take(3)
+                .Take(2)
                 .Select(x => new SoundRuleSnapshot(x.Match.Trim(), x.SoundPath ?? string.Empty))
                 .ToArray()
         };
@@ -97,11 +88,6 @@ internal static class ChatNotificationEngine
         Volatile.Write(ref _snapshot, snapshot);
     }
 
-    /// <summary>
-    /// The block list is a ReadyAlert-chat policy, not merely a rendering detail.
-    /// Capture routing uses the same immutable snapshot as the notification worker so
-    /// blocked senders cannot disappear visually yet still reach translation/TTS.
-    /// </summary>
     internal static bool IsSenderBlocked(long senderId)
     {
         if (senderId == 0) return false;
@@ -111,10 +97,8 @@ internal static class ChatNotificationEngine
     internal static void Enqueue(ChatMessageEvent message)
     {
         if (!Enabled) return;
-
         while (Queue.Count >= MaxQueuedNotifications && Queue.TryDequeue(out _))
             Interlocked.Increment(ref _dropped);
-
         Queue.Enqueue(message);
         Interlocked.Increment(ref _enqueued);
         ScheduleWorker();
@@ -152,10 +136,6 @@ internal static class ChatNotificationEngine
     {
         if (snapshot.BlockedIds.Contains(message.SenderId) && message.SenderId != 0) return false;
         if (snapshot.HideStickers && message.Kind == ChatMessageKind.Sticker) return false;
-
-        // Global content-cleanup settings should be consistent across what the user
-        // sees and what can make noise. If a sprite-only/Hypertext row is hidden from
-        // the overlay, it must not still trigger a keyword or Private/Talk sound.
         if (ChatContentVisibility.ShouldHideInOverlay(message)) return false;
 
         if (message.Channel == ChatChannel.Private && snapshot.PrivateSoundEnabled)
@@ -176,12 +156,7 @@ internal static class ChatNotificationEngine
         return false;
     }
 
-    private static void MatchAndPlay(
-        ChatMessageEvent message,
-        Snapshot snapshot,
-        string configuredPath,
-        string reason,
-        bool playAudio)
+    private static void MatchAndPlay(ChatMessageEvent message, Snapshot snapshot, string configuredPath, string reason, bool playAudio)
     {
         Interlocked.Increment(ref _matched);
         var text = message.Text ?? string.Empty;
@@ -194,7 +169,6 @@ internal static class ChatNotificationEngine
         }
 
         if (!playAudio) return;
-
         var preferred = !string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath)
             ? configuredPath
             : snapshot.DefaultSoundPath;

@@ -5,25 +5,19 @@ namespace BPSR.ReadyAlert;
 
 internal sealed class ChatTabEditorForm : Form
 {
-    private static readonly (string Label, ChatChannel Channel)[] ChannelChoices =
+    private static readonly (string Label, int[] Channels)[] ChannelGroups =
     [
-        ("Null / Other", ChatChannel.Null),
-        ("World", ChatChannel.World),
-        ("Local / Scene", ChatChannel.Local),
-        ("Group", ChatChannel.Group),
-        ("Team", ChatChannel.Team),
-        ("Private", ChatChannel.Private),
-        ("Union / Guild", ChatChannel.Union),
-        ("System", ChatChannel.System),
-        ("Top Notice", ChatChannel.TopNotice),
-        ("Newbie", ChatChannel.Newbie),
-        ("Play", ChatChannel.Play)
+        ("World + Newbie", [(int)ChatChannel.World, (int)ChatChannel.Newbie]),
+        ("Guild", [(int)ChatChannel.Union]),
+        ("Team + Group", [(int)ChatChannel.Team, (int)ChatChannel.Group]),
+        ("Private", [(int)ChatChannel.Private]),
+        ("Local", [(int)ChatChannel.Local])
     ];
 
     private readonly ChatTabSettings _tab;
     private bool _isNew;
     private readonly TextBox _name = new();
-    private readonly CheckedListBox _channels = new();
+    private readonly CheckBox[] _channelChecks = ChannelGroups.Select(x => new CheckBox { Text = x.Label }).ToArray();
     private readonly NumericUpDown _minLevel = new();
     private readonly TextBox _show = new();
     private readonly TextBox _hide = new();
@@ -31,6 +25,7 @@ internal sealed class ChatTabEditorForm : Form
     private readonly Label _applyStatus = new();
     private readonly Button _save = new();
     private readonly Button _cancel = new();
+    private TableLayoutPanel? _channelGrid;
     private string _savedFingerprint = string.Empty;
     private bool _trackingReady;
     private bool _everSaved;
@@ -41,22 +36,22 @@ internal sealed class ChatTabEditorForm : Form
         _tab = tab;
         _isNew = isNew;
         ChatUiTheme.ApplySettingsForm(this);
-        Text = isNew ? "Add Chat Tab" : $"Edit Chat Tab — {tab.Name}";
+        Text = isNew ? "Chat Tab Settings for New Tab" : $"Chat Tab Settings — {tab.Name}";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.Sizable;
-        MaximizeBox = true;
+        MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(640, 570);
-        MinimumSize = new Size(540, 430);
+        ClientSize = new Size(560, 420);
+        MinimumSize = new Size(500, 380);
 
         var footer = BuildFooter();
-        var scroll = new ChatBufferedPanel
+        var page = new Panel
         {
             Dock = DockStyle.Fill,
             AutoScroll = true,
-            BackColor = ChatUiTheme.SettingsSurface,
-            Padding = new Padding(7)
+            BackColor = ChatUiTheme.SettingsWindow,
+            Padding = new Padding(8, 7, 8, 8)
         };
         var stack = new TableLayoutPanel
         {
@@ -67,41 +62,26 @@ internal sealed class ChatTabEditorForm : Form
             RowCount = 0,
             BackColor = ChatUiTheme.SettingsWindow,
             Margin = Padding.Empty,
-            Padding = new Padding(8, 7, 8, 10)
+            Padding = Padding.Empty
         };
         stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
-        AddStack(stack, BuildHeader(
-            isNew ? "Create chat tab" : "Edit chat tab",
-            "Channels and optional filters."));
-        AddStack(stack, BuildBasicsCard(tab));
-        AddStack(stack, BuildChannelsCard(tab));
-        AddStack(stack, BuildFiltersCard(tab));
+        AddStack(stack, BuildBasicsSection(tab));
+        AddStack(stack, BuildChannelsSection(tab));
+        AddStack(stack, BuildFiltersSection(tab));
 
-        scroll.Controls.Add(stack);
-        Controls.Add(scroll);
+        page.Controls.Add(stack);
+        Controls.Add(page);
         Controls.Add(footer);
-
         AcceptButton = _save;
         CancelButton = _cancel;
 
-        _show.TextChanged += (_, _) =>
-        {
-            RefreshValidation();
-            RefreshDirtyState();
-        };
-        _hide.TextChanged += (_, _) =>
-        {
-            RefreshValidation();
-            RefreshDirtyState();
-        };
         _name.TextChanged += (_, _) => RefreshDirtyState();
         _minLevel.ValueChanged += (_, _) => RefreshDirtyState();
-        _channels.ItemCheck += (_, _) =>
-        {
-            if (!IsHandleCreated || IsDisposed) return;
-            BeginInvoke(new Action(RefreshDirtyState));
-        };
+        _show.TextChanged += (_, _) => { RefreshValidation(); RefreshDirtyState(); };
+        _hide.TextChanged += (_, _) => { RefreshValidation(); RefreshDirtyState(); };
+        foreach (var check in _channelChecks)
+            check.CheckedChanged += (_, _) => RefreshDirtyState();
         FormClosing += TabEditorFormClosing;
 
         RefreshValidation();
@@ -122,14 +102,8 @@ internal sealed class ChatTabEditorForm : Form
 
     private Panel BuildFooter()
     {
-        var footer = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 52,
-            BackColor = ChatUiTheme.SettingsWindow,
-            Padding = Padding.Empty
-        };
-        var line = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ChatUiTheme.SettingsBorder };
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 52, BackColor = ChatUiTheme.SettingsWindow };
+        footer.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ChatUiTheme.SettingsBorder });
         var actions = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -144,7 +118,6 @@ internal sealed class ChatTabEditorForm : Form
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 146F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104F));
-        actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         _save.Text = "Save tab";
         _save.Dock = DockStyle.Fill;
@@ -167,98 +140,75 @@ internal sealed class ChatTabEditorForm : Form
         actions.Controls.Add(_applyStatus, 2, 0);
         actions.Controls.Add(_cancel, 4, 0);
         footer.Controls.Add(actions);
-        footer.Controls.Add(line);
         return footer;
     }
 
-    private static Control BuildHeader(string title, string subtitle)
-    {
-        var row = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            Margin = new Padding(0, 0, 0, 7),
-            Padding = Padding.Empty,
-            BackColor = ChatUiTheme.SettingsWindow
-        };
-        row.Controls.Add(new Label
-        {
-            AutoSize = true,
-            Text = title,
-            ForeColor = ChatUiTheme.SettingsText,
-            Font = ChatUiTheme.UiFont(10F, FontStyle.Bold),
-            Margin = Padding.Empty
-        });
-        var hint = ChatUiTheme.SettingsHint(subtitle);
-        hint.Margin = new Padding(18, 1, 0, 0);
-        row.Controls.Add(hint);
-        return row;
-    }
-
-    private ChatCardPanel BuildBasicsCard(ChatTabSettings tab)
+    private Control BuildBasicsSection(ChatTabSettings tab)
     {
         _name.Text = tab.Name;
         _name.MaxLength = 40;
-        _name.Width = 260;
-        _name.MaximumSize = new Size(260, 0);
+        _name.Width = 280;
+        _name.MaximumSize = new Size(280, 0);
         ChatUiTheme.StyleSettingsTextBox(_name);
 
         _minLevel.Minimum = 1;
         _minLevel.Maximum = 100;
         _minLevel.Value = Math.Clamp(tab.MinLevel, 1, 100);
-        _minLevel.Width = 82;
+        _minLevel.Width = 80;
         ChatUiTheme.StyleSettingsNumeric(_minLevel);
 
-        var table = MakeFieldTable();
-        AddFieldRow(table, "Tab name", "Shown on the overlay.", _name, 0);
-        AddFieldRow(table, "Minimum level", "Hide lower-level senders when known.", _minLevel, 1);
-        return MakeCard("Basics", "Name and level filter.", table);
+        var fields = MakeFieldTable();
+        AddFieldRow(fields, "Name", _name, 0);
+        AddFieldRow(fields, "Min level", _minLevel, 1);
+        return MakeSection("Basics", fields);
     }
 
-    private ChatCardPanel BuildChannelsCard(ChatTabSettings tab)
+    private Control BuildChannelsSection(ChatTabSettings tab)
     {
-        _channels.CheckOnClick = true;
-        _channels.BackColor = ChatUiTheme.SettingsInput;
-        _channels.ForeColor = ChatUiTheme.SettingsText;
-        _channels.BorderStyle = BorderStyle.FixedSingle;
-        _channels.Height = 128;
-        _channels.Dock = DockStyle.Top;
-        _channels.IntegralHeight = false;
-
-        for (var i = 0; i < ChannelChoices.Length; i++)
-        {
-            _channels.Items.Add(ChannelChoices[i].Label);
-            if (tab.Channels.Contains((int)ChannelChoices[i].Channel))
-                _channels.SetItemChecked(i, true);
-        }
-
-        var quick = new FlowLayoutPanel
+        _channelGrid = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
-            WrapContents = false,
-            FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(0, 5, 0, 0),
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3,
+            RowCount = 2,
+            Margin = Padding.Empty,
+            Padding = new Padding(0, 1, 0, 1),
             BackColor = ChatUiTheme.SettingsWindow
         };
-        var selectAll = new Button { Text = "Select all", Width = 82, Height = 28 };
-        var clear = new Button { Text = "Clear", Width = 64, Height = 28 };
-        ChatUiTheme.StyleSettingsButton(selectAll);
-        ChatUiTheme.StyleSettingsButton(clear);
-        selectAll.Click += (_, _) =>
-        {
-            for (var i = 0; i < _channels.Items.Count; i++) _channels.SetItemChecked(i, true);
-        };
-        clear.Click += (_, _) =>
-        {
-            for (var i = 0; i < _channels.Items.Count; i++) _channels.SetItemChecked(i, false);
-        };
-        quick.Controls.Add(selectAll);
-        quick.Controls.Add(clear);
+        for (var i = 0; i < 3; i++)
+            _channelGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+        _channelGrid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _channelGrid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var content = new TableLayoutPanel
+        for (var i = 0; i < _channelChecks.Length; i++)
+        {
+            var check = _channelChecks[i];
+            check.AutoSize = true;
+            check.AutoCheck = true;
+            check.FlatStyle = FlatStyle.Standard;
+            check.UseVisualStyleBackColor = false;
+            check.ForeColor = ChatUiTheme.SettingsText;
+            check.BackColor = Color.Transparent;
+            check.Cursor = Cursors.Hand;
+            check.Margin = new Padding(0, 3, 14, 3);
+            check.Checked = ChannelGroups[i].Channels.Any(tab.Channels.Contains);
+            _channelGrid.Controls.Add(check, i % 3, i / 3);
+        }
+
+        return MakeSection("Channels", _channelGrid);
+    }
+
+    private Control BuildFiltersSection(ChatTabSettings tab)
+    {
+        ConfigureSingleLineFilter(_show, tab.ShowIfMatches);
+        ConfigureSingleLineFilter(_hide, tab.HideIfMatches);
+
+        var fields = MakeFieldTable();
+        AddFieldRow(fields, "Show if matches", _show, 0);
+        AddFieldRow(fields, "Hide if matches", _hide, 1);
+
+        var host = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
@@ -269,49 +219,13 @@ internal sealed class ChatTabEditorForm : Form
             Padding = Padding.Empty,
             BackColor = ChatUiTheme.SettingsWindow
         };
-        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        content.Controls.Add(_channels, 0, 0);
-        content.Controls.Add(quick, 0, 1);
-        return MakeCard("Channels", "Choose chat channels.", content);
-    }
-
-    private ChatCardPanel BuildFiltersCard(ChatTabSettings tab)
-    {
-        ConfigureFilterBox(_show, tab.ShowIfMatches);
-        ConfigureFilterBox(_hide, tab.HideIfMatches);
-
-        var fields = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 0,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            BackColor = ChatUiTheme.SettingsWindow
-        };
-        fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-
-        AddStack(fields, MakeFieldBlock(
-            "Show only if",
-            "Empty = show all messages that pass channel and level.",
-            _show));
-        AddStack(fields, MakeFieldBlock(
-            "Hide if",
-            "Applied after the Show rule.",
-            _hide));
-
-        var syntaxText = ChatUiTheme.SettingsHint("Examples: serum | food | raid  •  boss AND hard  •  regex: (raid|dungeon)");
-        syntaxText.Margin = new Padding(18, 0, 0, 4);
-        AddStack(fields, syntaxText);
-
+        host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        host.Controls.Add(fields, 0, 0);
         _validation.AutoSize = true;
         _validation.Font = ChatUiTheme.UiFont(8.5F, FontStyle.Bold);
-        _validation.Margin = new Padding(18, 0, 0, 0);
-        AddStack(fields, _validation);
-
-        return MakeCard("Filters", "Optional message filters.", fields);
+        _validation.Margin = new Padding(148, 3, 0, 0);
+        host.Controls.Add(_validation, 0, 1);
+        return MakeSection("Filters", host);
     }
 
     private static TableLayoutPanel MakeFieldTable()
@@ -327,126 +241,62 @@ internal sealed class ChatTabEditorForm : Form
             Padding = Padding.Empty,
             BackColor = ChatUiTheme.SettingsWindow
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160F));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140F));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         return table;
     }
 
-    private static void AddFieldRow(TableLayoutPanel table, string label, string hint, Control control, int row)
+    private static void AddFieldRow(TableLayoutPanel table, string label, Control control, int row)
     {
         table.RowCount = Math.Max(table.RowCount, row + 1);
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-        var labelBox = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            Padding = new Padding(0, 3, 10, 4),
-            Margin = Padding.Empty,
-            BackColor = ChatUiTheme.SettingsWindow
-        };
-        labelBox.Controls.Add(ChatUiTheme.SettingsFieldLabel(label));
-        var hintLabel = ChatUiTheme.SettingsHint(hint);
-        hintLabel.MaximumSize = new Size(145, 0);
-        hintLabel.Margin = new Padding(18, 1, 0, 0);
-        labelBox.Controls.Add(hintLabel);
-
-        var host = new Panel
-        {
-            Dock = DockStyle.Fill,
-            Height = 34,
-            Padding = new Padding(0, 2, 0, 4),
-            Margin = Padding.Empty,
-            BackColor = ChatUiTheme.SettingsWindow
-        };
-        control.Dock = DockStyle.None;
-        control.Anchor = AnchorStyles.Top | AnchorStyles.Left;
-        control.Margin = Padding.Empty;
-        host.Controls.Add(control);
-
-        table.Controls.Add(labelBox, 0, row);
-        table.Controls.Add(host, 1, row);
+        table.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+        var text = ChatUiTheme.SettingsFieldLabel(label);
+        text.Dock = DockStyle.Fill;
+        text.TextAlign = ContentAlignment.MiddleLeft;
+        text.Margin = Padding.Empty;
+        control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        control.Margin = new Padding(4, 4, 0, 4);
+        table.Controls.Add(text, 0, row);
+        table.Controls.Add(control, 1, row);
     }
 
-    private static Control MakeFieldBlock(string label, string hint, Control control)
+    private static Control MakeSection(string title, Control content)
     {
-        var block = new TableLayoutPanel
+        var section = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            RowCount = 3,
-            Margin = new Padding(0, 0, 0, 6),
+            RowCount = 2,
+            Margin = new Padding(0, 0, 0, 8),
             Padding = Padding.Empty,
             BackColor = ChatUiTheme.SettingsWindow
         };
-        block.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        var labelControl = ChatUiTheme.SettingsFieldLabel(label);
-        var hintControl = ChatUiTheme.SettingsHint(hint);
-        hintControl.Margin = new Padding(18, 1, 0, 4);
-        control.Dock = DockStyle.Top;
-        control.Margin = new Padding(18, 0, 0, 0);
-        block.Controls.Add(labelControl, 0, 0);
-        block.Controls.Add(hintControl, 0, 1);
-        block.Controls.Add(control, 0, 2);
-        return block;
-    }
-
-    private static ChatCardPanel MakeCard(string title, string subtitle, Control content)
-    {
-        var section = new ChatCardPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Padding = Padding.Empty,
-            Margin = new Padding(0, 0, 0, 7)
-        };
-        var stack = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 0,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            BackColor = ChatUiTheme.SettingsWindow
-        };
-        stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
         var heading = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            AutoSize = true,
+            Height = 20,
             ColumnCount = 2,
-            RowCount = 1,
-            Margin = new Padding(0, 0, 0, 4),
+            Margin = Padding.Empty,
             Padding = Padding.Empty,
             BackColor = ChatUiTheme.SettingsWindow
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        var titleLabel = ChatUiTheme.SettingsFieldLabel(title);
-        titleLabel.Padding = new Padding(0, 0, 7, 0);
-        var lineHost = new Panel { Dock = DockStyle.Fill, Height = 18, BackColor = ChatUiTheme.SettingsWindow };
-        lineHost.Padding = new Padding(0, 8, 0, 0);
+        var label = ChatUiTheme.SettingsFieldLabel(title);
+        label.Padding = new Padding(0, 0, 7, 0);
+        var lineHost = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, Padding = new Padding(0, 9, 0, 0) };
         lineHost.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ChatUiTheme.SettingsBorder });
-        heading.Controls.Add(titleLabel, 0, 0);
+        heading.Controls.Add(label, 0, 0);
         heading.Controls.Add(lineHost, 1, 0);
-        AddStack(stack, heading);
-
-        var subtitleLabel = ChatUiTheme.SettingsHint(subtitle);
-        subtitleLabel.Margin = new Padding(18, 0, 0, 5);
-        subtitleLabel.MaximumSize = new Size(500, 0);
-        AddStack(stack, subtitleLabel);
 
         content.Dock = DockStyle.Top;
-        AddStack(stack, content);
-        section.Controls.Add(stack);
+        content.Margin = Padding.Empty;
+        section.Controls.Add(heading, 0, 0);
+        section.Controls.Add(content, 0, 1);
         return section;
     }
 
@@ -458,11 +308,14 @@ internal sealed class ChatTabEditorForm : Form
         stack.Controls.Add(control, 0, row);
     }
 
-    private static void ConfigureFilterBox(TextBox box, string value)
+    private static void ConfigureSingleLineFilter(TextBox box, string value)
     {
         box.Text = value;
-        box.Height = 52;
-        ChatUiTheme.StyleSettingsTextBox(box, multiline: true);
+        box.Multiline = false;
+        box.ScrollBars = ScrollBars.None;
+        box.Height = 24;
+        box.MaxLength = 4096;
+        ChatUiTheme.StyleSettingsTextBox(box);
     }
 
     private void RefreshValidation()
@@ -481,7 +334,6 @@ internal sealed class ChatTabEditorForm : Form
             _save.Enabled = false;
             return;
         }
-
         _validation.ForeColor = ChatUiTheme.Success;
         _validation.Text = "● Filters valid";
         _save.Enabled = true;
@@ -508,48 +360,27 @@ internal sealed class ChatTabEditorForm : Form
         }
     }
 
-    private string CaptureFingerprint()
-    {
-        var channels = string.Join(',', Enumerable.Range(0, _channels.Items.Count)
-            .Where(_channels.GetItemChecked));
-        return string.Join('|',
-            _name.Text,
-            _minLevel.Value,
-            channels,
-            _show.Text,
-            _hide.Text);
-    }
+    private string CaptureFingerprint() => string.Join('|',
+        _name.Text,
+        _minLevel.Value,
+        string.Join(',', _channelChecks.Select(x => x.Checked ? '1' : '0')),
+        _show.Text,
+        _hide.Text);
 
     private void TabEditorFormClosing(object? sender, FormClosingEventArgs e)
     {
         if (!_trackingReady || e.CloseReason != CloseReason.UserClosing) return;
-
         var dirty = !string.Equals(CaptureFingerprint(), _savedFingerprint, StringComparison.Ordinal);
         if (!dirty && !_appliedNotPersisted) return;
 
         var (message, title) = (dirty, _appliedNotPersisted) switch
         {
-            (true, true) => (
-                "Some tab edits have not been applied, and the last applied tab state could not be saved to disk.\r\n\r\n" +
-                "Closing will discard the unapplied edits. The tab already active in this session may also be lost after ReadyAlert restarts. Close anyway?",
-                "Tab changes are not safely saved"),
-            (false, true) => (
-                "This tab is active for the current ReadyAlert session, but Windows could not save it to disk.\r\n\r\n" +
-                "Closing keeps it active until ReadyAlert exits, but it may be lost after restart. Close anyway?",
-                "Tab is not saved"),
-            _ => (
-                "Discard changes that have not been saved?",
-                "Unsaved tab changes")
+            (true, true) => ("Some tab edits are unsaved and the last applied tab state could not be saved to disk. Close anyway?", "Tab changes are not safely saved"),
+            (false, true) => ("This tab is active for this session but could not be saved to disk. Close anyway?", "Tab is not saved"),
+            _ => ("Discard unsaved tab changes?", "Unsaved tab changes")
         };
-
-        var answer = MessageBox.Show(
-            this,
-            message,
-            title,
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Warning,
-            MessageBoxDefaultButton.Button2);
-        if (answer != DialogResult.Yes) e.Cancel = true;
+        if (MessageBox.Show(this, message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+            e.Cancel = true;
     }
 
     private void ApplyTab()
@@ -562,14 +393,16 @@ internal sealed class ChatTabEditorForm : Form
             return;
         }
 
-        var channels = new List<int>();
-        for (var i = 0; i < ChannelChoices.Length; i++)
-            if (_channels.GetItemChecked(i)) channels.Add((int)ChannelChoices[i].Channel);
-
+        var channels = new HashSet<int>();
+        for (var i = 0; i < _channelChecks.Length; i++)
+        {
+            if (!_channelChecks[i].Checked) continue;
+            foreach (var channel in ChannelGroups[i].Channels) channels.Add(channel);
+        }
         if (channels.Count == 0)
         {
-            MessageBox.Show(this, "Select at least one chat channel.", "Chat tab", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            _channels.Focus();
+            MessageBox.Show(this, "Select at least one channel group.", "Chat tab", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _channelChecks[0].Focus();
             return;
         }
         if (!ChatFilterExpression.TryValidate(_show.Text, out var showError))
@@ -584,7 +417,7 @@ internal sealed class ChatTabEditorForm : Form
         }
 
         _tab.Name = name;
-        _tab.Channels = channels;
+        _tab.Channels = channels.OrderBy(x => x).ToList();
         _tab.MinLevel = (int)_minLevel.Value;
         _tab.ShowIfMatches = _show.Text.Trim();
         _tab.HideIfMatches = _hide.Text.Trim();
@@ -594,30 +427,19 @@ internal sealed class ChatTabEditorForm : Form
         {
             saveSucceeded = overlay.ApplyTabFromOpenDialog(_tab, _isNew);
             TopMost = overlay.TopMost;
-            if (TopMost)
-            {
-                BringToFront();
-                Activate();
-            }
+            if (TopMost) { BringToFront(); Activate(); }
         }
 
         _isNew = false;
-        Text = $"Edit Chat Tab — {_tab.Name}";
+        Text = $"Chat Tab Settings — {_tab.Name}";
         _savedFingerprint = CaptureFingerprint();
-
         if (!saveSucceeded)
         {
             _everSaved = false;
             _appliedNotPersisted = true;
             _applyStatus.Text = "Applied — not saved";
             _applyStatus.ForeColor = ChatUiTheme.Danger;
-            MessageBox.Show(
-                this,
-                "The tab was applied for this ReadyAlert session, but Windows could not save it to disk.\r\n\r\n" +
-                "It may be lost after restart. Check folder permissions or disk availability, then press 'Save tab' again.",
-                "Tab could not be saved",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            MessageBox.Show(this, "The tab was applied for this session but could not be saved to disk.", "Tab could not be saved", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -631,14 +453,9 @@ internal sealed class ChatTabEditorForm : Form
         GetV122CompactMetricsForSelfTest()
     {
         var footer = Controls.OfType<Panel>().FirstOrDefault(x => x.Dock == DockStyle.Bottom);
-        return (
-            ClientSize,
-            MinimumSize,
-            _channels.Height,
-            _show.Height,
-            _hide.Height,
-            _name.Width,
-            footer?.Height ?? 0,
-            _cancel.Text);
+        return (ClientSize, MinimumSize, _channelGrid?.Height ?? 0, _show.Height, _hide.Height, _name.Width, footer?.Height ?? 0, _cancel.Text);
     }
+
+    internal (string[] Labels, bool SingleLineShow, bool SingleLineHide, bool HasScrollableChannelList) GetV124ChannelEditorForSelfTest() =>
+        (_channelChecks.Select(x => x.Text).ToArray(), !_show.Multiline, !_hide.Multiline, Controls.OfType<CheckedListBox>().Any());
 }

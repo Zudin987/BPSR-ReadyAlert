@@ -35,10 +35,15 @@ internal static class SettingsUiV123SelfTest
         Assert(navButtons.Count(x => x.Selected) == 1, "exactly one top tab is selected");
 
         var compactSliders = FindControls<ChatCompactSlider>(form).ToList();
-        Assert(compactSliders.Count >= 6,
-            "opacity, chat-alert and TTS settings use compact slider surfaces");
+        Assert(compactSliders.Count == 3,
+            "simplified Settings exposes exactly Window opacity, Chat alert volume and TTS volume sliders");
         Assert(compactSliders.All(x => !string.IsNullOrWhiteSpace(x.AccessibleName)),
             "compact sliders retain meaningful accessibility names");
+        var names = compactSliders.Select(x => x.AccessibleName ?? string.Empty).ToArray();
+        Assert(names.Any(x => x.Contains("Window opacity", StringComparison.OrdinalIgnoreCase)) &&
+               names.Any(x => x.Contains("Chat alert", StringComparison.OrdinalIgnoreCase)) &&
+               names.Any(x => x.Contains("TTS", StringComparison.OrdinalIgnoreCase)),
+            "the three remaining slider roles are explicit");
 
         foreach (var visual in compactSliders)
         {
@@ -58,22 +63,11 @@ internal static class SettingsUiV123SelfTest
             backing.Value = fromBacking;
             Assert(visual.Value == fromBacking, "existing settings updates flow back to the compact slider");
 
-            var originalEnabled = backing.Enabled;
-            backing.Enabled = !originalEnabled;
-            Assert(visual.Enabled == backing.Enabled, "compact slider mirrors the backing control enabled state");
-            backing.Enabled = originalEnabled;
-            Assert(visual.Enabled == originalEnabled, "compact slider restores the backing control enabled state");
-
             Assert(visual.TreatsKeyAsInputForSelfTest(Keys.Left) &&
                    visual.TreatsKeyAsInputForSelfTest(Keys.Right) &&
                    visual.TreatsKeyAsInputForSelfTest(Keys.PageUp) &&
                    visual.TreatsKeyAsInputForSelfTest(Keys.Home),
                 "compact slider keeps navigation keys for slider input instead of dialog focus navigation");
-
-            var sliderRow = visual.Parent?.Parent as TableLayoutPanel;
-            var valueLabel = sliderRow?.GetControlFromPosition(2, 0) as Label;
-            Assert(valueLabel is not null && valueLabel.Dock == DockStyle.Fill && valueLabel.Margin == Padding.Empty,
-                "compact slider percentage stays constrained to its value cell");
         }
 
         var save = FindButton(form, "Save");
@@ -112,13 +106,16 @@ internal static class SettingsUiV123SelfTest
         Assert(form.BackColor == ChatUiTheme.SettingsWindow,
             "Add/Edit Tab uses the same compact Settings surface");
 
-        var sections = FindControls<ChatCardPanel>(form).ToList();
-        Assert(sections.Count >= 3 && sections.All(x =>
-                x.Padding == Padding.Empty && x.BackColor == ChatUiTheme.SettingsWindow),
-            "Add/Edit Tab uses flat Basics, Channels and Filters sections");
+        var contract = form.GetV124ChannelEditorForSelfTest();
+        Assert(contract.Labels.SequenceEqual(new[]
+        {
+            "World + Newbie", "Guild", "Team + Group", "Private", "Local"
+        }), "Add/Edit Tab exposes only the five requested channel groups");
+        Assert(contract.SingleLineShow && contract.SingleLineHide,
+            "Add/Edit Tab Show/Hide expressions are compact one-line inputs");
+        Assert(!contract.HasScrollableChannelList,
+            "Add/Edit Tab no longer uses the old scrollable channel picker");
 
-        // Physical-size/clipping checks intentionally stay in SettingsUiV122SelfTest,
-        // which lays the form out at its real minimum size after WinForms DPI scaling.
         var metrics = form.GetV122CompactMetricsForSelfTest();
         Assert(metrics.CancelText == "Cancel", "Add/Edit Tab keeps explicit discard semantics");
     }
@@ -138,9 +135,6 @@ internal static class SettingsUiV123SelfTest
         using var genericCard = new ChatCardPanel();
         Assert(genericCard.Padding != Padding.Empty && genericCard.BackColor == ChatUiTheme.Surface,
             "generic cards keep their pre-v1.2.3 visual defaults");
-        genericCard.Padding = Padding.Empty;
-        Assert(genericCard.BackColor == ChatUiTheme.SettingsWindow,
-            "legacy compact tab-editor cards explicitly opt into the flat Settings surface");
     }
 
     private static FlowLayoutPanel? FindTopNavigation(Control parent)

@@ -7,10 +7,6 @@ internal sealed partial class ChatGeneralSettingsForm
 {
     private readonly HashSet<Control> _v122CompactedPages = [];
 
-    /// <summary>
-    /// Shared density pass. v1.2.3 keeps the proven one-shot/DPI-safe behavior from
-    /// v1.2.2 but applies it to the new ZDPS-style top-tab/flat-section layout.
-    /// </summary>
     private void InstallV122CompactUi()
     {
         if (_pages.TryGetValue("Speech", out var speech))
@@ -27,18 +23,23 @@ internal sealed partial class ChatGeneralSettingsForm
             entry.Button.Padding = new Padding(10, 0, 10, 0);
             entry.Button.Margin = new Padding(0, 0, 2, 0);
             entry.Page.Padding = new Padding(7);
-
             CompactV122Tree(entry.Page);
         }
 
-        _highlight.Height = 54;
-        foreach (var box in _soundRuleMatch) box.Height = 48;
+        // Alert expressions intentionally stay single-line in v1.2.4.
+        _highlight.Multiline = false;
+        _highlight.ScrollBars = ScrollBars.None;
+        foreach (var box in _soundRuleMatch)
+        {
+            box.Multiline = false;
+            box.ScrollBars = ScrollBars.None;
+        }
+
         _ttsOwnUsername.Width = Math.Min(280, Math.Max(220, _ttsOwnUsername.Width));
         _ttsOwnUsername.MaximumSize = new Size(280, 0);
         _fontFamily.Width = Math.Min(260, Math.Max(200, _fontFamily.Width));
         _fontFamily.MaximumSize = new Size(260, 0);
         _clickHotkey.MaximumSize = new Size(260, 0);
-        _collapseHotkey.MaximumSize = new Size(260, 0);
 
         var footer = FindV122Footer();
         if (footer is not null) footer.Height = 52;
@@ -70,8 +71,6 @@ internal sealed partial class ChatGeneralSettingsForm
                     break;
 
                 case TrackBar slider:
-                    // Backing TrackBars are intentionally hidden behind the compact
-                    // custom slider surface but remain in the tree for state/tests.
                     slider.AutoSize = false;
                     if (slider.Visible) slider.Height = 24;
                     break;
@@ -121,28 +120,6 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private static readonly Dictionary<string, string> V122Copy = new(StringComparer.Ordinal)
     {
-        ["Tune readability without making the overlay feel heavy. Changes apply after you save."] = "Readability, density and transparency.",
-        ["Choose the information and visual cues shown for each chat line."] = "Choose what each chat row shows.",
-        ["Keep the message text comfortable to read over the game."] = "Font used for chat messages.",
-        ["The first three controls are independent; Whole window opacity is applied last."] = "Whole-window opacity is applied last.",
-        ["Control how the overlay behaves while you play. Hotkeys work globally while ReadyAlert is running."] = "Mouse behavior, hotkeys, docking and history.",
-        ["Keep the overlay out of the way without making it impossible to recover."] = "Click-through and sticker visibility.",
-        ["When click-through is ON, mouse clicks pass to the game. Use the recovery hotkey below to turn it OFF. If that hotkey cannot register, ReadyAlert automatically disables click-through."] = "Keep a recovery hotkey for click-through. If it cannot register, ReadyAlert turns click-through off.",
-        ["Click a box and press the combination you want. Backspace clears it."] = "Both recovery shortcuts are required. Backspace clears the current entry.",
-        ["Click a box and press the combination you want. Both recovery shortcuts are required; Backspace clears the current entry before choosing another."] = "Both recovery shortcuts are required. Backspace clears the current entry.",
-        ["Choose where the compact edge handle lives and how much recent chat is retained."] = "Collapsed edge and retained chat.",
-        ["Highlight important chat visually and configure up to three different keyword sounds. Nothing is sent outside your PC."] = "Keyword highlights and chat sounds.",
-        ["One shared volume for all three sound rules and Private / Talk sounds."] = "Keyword and Private / Talk sounds only.",
-        ["Keyword rules and Private / Talk sounds only. Independent of Ready / Queue and TTS volume."] = "Keyword and Private / Talk sounds only.",
-        ["A single standardized volume keeps sound setup simple."] = "Chat sounds only; Ready / Queue and TTS stay separate.",
-        ["One shared level for chat keyword and Private / Talk sounds; other ReadyAlert audio volumes stay independent."] = "Chat sounds only; Ready / Queue and TTS stay separate.",
-        ["This changes row color only. Sound triggers are configured separately below."] = "Color matching rows without sound.",
-        ["Case-insensitive. Supports PA, serum | food, one pattern per line, AND, or advanced regex."] = "Use | for OR, AND for all terms, or regex.",
-        ["Leave empty to use ReadyAlert's built-in alert sound."] = "Empty = built-in alert sound.",
-        ["Direct-message audio also uses the shared Chat alert volume above."] = "Uses the Chat alert volume above.",
-        ["Less-used customization and troubleshooting tools. These do not start another packet capture."] = "Less-used tools and diagnostics.",
-        ["Personalize channel identity and maintain your local block list."] = "Channel colors and blocked users.",
-        ["Quickly tell whether BPSR chat packets are reaching the parser and UI queue."] = "Shared capture status and counters.",
         ["Translate World / Guild / Party chat to English and optionally read Guild / Party messages aloud."] = "Translate chat and optionally speak Guild / Party messages.",
         ["The original BPSR message appears immediately. A successful non-English translation is added underneath it later."] = "Original first; English is added when ready.",
         ["World is independent. Guild = BPSR Union. Party / Team covers Team and Group chat."] = "Guild = Union. Party / Team includes Team and Group.",

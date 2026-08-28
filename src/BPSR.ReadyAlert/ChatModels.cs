@@ -85,9 +85,8 @@ internal sealed class ChatOverlaySettings
     public bool ShowTimeAsAgo { get; set; } = true;
     public bool HideStickers { get; set; } = false;
 
-    // Overlay presentation. WindowOpacity is the real Win32 whole-window alpha.
-    // Background/toolbar/text opacity are rendered independently inside the
-    // owner-drawn overlay so text can stay readable without a heavy solid window.
+    // v1.2.4 exposes only whole-window opacity. These legacy internal layer values
+    // remain readable from older JSON but normalize to one stable rendering preset.
     public int BackgroundOpacity { get; set; } = 82;
     public int ToolbarOpacity { get; set; } = 92;
     public int TextOpacity { get; set; } = 100;
@@ -100,15 +99,13 @@ internal sealed class ChatOverlaySettings
     public bool ShowZebraStripes { get; set; } = true;
     public bool ShowColorBand { get; set; } = true;
 
-    // Game-overlay interaction. Click-through always has a global hotkey so the
-    // user cannot permanently lock themselves out of the window with the mouse.
+    // Click-through keeps one global recovery hotkey. Collapse remains available
+    // from the overlay button but no longer has a global hotkey in v1.2.4.
     public bool ClickThrough { get; set; } = false;
     public string ClickThroughHotkey { get; set; } = "Ctrl+Shift+F10";
-    public string CollapseHotkey { get; set; } = "Ctrl+Shift+F9";
+    public string CollapseHotkey { get; set; } = string.Empty;
     public string CollapseSide { get; set; } = "Right";
 
-    // Visual highlight rule. Sound rules are independent so each keyword can use
-    // a different notification WAV while sharing one standardized volume.
     public string HighlightIfMatches { get; set; } = string.Empty;
     public string HighlightColor { get; set; } = "#6B5A3A";
     public List<ChatSoundRule> HighlightSoundRules { get; set; } = [];
@@ -136,15 +133,15 @@ internal sealed class ChatOverlaySettings
 
     internal void Normalize()
     {
-        BackgroundOpacity = Math.Clamp(BackgroundOpacity, 10, 100);
-        ToolbarOpacity = Math.Clamp(ToolbarOpacity, 15, 100);
-        TextOpacity = Math.Clamp(TextOpacity, 40, 100);
+        BackgroundOpacity = 82;
+        ToolbarOpacity = 92;
+        TextOpacity = 100;
         WindowOpacity = Math.Clamp(WindowOpacity, 25, 100);
         FontFamily = string.IsNullOrWhiteSpace(FontFamily) ? "Segoe UI" : FontFamily.Trim();
         if (FontFamily.Length > 100) FontFamily = FontFamily[..100];
         FontSize = Math.Clamp(float.IsFinite(FontSize) ? FontSize : 9F, 8F, 24F);
         ClickThroughHotkey = NormalizeHotkeyText(ClickThroughHotkey, "Ctrl+Shift+F10");
-        CollapseHotkey = NormalizeHotkeyText(CollapseHotkey, "Ctrl+Shift+F9");
+        CollapseHotkey = string.Empty;
         CollapseSide = NormalizeCollapseSide(CollapseSide);
 
         HighlightIfMatches ??= string.Empty;
@@ -169,7 +166,7 @@ internal sealed class ChatOverlaySettings
 
         HighlightSoundRules = HighlightSoundRules
             .Where(x => x is not null)
-            .Take(3)
+            .Take(2)
             .Select(x => x!)
             .ToList();
         foreach (var rule in HighlightSoundRules)

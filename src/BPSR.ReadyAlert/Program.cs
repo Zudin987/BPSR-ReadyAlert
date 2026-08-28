@@ -27,6 +27,7 @@ internal static class Program
                 RunSmokeStep(TtsVolumeIsolationSelfTest.Run, 20);
                 RunSmokeStep(SettingsUiV122SelfTest.Run, 21);
                 RunSmokeStep(SettingsUiV123SelfTest.Run, 22);
+                RunSmokeStep(SettingsUiV124SelfTest.Run, 23);
                 Environment.ExitCode = 0;
                 return;
             }

@@ -57,7 +57,7 @@ internal sealed partial class ChatGeneralSettingsForm
             return false;
         }
 
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < V124SoundRuleCount; i++)
         {
             var match = _soundRuleMatch[i].Text.Trim();
             if (_soundRuleEnabled[i].Checked && match.Length == 0)
@@ -83,19 +83,6 @@ internal sealed partial class ChatGeneralSettingsForm
             _clickHotkey.Focus();
             return false;
         }
-        if (!ChatHotkey.TryParse(_collapseHotkey.Text, out var collapseGesture, out var collapseError))
-        {
-            ShowPage("Interaction");
-            MessageBox.Show(this, collapseError, "Collapse hotkey is invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            _collapseHotkey.Focus();
-            return false;
-        }
-        if (clickGesture.Equals(collapseGesture))
-        {
-            ShowPage("Interaction");
-            MessageBox.Show(this, "Click-through and Collapse cannot use the same hotkey.", "Hotkeys", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return false;
-        }
 
         _settings.TopMost = _topMost.Checked;
         _settings.CompactMode = _compact.Checked;
@@ -107,20 +94,28 @@ internal sealed partial class ChatGeneralSettingsForm
         _settings.ShowSeparators = _separators.Checked;
         _settings.ShowZebraStripes = _zebra.Checked;
         _settings.ShowColorBand = _colorBand.Checked;
-        _settings.BackgroundOpacity = _backgroundOpacity.Value;
-        _settings.ToolbarOpacity = _toolbarOpacity.Value;
-        _settings.TextOpacity = _textOpacity.Value;
+
+        // v1.2.4 exposes only real whole-window opacity. Keep the removed internal
+        // rendering layers on one stable preset so old JSON cannot silently change
+        // visuals through controls that no longer exist.
+        _settings.BackgroundOpacity = V124FixedBackgroundOpacity;
+        _settings.ToolbarOpacity = V124FixedToolbarOpacity;
+        _settings.TextOpacity = V124FixedTextOpacity;
         _settings.WindowOpacity = _windowOpacity.Value;
+
         _settings.FontFamily = _fontFamily.SelectedItem?.ToString() ?? "Segoe UI";
         _settings.FontSize = (float)_fontSize.Value;
-        _settings.ClickThrough = _clickThrough.Checked;
+
+        // Click-through itself is toggled by its global recovery hotkey. Settings
+        // only configures that one hotkey now; collapse remains available by button.
         _settings.ClickThroughHotkey = clickGesture.DisplayText;
-        _settings.CollapseHotkey = collapseGesture.DisplayText;
+        _settings.CollapseHotkey = string.Empty;
         _settings.CollapseSide = _collapseSide.SelectedItem?.ToString() ?? "Right";
         _settings.MaxHistory = (int)_maxHistory.Value;
+
         _settings.HighlightIfMatches = _highlight.Text.Trim();
         _settings.HighlightColor = _highlightColorValue;
-        _settings.HighlightSoundRules = Enumerable.Range(0, 3)
+        _settings.HighlightSoundRules = Enumerable.Range(0, V124SoundRuleCount)
             .Select(i => new ChatSoundRule
             {
                 Enabled = _soundRuleEnabled[i].Checked,
@@ -156,13 +151,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
         if (!saveSucceeded)
         {
-            // Runtime state is already active. Keep it as the editor baseline, but
-            // never imply that Close is safe across restart when persistence failed.
-            _v121SavedFingerprint = CaptureV121EditorFingerprint();
-            _v121EverSaved = false;
-            _v121AppliedNotPersisted = true;
-            _applyStatus.Text = "Applied — not saved";
-            _applyStatus.ForeColor = ChatUiTheme.Danger;
+            MarkV121AppliedButNotPersisted();
             MessageBox.Show(
                 this,
                 "The settings were applied for this ReadyAlert session, but Windows could not save them to disk.\r\n\r\n" +
@@ -173,7 +162,7 @@ internal sealed partial class ChatGeneralSettingsForm
             return false;
         }
 
-        _applyStatus.Text = "Saved ✓";
+        MarkV121SavedBaseline();
         return true;
     }
 
@@ -182,7 +171,7 @@ internal sealed partial class ChatGeneralSettingsForm
         var answer = MessageBox.Show(
             this,
             "Reset Chat Overlay to its default settings?\r\n\r\n" +
-            "This resets appearance, hotkeys, filters, sounds, speech/translation, channel colors, blocked users, and custom tabs. " +
+            "This resets appearance, filters, sounds, speech/translation, channel colors, blocked users, and custom tabs. " +
             "The overlay's current window position and size will be kept.",
             "Reset Chat Overlay",
             MessageBoxButtons.YesNo,
@@ -201,9 +190,8 @@ internal sealed partial class ChatGeneralSettingsForm
         _channelColorsWorking = new Dictionary<int, string>(defaults.ChannelColors);
         LoadControlsFrom(defaults);
         if (_speechSettings is not null)
-        {
             LoadSpeechTranslationControls(speechDefaults);
-        }
+
         if (ApplyChanges())
             _applyStatus.Text = "Defaults restored ✓";
     }
@@ -221,19 +209,13 @@ internal sealed partial class ChatGeneralSettingsForm
         _separators.Checked = source.ShowSeparators;
         _zebra.Checked = source.ShowZebraStripes;
         _colorBand.Checked = source.ShowColorBand;
-
-        _backgroundOpacity.Value = Math.Clamp(source.BackgroundOpacity, _backgroundOpacity.Minimum, _backgroundOpacity.Maximum);
-        _toolbarOpacity.Value = Math.Clamp(source.ToolbarOpacity, _toolbarOpacity.Minimum, _toolbarOpacity.Maximum);
-        _textOpacity.Value = Math.Clamp(source.TextOpacity, _textOpacity.Minimum, _textOpacity.Maximum);
         _windowOpacity.Value = Math.Clamp(source.WindowOpacity, _windowOpacity.Minimum, _windowOpacity.Maximum);
 
         if (!_fontFamily.Items.Contains(source.FontFamily)) _fontFamily.Items.Add(source.FontFamily);
         _fontFamily.SelectedItem = source.FontFamily;
         _fontSize.Value = Math.Clamp((decimal)source.FontSize, _fontSize.Minimum, _fontSize.Maximum);
 
-        _clickThrough.Checked = source.ClickThrough;
         _clickHotkey.Text = source.ClickThroughHotkey;
-        _collapseHotkey.Text = source.CollapseHotkey;
         _collapseSide.SelectedItem = source.CollapseSide;
         _maxHistory.Value = Math.Clamp(source.MaxHistory, (int)_maxHistory.Minimum, (int)_maxHistory.Maximum);
 
@@ -241,7 +223,7 @@ internal sealed partial class ChatGeneralSettingsForm
         _highlightColorValue = source.HighlightColor;
         ConfigureColorButton(_highlightColor, _highlightColorValue, "Highlight color");
 
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < V124SoundRuleCount; i++)
         {
             var rule = i < source.HighlightSoundRules.Count ? source.HighlightSoundRules[i] : null;
             _soundRuleEnabled[i].Checked = rule?.Enabled ?? false;

@@ -118,7 +118,7 @@ internal sealed partial class ChatOverlayForm : Form
         _gearButton = MakeToolbarButton("⚙", 40, "Chat Overlay settings");
         _gearButton.AccessibleName = "Chat Overlay settings";
         _gearButton.Font = new Font("Segoe UI Symbol", 10F, FontStyle.Regular, GraphicsUnit.Point);
-        _gearButton.Click += (_, _) => OpenSettingsDialog();
+        _gearButton.Click += (_, _) => OpenV124CachedSettingsDialog();
 
         _collapseButton = MakeToolbarButton("▶", 38, "Collapse chat to the selected screen edge");
         _collapseButton.Click += (_, _) => ToggleCollapsed();
@@ -245,6 +245,11 @@ internal sealed partial class ChatOverlayForm : Form
                 Hide();
             }
         };
+
+        // Prewarm Settings only after the overlay has painted. The one-time control
+        // realization is therefore removed from the gear-button click path without
+        // delaying creation of the overlay itself.
+        Shown += (_, _) => QueueV124SettingsPrewarm();
 
         ApplyWindowSettings(registerHotkeys: false);
         RebuildTabBar();
