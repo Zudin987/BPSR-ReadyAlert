@@ -71,7 +71,7 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         _privateColorValue = settings.PrivateHighlightColor;
 
         ChatUiTheme.ApplySettingsForm(this);
-        Text = "Chat Overlay Settings";
+        Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
