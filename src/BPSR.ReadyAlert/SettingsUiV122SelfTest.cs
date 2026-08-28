@@ -20,24 +20,13 @@ internal static class SettingsUiV122SelfTest
 
         using var form = new ChatGeneralSettingsForm(chat, speech);
 
-        // Compactness is a logical design contract. Do not infer it from control
-        // pixels during construction: PerMonitorV2 WinForms may have already begun
-        // autoscaling some controls before an explicit Handle request. Runtime DPI
-        // safety is verified below against the fully laid-out minimum-size form.
+        // Logical compact dimensions are now production constants used directly by
+        // the UI. The regression value comes from testing the actual WinForms result,
+        // not tautological constant-vs-literal assertions.
         var initial = form.GetV122DpiSafeMetricsForSelfTest();
         Check(91, initial.BufferedHost, "Settings content host is double-buffered");
-        Check(92, ChatGeneralSettingsForm.V122LogicalSidebarWidth <= 180,
-            "Settings sidebar logical design stays compact");
-        Check(93, ChatGeneralSettingsForm.V122LogicalFooterHeight <= 62,
-            "Settings footer logical design stays compact");
-        Check(94, ChatGeneralSettingsForm.V122LogicalMaxRuleHeight <= 70,
-            "Settings multiline rule logical design stays compact");
-        Check(95, ChatGeneralSettingsForm.V122LogicalNavHeight <= 36,
-            "Settings navigation logical design stays compact");
         Check(96, initial.SelectedPages == 1 && initial.ActiveKey == "Appearance",
             "Settings starts with exactly one selected page");
-        Check(124, ChatGeneralSettingsForm.V122LogicalMaxInputWidth <= 340,
-            "Settings single-line editor design stays bounded");
 
         _ = form.Handle;
         form.CreateControl();
@@ -170,9 +159,6 @@ internal static class SettingsUiV122SelfTest
 
     private static void Fail(int code, string name)
     {
-        // Only a real assertion failure owns its diagnostic exit code. Unexpected
-        // exceptions retain Program.RunSmokeStep's parent code (21), preventing a
-        // previously passing assertion from being misreported as the culprit.
         Environment.ExitCode = code;
         throw new InvalidOperationException("v1.2.2 Settings UI self-test failed: " + name);
     }
