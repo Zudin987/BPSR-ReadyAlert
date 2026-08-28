@@ -6,6 +6,69 @@ internal static class SettingsUiV124SelfTest
 {
     internal static void Run()
     {
+        TestHiddenPrewarmAndReuse();
+        TestRealizedTabSwitching();
+    }
+
+    private static void TestHiddenPrewarmAndReuse()
+    {
+        var chat = new ChatOverlaySettings();
+        chat.Normalize();
+        var speech = new ChatSpeechTranslationSettings();
+        speech.Normalize();
+        var sourceTtsVolume = speech.TtsVolume;
+
+        using var owner = new Form { ShowInTaskbar = false, Opacity = 0d };
+        owner.Show();
+        Application.DoEvents();
+
+        using var form = new ChatGeneralSettingsForm(chat, speech)
+        {
+            ShowInTaskbar = false,
+            Opacity = 0d
+        };
+
+        Check(140, form.AreV124InstalledFontsDeferredForSelfTest(),
+            "constructing Settings does not enumerate the full installed-font collection");
+
+        form.PrewarmV124ForOwner(owner);
+        var prewarmed = form.GetV124ReuseStateForSelfTest();
+        Check(141, prewarmed.HandleReady && !prewarmed.Visible,
+            "Settings can realize its handles and layout while remaining hidden");
+        Check(142, form.AreV124InstalledFontsDeferredForSelfTest(),
+            "hidden prewarm still defers the installed-font scan until the dropdown is used");
+
+        // First display installs the existing dirty-state tracker. Hide rather than
+        // dispose to model the cached overlay-owned dialog.
+        form.Show();
+        Application.DoEvents();
+        form.Hide();
+        Application.DoEvents();
+
+        var dirtyVolume = sourceTtsVolume >= 5 ? sourceTtsVolume - 5 : sourceTtsVolume + 5;
+        form.SetV121TtsVolumeForSelfTest(dirtyVolume);
+        Check(143, form.GetV121SaveStateForSelfTest() == "Unsaved",
+            "cached Settings still detects an unapplied edit");
+
+        form.DialogResult = DialogResult.Cancel;
+        form.PrepareV124ForOpen(owner);
+        var prepared = form.GetV124ReuseStateForSelfTest();
+        Check(144, prepared.HandleReady && !prepared.Visible,
+            "preparing a cached Settings dialog does not recreate or show it");
+        Check(145, prepared.Result == DialogResult.None && prepared.TtsVolume == sourceTtsVolume,
+            "reopening cached Settings discards prior unapplied controls and resets DialogResult");
+        Check(146, form.GetV121SaveStateForSelfTest() != "Unsaved",
+            "reopening cached Settings refreshes the dirty-state baseline");
+
+        // A second prepare must be idempotent because every later gear click uses it.
+        form.PrepareV124ForOpen(owner);
+        var preparedAgain = form.GetV124ReuseStateForSelfTest();
+        Check(147, preparedAgain.HandleReady && preparedAgain.TtsVolume == sourceTtsVolume,
+            "repeated cached Settings preparation is stable");
+    }
+
+    private static void TestRealizedTabSwitching()
+    {
         var chat = new ChatOverlaySettings();
         chat.Normalize();
         var speech = new ChatSpeechTranslationSettings();
