@@ -24,6 +24,22 @@ internal static class ChatUiTheme
     internal static readonly Color Danger = Color.FromArgb(244, 113, 116);
     internal static readonly Color Input = Color.FromArgb(18, 21, 26);
 
+    // Settings-only palette. Deliberately close to ZDPS/ImGui's neutral charcoal
+    // density without changing the chat overlay's existing visual identity.
+    internal static readonly Color SettingsWindow = Color.FromArgb(37, 37, 37);
+    internal static readonly Color SettingsSurface = Color.FromArgb(42, 42, 42);
+    internal static readonly Color SettingsSurfaceHover = Color.FromArgb(52, 52, 52);
+    internal static readonly Color SettingsInput = Color.FromArgb(47, 47, 47);
+    internal static readonly Color SettingsBorder = Color.FromArgb(82, 82, 82);
+    internal static readonly Color SettingsText = Color.FromArgb(238, 238, 238);
+    internal static readonly Color SettingsMuted = Color.FromArgb(166, 166, 166);
+    internal static readonly Color SettingsAccent = Color.FromArgb(0, 145, 214);
+    internal static readonly Color SettingsAccentHover = Color.FromArgb(15, 161, 229);
+    internal static readonly Color SettingsSave = Color.FromArgb(0, 116, 15);
+    internal static readonly Color SettingsSaveHover = Color.FromArgb(0, 135, 18);
+    internal static readonly Color SettingsClose = Color.FromArgb(168, 0, 12);
+    internal static readonly Color SettingsCloseHover = Color.FromArgb(194, 0, 15);
+
     private const int DwmwaUseImmersiveDarkMode = 20;
     private const int DwmwaUseImmersiveDarkModeLegacy = 19;
 
@@ -42,6 +58,13 @@ internal static class ChatUiTheme
         form.AutoScaleDimensions = new SizeF(96F, 96F);
         form.HandleCreated += (_, _) => TryUseDarkTitleBar(form);
         if (form.IsHandleCreated) TryUseDarkTitleBar(form);
+    }
+
+    internal static void ApplySettingsForm(Form form)
+    {
+        ApplyForm(form);
+        form.BackColor = SettingsWindow;
+        form.ForeColor = SettingsText;
     }
 
     private static void TryUseDarkTitleBar(Form form)
@@ -92,12 +115,46 @@ internal static class ChatUiTheme
         button.FlatAppearance.MouseDownBackColor = SurfaceRaised;
     }
 
+    internal static void StyleSettingsButton(Button button)
+    {
+        StyleButtonBase(button);
+        button.BackColor = SettingsSurface;
+        button.ForeColor = SettingsText;
+        button.FlatAppearance.BorderSize = 1;
+        button.FlatAppearance.BorderColor = SettingsBorder;
+        button.FlatAppearance.MouseOverBackColor = SettingsSurfaceHover;
+        button.FlatAppearance.MouseDownBackColor = SettingsInput;
+        button.Padding = new Padding(10, 0, 10, 0);
+    }
+
+    internal static void StyleSettingsSaveButton(Button button)
+    {
+        StyleButtonBase(button);
+        button.BackColor = SettingsSave;
+        button.ForeColor = Color.White;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = SettingsSaveHover;
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 95, 12);
+        button.Padding = new Padding(10, 0, 10, 0);
+    }
+
+    internal static void StyleSettingsCloseButton(Button button)
+    {
+        StyleButtonBase(button);
+        button.BackColor = SettingsClose;
+        button.ForeColor = Color.White;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = SettingsCloseHover;
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(139, 0, 10);
+        button.Padding = new Padding(10, 0, 10, 0);
+    }
+
     private static void StyleButtonBase(Button button)
     {
         button.FlatStyle = FlatStyle.Flat;
         button.UseVisualStyleBackColor = false;
         button.Cursor = Cursors.Hand;
-        button.Height = Math.Max(button.Height, 34);
+        button.Height = Math.Max(button.Height, 30);
     }
 
     internal static void StyleTextBox(TextBox box, bool multiline = false)
@@ -114,12 +171,26 @@ internal static class ChatUiTheme
         }
     }
 
+    internal static void StyleSettingsTextBox(TextBox box, bool multiline = false)
+    {
+        StyleTextBox(box, multiline);
+        box.BackColor = SettingsInput;
+        box.ForeColor = SettingsText;
+    }
+
     internal static void StyleComboBox(ComboBox combo)
     {
         combo.BackColor = Input;
         combo.ForeColor = Text;
         combo.DropDownStyle = ComboBoxStyle.DropDownList;
         combo.FlatStyle = FlatStyle.Flat;
+    }
+
+    internal static void StyleSettingsComboBox(ComboBox combo)
+    {
+        StyleComboBox(combo);
+        combo.BackColor = SettingsInput;
+        combo.ForeColor = SettingsText;
     }
 
     internal static void StyleNumeric(NumericUpDown numeric)
@@ -129,12 +200,30 @@ internal static class ChatUiTheme
         numeric.BorderStyle = BorderStyle.FixedSingle;
     }
 
+    internal static void StyleSettingsNumeric(NumericUpDown numeric)
+    {
+        StyleNumeric(numeric);
+        numeric.BackColor = SettingsInput;
+        numeric.ForeColor = SettingsText;
+    }
+
     internal static void StyleCheckBox(CheckBox check)
     {
         check.AutoSize = true;
         check.ForeColor = Text;
         check.BackColor = Color.Transparent;
         check.Margin = new Padding(0, 4, 0, 4);
+    }
+
+    internal static void StyleSettingsCheckBox(CheckBox check)
+    {
+        check.AutoSize = true;
+        check.ForeColor = SettingsText;
+        check.BackColor = Color.Transparent;
+        check.FlatStyle = FlatStyle.Flat;
+        check.UseVisualStyleBackColor = false;
+        check.Margin = new Padding(0, 2, 0, 2);
+        check.Padding = Padding.Empty;
     }
 
     internal static Label Heading(string text, float size = 16F) => new()
@@ -165,12 +254,31 @@ internal static class ChatUiTheme
         Margin = Padding.Empty
     };
 
+    internal static Label SettingsFieldLabel(string text) => new()
+    {
+        AutoSize = true,
+        Text = text,
+        ForeColor = SettingsText,
+        Font = UiFont(9F),
+        Margin = Padding.Empty
+    };
+
     internal static Label Hint(string text) => new()
     {
         AutoSize = true,
         MaximumSize = new Size(430, 0),
         Text = text,
         ForeColor = Muted,
+        Font = UiFont(8.5F),
+        Margin = Padding.Empty
+    };
+
+    internal static Label SettingsHint(string text) => new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(540, 0),
+        Text = text,
+        ForeColor = SettingsMuted,
         Font = UiFont(8.5F),
         Margin = Padding.Empty
     };
@@ -188,21 +296,17 @@ internal sealed class ChatCardPanel : Panel
     internal ChatCardPanel()
     {
         DoubleBuffered = true;
-        BackColor = ChatUiTheme.Surface;
-        ForeColor = ChatUiTheme.Text;
-        Padding = new Padding(18);
-        Margin = new Padding(0, 0, 0, 14);
+        BackColor = ChatUiTheme.SettingsWindow;
+        ForeColor = ChatUiTheme.SettingsText;
+        Padding = Padding.Empty;
+        Margin = new Padding(0, 0, 0, 8);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
+        // v1.2.3 Settings sections intentionally stay flat like ZDPS/ImGui.
+        // The section title helper draws the separator line instead of a card box.
         base.OnPaint(e);
-        using var pen = new Pen(ChatUiTheme.Border);
-        var rect = ClientRectangle;
-        rect.Width -= 1;
-        rect.Height -= 1;
-        if (rect.Width > 0 && rect.Height > 0)
-            e.Graphics.DrawRectangle(pen, rect);
     }
 }
 
@@ -227,33 +331,28 @@ internal sealed class ChatNavButton : Button
     {
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
-        Height = 42;
-        TextAlign = ContentAlignment.MiddleLeft;
-        Padding = new Padding(15, 0, 8, 0);
-        Margin = new Padding(0, 0, 0, 4);
+        Height = 28;
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        MinimumSize = new Size(70, 28);
+        TextAlign = ContentAlignment.MiddleCenter;
+        Padding = new Padding(10, 0, 10, 0);
+        Margin = new Padding(0, 0, 2, 0);
         Cursor = Cursors.Hand;
-        ForeColor = ChatUiTheme.Muted;
-        BackColor = ChatUiTheme.Window;
-        Font = ChatUiTheme.UiFont(9F, FontStyle.Bold);
+        ForeColor = ChatUiTheme.SettingsText;
+        BackColor = ChatUiTheme.SettingsWindow;
+        Font = ChatUiTheme.UiFont(9F);
         UseVisualStyleBackColor = false;
         UpdateVisuals();
     }
 
     private void UpdateVisuals()
     {
-        BackColor = _selected ? ChatUiTheme.SurfaceRaised : ChatUiTheme.Window;
-        ForeColor = _selected ? ChatUiTheme.Text : ChatUiTheme.Muted;
-        FlatAppearance.MouseOverBackColor = _selected ? ChatUiTheme.SurfaceRaised : ChatUiTheme.Surface;
-        FlatAppearance.MouseDownBackColor = ChatUiTheme.SurfaceRaised;
+        BackColor = _selected ? ChatUiTheme.SettingsAccent : ChatUiTheme.SettingsWindow;
+        ForeColor = ChatUiTheme.SettingsText;
+        FlatAppearance.MouseOverBackColor = _selected ? ChatUiTheme.SettingsAccentHover : ChatUiTheme.SettingsSurfaceHover;
+        FlatAppearance.MouseDownBackColor = ChatUiTheme.SettingsAccent;
         Invalidate();
-    }
-
-    protected override void OnPaint(PaintEventArgs pevent)
-    {
-        base.OnPaint(pevent);
-        if (!_selected) return;
-        using var brush = new SolidBrush(ChatUiTheme.Accent);
-        pevent.Graphics.FillRectangle(brush, 0, 6, 3, Math.Max(1, Height - 12));
     }
 }
 
