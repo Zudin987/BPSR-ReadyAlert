@@ -18,19 +18,6 @@ internal sealed partial class ChatGeneralSettingsForm
         if (_v121DirtyTrackingInstalled) return;
         _v121DirtyTrackingInstalled = true;
 
-        ReplaceV121LabelText(
-            this,
-            "One shared volume for all three sound rules and Private / Talk sounds.",
-            "Keyword rules and Private / Talk sounds only. Independent of Ready / Queue and TTS volume.");
-        ReplaceV121LabelText(
-            this,
-            "A single standardized volume keeps sound setup simple.",
-            "One shared level for chat keyword and Private / Talk sounds; other ReadyAlert audio volumes stay independent.");
-        ReplaceV121LabelText(
-            this,
-            "Click a box and press the combination you want. Backspace clears it.",
-            "Click a box and press the combination you want. Both recovery shortcuts are required; Backspace clears the current entry before choosing another.");
-
         _soundVolume.AccessibleName = "Chat alert volume";
         _soundVolume.AccessibleDescription = "Controls keyword rules and Private or Talk chat sounds only.";
         _ttsVolume.AccessibleName = "TTS volume";
@@ -48,39 +35,6 @@ internal sealed partial class ChatGeneralSettingsForm
         };
 
         SubscribeV121Changes(this);
-        _applyStatus.TextChanged += (_, _) =>
-        {
-            if (_v121SuppressDirtyTracking) return;
-            if (_applyStatus.Text is not ("Saved ✓" or "Defaults restored ✓")) return;
-
-            _v121DirtyRefreshTimer.Stop();
-            _v121SuppressDirtyTracking = true;
-            try
-            {
-                _clickThrough.Checked = _settings.ClickThrough;
-                _clickHotkey.Text = _settings.ClickThroughHotkey;
-                _collapseHotkey.Text = _settings.CollapseHotkey;
-                _collapseSide.SelectedItem = _settings.CollapseSide;
-                if (_speechSettings is not null)
-                {
-                    _ttsEnabled.Checked = _speechSettings.TtsEnabled;
-                    _ttsGuild.Checked = _speechSettings.TtsGuild;
-                    _ttsParty.Checked = _speechSettings.TtsPartyTeam;
-                    _ttsVolume.Value = Math.Clamp(_speechSettings.TtsVolume, _ttsVolume.Minimum, _ttsVolume.Maximum);
-                    _ttsVolumeValue.Text = _ttsVolume.Value + "%";
-                }
-            }
-            finally
-            {
-                _v121SuppressDirtyTracking = false;
-            }
-
-            _v121SavedFingerprint = CaptureV121EditorFingerprint();
-            _v121EverSaved = true;
-            _v121AppliedNotPersisted = false;
-            _applyStatus.ForeColor = ChatUiTheme.Success;
-        };
-
         Activated += (_, _) => RefreshV121DirtyStatus();
         FormClosing += V121SettingsFormClosing;
 
@@ -142,20 +96,72 @@ internal sealed partial class ChatGeneralSettingsForm
             if (_applyStatus.Text != "Unsaved")
                 _applyStatus.Text = "Unsaved";
             _applyStatus.ForeColor = ChatUiTheme.Warning;
+            return;
         }
-        else if (_applyStatus.Text == "Unsaved")
+
+        if (_v121AppliedNotPersisted)
         {
-            if (_v121AppliedNotPersisted)
-            {
-                _applyStatus.Text = "Applied — not saved";
-                _applyStatus.ForeColor = ChatUiTheme.Danger;
-            }
-            else
-            {
-                _applyStatus.Text = _v121EverSaved ? "Saved ✓" : string.Empty;
-                _applyStatus.ForeColor = _v121EverSaved ? ChatUiTheme.Success : ChatUiTheme.SettingsMuted;
-            }
+            _applyStatus.Text = "Applied — not saved";
+            _applyStatus.ForeColor = ChatUiTheme.Danger;
         }
+        else
+        {
+            _applyStatus.Text = _v121EverSaved ? "Saved ✓" : string.Empty;
+            _applyStatus.ForeColor = _v121EverSaved ? ChatUiTheme.Success : ChatUiTheme.SettingsMuted;
+        }
+    }
+
+    /// <summary>
+    /// A successful Save must establish the exact current editor state as the new
+    /// close baseline. Re-load normalized runtime values while tracking is suppressed
+    /// so no queued change event can turn a just-saved dialog back into "Unsaved".
+    /// </summary>
+    private void MarkV121SavedBaseline()
+    {
+        InstallV121UsabilityTracking();
+        _v121DirtyRefreshTimer.Stop();
+        var previous = _v121SuppressDirtyTracking;
+        _v121SuppressDirtyTracking = true;
+        try
+        {
+            LoadControlsFrom(_settings);
+            if (_speechSettings is not null)
+                LoadSpeechTranslationControls(_speechSettings);
+        }
+        finally
+        {
+            _v121SuppressDirtyTracking = previous;
+        }
+
+        _v121SavedFingerprint = CaptureV121EditorFingerprint();
+        _v121EverSaved = true;
+        _v121AppliedNotPersisted = false;
+        _applyStatus.Text = "Saved ✓";
+        _applyStatus.ForeColor = ChatUiTheme.Success;
+    }
+
+    private void MarkV121AppliedButNotPersisted()
+    {
+        InstallV121UsabilityTracking();
+        _v121DirtyRefreshTimer.Stop();
+        var previous = _v121SuppressDirtyTracking;
+        _v121SuppressDirtyTracking = true;
+        try
+        {
+            LoadControlsFrom(_settings);
+            if (_speechSettings is not null)
+                LoadSpeechTranslationControls(_speechSettings);
+        }
+        finally
+        {
+            _v121SuppressDirtyTracking = previous;
+        }
+
+        _v121SavedFingerprint = CaptureV121EditorFingerprint();
+        _v121EverSaved = false;
+        _v121AppliedNotPersisted = true;
+        _applyStatus.Text = "Applied — not saved";
+        _applyStatus.ForeColor = ChatUiTheme.Danger;
     }
 
     private void V121SettingsFormClosing(object? sender, FormClosingEventArgs e)
@@ -175,11 +181,11 @@ internal sealed partial class ChatGeneralSettingsForm
                 "Changes are not safely saved"),
             "persistence" => (
                 "These settings are active for this ReadyAlert session, but Windows could not save them to disk.\r\n\r\n" +
-                "Closing this window keeps them active until ReadyAlert exits, but they may be lost after restart. Close anyway?",
+                "Closing keeps them active until ReadyAlert exits, but they may be lost after restart. Close anyway?",
                 "Settings are not saved"),
             _ => (
-                "Discard the changes you have not applied?\r\n\r\nSettings already applied with 'Save' will be kept.",
-                "Unapplied Chat Overlay changes")
+                "Discard the changes you have not saved?",
+                "Unsaved Chat Overlay changes")
         };
 
         var answer = MessageBox.Show(
@@ -208,7 +214,6 @@ internal sealed partial class ChatGeneralSettingsForm
     {
         var builder = new StringBuilder(2048);
         AppendV121ControlValues(this, builder, "root");
-
         builder.Append("|highlightColor=").Append(_highlightColorValue);
         builder.Append("|privateColor=").Append(_privateColorValue);
 
@@ -247,17 +252,6 @@ internal sealed partial class ChatGeneralSettingsForm
 
             if (child.HasChildren)
                 AppendV121ControlValues(child, builder, childPath);
-        }
-    }
-
-    private static void ReplaceV121LabelText(Control parent, string oldText, string newText)
-    {
-        foreach (Control child in parent.Controls)
-        {
-            if (child is Label label && string.Equals(label.Text, oldText, StringComparison.Ordinal))
-                label.Text = newText;
-            if (child.HasChildren)
-                ReplaceV121LabelText(child, oldText, newText);
         }
     }
 
@@ -307,6 +301,11 @@ internal sealed partial class ChatGeneralSettingsForm
         InstallV121UsabilityTracking();
         _v121AppliedNotPersisted = value;
         _v121SavedFingerprint = CaptureV121EditorFingerprint();
+    }
+
+    internal void MarkV121SavedForSelfTest()
+    {
+        MarkV121SavedBaseline();
     }
 
     internal string GetV121CloseWarningKindForSelfTest()
