@@ -11,20 +11,27 @@ internal static class SettingsUiV124SelfTest
         var speech = new ChatSpeechTranslationSettings();
         speech.Normalize();
 
-        using var form = new ChatGeneralSettingsForm(chat, speech);
-        _ = form.Handle;
-        form.CreateControl();
+        using var form = new ChatGeneralSettingsForm(chat, speech)
+        {
+            ShowInTaskbar = false,
+            Opacity = 0d
+        };
+        form.Show();
+        Application.DoEvents();
         form.PerformLayout();
+        Application.DoEvents();
 
         var before = form.GetV124PageSwitchStateForSelfTest();
-        Assert(before.PageCount == 5, "all five Settings pages are registered");
-        Assert(before.VisiblePages == 5, "all Settings pages stay realized instead of hide/show switching");
-        Assert(before.ActivePages == 1 && before.ActiveKey == "Appearance",
+        Check(131, before.PageCount == 5, "all five Settings pages are registered");
+        Check(132, before.VisiblePages == 5, "all Settings pages stay realized instead of hide/show switching");
+        Check(133, before.ActivePages == 1 && before.ActiveKey == "Appearance",
             "exactly one realized Settings page is active initially");
-        Assert(before.FrontKey == "Appearance", "active Settings page starts at the front of z-order");
+        Check(134, before.FrontKey == "Appearance", "active Settings page starts at the front of z-order");
 
         var visibleChanged = 0;
+        var layoutEvents = 0;
         form.SubscribeV124VisibleChangedForSelfTest(() => visibleChanged++);
+        form.SubscribeV124LayoutForSelfTest(() => layoutEvents++);
 
         foreach (var key in new[]
                  {
@@ -34,21 +41,26 @@ internal static class SettingsUiV124SelfTest
         {
             form.ShowV122PageForSelfTest(key);
             var state = form.GetV124PageSwitchStateForSelfTest();
-            Assert(state.VisiblePages == state.PageCount,
+            Check(135, state.VisiblePages == state.PageCount,
                 "tab switching never hides or re-shows a Settings page");
-            Assert(state.ActivePages == 1 && state.ActiveKey == key,
+            Check(136, state.ActivePages == 1 && state.ActiveKey == key,
                 "tab switching keeps exactly one logical active page");
-            Assert(state.FrontKey == key,
+            Check(137, state.FrontKey == key,
                 "tab switching changes only the front page/z-order");
         }
 
-        Assert(visibleChanged == 0,
-            "repeated Settings tab switching does not trigger VisibleChanged layout cascades");
+        Check(138, visibleChanged == 0,
+            "repeated Settings tab switching does not trigger VisibleChanged cascades");
+        Check(139, layoutEvents == 0,
+            "repeated Settings tab switching does not relayout the content host or page trees");
+
+        form.Hide();
     }
 
-    private static void Assert(bool condition, string name)
+    private static void Check(int code, bool condition, string name)
     {
-        if (!condition)
-            throw new InvalidOperationException("v1.2.4 Settings performance self-test failed: " + name);
+        if (condition) return;
+        Environment.ExitCode = code;
+        throw new InvalidOperationException("v1.2.4 Settings performance self-test failed: " + name);
     }
 }
