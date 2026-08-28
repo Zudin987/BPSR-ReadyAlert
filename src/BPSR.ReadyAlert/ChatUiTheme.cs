@@ -117,7 +117,7 @@ internal static class ChatUiTheme
 
     internal static void StyleSettingsButton(Button button)
     {
-        StyleButtonBase(button);
+        StyleSettingsButtonBase(button);
         button.BackColor = SettingsSurface;
         button.ForeColor = SettingsText;
         button.FlatAppearance.BorderSize = 1;
@@ -129,7 +129,7 @@ internal static class ChatUiTheme
 
     internal static void StyleSettingsSaveButton(Button button)
     {
-        StyleButtonBase(button);
+        StyleSettingsButtonBase(button);
         button.BackColor = SettingsSave;
         button.ForeColor = Color.White;
         button.FlatAppearance.BorderSize = 0;
@@ -140,7 +140,7 @@ internal static class ChatUiTheme
 
     internal static void StyleSettingsCloseButton(Button button)
     {
-        StyleButtonBase(button);
+        StyleSettingsButtonBase(button);
         button.BackColor = SettingsClose;
         button.ForeColor = Color.White;
         button.FlatAppearance.BorderSize = 0;
@@ -150,6 +150,14 @@ internal static class ChatUiTheme
     }
 
     private static void StyleButtonBase(Button button)
+    {
+        button.FlatStyle = FlatStyle.Flat;
+        button.UseVisualStyleBackColor = false;
+        button.Cursor = Cursors.Hand;
+        button.Height = Math.Max(button.Height, 34);
+    }
+
+    private static void StyleSettingsButtonBase(Button button)
     {
         button.FlatStyle = FlatStyle.Flat;
         button.UseVisualStyleBackColor = false;
@@ -291,22 +299,42 @@ internal static class ChatUiTheme
     };
 }
 
+// Generic card used by the overlay/support UI. Keep its pre-v1.2.3 semantics so
+// compact Settings styling cannot leak into unrelated windows.
 internal sealed class ChatCardPanel : Panel
 {
     internal ChatCardPanel()
+    {
+        DoubleBuffered = true;
+        BackColor = ChatUiTheme.Surface;
+        ForeColor = ChatUiTheme.Text;
+        Padding = new Padding(18);
+        Margin = new Padding(0, 0, 0, 14);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        using var pen = new Pen(ChatUiTheme.Border);
+        var rect = ClientRectangle;
+        rect.Width -= 1;
+        rect.Height -= 1;
+        if (rect.Width > 0 && rect.Height > 0)
+            e.Graphics.DrawRectangle(pen, rect);
+    }
+}
+
+// Settings-specific flat section. This intentionally has no card border: the
+// section heading helper draws the single separator line used by the compact UI.
+internal sealed class ChatSettingsSectionPanel : Panel
+{
+    internal ChatSettingsSectionPanel()
     {
         DoubleBuffered = true;
         BackColor = ChatUiTheme.SettingsWindow;
         ForeColor = ChatUiTheme.SettingsText;
         Padding = Padding.Empty;
         Margin = new Padding(0, 0, 0, 8);
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        // v1.2.3 Settings sections intentionally stay flat like ZDPS/ImGui.
-        // The section title helper draws the separator line instead of a card box.
-        base.OnPaint(e);
     }
 }
 
