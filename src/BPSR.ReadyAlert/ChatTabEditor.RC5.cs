@@ -154,7 +154,9 @@ internal sealed class ChatTabEditorForm : Form
             BackColor = ChatUiTheme.Surface
         };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96F));
+        // Persistence failures use the explicit "Applied — not saved" state.
+        // Keep enough room for it without stealing space from the primary action.
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 84F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104F));
