@@ -6,6 +6,8 @@ namespace BPSR.ReadyAlert;
 
 internal sealed partial class ChatGeneralSettingsForm
 {
+    private bool _fontFamiliesLoaded;
+
     private Control BuildAppearancePage()
     {
         InitializeAppearanceValues();
@@ -70,14 +72,15 @@ internal sealed partial class ChatGeneralSettingsForm
         _colorBand.Checked = _settings.ShowColorBand;
 
         ChatUiTheme.StyleComboBox(_fontFamily);
-        try
-        {
-            using var fonts = new InstalledFontCollection();
-            _fontFamily.Items.AddRange(fonts.Families.Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToArray());
-        }
-        catch { }
-        if (!_fontFamily.Items.Contains(_settings.FontFamily)) _fontFamily.Items.Add(_settings.FontFamily);
+
+        // Enumerating every installed Windows font can take a noticeable amount of
+        // time on machines with large font collections. Settings only needs the
+        // current font to render the first frame, so defer the full scan until the
+        // user actually opens the font dropdown.
+        if (!_fontFamily.Items.Contains(_settings.FontFamily))
+            _fontFamily.Items.Add(_settings.FontFamily);
         _fontFamily.SelectedItem = _settings.FontFamily;
+        _fontFamily.DropDown += (_, _) => EnsureInstalledFontFamiliesLoaded();
         _fontFamily.Width = 330;
 
         _fontSize.Minimum = 8;
@@ -87,6 +90,42 @@ internal sealed partial class ChatGeneralSettingsForm
         _fontSize.Value = (decimal)Math.Clamp(_settings.FontSize, 8F, 24F);
         _fontSize.Width = 120;
         ChatUiTheme.StyleNumeric(_fontSize);
+    }
+
+    private void EnsureInstalledFontFamiliesLoaded()
+    {
+        if (_fontFamiliesLoaded) return;
+        _fontFamiliesLoaded = true;
+
+        var selected = _fontFamily.SelectedItem?.ToString() ?? _settings.FontFamily;
+        try
+        {
+            using var fonts = new InstalledFontCollection();
+            var names = fonts.Families
+                .Select(x => x.Name)
+                .Append(selected)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            _fontFamily.BeginUpdate();
+            try
+            {
+                _fontFamily.Items.Clear();
+                _fontFamily.Items.AddRange(names);
+            }
+            finally
+            {
+                _fontFamily.EndUpdate();
+            }
+        }
+        catch
+        {
+            if (!_fontFamily.Items.Contains(selected))
+                _fontFamily.Items.Add(selected);
+        }
+
+        _fontFamily.SelectedItem = selected;
     }
 
     private Control BuildInteractionPage()
