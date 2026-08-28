@@ -44,5 +44,15 @@ internal sealed partial class ChatGeneralSettingsForm
             !_highlight.Multiline && !_soundRuleMatch[0].Multiline && !_soundRuleMatch[1].Multiline);
     }
 
+    internal (int Highlight, int Rule1, int Rule2, int AlertsPageWidth)
+        GetV125AlertInputWidthsForSelfTest()
+    {
+        _pages.TryGetValue("Alerts", out var alerts);
+        return (_highlight.Width, _soundRuleMatch[0].Width, _soundRuleMatch[1].Width, alerts.Page?.ClientSize.Width ?? 0);
+    }
+
+    internal bool AreV125SettingsScrollbarsDarkThemedForSelfTest() =>
+        _pages.Values.All(x => x.Page.UsesV125DarkScrollbarThemeForSelfTest());
+
     internal string GetV125CleanupLabelForSelfTest() => _hideRichNoise.Text;
 }
