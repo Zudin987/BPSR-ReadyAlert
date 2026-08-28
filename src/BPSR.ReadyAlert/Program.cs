@@ -27,6 +27,7 @@ internal static class Program
                 RunSmokeStep(TtsVolumeIsolationSelfTest.Run, 20);
                 RunSmokeStep(SettingsUiV122SelfTest.Run, 21);
                 RunSmokeStep(SettingsUiV123SelfTest.Run, 22);
+                RunSmokeStep(SettingsUiV124SelfTest.Run, 23);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -134,23 +135,8 @@ internal static class Program
 
     private static void RunSmokeStep(Action step, int failureCode)
     {
-        try
-        {
-            Environment.ExitCode = failureCode;
-            step();
-            Environment.ExitCode = 0;
-        }
-        catch (Exception ex)
-        {
-            // A nested assertion is free to use its own diagnostics internally, but
-            // the process exit code must identify the top-level smoke suite that
-            // actually failed. This prevents stale assertion numbers from masking
-            // which regression group needs inspection.
-            Environment.ExitCode = failureCode;
-            var owner = step.Method.DeclaringType?.Name ?? "unknown";
-            throw new InvalidOperationException(
-                $"Smoke step {failureCode} ({owner}.{step.Method.Name}) failed.",
-                ex);
-        }
+        Environment.ExitCode = failureCode;
+        step();
+        Environment.ExitCode = 0;
     }
 }
