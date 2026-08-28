@@ -34,6 +34,7 @@ internal sealed class ChatTabEditorForm : Form
     private string _savedFingerprint = string.Empty;
     private bool _trackingReady;
     private bool _everSaved;
+    private bool _appliedNotPersisted;
 
     internal ChatTabEditorForm(ChatTabSettings tab, bool isNew)
     {
@@ -483,6 +484,11 @@ internal sealed class ChatTabEditorForm : Form
             _applyStatus.Text = "Unsaved";
             _applyStatus.ForeColor = ChatUiTheme.Warning;
         }
+        else if (_appliedNotPersisted)
+        {
+            _applyStatus.Text = "Applied — not saved";
+            _applyStatus.ForeColor = ChatUiTheme.Danger;
+        }
         else
         {
             _applyStatus.Text = _everSaved ? "Saved ✓" : string.Empty;
@@ -505,12 +511,29 @@ internal sealed class ChatTabEditorForm : Form
     private void TabEditorFormClosing(object? sender, FormClosingEventArgs e)
     {
         if (!_trackingReady || e.CloseReason != CloseReason.UserClosing) return;
-        if (string.Equals(CaptureFingerprint(), _savedFingerprint, StringComparison.Ordinal)) return;
+
+        var dirty = !string.Equals(CaptureFingerprint(), _savedFingerprint, StringComparison.Ordinal);
+        if (!dirty && !_appliedNotPersisted) return;
+
+        var (message, title) = (dirty, _appliedNotPersisted) switch
+        {
+            (true, true) => (
+                "Some tab edits have not been applied, and the last applied tab state could not be saved to disk.\r\n\r\n" +
+                "Closing will discard the unapplied edits. The tab already active in this session may also be lost after ReadyAlert restarts. Close anyway?",
+                "Tab changes are not safely saved"),
+            (false, true) => (
+                "This tab is active for the current ReadyAlert session, but Windows could not save it to disk.\r\n\r\n" +
+                "Closing keeps it active until ReadyAlert exits, but it may be lost after restart. Close anyway?",
+                "Tab is not saved"),
+            _ => (
+                "Discard changes that have not been saved?",
+                "Unsaved tab changes")
+        };
 
         var answer = MessageBox.Show(
             this,
-            "Discard changes that have not been saved?",
-            "Unsaved tab changes",
+            message,
+            title,
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Warning,
             MessageBoxDefaultButton.Button2);
@@ -554,9 +577,10 @@ internal sealed class ChatTabEditorForm : Form
         _tab.ShowIfMatches = _show.Text.Trim();
         _tab.HideIfMatches = _hide.Text.Trim();
 
+        var saveSucceeded = true;
         if (Owner is ChatOverlayForm overlay)
         {
-            overlay.ApplyTabFromOpenDialog(_tab, _isNew);
+            saveSucceeded = overlay.ApplyTabFromOpenDialog(_tab, _isNew);
             TopMost = overlay.TopMost;
             if (TopMost)
             {
@@ -568,7 +592,25 @@ internal sealed class ChatTabEditorForm : Form
         _isNew = false;
         Text = $"Edit Chat Tab — {_tab.Name}";
         _savedFingerprint = CaptureFingerprint();
+
+        if (!saveSucceeded)
+        {
+            _everSaved = false;
+            _appliedNotPersisted = true;
+            _applyStatus.Text = "Applied — not saved";
+            _applyStatus.ForeColor = ChatUiTheme.Danger;
+            MessageBox.Show(
+                this,
+                "The tab was applied for this ReadyAlert session, but Windows could not save it to disk.\r\n\r\n" +
+                "It may be lost after restart. Check folder permissions or disk availability, then press 'Save tab' again.",
+                "Tab could not be saved",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
         _everSaved = true;
+        _appliedNotPersisted = false;
         _applyStatus.Text = "Saved ✓";
         _applyStatus.ForeColor = ChatUiTheme.Success;
     }
