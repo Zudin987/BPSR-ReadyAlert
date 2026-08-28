@@ -6,9 +6,23 @@ internal static class RuntimeAssets
 {
     internal static void Ensure(AppPaths paths)
     {
+        // Keep the existing chat-notification sound independent from the four core
+        // ReadyAlert event sounds.
         EnsureResource(
             "BPSR.ReadyAlert.Assets.LetsDoThis.wav",
             paths.AlertSoundPath);
+        EnsureResource(
+            "BPSR.ReadyAlert.Assets.Queue.wav",
+            paths.QueueSoundPath);
+        EnsureResource(
+            "BPSR.ReadyAlert.Assets.ReadyCheck.wav",
+            paths.ReadyCheckSoundPath);
+        EnsureResource(
+            "BPSR.ReadyAlert.Assets.PartyInvite.wav",
+            paths.PartyInviteSoundPath);
+        EnsureResource(
+            "BPSR.ReadyAlert.Assets.PartyRequest.wav",
+            paths.PartyRequestSoundPath);
         EnsureResource(
             "BPSR.ReadyAlert.Assets.App.ico",
             paths.AppIconPath);
