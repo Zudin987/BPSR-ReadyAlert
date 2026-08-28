@@ -50,7 +50,8 @@ internal sealed class ChatCompactSlider : Control
             _value = clamped;
             Invalidate();
             ValueChanged?.Invoke(this, EventArgs.Empty);
-            AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
+            if (IsHandleCreated)
+                AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
         }
     }
 
@@ -141,10 +142,18 @@ internal sealed class ChatCompactSlider : Control
         base.OnPaint(e);
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-        var left = 6;
-        var right = Math.Max(left + 1, Width - 7);
+        var left = ScalePx(6);
+        var rightMargin = ScalePx(7);
+        var trackHeight = ScalePx(4);
+        var thumbWidth = ScalePx(10);
+        var thumbHeight = ScalePx(12);
+        var right = Math.Max(left + 1, Width - rightMargin);
         var centerY = Height / 2;
-        var track = new Rectangle(left, centerY - 2, Math.Max(1, right - left), 4);
+        var track = new Rectangle(
+            left,
+            centerY - trackHeight / 2,
+            Math.Max(1, right - left),
+            trackHeight);
         var ratio = _maximum == _minimum ? 0d : (_value - _minimum) / (double)(_maximum - _minimum);
         var thumbX = left + (int)Math.Round(track.Width * ratio);
 
@@ -159,7 +168,11 @@ internal sealed class ChatCompactSlider : Control
         if (thumbX > left)
             e.Graphics.FillRectangle(fillBrush, new Rectangle(left, track.Top, thumbX - left, track.Height));
 
-        var thumb = new Rectangle(thumbX - 5, centerY - 6, 10, 12);
+        var thumb = new Rectangle(
+            thumbX - thumbWidth / 2,
+            centerY - thumbHeight / 2,
+            thumbWidth,
+            thumbHeight);
         e.Graphics.FillRectangle(thumbBrush, thumb);
 
         if (Focused && ShowFocusCues)
@@ -172,9 +185,13 @@ internal sealed class ChatCompactSlider : Control
 
     private void SetFromMouse(int x)
     {
-        var left = 6;
-        var width = Math.Max(1, Width - 13);
+        var left = ScalePx(6);
+        var rightMargin = ScalePx(7);
+        var width = Math.Max(1, Width - left - rightMargin);
         var ratio = Math.Clamp((x - left) / (double)width, 0d, 1d);
         Value = _minimum + (int)Math.Round((_maximum - _minimum) * ratio);
     }
+
+    private int ScalePx(int logicalPixels) =>
+        Math.Max(1, (int)Math.Round(logicalPixels * Math.Max(96, DeviceDpi) / 96d));
 }
