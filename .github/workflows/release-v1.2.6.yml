@@ -85,6 +85,7 @@ jobs:
             - keeps complete chat-tab names whenever the row has enough room and only truncates tabs that genuinely need compression;
             - preserves shorter tab names first when the overlay becomes constrained, while retaining the scrollbar-free compact tab strip;
             - removes expensive per-process MainModule probing from Resonance Logs CN detection and avoids redundant path saves;
+            - stops broad Resonance Logs config-directory enumeration on normal installs by checking known config paths lazily first;
             - moves automatic Start Menu shortcut refresh off the startup-critical UI path;
             - defers optional Resonance Logs CN auto-launch until after the WinForms message loop starts, so the tray/overlay can become responsive first;
             - adds startup timing diagnostics for Npcap plan selection and tray-context readiness;
