@@ -12,11 +12,14 @@ internal static class GamePacketFilter
         "StarSEA", "StarASIA", "StarSEA_STEAM", "StarASIA_STEAM", "Star"
     ];
 
+    private const int ForcedOwnerRefreshMinIntervalMs = 50;
+
     private static readonly object Sync = new();
     private static HashSet<int> _gamePids = new();
     private static HashSet<EndpointKey> _localEndpoints = new();
     private static DateTime _lastPidRefreshUtc = DateTime.MinValue;
     private static DateTime _lastEndpointRefreshUtc = DateTime.MinValue;
+    private static DateTime _lastForcedOwnerRefreshUtc = DateTime.MinValue;
     private static string _lastSummary = string.Empty;
 
     internal static bool IsBpsrPacket(byte[] packet, int datalink) =>
@@ -24,18 +27,46 @@ internal static class GamePacketFilter
 
     internal static bool IsBpsrPacket(byte[] packet, int packetLength, int datalink)
     {
-        if (!TryGetTcpEndpoints(packet, packetLength, datalink, out var source, out var destination))
+        if (!TryGetTcpEndpoints(packet, packetLength, datalink, out var source, out var destination, out var flags))
             return false;
 
-        RefreshSnapshotsIfNeeded();
+        RefreshSnapshotsIfNeeded(force: false);
+        if (IsKnownEndpoint(source, destination))
+            return true;
 
+        // The Android relay can create a new StarSEA-owned outbound connection and
+        // send its SYN/early payload before the normal 100 ms owner-table snapshot is
+        // refreshed. Missing those first bytes makes passive capture join mid-stream.
+        // On an unmatched SYN, perform one rate-limited immediate refresh and recheck
+        // ownership. We still require an actual Windows TCP-owner match, so unrelated
+        // browser/Discord high-port traffic is never admitted merely because it is SYN.
+        if ((flags & 0x02) == 0 || !ReserveForcedOwnerRefresh(DateTime.UtcNow))
+            return false;
+
+        RefreshSnapshotsIfNeeded(force: true);
+        return IsKnownEndpoint(source, destination);
+    }
+
+    private static bool IsKnownEndpoint(EndpointKey source, EndpointKey destination)
+    {
         lock (Sync)
         {
             return _localEndpoints.Contains(source) || _localEndpoints.Contains(destination);
         }
     }
 
-    private static void RefreshSnapshotsIfNeeded()
+    private static bool ReserveForcedOwnerRefresh(DateTime nowUtc)
+    {
+        lock (Sync)
+        {
+            if ((nowUtc - _lastForcedOwnerRefreshUtc).TotalMilliseconds < ForcedOwnerRefreshMinIntervalMs)
+                return false;
+            _lastForcedOwnerRefreshUtc = nowUtc;
+            return true;
+        }
+    }
+
+    private static void RefreshSnapshotsIfNeeded(bool force)
     {
         var now = DateTime.UtcNow;
 
@@ -45,9 +76,10 @@ internal static class GamePacketFilter
 
             // Process IDs are stable for a running game, so do the relatively
             // expensive process enumeration infrequently. While no game is found,
-            // retry quickly so Ready Alert can be started before BPSR.
+            // retry quickly so Ready Alert can be started before BPSR. A forced SYN
+            // refresh also closes the race where StarSEA itself was just launched.
             var pidIntervalMs = _gamePids.Count == 0 ? 100 : 2000;
-            if ((now - _lastPidRefreshUtc).TotalMilliseconds >= pidIntervalMs)
+            if (force || (now - _lastPidRefreshUtc).TotalMilliseconds >= pidIntervalMs)
             {
                 _lastPidRefreshUtc = now;
                 _gamePids = FindGamePids();
@@ -57,7 +89,7 @@ internal static class GamePacketFilter
             // Refresh this much faster than the process list so a brand-new BPSR
             // TCP connection is not allowed to send several packets before we know
             // that its local endpoint belongs to the game.
-            if ((now - _lastEndpointRefreshUtc).TotalMilliseconds < 100)
+            if (!force && (now - _lastEndpointRefreshUtc).TotalMilliseconds < 100)
                 return;
 
             _lastEndpointRefreshUtc = now;
@@ -142,10 +174,12 @@ internal static class GamePacketFilter
         int packetLength,
         int datalink,
         out EndpointKey source,
-        out EndpointKey destination)
+        out EndpointKey destination,
+        out byte flags)
     {
         source = default;
         destination = default;
+        flags = 0;
         if (packetLength <= 0 || packetLength > packet.Length) return false;
 
         var offset = 0;
@@ -180,8 +214,8 @@ internal static class GamePacketFilter
         var version = forcedVersion != 0 ? forcedVersion : packet[offset] >> 4;
         return version switch
         {
-            4 => TryGetIpv4TcpEndpoints(packet, packetLength, offset, out source, out destination),
-            6 => TryGetIpv6TcpEndpoints(packet, packetLength, offset, out source, out destination),
+            4 => TryGetIpv4TcpEndpoints(packet, packetLength, offset, out source, out destination, out flags),
+            6 => TryGetIpv6TcpEndpoints(packet, packetLength, offset, out source, out destination, out flags),
             _ => false
         };
     }
@@ -191,10 +225,12 @@ internal static class GamePacketFilter
         int packetLength,
         int offset,
         out EndpointKey source,
-        out EndpointKey destination)
+        out EndpointKey destination,
+        out byte flags)
     {
         source = default;
         destination = default;
+        flags = 0;
         if (offset + 20 > packetLength || (packet[offset] >> 4) != 4) return false;
 
         var ipHeader = (packet[offset] & 0x0F) * 4;
@@ -202,10 +238,13 @@ internal static class GamePacketFilter
         if (packet[offset + 9] != 6) return false;
 
         var tcp = offset + ipHeader;
+        var tcpHeader = ((packet[tcp + 12] >> 4) & 0x0F) * 4;
+        if (tcpHeader < 20 || tcp + tcpHeader > packetLength) return false;
         var srcPort = ReadU16BE(packet, tcp);
         var dstPort = ReadU16BE(packet, tcp + 2);
         if (srcPort <= 1000 || dstPort <= 1000) return false;
 
+        flags = packet[tcp + 13];
         source = new EndpointKey(4, 0, ReadU32BE(packet, offset + 12), srcPort);
         destination = new EndpointKey(4, 0, ReadU32BE(packet, offset + 16), dstPort);
         return true;
@@ -216,10 +255,12 @@ internal static class GamePacketFilter
         int packetLength,
         int offset,
         out EndpointKey source,
-        out EndpointKey destination)
+        out EndpointKey destination,
+        out byte flags)
     {
         source = default;
         destination = default;
+        flags = 0;
         if (offset + 40 > packetLength || (packet[offset] >> 4) != 6) return false;
 
         var nextHeader = packet[offset + 6];
@@ -229,7 +270,6 @@ internal static class GamePacketFilter
             if (cursor >= packetLength) return false;
             switch (nextHeader)
             {
-                // Hop-by-Hop, Routing, Destination Options.
                 case 0:
                 case 43:
                 case 60:
@@ -239,8 +279,6 @@ internal static class GamePacketFilter
                     if (extLength < 8 || cursor + extLength > packetLength) return false;
                     cursor += extLength;
                     break;
-
-                // Fragment header. Only the first fragment can contain the TCP header.
                 case 44:
                     if (cursor + 8 > packetLength) return false;
                     nextHeader = packet[cursor];
@@ -248,8 +286,6 @@ internal static class GamePacketFilter
                     if ((fragmentField & 0xFFF8) != 0) return false;
                     cursor += 8;
                     break;
-
-                // Authentication Header.
                 case 51:
                     if (cursor + 2 > packetLength) return false;
                     nextHeader = packet[cursor];
@@ -257,18 +293,19 @@ internal static class GamePacketFilter
                     if (ahLength < 8 || cursor + ahLength > packetLength) return false;
                     cursor += ahLength;
                     break;
-
-                // ESP or an unknown extension cannot be inspected safely here.
                 default:
                     return false;
             }
         }
 
         if (nextHeader != 6 || cursor + 20 > packetLength) return false;
+        var tcpHeader = ((packet[cursor + 12] >> 4) & 0x0F) * 4;
+        if (tcpHeader < 20 || cursor + tcpHeader > packetLength) return false;
         var srcPort = ReadU16BE(packet, cursor);
         var dstPort = ReadU16BE(packet, cursor + 2);
         if (srcPort <= 1000 || dstPort <= 1000) return false;
 
+        flags = packet[cursor + 13];
         source = new EndpointKey(
             6,
             ReadU64BE(packet, offset + 8),
@@ -422,9 +459,6 @@ internal static class GamePacketFilter
         {
             return ReadTable<NativeTcpRow>(AfInet, row =>
             {
-                // Keep the Windows TCP table conversion on the slow snapshot path.
-                // Packet matching itself uses the numeric EndpointKey and allocates no
-                // IPAddress/string objects per captured packet.
                 var bytes = new IPAddress(row.LocalAddr).GetAddressBytes();
                 var port = DecodePort(row.LocalPort);
                 return new TcpRow(EndpointFromAddressBytes(bytes, port), port, row.OwningPid);
@@ -489,7 +523,7 @@ internal static class GamePacketFilter
         srcAddress = string.Empty;
         dstAddress = string.Empty;
         srcPort = dstPort = 0;
-        if (!TryGetTcpEndpoints(packet, packet.Length, datalink, out var source, out var destination))
+        if (!TryGetTcpEndpoints(packet, packet.Length, datalink, out var source, out var destination, out _))
             return false;
 
         srcAddress = EndpointAddressToString(source);
@@ -504,7 +538,19 @@ internal static class GamePacketFilter
         int packetLength,
         int datalink)
     {
-        var success = TryGetTcpEndpoints(packet, packetLength, datalink, out var source, out var destination);
+        var success = TryGetTcpEndpoints(packet, packetLength, datalink, out var source, out var destination, out _);
         return (success, source.Port, destination.Port);
     }
+
+    internal static (bool Success, int SourcePort, int DestinationPort, byte Flags) ProbePacketWithFlagsForSelfTest(
+        byte[] packet,
+        int packetLength,
+        int datalink)
+    {
+        var success = TryGetTcpEndpoints(packet, packetLength, datalink, out var source, out var destination, out var flags);
+        return (success, source.Port, destination.Port, flags);
+    }
+
+    internal static bool ShouldForceOwnerRefreshForSelfTest(byte flags, int elapsedMs) =>
+        (flags & 0x02) != 0 && elapsedMs >= ForcedOwnerRefreshMinIntervalMs;
 }
