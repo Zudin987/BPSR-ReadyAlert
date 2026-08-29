@@ -385,10 +385,20 @@ internal sealed partial class ChatOverlayForm
 
     private void SelectTab(long id)
     {
-        if (!_settings.Chat.Tabs.Any(t => t.Id == id)) return;
+        if (!_settings.Chat.Tabs.Any(t => t.Id == id) || _settings.Chat.LastSelectedTabId == id) return;
         _settings.Chat.LastSelectedTabId = id;
-        _settingsStore.Save(_settings);
-        RebuildTabBar();
+
+        // Tab selection is a navigation action, not a settings edit. The old path
+        // synchronously flushed settings.json to disk and recreated every tab button
+        // on every click, both on the WinForms UI thread. Update only the existing
+        // selected-state visuals here; normal hide/collapse/shutdown/settings saves
+        // persist LastSelectedTabId without putting filesystem latency in navigation.
+        foreach (Control control in _tabBar.Controls)
+        {
+            if (control is ChatTabButton button && button.Tag is ChatTabSettings tab)
+                button.Selected = tab.Id == id;
+        }
+
         _followLatest = true;
         _unseenMessages = 0;
         UpdateNewMessagesButton();
