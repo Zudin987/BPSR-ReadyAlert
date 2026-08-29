@@ -6,15 +6,16 @@ using System.Windows.Forms;
 namespace BPSR.ReadyAlert;
 
 /// <summary>
-/// Release-level UI timing checks executed from the published single-file EXE.
+/// Release-level UI/capture timing checks executed from the published single-file EXE.
 /// The limits are deliberately broad hosted-CI regression gates, while the emitted
-/// metrics give the final audit concrete startup/navigation/render numbers.
+/// metrics give the final audit concrete startup/navigation/render/capture numbers.
 /// </summary>
 internal static class UiPerformanceV132SelfTest
 {
     private const int ChatMessageCount = 200;
     private const int ChatTabSwitchCount = 40;
     private const int RepaintCount = 60;
+    private const int CaptureProbeCount = 100_000;
 
     internal static void Run()
     {
@@ -32,6 +33,7 @@ internal static class UiPerformanceV132SelfTest
         {
             TestOverlayStartupNavigationAndPaint(settingsPath, metrics);
             TestSettingsNavigation(metrics);
+            TestCapturePacketParsing(metrics);
             TestCoreAudioPreload(metrics);
             metrics.Add("result=PASS");
         }
@@ -243,6 +245,54 @@ internal static class UiPerformanceV132SelfTest
         metrics.Add($"settings.prewarm.ms={prewarmMs:F2}");
         metrics.Add($"settings.cachedPrepare.ms={prepareMs:F2}");
         metrics.Add($"settings.pageSwitch100.ms={switch100Ms:F2}");
+    }
+
+    private static void TestCapturePacketParsing(List<string> metrics)
+    {
+        const int ipStart = 14;
+        var packet = new byte[54];
+
+        // Representative Ethernet + IPv4 + minimal TCP packet. The probe enters at
+        // the IP offset so we can exercise the exact in-place parser without Npcap.
+        packet[ipStart] = 0x45; // IPv4, IHL 20 bytes
+        packet[ipStart + 2] = 0;
+        packet[ipStart + 3] = 40; // IPv4 total length = 20 IP + 20 TCP
+        packet[ipStart + 9] = 6;  // TCP
+        packet[ipStart + 12] = 10;
+        packet[ipStart + 13] = 1;
+        packet[ipStart + 14] = 2;
+        packet[ipStart + 15] = 3;
+        packet[ipStart + 16] = 10;
+        packet[ipStart + 17] = 9;
+        packet[ipStart + 18] = 8;
+        packet[ipStart + 19] = 7;
+        var tcp = ipStart + 20;
+        packet[tcp + 12] = 0x50; // TCP data offset = 20 bytes
+
+        var warm = CaptureEngine.ProbeIpPacketForSelfTest(packet, ipStart);
+        Check(208, warm.Success && warm.TcpOffset == tcp && warm.PacketEnd == packet.Length && warm.IpVersion == 4,
+            "in-place Ethernet-offset IPv4/TCP parser returned incorrect offsets");
+
+        // Warm JIT before using GetAllocatedBytesForCurrentThread so the result tracks
+        // the parser itself rather than one-time runtime setup.
+        for (var i = 0; i < 1_000; i++)
+            _ = CaptureEngine.ProbeIpPacketForSelfTest(packet, ipStart);
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var timer = Stopwatch.StartNew();
+        for (var i = 0; i < CaptureProbeCount; i++)
+            _ = CaptureEngine.ProbeIpPacketForSelfTest(packet, ipStart);
+        timer.Stop();
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        var elapsedMs = timer.Elapsed.TotalMilliseconds;
+
+        Check(209, allocatedBytes < 128 * 1024,
+            $"capture IP/TCP parser allocated {allocatedBytes} bytes across {CaptureProbeCount:N0} packets");
+        Check(210, elapsedMs < 1_500,
+            $"capture IP/TCP parser exceeded 1500 ms for {CaptureProbeCount:N0} packets ({elapsedMs:F1} ms)");
+
+        metrics.Add($"capture.probe100k.ms={elapsedMs:F2}");
+        metrics.Add($"capture.probe100k.allocatedBytes={allocatedBytes}");
     }
 
     private static void TestCoreAudioPreload(List<string> metrics)
