@@ -44,10 +44,26 @@ internal static class GameFrameSynchronizer
                 return new GameFrameSyncMatch(offset, size, typeRaw);
         }
 
-        // Second preference: two complete consecutive protocol frames, with at least
-        // one carrying server data (Notify or FrameDown). This covers compressed
-        // FrameDown traffic where nested Notify bytes are hidden by zstd, while being
-        // materially safer than accepting coincidental Echo/Return-looking bytes.
+        // A compressed FrameDown has a four-byte sequence field followed by a standard
+        // zstd frame. Size/type + zstd magic is a strong standalone signature, allowing
+        // a quiet relay connection to synchronize immediately without waiting for a
+        // second outer BPSR frame just to prove alignment.
+        for (var offset = 0; offset <= data.Count - HeaderBytes; offset++)
+        {
+            if (!TryReadCompleteHeader(data, offset, maxFrame, out var size, out var typeRaw))
+                continue;
+            if ((typeRaw & 0x7FFF) != 6 || (typeRaw & 0x8000) == 0 || size < 14)
+                continue;
+
+            var zstd = offset + 10; // 6-byte game header + 4-byte FrameDown sequence.
+            if (data[zstd] == 0x28 && data[zstd + 1] == 0xB5 &&
+                data[zstd + 2] == 0x2F && data[zstd + 3] == 0xFD)
+                return new GameFrameSyncMatch(offset, size, typeRaw);
+        }
+
+        // Final fallback: two complete consecutive protocol frames, with at least one
+        // carrying server data (Notify or FrameDown). This also covers non-standard
+        // compressed containers where a future zstd framing variant is encountered.
         for (var offset = 0; offset <= data.Count - HeaderBytes; offset++)
         {
             if (!TryReadCompleteHeader(data, offset, maxFrame, out var firstSize, out var firstType))
