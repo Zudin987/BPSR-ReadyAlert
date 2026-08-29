@@ -16,11 +16,6 @@ internal static class RelayCompatibilityV135SelfTest
     {
         const int prefixLength = 37;
         var stream = new List<byte>(prefixLength + 22);
-
-        // This is the exact failure shape from v1.3.4: offset zero looks like a valid
-        // 400 KiB Notify header, but only the six-byte header itself is present. The
-        // old parser therefore waited for the declared 400 KiB (or its 20-second
-        // watchdog) even though a complete chat Notify was already buffered later.
         stream.AddRange(BuildHeaderOnly(400 * 1024, 2));
         while (stream.Count < prefixLength) stream.Add((byte)(0xA0 + stream.Count % 31));
         stream.AddRange(BuildKnownNotify(ChatProtocol.ServiceId, ChatProtocol.NotifyNewestChitChatMsgs));
@@ -54,12 +49,14 @@ internal static class RelayCompatibilityV135SelfTest
     private static void TestConsecutiveFramesProvideFallbackAnchor()
     {
         var stream = new List<byte> { 0xEE, 0xEE, 0xEE };
+        var frameDown = new byte[10];
+        Array.Copy(BuildHeaderOnly(10, 6), frameDown, 6);
+        stream.AddRange(frameDown);
         stream.AddRange(BuildHeaderOnly(6, 4));
-        stream.AddRange(BuildHeaderOnly(6, 3));
 
         var match = GameFrameSynchronizer.FindStrongFrame(stream, 2 * 1024 * 1024);
-        Check(236, match.Found && match.Offset == 3,
-            "two consecutive complete protocol frames did not provide a fallback sync anchor");
+        Check(236, match.Found && match.Offset == 3 && match.MessageType == 6,
+            "FrameDown plus a consecutive complete frame did not provide a fallback sync anchor");
     }
 
     private static void TestUnknownSingleFrameIsNotTrusted()
