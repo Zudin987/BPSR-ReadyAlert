@@ -63,6 +63,11 @@ internal sealed partial class ChatGeneralSettingsForm : Form
     private readonly Label _applyStatus = new();
 
     internal ChatGeneralSettingsForm(ChatOverlaySettings settings)
+        : this(settings, deferCompactUi: false)
+    {
+    }
+
+    private ChatGeneralSettingsForm(ChatOverlaySettings settings, bool deferCompactUi)
     {
         _settings = settings;
         _blockedWorking = settings.BlockedUsers.Select(CloneBlockedUser).ToList();
@@ -70,34 +75,51 @@ internal sealed partial class ChatGeneralSettingsForm : Form
         _highlightColorValue = settings.HighlightColor;
         _privateColorValue = settings.PrivateHighlightColor;
 
-        ChatUiTheme.ApplySettingsForm(this);
-        Text = "Settings";
-        StartPosition = FormStartPosition.CenterParent;
-        FormBorderStyle = FormBorderStyle.Sizable;
-        MaximizeBox = true;
-        MinimizeBox = false;
-        ShowInTaskbar = false;
-        ClientSize = new Size(760, 680);
-        MinimumSize = new Size(620, 500);
+        // Building five nested AutoSize page trees while layout is live makes the
+        // constructor repeatedly measure partially assembled controls. Keep the shell,
+        // nav strip and content host suspended until the tree is complete; native
+        // realization/prewarm will perform the first useful layout exactly once.
+        SuspendLayout();
+        _contentHost.SuspendLayout();
+        _navHost.SuspendLayout();
+        try
+        {
+            ChatUiTheme.ApplySettingsForm(this);
+            Text = "Settings";
+            StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
+            MinimizeBox = false;
+            ShowInTaskbar = false;
+            ClientSize = new Size(760, 680);
+            MinimumSize = new Size(620, 500);
 
-        var footer = BuildFooter();
-        var shell = new Panel { Dock = DockStyle.Fill, BackColor = ChatUiTheme.SettingsWindow };
-        var topTabs = BuildTopTabs();
-        _contentHost.Dock = DockStyle.Fill;
-        _contentHost.BackColor = ChatUiTheme.SettingsWindow;
-        _contentHost.Padding = new Padding(5, 4, 5, 4);
+            var footer = BuildFooter();
+            var shell = new Panel { Dock = DockStyle.Fill, BackColor = ChatUiTheme.SettingsWindow };
+            var topTabs = BuildTopTabs();
+            _contentHost.Dock = DockStyle.Fill;
+            _contentHost.BackColor = ChatUiTheme.SettingsWindow;
+            _contentHost.Padding = new Padding(5, 4, 5, 4);
 
-        shell.Controls.Add(_contentHost);
-        shell.Controls.Add(topTabs);
-        Controls.Add(shell);
-        Controls.Add(footer);
+            shell.Controls.Add(_contentHost);
+            shell.Controls.Add(topTabs);
+            Controls.Add(shell);
+            Controls.Add(footer);
 
-        RegisterPage("Appearance", "Appearance", BuildAppearancePage());
-        RegisterPage("Interaction", "Interaction", BuildInteractionPage());
-        RegisterPage("Alerts", "Alerts", BuildAlertsPage());
-        RegisterPage("Advanced", "Advanced", BuildAdvancedPage());
-        ShowPage("Appearance");
-        InstallV122CompactUi();
+            RegisterPage("Appearance", "Appearance", BuildAppearancePage());
+            RegisterPage("Interaction", "Interaction", BuildInteractionPage());
+            RegisterPage("Alerts", "Alerts", BuildAlertsPage());
+            RegisterPage("Advanced", "Advanced", BuildAdvancedPage());
+            ShowPage("Appearance");
+            if (!deferCompactUi)
+                InstallV122CompactUi();
+        }
+        finally
+        {
+            _navHost.ResumeLayout(performLayout: false);
+            _contentHost.ResumeLayout(performLayout: false);
+            ResumeLayout(performLayout: false);
+        }
     }
 
     private Panel BuildFooter()
