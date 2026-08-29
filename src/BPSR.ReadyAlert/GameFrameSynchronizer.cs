@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace BPSR.ReadyAlert;
 
 internal readonly record struct GameFrameSyncMatch(int Offset, int Size, ushort TypeRaw)
@@ -24,6 +26,12 @@ internal static class GameFrameSynchronizer
     private const ulong MatchNtfService = 822_849_903UL;
     private const ulong GrpcTeamNtfService = 966_773_353UL;
 
+    // Flow streams are stable List<byte> instances. Remember how far each unsynchronized
+    // stream has already been inspected, revisiting only a small overlap after append.
+    // ConditionalWeakTable prevents this cache from extending a flow's lifetime.
+    private static readonly ConditionalWeakTable<object, ScanState> ScanStates = new();
+    private static long _selfTestExaminedOffsets;
+
     internal static GameFrameSyncMatch FindStrongFrame(
         IReadOnlyList<byte> data,
         int maxFrame,
@@ -32,9 +40,19 @@ internal static class GameFrameSynchronizer
         if (data.Count < HeaderBytes)
             return new GameFrameSyncMatch(-1, 0, 0);
 
-        startOffset = Math.Clamp(startOffset, 0, Math.Max(0, data.Count - HeaderBytes));
-        for (var offset = startOffset; offset <= data.Count - HeaderBytes; offset++)
+        var cacheKey = (object)data;
+        var state = ScanStates.GetOrCreateValue(cacheKey);
+        if (data.Count < state.LastCount)
+            state.NextOffset = 0;
+
+        var requestedStart = Math.Clamp(startOffset, 0, Math.Max(0, data.Count - HeaderBytes));
+        var scanStart = Math.Max(requestedStart, state.NextOffset);
+        if (scanStart > data.Count - HeaderBytes)
+            scanStart = Math.Max(requestedStart, data.Count - HeaderBytes);
+
+        for (var offset = scanStart; offset <= data.Count - HeaderBytes; offset++)
         {
+            Interlocked.Increment(ref _selfTestExaminedOffsets);
             if (!IsPlausibleHeader(data, offset, maxFrame, out var size, out var typeRaw))
                 continue;
 
@@ -49,7 +67,10 @@ internal static class GameFrameSynchronizer
             {
                 var service = ReadU64BE(data, offset + HeaderBytes);
                 if (IsKnownNotifyService(service))
+                {
+                    ScanStates.Remove(cacheKey);
                     return new GameFrameSyncMatch(offset, size, typeRaw);
+                }
             }
 
             if (messageType != 6 || size < 10)
@@ -65,7 +86,10 @@ internal static class GameFrameSynchronizer
                 if (size >= 14 && zstd + 4 <= data.Count &&
                     data[zstd] == 0x28 && data[zstd + 1] == 0xB5 &&
                     data[zstd + 2] == 0x2F && data[zstd + 3] == 0xFD)
+                {
+                    ScanStates.Remove(cacheKey);
                     return new GameFrameSyncMatch(offset, size, typeRaw);
+                }
                 continue;
             }
 
@@ -80,9 +104,14 @@ internal static class GameFrameSynchronizer
 
             var nestedService = ReadU64BE(data, nested + HeaderBytes);
             if (IsKnownNotifyService(nestedService))
+            {
+                ScanStates.Remove(cacheKey);
                 return new GameFrameSyncMatch(offset, size, typeRaw);
+            }
         }
 
+        state.LastCount = data.Count;
+        state.NextOffset = Math.Max(requestedStart, NextIncrementalScanOffset(data.Count));
         return new GameFrameSyncMatch(-1, 0, 0);
     }
 
@@ -120,19 +149,20 @@ internal static class GameFrameSynchronizer
         return true;
     }
 
-    internal static int NextIncrementalScanOffset(int previousCount)
-    {
-        // A strong signature needs at most ~32 bytes after its candidate frame header.
-        // Revisit a small overlap to catch signatures split across append boundaries,
-        // but never rescan the whole historical prefix on every TCP segment.
-        return Math.Max(0, previousCount - SignatureLookBehindBytes);
-    }
+    internal static int NextIncrementalScanOffset(int previousCount) =>
+        Math.Max(0, previousCount - SignatureLookBehindBytes);
 
     internal static int BytesToTrimWhenUnsynchronized(int count)
     {
         if (count <= MaxUnsynchronizedBytes) return 0;
         return Math.Max(0, count - UnsynchronizedTailBytes);
     }
+
+    internal static void ResetScanMetricsForSelfTest() =>
+        Interlocked.Exchange(ref _selfTestExaminedOffsets, 0);
+
+    internal static long ExaminedOffsetsForSelfTest() =>
+        Interlocked.Read(ref _selfTestExaminedOffsets);
 
     private static bool IsKnownNotifyService(ulong service) =>
         service == ChatProtocol.ServiceId ||
@@ -158,4 +188,10 @@ internal static class GameFrameSynchronizer
         ((ulong)data[offset + 5] << 16) |
         ((ulong)data[offset + 6] << 8) |
         data[offset + 7];
+
+    private sealed class ScanState
+    {
+        internal int LastCount;
+        internal int NextOffset;
+    }
 }
