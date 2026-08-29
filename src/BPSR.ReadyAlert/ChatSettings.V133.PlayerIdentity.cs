@@ -57,7 +57,7 @@ internal sealed partial class ChatGeneralSettingsForm
         else
         {
             _v133DetectedUsername.Text = "Waiting for BPSR to identify your character…";
-            _v133DetectedUsername.ForeColor = ChatUiTheme.TextMuted;
+            _v133DetectedUsername.ForeColor = ChatUiTheme.SettingsMuted;
             _v133DetectedUsername.AccessibleDescription =
                 "ReadyAlert has not received the current BPSR EnterScene identity yet.";
         }
