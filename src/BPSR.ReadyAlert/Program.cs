@@ -36,15 +36,12 @@ internal static class Program
                 RunSmokeStep(UiPerformanceV132SelfTest.Run, 28);
                 RunSmokeStep(PlayerIdentityV133SelfTest.Run, 29);
                 RunSmokeStep(CaptureRecoveryV134SelfTest.Run, 30);
+                RunSmokeStep(RelayCompatibilityV135SelfTest.Run, 31);
                 Environment.ExitCode = 0;
                 return;
             }
             catch (Exception ex)
             {
-                // Do not hide the useful reason behind a numeric smoke-test code.
-                // GitHub Actions can normally inherit stderr from this WinExe. Keep a
-                // sidecar too so a local/published smoke run remains diagnosable even
-                // when the parent process does not expose console handles.
                 try
                 {
                     Console.Error.WriteLine("BPSR ReadyAlert smoke test failed:");
@@ -90,9 +87,6 @@ internal static class Program
             var settings = settingsStore.Load();
             var launcher = new ResonanceLogsLauncher(settings, settingsStore);
 
-            // Prime independent background snapshots before capture can emit the
-            // first chat packet. The optional Google worker is not started at all
-            // for users who leave both translation and TTS disabled.
             ChatNotificationEngine.Configure(settings.Chat, paths.AlertSoundPath);
             if (settings.SpeechTranslation.TranslationEnabled || settings.SpeechTranslation.TtsEnabled)
                 PlayerIdentityCaptureBridge.ConfigureSpeechEngine(settings.SpeechTranslation);
@@ -106,9 +100,6 @@ internal static class Program
             catch (InvalidOperationException ex) when (
                 ex.Message.Contains("no capture adapters", StringComparison.OrdinalIgnoreCase))
             {
-                // Npcap itself is present, but Windows currently exposes no usable
-                // capture adapter. Keep the tray/UI alive and let CaptureEngine's
-                // self-healing loop discover the adapter when networking returns.
                 AppLog.Write("startup: no Npcap adapter currently available; entering recovery mode");
                 capturePlan = CaptureRecoveryPlanner.CreateWaitingPlan(settings.NpcapDeviceName);
             }
@@ -116,19 +107,12 @@ internal static class Program
 
             if (!string.IsNullOrWhiteSpace(settings.NpcapDeviceName))
             {
-                // A user-selected adapter is an explicit preference. Older versions
-                // silently cleared it when the NIC was temporarily unavailable at
-                // startup, which defeated recovery after USB/Wi-Fi reconnects.
                 capturePlan = CaptureRecoveryPlanner.PreserveUnavailableManual(
                     settings.NpcapDeviceName.Trim(),
                     capturePlan);
                 AppLog.Write("startup: preserving manual Npcap adapter for self-healing recovery=" + settings.NpcapDeviceName);
             }
 
-            // The tray/capture context is the startup-critical path. Creating a Start
-            // Menu shortcut through WScript.Shell and probing/launching a companion app
-            // used to happen before this point, which made ReadyAlert feel slow even
-            // though neither task is required for the tray to become usable.
             var context = new TrayApplicationContext(paths, settings, settingsStore, launcher, capturePlan);
             AppLog.Write($"startup: tray context ready in {startup.ElapsedMilliseconds} ms");
 
@@ -171,8 +155,6 @@ internal static class Program
 
     private static void QueueStartMenuShortcutRefresh(string iconPath)
     {
-        // WScript.Shell shortcut creation is COM/shell I/O. It is useful maintenance,
-        // but it should never delay the tray or chat overlay becoming responsive.
         var thread = new Thread(() =>
         {
             try { StartMenuShortcut.TryCreateOrRefresh(iconPath); }
@@ -190,8 +172,6 @@ internal static class Program
 
     private static System.Windows.Forms.Timer CreateDeferredAutoLaunchTimer(ResonanceLogsLauncher launcher)
     {
-        // Let the WinForms message loop start and paint the tray/overlay before the
-        // optional companion-app discovery or file picker runs.
         var timer = new System.Windows.Forms.Timer { Interval = 100 };
         timer.Tick += (_, _) =>
         {
@@ -212,9 +192,6 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            // Preserve high-range assertion codes from newer focused suites so CI
-            // identifies the exact contract that failed. Older suites keep their
-            // established top-level group code to avoid changing release diagnostics.
             var specificCode = Environment.ExitCode;
             Environment.ExitCode = specificCode >= 100 ? specificCode : failureCode;
             var owner = step.Method.DeclaringType?.Name ?? "unknown";
