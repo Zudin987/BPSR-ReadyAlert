@@ -8,6 +8,7 @@ internal static class CoreAlertV131SelfTest
     internal static void Run()
     {
         TestDefaultsAndIndependentToggles();
+        TestV132DefaultProfile();
         TestDistinctSoundRouting();
         TestLiveQueueProtocolRouting();
         TestTrayMenuContract();
@@ -33,6 +34,66 @@ internal static class CoreAlertV131SelfTest
             "party invite can remain enabled independently");
         Assert(!TrayApplicationContext.IsAlertEnabledForSelfTest(settings, "party-request"),
             "party request toggle independently disables request alerts");
+    }
+
+    private static void TestV132DefaultProfile()
+    {
+        var settings = new AppSettings();
+        settings.Chat.Normalize();
+        settings.SpeechTranslation.Normalize();
+
+        Assert(settings.QueuePopAlert && settings.ReadyCheckAlert &&
+               settings.PartyInviteAlert && settings.PartyRequestAlert,
+            "v1.3.2 core alerts default enabled");
+        Assert(settings.DesktopNotification,
+            "v1.3.2 desktop notifications default enabled");
+        Assert(settings.ChatOverlayEnabled,
+            "v1.3.2 chat overlay defaults enabled");
+
+        var chat = settings.Chat;
+        Assert(chat.TopMost && !chat.CompactMode &&
+               chat.ShowTime && chat.ShowTimeAsAgo && chat.HideStickers &&
+               chat.BackgroundOpacity == 82 && chat.ToolbarOpacity == 92 &&
+               chat.TextOpacity == 100 && chat.WindowOpacity == 100 &&
+               string.Equals(chat.FontFamily, "Segoe UI", StringComparison.Ordinal) &&
+               Math.Abs(chat.FontSize - 12F) < 0.01F &&
+               !chat.BoldMessageText && chat.TextShadow &&
+               chat.ShowSeparators && chat.ShowZebraStripes && chat.ShowColorBand &&
+               !chat.ClickThrough && string.Equals(chat.CollapseSide, "Left", StringComparison.Ordinal),
+            "v1.3.2 chat appearance defaults match the requested profile");
+
+        var expectedTabs = new (long Id, string Name, int[] Channels, int MinLevel)[]
+        {
+            (639233255393111833L, "All", [1, 2, 3, 4, 5, 6, 9], 50),
+            (639233255393111900L, "Guild&Team", [3, 4, 5, 6], 1),
+            (639233255393111918L, "Guild", [4], 1),
+            (639235625391474596L, "Team", [3, 6], 1)
+        };
+        Assert(chat.Tabs.Count == expectedTabs.Length,
+            "v1.3.2 default profile has exactly four tabs");
+        for (var i = 0; i < expectedTabs.Length; i++)
+        {
+            var actual = chat.Tabs[i];
+            var expected = expectedTabs[i];
+            Assert(actual.Id == expected.Id &&
+                   string.Equals(actual.Name, expected.Name, StringComparison.Ordinal) &&
+                   actual.Channels.SequenceEqual(expected.Channels) &&
+                   actual.MinLevel == expected.MinLevel &&
+                   actual.ShowIfMatches == string.Empty &&
+                   actual.HideIfMatches == string.Empty,
+                $"v1.3.2 default tab {i + 1} matches requested ID/name/channels/level");
+        }
+        Assert(chat.LastSelectedTabId == expectedTabs[0].Id,
+            "v1.3.2 default selected tab is All");
+
+        var speech = settings.SpeechTranslation;
+        Assert(speech.TranslationEnabled && speech.TranslationWorld &&
+               speech.TranslationGuild && speech.TranslationPartyTeam &&
+               speech.ShowTranslationInOverlay && speech.TtsEnabled &&
+               !speech.TtsGuild && speech.TtsPartyTeam && speech.ReadSenderName &&
+               speech.TtsVolume == 100 && speech.HideEmojiMessages &&
+               speech.HideLinkedItemMessages,
+            "v1.3.2 translation and TTS defaults match the requested profile");
     }
 
     private static void TestDistinctSoundRouting()
@@ -110,29 +171,41 @@ internal static class CoreAlertV131SelfTest
 
     private static void TestSettingsPersistenceAndUpgradeDefaults()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v131-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v132-{Guid.NewGuid():N}.json");
         try
         {
             var store = new SettingsStore(path);
             var settings = new AppSettings
             {
                 PartyInviteAlert = false,
-                PartyRequestAlert = true
+                PartyRequestAlert = true,
+                DesktopNotification = false,
+                ChatOverlayEnabled = false
             };
-            Assert(store.Save(settings), "party alert preferences persist successfully");
+            settings.Chat.TopMost = false;
+            settings.Chat.CompactMode = true;
+            settings.SpeechTranslation.TranslationEnabled = false;
+            settings.SpeechTranslation.TtsEnabled = false;
+
+            Assert(store.Save(settings), "explicit user preferences persist successfully");
             var loaded = store.Load();
             Assert(!loaded.PartyInviteAlert && loaded.PartyRequestAlert,
                 "party alert preferences round-trip independently");
+            Assert(!loaded.DesktopNotification && !loaded.ChatOverlayEnabled &&
+                   !loaded.Chat.TopMost && loaded.Chat.CompactMode &&
+                   !loaded.SpeechTranslation.TranslationEnabled &&
+                   !loaded.SpeechTranslation.TtsEnabled,
+                "new v1.3.2 defaults do not overwrite explicit saved preferences");
 
             Delete(path);
             Delete(path + ".bak");
             Delete(path + ".new");
 
-            // Simulate an existing v1.3.0 settings file with no new party fields.
+            // Simulate an older sparse settings file with no newer alert/default fields.
             File.WriteAllText(path, "{\"queuePopAlert\":true,\"readyCheckAlert\":true}");
             var upgraded = new SettingsStore(path).Load();
             Assert(upgraded.PartyInviteAlert && upgraded.PartyRequestAlert,
-                "v1.3.0 settings without party fields upgrade with both alerts enabled");
+                "older settings without party fields upgrade with both alerts enabled");
         }
         finally
         {
