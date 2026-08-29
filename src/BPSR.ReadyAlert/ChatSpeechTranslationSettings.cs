@@ -12,6 +12,9 @@ internal sealed class ChatSpeechTranslationSettings
     public bool TtsGuild { get; set; } = false;
     public bool TtsPartyTeam { get; set; } = true;
     public bool ReadSenderName { get; set; } = true;
+
+    // v1.3.3: this is an optional manual override. When empty, ReadyAlert uses the
+    // current local player name detected from BPSR EnterScene packets.
     public string IgnoreOwnUsername { get; set; } = string.Empty;
     public int TtsVolume { get; set; } = 100;
 
@@ -36,8 +39,7 @@ internal sealed class ChatSpeechTranslationSettings
         TtsEnabled && TtsChannelEnabled(channel, TtsGuild, TtsPartyTeam);
 
     internal bool IsOwnUsername(string? senderName) =>
-        IgnoreOwnUsername.Length > 0 &&
-        string.Equals(IgnoreOwnUsername, senderName?.Trim(), StringComparison.OrdinalIgnoreCase);
+        PlayerIdentityCaptureBridge.IsOwnUsername(senderName, IgnoreOwnUsername);
 
     internal static bool TranslationChannelEnabled(ChatChannel channel, bool world, bool guild, bool partyTeam) =>
         (world && channel == ChatChannel.World) ||
