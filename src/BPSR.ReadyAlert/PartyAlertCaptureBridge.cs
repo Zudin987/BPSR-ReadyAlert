@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 namespace BPSR.ReadyAlert;
 
 /// <summary>
-/// Core ReadyAlert consumer for incoming BPSR party invitations and join requests.
-/// This runs on CaptureEngine's already decoded Notify stream and is intentionally
-/// independent from the optional Chat Overlay / translation / TTS features.
+/// Core ReadyAlert dispatcher for queue acceptance signals plus incoming BPSR party
+/// invitations and join requests. It runs on CaptureEngine's already decoded Notify
+/// stream and is independent from optional Chat Overlay / translation / TTS features.
 /// </summary>
 internal static class PartyAlertCaptureBridge
 {
@@ -26,15 +26,19 @@ internal static class PartyAlertCaptureBridge
     {
         ArgumentNullException.ThrowIfNull(events);
         Volatile.Write(ref _events, events);
+        QueueAlertCaptureBridge.Configure(events);
     }
 
     /// <summary>
-    /// Returns true only for the two incoming GrpcTeamNtf notifications owned by
-    /// this feature. Exact service/method matching avoids treating ordinary party
-    /// state updates, matchmaking packets, or outgoing actions as social alerts.
+    /// Queue acceptance notifications are dispatched first because one live party
+    /// activity voting path was historically classified as Ready Check. Party social
+    /// notifications then retain their exact service/method handling.
     /// </summary>
     internal static bool TryHandle(ulong service, uint method, byte[] payload)
     {
+        if (QueueAlertCaptureBridge.TryHandle(service, method, payload))
+            return true;
+
         if (service != GrpcTeamNtfService)
             return false;
 
@@ -110,6 +114,7 @@ internal static class PartyAlertCaptureBridge
 
     internal static void ResetForSelfTest()
     {
+        QueueAlertCaptureBridge.ResetForSelfTest();
         lock (Gate)
         {
             _lastInviteFingerprint = 0;
