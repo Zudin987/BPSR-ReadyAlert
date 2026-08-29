@@ -37,7 +37,6 @@ internal sealed partial class ChatGeneralSettingsForm
         {
             try { BeginInvoke(new Action(RefreshV133PlayerIdentityDisplay)); }
             catch (InvalidOperationException) { }
-            catch (ObjectDisposedException) { }
             return;
         }
         RefreshV133PlayerIdentityDisplay();
