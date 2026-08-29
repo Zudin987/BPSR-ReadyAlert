@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace BPSR.ReadyAlert;
@@ -8,6 +9,7 @@ internal static class CoreAlertV131SelfTest
     {
         TestDefaultsAndIndependentToggles();
         TestDistinctSoundRouting();
+        TestLiveQueueProtocolRouting();
         TestTrayMenuContract();
         TestSettingsPersistenceAndUpgradeDefaults();
         TestBundledWaveResources();
@@ -41,6 +43,47 @@ internal static class CoreAlertV131SelfTest
             "all four core event kinds have a sound mapping");
         Assert(keys.Distinct(StringComparer.Ordinal).Count() == 4,
             "queue, ready, party invite and party request use four distinct sounds");
+    }
+
+    private static void TestLiveQueueProtocolRouting()
+    {
+        PartyAlertCaptureBridge.ResetForSelfTest();
+        var events = new ConcurrentQueue<AlertEvent>();
+        PartyAlertCaptureBridge.Configure(events);
+
+        // GrpcTeamNtf.NotifyTeamActivityState -> vRequest.state.state = Voting (3).
+        // This is the live queue/party-activity acceptance path that v1.3.1 wrongly
+        // allowed CaptureEngine to classify as kind=ready.
+        var teamVoting = new byte[] { 0x0A, 0x04, 0x0A, 0x02, 0x10, 0x03 };
+        Assert(PartyAlertCaptureBridge.TryHandle(
+                QueueAlertCaptureBridge.TeamServiceIdForSelfTest,
+                QueueAlertCaptureBridge.TeamActivityMethodForSelfTest,
+                teamVoting),
+            "team-activity voting queue signal is owned by core queue routing");
+        Assert(events.TryDequeue(out var teamEvent) && teamEvent.Kind == "queue",
+            "team-activity voting emits queue kind instead of ready");
+        Assert(CoreAlertAudioPlayer.SoundKeyForSelfTest(teamEvent.Kind) == "Queue",
+            "team-activity voting selects Queue.wav");
+
+        // MatchNtf.EnterMatchResult -> vRequest.matchInfo.matchStatus = WaitReady (2).
+        // A server can expose both paths for the same acceptance prompt, so the second
+        // signal must be consumed but not play a second Queue sound.
+        var matchWaitReady = new byte[] { 0x0A, 0x04, 0x12, 0x02, 0x10, 0x02 };
+        Assert(PartyAlertCaptureBridge.TryHandle(
+                QueueAlertCaptureBridge.MatchServiceIdForSelfTest,
+                QueueAlertCaptureBridge.EnterMatchResultMethodForSelfTest,
+                matchWaitReady),
+            "match wait-ready signal is owned by the same queue router");
+        Assert(events.IsEmpty,
+            "paired team-voting and match-wait-ready signals are de-duplicated");
+
+        PartyAlertCaptureBridge.ResetForSelfTest();
+        var teamNotVoting = new byte[] { 0x0A, 0x04, 0x0A, 0x02, 0x10, 0x02 };
+        Assert(!PartyAlertCaptureBridge.TryHandle(
+                QueueAlertCaptureBridge.TeamServiceIdForSelfTest,
+                QueueAlertCaptureBridge.TeamActivityMethodForSelfTest,
+                teamNotVoting),
+            "non-voting team activity remains unclaimed by queue routing");
     }
 
     private static void TestTrayMenuContract()
@@ -113,8 +156,8 @@ internal static class CoreAlertV131SelfTest
         foreach (var item in expected)
         {
             using var resource = assembly.GetManifestResourceStream(item.Resource)
-                ?? throw new InvalidOperationException("v1.3.1 missing embedded audio resource: " + item.Resource);
-            var temp = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v131-audio-{Guid.NewGuid():N}.wav");
+                ?? throw new InvalidOperationException("v1.3.x missing embedded audio resource: " + item.Resource);
+            var temp = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-v13x-audio-{Guid.NewGuid():N}.wav");
             try
             {
                 using (var output = File.Create(temp)) resource.CopyTo(output);
@@ -139,6 +182,6 @@ internal static class CoreAlertV131SelfTest
     private static void Assert(bool condition, string name)
     {
         if (!condition)
-            throw new InvalidOperationException("v1.3.1 core alert self-test failed: " + name);
+            throw new InvalidOperationException("v1.3.x core alert self-test failed: " + name);
     }
 }
