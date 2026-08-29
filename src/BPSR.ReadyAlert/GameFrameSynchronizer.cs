@@ -73,6 +73,20 @@ internal static class GameFrameSynchronizer
                 }
             }
 
+            // Two complete protocol frames at exactly consecutive boundaries are a
+            // strong generic fallback even when neither frame exposes one of the
+            // service/zstd signatures above. This is deliberately stricter than merely
+            // accepting one plausible frame, which could be random relay payload.
+            if (size <= data.Count - offset)
+            {
+                var nextOffset = offset + size;
+                if (TryReadCompleteHeader(data, nextOffset, maxFrame, out _, out _))
+                {
+                    ScanStates.Remove(cacheKey);
+                    return new GameFrameSyncMatch(offset, size, typeRaw);
+                }
+            }
+
             if (messageType != 6 || size < 10)
                 continue;
 
