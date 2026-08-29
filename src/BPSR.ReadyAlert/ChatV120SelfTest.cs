@@ -239,6 +239,9 @@ internal static class ChatV120SelfTest
     {
         var settings = new AppSettings { ChatOverlayEnabled = true };
         settings.Chat.Normalize();
+        // This regression specifically exercises an explicitly saved disabled state.
+        // v1.3.2 intentionally defaults TTS on, so do not rely on constructor defaults.
+        settings.SpeechTranslation.TtsEnabled = false;
         settings.SpeechTranslation.Normalize();
         var tempPath = Path.Combine(Path.GetTempPath(), $"BPSR-ReadyAlert-tts-toggle-{Guid.NewGuid():N}.json");
 
