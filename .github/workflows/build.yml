@@ -291,3 +291,30 @@ jobs:
             - retains the portable self-contained Windows x64 single-EXE design.
 
             Requires Npcap to be installed.
+
+      - name: Create v1.3.4 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.3.4]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.3.4
+          name: BPSR Ready Alert v1.3.4
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            Stable v1.3.4 release.
+
+            Highlights:
+            - self-healing Npcap capture across transient network failures, disconnects, and adapter changes without restarting ReadyAlert;
+            - Auto / Follow mode re-enumerates adapters and follows the active Windows route after Wi-Fi/Ethernet changes, while manual adapter selections are preserved and retried exactly;
+            - bounded 1s / 2s / 5s / 10s retry backoff plus a silent-capture watchdog for stuck or stale capture handles;
+            - TCP capture-gap and protocol-stall recovery prevents one locally missed packet from poisoning a stream indefinitely;
+            - keeps the tray/UI running if Npcap is installed but the network adapter is temporarily unavailable at startup;
+            - preserves v1.3.3 local-player identity detection and reacquires identity on the next BPSR session;
+            - retains the single shared Npcap/TCP pipeline and portable self-contained Windows x64 EXE.
+
+            Requires Npcap to be installed.
