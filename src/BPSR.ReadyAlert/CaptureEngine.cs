@@ -192,11 +192,18 @@ internal sealed class CaptureEngine : IDisposable
                             break;
                         }
 
+                        // If capture joined an existing TCP stream mid-frame and has not
+                        // produced even one valid protocol frame yet, use capture-open
+                        // time as the initial stall anchor. Once a frame is parsed, the
+                        // normal last-valid-frame timestamp becomes the anchor.
+                        var frameAnchorUtc = _lastValidFrameUtc == DateTime.MinValue
+                            ? _captureOpenedUtc
+                            : _lastValidFrameUtc;
                         if (CaptureRecoveryPolicy.ShouldResetProtocolFlows(
                                 gameRunning,
                                 now,
                                 _lastBpsrPacketUtc,
-                                _lastValidFrameUtc))
+                                frameAnchorUtc))
                         {
                             _flows.Clear();
                             _lastValidFrameUtc = now;
@@ -1085,7 +1092,13 @@ internal sealed class CaptureEngine : IDisposable
         {
             var slice = Math.Min(250, milliseconds - elapsed);
             _wake.WaitOne(slice);
-            if (_stopping || Volatile.Read(ref _networkChangePending) != 0) return;
+            if (_stopping) return;
+
+            // A network-change wake means "retry now" while capture is already in a
+            // recovery state. Consume it here so multiple Windows network events do
+            // not leave the flag permanently set and collapse backoff into a CPU spin.
+            if (Interlocked.Exchange(ref _networkChangePending, 0) != 0)
+                return;
             elapsed += slice;
         }
     }
