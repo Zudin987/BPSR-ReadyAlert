@@ -267,10 +267,14 @@ internal sealed class CaptureEngine : IDisposable
     {
         try
         {
-            var previous = _plan;
-            var refreshed = CaptureRecoveryPlanner.Refresh(previous);
+            // CaptureRecoveryPlanner updates the shared plan object in place so the
+            // tray sees recovery changes too. Snapshot transition data before refresh
+            // so failover diagnostics/notifications still compare old vs new correctly.
+            var previousDeviceName = _plan.Primary.DeviceName;
+            var hadPreviousDevice = !string.IsNullOrWhiteSpace(previousDeviceName);
+            var refreshed = CaptureRecoveryPlanner.Refresh(_plan);
             var changed = !string.Equals(
-                previous.Primary.DeviceName,
+                previousDeviceName,
                 refreshed.Primary.DeviceName,
                 StringComparison.OrdinalIgnoreCase);
 
@@ -282,7 +286,7 @@ internal sealed class CaptureEngine : IDisposable
                 $"device={refreshed.Primary.DeviceName} description={refreshed.Primary.Description} " +
                 $"source={refreshed.Primary.Source} changed={changed}");
 
-            if (changed && !string.IsNullOrWhiteSpace(previous.Primary.DeviceName))
+            if (changed && hadPreviousDevice)
             {
                 _events.Enqueue(new AlertEvent(
                     "capture-recovered",
