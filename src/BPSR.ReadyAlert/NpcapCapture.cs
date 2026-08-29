@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
 
 namespace BPSR.ReadyAlert;
@@ -99,18 +100,29 @@ internal sealed class NpcapCapture : IDisposable
                 var header = Marshal.PtrToStructure<PcapPkthdr>(headerPtr);
                 if (header.CapLen == 0 || dataPtr == IntPtr.Zero) return false;
 
-                var captured = new byte[header.CapLen];
-                Marshal.Copy(dataPtr, captured, 0, checked((int)header.CapLen));
+                var length = checked((int)header.CapLen);
+                var rented = ArrayPool<byte>.Shared.Rent(length);
+                try
+                {
+                    Marshal.Copy(dataPtr, rented, 0, length);
 
-                // Match ZDPS's connection-selection strategy: only allow packets
-                // whose local endpoint belongs to a running BPSR-family process.
-                // This happens before TCP/game-protocol reassembly so unrelated
-                // browser/Discord/launcher traffic can never desynchronise it.
-                if (!GamePacketFilter.IsBpsrPacket(captured, DataLink))
-                    return false;
+                    // Match ZDPS's connection-selection strategy before allocating a
+                    // packet that escapes this method. High-port browser/Discord/etc.
+                    // traffic is inspected in a reusable pooled buffer and returned
+                    // immediately, avoiding one managed byte[] allocation per rejected
+                    // TCP packet while preserving the same game-process endpoint check.
+                    if (!GamePacketFilter.IsBpsrPacket(rented, length, DataLink))
+                        return false;
 
-                packet = captured;
-                return true;
+                    var captured = new byte[length];
+                    Buffer.BlockCopy(rented, 0, captured, 0, length);
+                    packet = captured;
+                    return true;
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
             }
             case 0:
             case -2:
@@ -150,7 +162,7 @@ internal sealed class NpcapCapture : IDisposable
         if (activate < 0)
             throw new InvalidOperationException($"pcap_activate failed ({activate}): {GetHandleError(handle)}");
         if (activate > 0)
-            AppLog.Write($"npcap: pcap_activate warning={activate}: {GetHandleError(handle)}");
+            AppLog.Write($"pcap: pcap_activate warning={activate}: {GetHandleError(handle)}");
 
         var filter = new BpfProgram();
         const string expression = "tcp and not portrange 0-1000";
@@ -298,7 +310,10 @@ internal sealed class NpcapCapture : IDisposable
         [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl)]
         internal static extern int pcap_datalink(IntPtr p);
 
-        [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int pcap_next_ex(IntPtr p, out IntPtr pktHeader, out IntPtr pktData);
+
+        [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl)]
         internal static extern int pcap_compile(IntPtr p, ref BpfProgram program, string expression, int optimize, uint netmask);
 
         [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl)]
@@ -306,9 +321,6 @@ internal sealed class NpcapCapture : IDisposable
 
         [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl)]
         internal static extern void pcap_freecode(ref BpfProgram program);
-
-        [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int pcap_next_ex(IntPtr p, out IntPtr header, out IntPtr data);
 
         [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr pcap_geterr(IntPtr p);
