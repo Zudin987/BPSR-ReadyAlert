@@ -252,8 +252,9 @@ internal static class UiPerformanceV132SelfTest
         const int ipStart = 14;
         var packet = new byte[54];
 
-        // Representative Ethernet + IPv4 + minimal TCP packet. The probe enters at
-        // the IP offset so we can exercise the exact in-place parser without Npcap.
+        // Representative Ethernet + IPv4 + minimal TCP packet.
+        packet[12] = 0x08;
+        packet[13] = 0x00; // Ethernet IPv4
         packet[ipStart] = 0x45; // IPv4, IHL 20 bytes
         packet[ipStart + 2] = 0;
         packet[ipStart + 3] = 40; // IPv4 total length = 20 IP + 20 TCP
@@ -267,32 +268,57 @@ internal static class UiPerformanceV132SelfTest
         packet[ipStart + 18] = 8;
         packet[ipStart + 19] = 7;
         var tcp = ipStart + 20;
+        packet[tcp] = 0xC3;
+        packet[tcp + 1] = 0x50; // source port 50000
+        packet[tcp + 2] = 0xC7;
+        packet[tcp + 3] = 0x38; // destination port 51000
         packet[tcp + 12] = 0x50; // TCP data offset = 20 bytes
 
         var warm = CaptureEngine.ProbeIpPacketForSelfTest(packet, ipStart);
         Check(208, warm.Success && warm.TcpOffset == tcp && warm.PacketEnd == packet.Length && warm.IpVersion == 4,
             "in-place Ethernet-offset IPv4/TCP parser returned incorrect offsets");
+        var filterWarm = GamePacketFilter.ProbePacketForSelfTest(packet, packet.Length, NpcapCapture.DltEthernet);
+        Check(211, filterWarm.Success && filterWarm.SourcePort == 50_000 && filterWarm.DestinationPort == 51_000,
+            "numeric pre-capture game filter returned incorrect Ethernet/TCP endpoints");
 
         // Warm JIT before using GetAllocatedBytesForCurrentThread so the result tracks
         // the parser itself rather than one-time runtime setup.
         for (var i = 0; i < 1_000; i++)
+        {
             _ = CaptureEngine.ProbeIpPacketForSelfTest(packet, ipStart);
+            _ = GamePacketFilter.ProbePacketForSelfTest(packet, packet.Length, NpcapCapture.DltEthernet);
+        }
 
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         var timer = Stopwatch.StartNew();
         for (var i = 0; i < CaptureProbeCount; i++)
             _ = CaptureEngine.ProbeIpPacketForSelfTest(packet, ipStart);
         timer.Stop();
-        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-        var elapsedMs = timer.Elapsed.TotalMilliseconds;
+        var parserAllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        var parserMs = timer.Elapsed.TotalMilliseconds;
 
-        Check(209, allocatedBytes < 128 * 1024,
-            $"capture IP/TCP parser allocated {allocatedBytes} bytes across {CaptureProbeCount:N0} packets");
-        Check(210, elapsedMs < 1_500,
-            $"capture IP/TCP parser exceeded 1500 ms for {CaptureProbeCount:N0} packets ({elapsedMs:F1} ms)");
+        allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        timer.Restart();
+        for (var i = 0; i < CaptureProbeCount; i++)
+            _ = GamePacketFilter.ProbePacketForSelfTest(packet, packet.Length, NpcapCapture.DltEthernet);
+        timer.Stop();
+        var filterAllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        var filterMs = timer.Elapsed.TotalMilliseconds;
 
-        metrics.Add($"capture.probe100k.ms={elapsedMs:F2}");
-        metrics.Add($"capture.probe100k.allocatedBytes={allocatedBytes}");
+        Check(209, parserAllocatedBytes < 128 * 1024,
+            $"capture IP/TCP parser allocated {parserAllocatedBytes} bytes across {CaptureProbeCount:N0} packets");
+        Check(210, parserMs < 1_500,
+            $"capture IP/TCP parser exceeded 1500 ms for {CaptureProbeCount:N0} packets ({parserMs:F1} ms)");
+        Check(212, filterAllocatedBytes < 128 * 1024,
+            $"pre-capture endpoint parser allocated {filterAllocatedBytes} bytes across {CaptureProbeCount:N0} packets");
+        Check(213, filterMs < 1_500,
+            $"pre-capture endpoint parser exceeded 1500 ms for {CaptureProbeCount:N0} packets ({filterMs:F1} ms)");
+
+        metrics.Add($"capture.parser100k.ms={parserMs:F2}");
+        metrics.Add($"capture.parser100k.allocatedBytes={parserAllocatedBytes}");
+        metrics.Add($"capture.filter100k.ms={filterMs:F2}");
+        metrics.Add($"capture.filter100k.allocatedBytes={filterAllocatedBytes}");
+        metrics.Add("capture.rejectedPacketBuffering=ArrayPool");
     }
 
     private static void TestCoreAudioPreload(List<string> metrics)
