@@ -64,6 +64,15 @@ jobs:
         shell: pwsh
         run: |
           $process = Start-Process -FilePath ./dist/BPSR-ReadyAlert.exe -ArgumentList '--build-smoke-test' -Wait -PassThru
+          if (Test-Path ./dist/ui-performance-v132.txt) {
+            Write-Host '--- v1.3.2 UI/capture performance metrics ---'
+            Get-Content ./dist/ui-performance-v132.txt
+            Write-Host '--- end performance metrics ---'
+          }
+          if (Test-Path ./dist/smoke-test-error.txt) {
+            Write-Host '--- smoke failure detail ---'
+            Get-Content ./dist/smoke-test-error.txt
+          }
           if ($process.ExitCode -ne 0) { throw "EXE smoke test failed with exit code $($process.ExitCode)" }
           Write-Host "EXE smoke test passed with exit code $($process.ExitCode)."
 
@@ -182,22 +191,7 @@ jobs:
             dist/BPSR-ReadyAlert.exe
             dist/SHA256SUMS.txt
           body: |
-            BPSR Ready Alert v1.1.0 adds the optional BPSR Chat Overlay while keeping the existing Ready Check and matchmaking alerts lightweight.
-
-            Highlights:
-            - shared-capture chat decoding: no second Npcap engine or duplicate TCP/zstd pipeline;
-            - borderless floating chat overlay with World, Guild/Team, All and custom tabs;
-            - channel selection, minimum level, Show/Hide filters, case-insensitive OR/AND/regex matching and invalid-regex protection;
-            - Smart Scroll, timestamps, compact mode, opacity, fonts, channel colors, click-through and screen-edge collapse;
-            - up to three prioritized message-only keyword/regex sound rules with one shared chat-alert volume;
-            - Private/Talk highlighting and optional sound;
-            - saved settings, blocked-user list, settings backup recovery and capture diagnostics;
-            - improved DPI/layout handling and child-dialog Always-on-Top behavior;
-            - all previous Ready/Queue, Resonance Logs CN integration, adapter selection and tray features retained.
-
-            Requires Npcap to be installed.
-
-            See the README for filter syntax and Chat Overlay setup.
+            Stable v1.1.0 release.
 
       - name: Create v1.1.1 stable release
         if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.1.1]')
@@ -213,19 +207,7 @@ jobs:
             dist/BPSR-ReadyAlert.exe
             dist/SHA256SUMS.txt
           body: |
-            BPSR Ready Alert v1.1.1 hardens Chat Overlay reliability and scrolling.
-
-            Highlights:
-            - chat keyword/private sound handling is independent from overlay rendering, so collapse/hide/repaint cannot stop sound matching;
-            - follow-latest/history trimming no longer jumps away from the newest chat;
-            - smoother precision mouse-wheel scrolling and a custom dark scrollbar;
-            - deterministic per-user sender colors for easier conversation tracking;
-            - compiled/cached regex matching with timeout protection;
-            - bounded custom notification WAV size/duration and cache usage;
-            - IPv6 TCP capture support and richer voice/multilingual/hypertext chat extraction;
-            - expanded RC2 regression coverage for sound, scrolling, IPv6, rich chat and WAV limits.
-
-            Requires Npcap to be installed.
+            Stable v1.1.1 release.
 
       - name: Create v1.1.2 stable release
         if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.1.2]')
@@ -241,25 +223,14 @@ jobs:
             dist/BPSR-ReadyAlert.exe
             dist/SHA256SUMS.txt
           body: |
-            BPSR Ready Alert v1.1.2 is a small Chat Overlay usability patch.
+            Stable v1.1.2 release.
 
-            Highlights:
-            - the persistent Chat Overlay is now excluded from Windows Alt+Tab;
-            - the overlay remains visible on-screen and stays out of the taskbar;
-            - the behavior is preserved while expanded, collapsed, click-through, or Always-on-Top;
-            - Settings and support dialogs remain normal switchable windows while open;
-            - adds regression coverage for the required Windows extended window styles.
-
-            Includes all reliability, scrolling, notification, IPv6, and rich-chat improvements from v1.1.1.
-
-            Requires Npcap to be installed.
-
-      - name: Create v1.2.0 stable release
-        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.0]')
+      - name: Create v1.3.0 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.3.0]')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.0
-          name: BPSR Ready Alert v1.2.0
+          tag_name: v1.3.0
+          name: BPSR Ready Alert v1.3.0
           prerelease: false
           make_latest: true
           target_commitish: ${{ github.sha }}
@@ -268,28 +239,14 @@ jobs:
             dist/BPSR-ReadyAlert.exe
             dist/SHA256SUMS.txt
           body: |
-            BPSR Ready Alert v1.2.0 adds optional English translation and Guild / Party text-to-speech to the Chat Overlay.
+            Stable v1.3.0 release.
 
-            Highlights:
-            - no-key Google Translate web translation for World, Guild, and Party / Team, rendered below the original message;
-            - no-key Google English TTS for Guild and Party / Team only;
-            - NAudio + Windows Media Foundation playback with independent TTS volume;
-            - optional sender-name reading and exact own-username ignore;
-            - quick TTS toolbar toggle with green ON / red strikethrough OFF state;
-            - global hide options for BPSR sprite-only emoji and Hypertext/linked-item rows;
-            - TTS-priority scheduling so busy World translation cannot starve Guild/Party speech;
-            - bounded queues/cache, stale-job skipping, Google response validation/retry, and soft failure behavior;
-            - keeps previous Ready/Queue alerts, Alt+Tab overlay exclusion, scroll reliability, IPv6 and rich-chat improvements.
-
-            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
-            Requires Npcap to be installed.
-
-      - name: Create v1.2.1 stable release
-        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.1]')
+      - name: Create v1.3.2 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.3.2]')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.1
-          name: BPSR Ready Alert v1.2.1
+          tag_name: v1.3.2
+          name: BPSR Ready Alert v1.3.2
           prerelease: false
           make_latest: true
           target_commitish: ${{ github.sha }}
@@ -298,111 +255,14 @@ jobs:
             dist/BPSR-ReadyAlert.exe
             dist/SHA256SUMS.txt
           body: |
-            BPSR Ready Alert v1.2.1 is a UI/UX and reliability hardening release for the v1.2 chat translation/TTS feature set.
+            Stable v1.3.2 release.
 
             Highlights:
-            - makes Ready / Queue, Chat alert, and TTS volume controls explicitly independent and removes unscaled Windows system-sound fallbacks;
-            - adds clear active/off/inactive TTS toolbar states, including muted and no-channel feedback;
-            - makes Settings persistence truthful with Saved, Unsaved, and Applied — not saved states plus safe close warnings;
-            - makes blocked-user behavior consistent across overlay rows, chat sounds, translation, and not-yet-playing TTS while leaving Ready / Queue alerts untouched;
-            - hardens Windows clipboard actions, diagnostics interaction, click-through state synchronization, and Npcap adapter-switch rollback;
-            - bounds chat UI work per timer tick and coalesces redraws for smoother behavior during large message bursts;
-            - expands deterministic single-file regression coverage for volume separation, persistence failures, blocked routing, cleanup filters, TTS state, and burst draining.
+            - fixes live Queue Pop protocol routing so queue acceptance uses Queue.wav instead of ReadyCheck.wav;
+            - keeps Queue Pop, Ready Check, Party Invite and Party Request alerts independently toggleable with distinct bundled sounds;
+            - applies the finalized fresh-install/reset Chat Overlay, translation and TTS defaults while preserving explicit saved settings on upgrade;
+            - removes hidden automatic Settings construction from startup/gameplay to avoid a delayed UI-thread hitch;
+            - reduces capture-path allocations/copies and improves chat rendering/tab-navigation resource handling;
+            - retains the portable self-contained Windows x64 single-EXE design.
 
-            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
             Requires Npcap to be installed.
-
-      - name: Create v1.2.2 stable release
-        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.2]')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.2.2
-          name: BPSR Ready Alert v1.2.2
-          prerelease: false
-          make_latest: true
-          target_commitish: ${{ github.sha }}
-          overwrite_files: true
-          files: |
-            dist/BPSR-ReadyAlert.exe
-            dist/SHA256SUMS.txt
-          body: |
-            BPSR Ready Alert v1.2.2 fixes TTS volume isolation and refreshes the Settings experience.
-
-            Highlights:
-            - TTS volume is now applied directly to decoded speech samples instead of the shared Windows WaveOut session, so it cannot reduce Ready / Queue or chat-alert playback;
-            - Settings page switching updates only the outgoing/incoming page on a buffered surface to reduce WinForms layout/repaint work;
-            - Settings uses a more compact, minimalist layout with shorter copy, smaller controls, bounded input widths, and safer minimum-size behavior;
-            - Add/Edit Chat Tab is smaller and cleaner with compact filters/channel selection, a clear Cancel action, and unsaved-change protection;
-            - regression coverage verifies TTS sample gain isolation, compact UI dimensions, navigation state, and minimum-size action placement.
-
-            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
-            Requires Npcap to be installed.
-
-      - name: Create v1.2.3 stable release
-        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.3]')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.2.3
-          name: BPSR Ready Alert v1.2.3
-          prerelease: false
-          make_latest: true
-          target_commitish: ${{ github.sha }}
-          overwrite_files: true
-          files: |
-            dist/BPSR-ReadyAlert.exe
-            dist/SHA256SUMS.txt
-          body: |
-            BPSR Ready Alert v1.2.3 overhauls Settings with a compact ZDPS-inspired interface while preserving the existing capture, alert, translation, and TTS behavior.
-
-            Highlights:
-            - replaces the large left navigation/sidebar layout with compact horizontal top tabs;
-            - replaces large Settings cards with flat separator-style sections and a neutral charcoal palette;
-            - adds slim keyboard-accessible, DPI-aware custom sliders while retaining the existing TrackBars as hidden backing values for persistence and compatibility;
-            - keeps Ready / Queue, Chat alert, and TTS volumes fully independent, including v1.2.2 per-sample TTS volume isolation;
-            - gives Add/Edit Chat Tab the same compact Settings design without removing dirty-state or persistence safeguards;
-            - keeps buffered old-page/new-page switching and avoids post-handle geometry rewrites for responsive, DPI-safe Settings navigation;
-            - expands deterministic single-file regression coverage for slider synchronization, keyboard input, enabled state, scoped styling, top tabs, flat sections, and minimum-size behavior.
-
-            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
-            Requires Npcap to be installed.
-
-      - name: Create v1.2.4 stable release
-        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.2.4]')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.2.4
-          name: BPSR Ready Alert v1.2.4
-          prerelease: false
-          make_latest: true
-          target_commitish: ${{ github.sha }}
-          overwrite_files: true
-          files: |
-            dist/BPSR-ReadyAlert.exe
-            dist/SHA256SUMS.txt
-          body: |
-            BPSR Ready Alert v1.2.4 focuses on Settings responsiveness and simplifies the Chat Overlay configuration from real-machine feedback.
-
-            Highlights:
-            - keeps all Settings pages realized and switches tabs by lightweight z-order/state updates, removing the visible pause during tab changes;
-            - prewarms and reuses the Settings dialog and defers installed-font enumeration to reduce gear-button opening latency;
-            - fixes checkbox interaction so selecting Settings options changes their actual state reliably;
-            - simplifies Appearance to one Window opacity control while keeping stable internal layer-opacity defaults;
-            - combines emoji-only and linked-item/Hypertext cleanup into one option;
-            - removes the Click-through state checkbox and collapse hotkey editor, leaving the click-through recovery toggle hotkey as the only global Settings hotkey;
-            - reduces visual-highlight and sound-rule expressions to compact one-line inputs and keeps only two prioritized sound rules;
-            - rebuilds Add/Edit Chat Tab into a compact fixed five-group channel layout with one-line Show/Hide filters;
-            - fixes successful Save baseline tracking so closing immediately after Save does not show a false unapplied-changes warning;
-            - preserves independent Ready / Queue, Chat alert and TTS volumes, including per-sample TTS isolation from v1.2.2;
-            - expands published single-file regression coverage for the simplified UI contract, checkbox behavior, save/close state, compact channel editor, Settings prewarm and zero-layout tab switching.
-
-            Translation/TTS use undocumented Google Translate/gTTS-style web endpoints and may be rate-limited or changed upstream.
-            Requires Npcap to be installed.
-
-      - name: Create versioned release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            dist/BPSR-ReadyAlert.exe
-            dist/SHA256SUMS.txt

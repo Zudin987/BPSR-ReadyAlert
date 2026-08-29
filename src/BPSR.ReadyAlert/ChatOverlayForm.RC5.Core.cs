@@ -246,9 +246,11 @@ internal sealed partial class ChatOverlayForm : Form
             }
         };
 
-        // Prewarm Settings only after the overlay has painted. The one-time control
-        // realization is therefore removed from the gear-button click path without
-        // delaying creation of the overlay itself.
+        // Register only the Settings-cache lifetime hook after first paint. v1.3.2
+        // deliberately does not construct or realize the Settings UI during startup;
+        // the measured WinForms tree was expensive enough to cause a visible delayed
+        // UI-thread hitch. The actual dialog is created on the first explicit gear click
+        // and then cached so later opens and page navigation stay fast.
         Shown += (_, _) => QueueV124SettingsPrewarm();
 
         ApplyWindowSettings(registerHotkeys: false);

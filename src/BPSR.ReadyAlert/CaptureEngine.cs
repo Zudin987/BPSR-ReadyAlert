@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Net;
 using ZstdSharp;
 
 namespace BPSR.ReadyAlert;
@@ -28,7 +27,7 @@ internal sealed class CaptureEngine : IDisposable
 
     private readonly ConcurrentQueue<AlertEvent> _events;
     private readonly NpcapCapturePlan _plan;
-    private readonly Dictionary<string, FlowState> _flows = new();
+    private readonly Dictionary<FlowKey, FlowState> _flows = new();
     private readonly Dictionary<string, CaptureStats> _stats = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<(string Device, ulong Service, uint Method)> _seenNotifyKeys = new();
     private readonly HashSet<(string Device, int Datalink)> _unsupportedDatalinks = new();
@@ -203,15 +202,11 @@ internal sealed class CaptureEngine : IDisposable
         }
 
         if (offset >= packet.Length) return;
-        if (offset == 0)
-        {
-            ProcessIpPacket(packet, packet.Length, candidate, stats);
-            return;
-        }
 
-        var ipPacket = new byte[packet.Length - offset];
-        Buffer.BlockCopy(packet, offset, ipPacket, 0, ipPacket.Length);
-        ProcessIpPacket(ipPacket, ipPacket.Length, candidate, stats);
+        // Parse directly inside the Npcap packet buffer. The old Ethernet/loopback
+        // path copied packet[offset..] into a new byte[] for every captured IP packet,
+        // creating continuous allocation/GC pressure while the game was running.
+        ProcessIpPacket(packet, offset, packet.Length, candidate, stats);
     }
 
     private static bool TryGetEthernetPayloadOffset(byte[] packet, out int offset)
@@ -236,11 +231,12 @@ internal sealed class CaptureEngine : IDisposable
 
     private void ProcessIpPacket(
         byte[] packet,
-        int length,
+        int ipStart,
+        int packetLimit,
         NpcapCaptureCandidate candidate,
         CaptureStats stats)
     {
-        if (!TryLocateTcp(packet, length, out var tcp, out var packetEnd, out var flowPrefix)) return;
+        if (!TryLocateTcp(packet, ipStart, packetLimit, out var tcp, out var packetEnd, out var address)) return;
         if (packetEnd < tcp + 20) return;
 
         var tcpHeader = ((packet[tcp + 12] >> 4) & 0x0F) * 4;
@@ -252,7 +248,15 @@ internal sealed class CaptureEngine : IDisposable
         var seq = ReadU32BE(packet, tcp + 4);
         var sourcePort = ReadU16BE(packet, tcp);
         var destPort = ReadU16BE(packet, tcp + 2);
-        var key = $"{candidate.DeviceName}|{flowPrefix}:{sourcePort}>{destPort}";
+        var key = new FlowKey(
+            candidate.DeviceName,
+            address.IpVersion,
+            address.SourceHigh,
+            address.SourceLow,
+            address.DestinationHigh,
+            address.DestinationLow,
+            sourcePort,
+            destPort);
 
         if (payloadLen > 0) stats.TcpPayloadPackets++;
 
@@ -275,39 +279,55 @@ internal sealed class CaptureEngine : IDisposable
         }
     }
 
-    private static bool TryLocateTcp(byte[] packet, int length, out int tcp, out int packetEnd, out string flowPrefix)
+    private static bool TryLocateTcp(
+        byte[] packet,
+        int ipStart,
+        int packetLimit,
+        out int tcp,
+        out int packetEnd,
+        out NetworkFlowAddress address)
     {
-        tcp = 0;
-        packetEnd = length;
-        flowPrefix = string.Empty;
-        if (length < 1) return false;
+        tcp = ipStart;
+        packetEnd = packetLimit;
+        address = default;
+        if (ipStart < 0 || packetLimit > packet.Length || ipStart >= packetLimit) return false;
 
-        var version = packet[0] >> 4;
+        var length = packetLimit - ipStart;
+        var version = packet[ipStart] >> 4;
         if (version == 4)
         {
             if (length < 40) return false;
-            var ipHeader = (packet[0] & 0x0F) * 4;
-            if (ipHeader < 20 || length < ipHeader + 20 || packet[9] != 6) return false;
+            var ipHeader = (packet[ipStart] & 0x0F) * 4;
+            if (ipHeader < 20 || length < ipHeader + 20 || packet[ipStart + 9] != 6) return false;
 
-            var total = ReadU16BE(packet, 2);
-            if (total >= ipHeader && total < packetEnd) packetEnd = total;
-            tcp = ipHeader;
-            flowPrefix = $"v4:{packet[12]}.{packet[13]}.{packet[14]}.{packet[15]}>" +
-                         $"{packet[16]}.{packet[17]}.{packet[18]}.{packet[19]}";
+            var total = ReadU16BE(packet, ipStart + 2);
+            if (total >= ipHeader)
+            {
+                var declaredEnd = ipStart + total;
+                if (declaredEnd < packetEnd) packetEnd = declaredEnd;
+            }
+
+            tcp = ipStart + ipHeader;
+            address = new NetworkFlowAddress(
+                4,
+                0,
+                ReadU32BE(packet, ipStart + 12),
+                0,
+                ReadU32BE(packet, ipStart + 16));
             return true;
         }
 
         if (version != 6 || length < 60) return false;
 
-        var payloadLength = ReadU16BE(packet, 4);
+        var payloadLength = ReadU16BE(packet, ipStart + 4);
         if (payloadLength != 0)
         {
-            var total = 40 + payloadLength;
-            if (total < packetEnd) packetEnd = total;
+            var declaredEnd = ipStart + 40 + payloadLength;
+            if (declaredEnd < packetEnd) packetEnd = declaredEnd;
         }
 
-        byte next = packet[6];
-        var cursor = 40;
+        byte next = packet[ipStart + 6];
+        var cursor = ipStart + 40;
         while (next != 6)
         {
             if (cursor + 2 > packetEnd) return false;
@@ -347,10 +367,21 @@ internal sealed class CaptureEngine : IDisposable
 
         if (cursor + 20 > packetEnd) return false;
         tcp = cursor;
-        var source = new IPAddress(packet.AsSpan(8, 16)).ToString();
-        var dest = new IPAddress(packet.AsSpan(24, 16)).ToString();
-        flowPrefix = $"v6:[{source}]>[{dest}]";
+        address = new NetworkFlowAddress(
+            6,
+            ReadU64BE(packet, ipStart + 8),
+            ReadU64BE(packet, ipStart + 16),
+            ReadU64BE(packet, ipStart + 24),
+            ReadU64BE(packet, ipStart + 32));
         return true;
+    }
+
+    internal static (bool Success, int TcpOffset, int PacketEnd, byte IpVersion) ProbeIpPacketForSelfTest(
+        byte[] packet,
+        int ipStart)
+    {
+        var success = TryLocateTcp(packet, ipStart, packet.Length, out var tcp, out var end, out var address);
+        return (success, tcp, end, address.IpVersion);
     }
 
     private void CleanupFlows(bool aggressive)
@@ -362,7 +393,7 @@ internal sealed class CaptureEngine : IDisposable
         if (aggressive && _flows.Count >= MaxFlows)
         {
             var oldest = _flows.OrderBy(kv => kv.Value.LastSeenUtc).FirstOrDefault();
-            if (!string.IsNullOrEmpty(oldest.Key)) _flows.Remove(oldest.Key);
+            if (!oldest.Equals(default(KeyValuePair<FlowKey, FlowState>))) _flows.Remove(oldest.Key);
         }
     }
 
@@ -850,6 +881,23 @@ internal sealed class CaptureEngine : IDisposable
         if (_thread is { IsAlive: true }) _thread.Join(3000);
         _zstd.Dispose();
     }
+
+    private readonly record struct NetworkFlowAddress(
+        byte IpVersion,
+        ulong SourceHigh,
+        ulong SourceLow,
+        ulong DestinationHigh,
+        ulong DestinationLow);
+
+    private readonly record struct FlowKey(
+        string Device,
+        byte IpVersion,
+        ulong SourceHigh,
+        ulong SourceLow,
+        ulong DestinationHigh,
+        ulong DestinationLow,
+        ushort SourcePort,
+        ushort DestinationPort);
 
     private sealed class OpenedCapture : IDisposable
     {

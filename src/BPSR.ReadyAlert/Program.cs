@@ -33,6 +33,7 @@ internal static class Program
                 RunSmokeStep(UiSmoothnessV126SelfTest.Run, 25);
                 RunSmokeStep(PartyAlertV130SelfTest.Run, 26);
                 RunSmokeStep(CoreAlertV131SelfTest.Run, 27);
+                RunSmokeStep(UiPerformanceV132SelfTest.Run, 28);
                 Environment.ExitCode = 0;
                 return;
             }

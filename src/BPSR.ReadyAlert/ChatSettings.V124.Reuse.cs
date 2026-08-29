@@ -73,33 +73,42 @@ internal sealed partial class ChatGeneralSettingsForm
     }
 
     /// <summary>
-    /// Create handles and complete layout while the dialog is still hidden. The
-    /// overlay queues this after its own first paint, moving expensive one-time
-    /// WinForms realization away from the Settings-button click path.
+    /// Create all Settings handles while the dialog is hidden so the first visible
+    /// open does not pay native-control creation costs. Layout is intentionally done
+    /// once at the form root: the old recursive PerformLayout() at every node caused
+    /// the same nested AutoSize trees to be measured repeatedly and could monopolize
+    /// the WinForms UI thread during idle prewarm.
     /// </summary>
     internal void PrewarmV124ForOwner(Form owner)
     {
         if (IsDisposed || Disposing || Visible) return;
 
-        // v1.2.5 Alerts widths must be part of the hidden/prewarmed geometry rather
-        // than causing a visible relayout on the first Settings open.
         ApplyV125SettingsPolish();
         Owner = owner;
         TopMost = owner.TopMost;
-        CreateV124ControlTree(this);
+
+        SuspendLayout();
+        try
+        {
+            CreateV124Handles(this);
+        }
+        finally
+        {
+            ResumeLayout(performLayout: false);
+        }
+        PerformLayout();
     }
 
-    private static void CreateV124ControlTree(Control control)
+    private static void CreateV124Handles(Control control)
     {
         // CreateControl() may skip effectively-hidden descendants. Accessing Handle
-        // explicitly realizes them even though the modal form itself is not shown.
-        // This is intentional: the cost is paid during idle prewarm, not on click.
+        // explicitly realizes each native control, but no nested PerformLayout calls
+        // are made here; the root layout after the walk is sufficient.
         if (!control.IsHandleCreated)
             _ = control.Handle;
 
         foreach (Control child in control.Controls)
-            CreateV124ControlTree(child);
-        control.PerformLayout();
+            CreateV124Handles(child);
     }
 
     internal bool AreV124InstalledFontsDeferredForSelfTest() => !_fontFamiliesLoaded;

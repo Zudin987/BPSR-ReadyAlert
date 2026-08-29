@@ -8,7 +8,7 @@ internal sealed class AppSettings
     public bool ReadyCheckAlert { get; set; } = true;
     public bool PartyInviteAlert { get; set; } = true;
     public bool PartyRequestAlert { get; set; } = true;
-    public bool DesktopNotification { get; set; } = false;
+    public bool DesktopNotification { get; set; } = true;
     public bool AutoLaunchResonanceLogs { get; set; } = true;
     public string ResonanceLogsPath { get; set; } = string.Empty;
 
@@ -18,10 +18,11 @@ internal sealed class AppSettings
 
     public int AlertVolume { get; set; } = 100;
 
-    // Chat capture/overlay is opt-in and can be toggled from the tray menu.
-    public bool ChatOverlayEnabled { get; set; } = false;
-    public ChatOverlaySettings Chat { get; set; } = new();
-    public ChatSpeechTranslationSettings SpeechTranslation { get; set; } = new();
+    // Fresh installs start with chat enabled; an existing settings.json always keeps
+    // its explicitly saved choice when loading a newer ReadyAlert version.
+    public bool ChatOverlayEnabled { get; set; } = true;
+    public ChatOverlaySettings Chat { get; set; } = DefaultSettingsProfile.CreateChatOverlay();
+    public ChatSpeechTranslationSettings SpeechTranslation { get; set; } = DefaultSettingsProfile.CreateSpeechTranslation();
 }
 
 internal sealed class SettingsStore
@@ -180,8 +181,8 @@ internal sealed class SettingsStore
         settings.AlertVolume = Math.Clamp(settings.AlertVolume, 0, 100);
         settings.NpcapDeviceName ??= string.Empty;
         settings.ResonanceLogsPath ??= string.Empty;
-        settings.Chat ??= new ChatOverlaySettings();
-        settings.SpeechTranslation ??= new ChatSpeechTranslationSettings();
+        settings.Chat ??= DefaultSettingsProfile.CreateChatOverlay();
+        settings.SpeechTranslation ??= DefaultSettingsProfile.CreateSpeechTranslation();
         settings.Chat.Normalize();
         settings.SpeechTranslation.Normalize();
     }

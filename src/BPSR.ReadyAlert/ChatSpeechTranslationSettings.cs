@@ -2,21 +2,21 @@ namespace BPSR.ReadyAlert;
 
 internal sealed class ChatSpeechTranslationSettings
 {
-    public bool TranslationEnabled { get; set; } = false;
-    public bool TranslationWorld { get; set; } = false;
+    public bool TranslationEnabled { get; set; } = true;
+    public bool TranslationWorld { get; set; } = true;
     public bool TranslationGuild { get; set; } = true;
     public bool TranslationPartyTeam { get; set; } = true;
     public bool ShowTranslationInOverlay { get; set; } = true;
 
-    public bool TtsEnabled { get; set; } = false;
-    public bool TtsGuild { get; set; } = true;
+    public bool TtsEnabled { get; set; } = true;
+    public bool TtsGuild { get; set; } = false;
     public bool TtsPartyTeam { get; set; } = true;
-    public bool ReadSenderName { get; set; } = false;
+    public bool ReadSenderName { get; set; } = true;
     public string IgnoreOwnUsername { get; set; } = string.Empty;
-    public int TtsVolume { get; set; } = 70;
+    public int TtsVolume { get; set; } = 100;
 
-    public bool HideEmojiMessages { get; set; } = false;
-    public bool HideLinkedItemMessages { get; set; } = false;
+    public bool HideEmojiMessages { get; set; } = true;
+    public bool HideLinkedItemMessages { get; set; } = true;
 
     internal void Normalize()
     {

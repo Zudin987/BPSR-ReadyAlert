@@ -199,13 +199,7 @@ internal sealed partial class ChatOverlayForm
         _ => "Other"
     };
 
-    private Color GetChannelColor(ChatChannel channel)
-    {
-        var defaults = ChatOverlaySettings.CreateDefaultChannelColors();
-        var key = (int)channel;
-        var fallback = ChatColorUtil.Parse(defaults.TryGetValue(key, out var defaultHex) ? defaultHex : "#D3D3D3", Color.LightGray);
-        return _settings.Chat.ChannelColors.TryGetValue(key, out var value) ? ChatColorUtil.Parse(value, fallback) : fallback;
-    }
+    private Color GetChannelColor(ChatChannel channel) => GetV132ChannelColor(channel);
 
     private void RestoreWindowPlacement()
     {

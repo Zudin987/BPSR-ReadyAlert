@@ -79,23 +79,23 @@ internal sealed class ChatSoundRule
 
 internal sealed class ChatOverlaySettings
 {
-    public bool TopMost { get; set; } = false;
-    public bool CompactMode { get; set; } = true;
+    public bool TopMost { get; set; } = true;
+    public bool CompactMode { get; set; } = false;
     public bool ShowTime { get; set; } = true;
     public bool ShowTimeAsAgo { get; set; } = true;
-    public bool HideStickers { get; set; } = false;
+    public bool HideStickers { get; set; } = true;
 
     // v1.2.4 exposes only whole-window opacity. These legacy internal layer values
     // remain readable from older JSON but normalize to one stable rendering preset.
     public int BackgroundOpacity { get; set; } = 82;
     public int ToolbarOpacity { get; set; } = 92;
     public int TextOpacity { get; set; } = 100;
-    public int WindowOpacity { get; set; } = 96;
+    public int WindowOpacity { get; set; } = 100;
     public string FontFamily { get; set; } = "Segoe UI";
-    public float FontSize { get; set; } = 9F;
+    public float FontSize { get; set; } = 12F;
     public bool BoldMessageText { get; set; } = false;
     public bool TextShadow { get; set; } = true;
-    public bool ShowSeparators { get; set; } = false;
+    public bool ShowSeparators { get; set; } = true;
     public bool ShowZebraStripes { get; set; } = true;
     public bool ShowColorBand { get; set; } = true;
 
@@ -104,7 +104,7 @@ internal sealed class ChatOverlaySettings
     public bool ClickThrough { get; set; } = false;
     public string ClickThroughHotkey { get; set; } = "Ctrl+Shift+F10";
     public string CollapseHotkey { get; set; } = string.Empty;
-    public string CollapseSide { get; set; } = "Right";
+    public string CollapseSide { get; set; } = "Left";
 
     public string HighlightIfMatches { get; set; } = string.Empty;
     public string HighlightColor { get; set; } = "#6B5A3A";
@@ -139,7 +139,7 @@ internal sealed class ChatOverlaySettings
         WindowOpacity = Math.Clamp(WindowOpacity, 25, 100);
         FontFamily = string.IsNullOrWhiteSpace(FontFamily) ? "Segoe UI" : FontFamily.Trim();
         if (FontFamily.Length > 100) FontFamily = FontFamily[..100];
-        FontSize = Math.Clamp(float.IsFinite(FontSize) ? FontSize : 9F, 8F, 24F);
+        FontSize = Math.Clamp(float.IsFinite(FontSize) ? FontSize : 12F, 8F, 24F);
         ClickThroughHotkey = NormalizeHotkeyText(ClickThroughHotkey, "Ctrl+Shift+F10");
         CollapseHotkey = string.Empty;
         CollapseSide = NormalizeCollapseSide(CollapseSide);
@@ -262,9 +262,10 @@ internal sealed class ChatOverlaySettings
     private static string NormalizeCollapseSide(string? value)
     {
         if (string.Equals(value, "Left", StringComparison.OrdinalIgnoreCase)) return "Left";
+        if (string.Equals(value, "Right", StringComparison.OrdinalIgnoreCase)) return "Right";
         if (string.Equals(value, "Top", StringComparison.OrdinalIgnoreCase)) return "Top";
         if (string.Equals(value, "Bottom", StringComparison.OrdinalIgnoreCase)) return "Bottom";
-        return "Right";
+        return "Left";
     }
 
     private static string NormalizeHexColor(string? value, string fallback)
@@ -283,32 +284,54 @@ internal sealed class ChatOverlaySettings
     {
         Tabs.Add(new ChatTabSettings
         {
-            Name = "World",
-            Channels = [(int)ChatChannel.World]
-        });
-        Tabs.Add(new ChatTabSettings
-        {
-            Name = "Guild / Team",
-            Channels = [(int)ChatChannel.Union, (int)ChatChannel.Group, (int)ChatChannel.Team]
-        });
-        Tabs.Add(new ChatTabSettings
-        {
+            Id = 639233255393111833L,
             Name = "All",
             Channels =
             [
-                (int)ChatChannel.Null,
                 (int)ChatChannel.World,
                 (int)ChatChannel.Local,
                 (int)ChatChannel.Team,
                 (int)ChatChannel.Union,
                 (int)ChatChannel.Private,
                 (int)ChatChannel.Group,
-                (int)ChatChannel.TopNotice,
-                (int)ChatChannel.Play,
-                (int)ChatChannel.Newbie,
-                (int)ChatChannel.System
+                (int)ChatChannel.Newbie
             ],
-            MinLevel = 1
+            MinLevel = 50,
+            ShowIfMatches = string.Empty,
+            HideIfMatches = string.Empty
+        });
+        Tabs.Add(new ChatTabSettings
+        {
+            Id = 639233255393111900L,
+            Name = "Guild&Team",
+            Channels =
+            [
+                (int)ChatChannel.Team,
+                (int)ChatChannel.Union,
+                (int)ChatChannel.Private,
+                (int)ChatChannel.Group
+            ],
+            MinLevel = 1,
+            ShowIfMatches = string.Empty,
+            HideIfMatches = string.Empty
+        });
+        Tabs.Add(new ChatTabSettings
+        {
+            Id = 639233255393111918L,
+            Name = "Guild",
+            Channels = [(int)ChatChannel.Union],
+            MinLevel = 1,
+            ShowIfMatches = string.Empty,
+            HideIfMatches = string.Empty
+        });
+        Tabs.Add(new ChatTabSettings
+        {
+            Id = 639235625391474596L,
+            Name = "Team",
+            Channels = [(int)ChatChannel.Team, (int)ChatChannel.Group],
+            MinLevel = 1,
+            ShowIfMatches = string.Empty,
+            HideIfMatches = string.Empty
         });
     }
 }

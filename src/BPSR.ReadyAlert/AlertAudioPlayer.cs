@@ -63,6 +63,15 @@ internal sealed class AlertAudioPlayer : IDisposable
         }
     }
 
+    internal void Stop()
+    {
+        lock (_sync)
+        {
+            try { _player?.Stop(); }
+            catch (Exception ex) { AppLog.Write("audio: SoundPlayer stop failed " + ex.Message); }
+        }
+    }
+
     internal static WaveMetadata ProbePcm16Wave(string path)
     {
         var wav = File.ReadAllBytes(path);

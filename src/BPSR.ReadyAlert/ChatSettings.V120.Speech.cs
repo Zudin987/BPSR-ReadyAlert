@@ -23,19 +23,35 @@ internal sealed partial class ChatGeneralSettingsForm
     internal ChatGeneralSettingsForm(
         ChatOverlaySettings settings,
         ChatSpeechTranslationSettings speechSettings)
-        : this(settings)
+        : this(settings, deferCompactUi: true)
     {
         _speechSettings = speechSettings;
-        RegisterPage("Speech", "Speech & translation", BuildSpeechTranslationPage());
-        InstallV120ContentFilters();
 
-        if (_pages.TryGetValue("Speech", out var speech) && _pages.TryGetValue("Advanced", out var advanced))
+        SuspendLayout();
+        _contentHost.SuspendLayout();
+        _navHost.SuspendLayout();
+        try
         {
-            var advancedIndex = _navHost.Controls.GetChildIndex(advanced.Button);
-            _navHost.Controls.SetChildIndex(speech.Button, advancedIndex);
-        }
+            RegisterPage("Speech", "Speech & translation", BuildSpeechTranslationPage());
+            InstallV120ContentFilters();
 
-        InstallV122CompactUi();
+            if (_pages.TryGetValue("Speech", out var speech) && _pages.TryGetValue("Advanced", out var advanced))
+            {
+                var advancedIndex = _navHost.Controls.GetChildIndex(advanced.Button);
+                _navHost.Controls.SetChildIndex(speech.Button, advancedIndex);
+            }
+
+            // The base constructor deliberately skipped this traversal for the
+            // speech-enabled runtime form. Compact the complete five-page tree once
+            // rather than walking almost the whole Settings hierarchy twice.
+            InstallV122CompactUi();
+        }
+        finally
+        {
+            _navHost.ResumeLayout(performLayout: false);
+            _contentHost.ResumeLayout(performLayout: false);
+            ResumeLayout(performLayout: false);
+        }
     }
 
     private Control BuildSpeechTranslationPage()
