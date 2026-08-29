@@ -21,6 +21,7 @@ internal static class PlayerIdentityCaptureBridge
     private const int MaxUsernameLength = 128;
 
     private static readonly object Gate = new();
+    private static readonly object SpeechGate = new();
     private static DetectedPlayerIdentity? _current;
     private static ChatSpeechTranslationSettings? _speechTemplate;
     private static ConcurrentQueue<ChatTranslationResult>? _translationResults;
@@ -67,21 +68,17 @@ internal static class PlayerIdentityCaptureBridge
         var template = CloneSpeechSettings(settings, settings.IgnoreOwnUsername);
         template.Normalize();
 
-        DetectedPlayerIdentity? detected;
-        ConcurrentQueue<ChatTranslationResult>? results;
         lock (Gate)
         {
             _speechTemplate = template;
             if (translationResults is not null)
                 _translationResults = translationResults;
-            detected = _current;
-            results = _translationResults;
         }
 
-        var runtime = CloneSpeechSettings(
-            template,
-            EffectiveUsername(template.IgnoreOwnUsername, detected));
-        ChatSpeechTranslationEngine.Configure(runtime, results);
+        // Detection arrives on the capture thread while Settings/toolbar changes arrive
+        // on the UI thread. Serialize the final engine snapshot so an older "not yet
+        // detected" configuration can never overwrite a newer detected identity.
+        RefreshSpeechEngine();
     }
 
     internal static bool IsOwnUsername(string? senderName, string? manualOverride)
@@ -139,23 +136,26 @@ internal static class PlayerIdentityCaptureBridge
 
     private static void RefreshSpeechEngine()
     {
-        ChatSpeechTranslationSettings? template;
-        ConcurrentQueue<ChatTranslationResult>? results;
-        DetectedPlayerIdentity? detected;
-        lock (Gate)
+        lock (SpeechGate)
         {
-            template = _speechTemplate is null
-                ? null
-                : CloneSpeechSettings(_speechTemplate, _speechTemplate.IgnoreOwnUsername);
-            results = _translationResults;
-            detected = _current;
-        }
+            ChatSpeechTranslationSettings? template;
+            ConcurrentQueue<ChatTranslationResult>? results;
+            DetectedPlayerIdentity? detected;
+            lock (Gate)
+            {
+                template = _speechTemplate is null
+                    ? null
+                    : CloneSpeechSettings(_speechTemplate, _speechTemplate.IgnoreOwnUsername);
+                results = _translationResults;
+                detected = _current;
+            }
 
-        if (template is null) return;
-        var runtime = CloneSpeechSettings(
-            template,
-            EffectiveUsername(template.IgnoreOwnUsername, detected));
-        ChatSpeechTranslationEngine.Configure(runtime, results);
+            if (template is null) return;
+            var runtime = CloneSpeechSettings(
+                template,
+                EffectiveUsername(template.IgnoreOwnUsername, detected));
+            ChatSpeechTranslationEngine.Configure(runtime, results);
+        }
     }
 
     private static ChatSpeechTranslationSettings CloneSpeechSettings(
