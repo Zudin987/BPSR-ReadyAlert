@@ -270,7 +270,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         exit.Click += (_, _) => ExitThread();
         menu.Items.Add(exit);
 
-        menu.Opening += (_, _) => RefreshChatMenuState();
+        menu.Opening += (_, _) =>
+        {
+            // Capture recovery can replace the shared plan snapshot on its background
+            // thread. Rebuild this submenu just before it is shown so its label,
+            // available adapters and click handlers always describe the live plan.
+            RefreshAdapterMenu();
+            RefreshChatMenuState();
+        };
         RefreshChatMenuState();
         return menu;
     }

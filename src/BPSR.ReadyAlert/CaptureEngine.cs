@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net.NetworkInformation;
 using ZstdSharp;
 
 namespace BPSR.ReadyAlert;
@@ -26,27 +27,36 @@ internal sealed class CaptureEngine : IDisposable
     private const int MaxFrameDepth = 4;
 
     private readonly ConcurrentQueue<AlertEvent> _events;
-    private readonly NpcapCapturePlan _plan;
+    private NpcapCapturePlan _plan;
     private readonly Dictionary<FlowKey, FlowState> _flows = new();
     private readonly Dictionary<string, CaptureStats> _stats = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<(string Device, ulong Service, uint Method)> _seenNotifyKeys = new();
     private readonly HashSet<(string Device, int Datalink)> _unsupportedDatalinks = new();
     private readonly Decompressor _zstd = new();
+    private readonly AutoResetEvent _wake = new(false);
 
     private Thread? _thread;
     private volatile bool _stopping;
+    private int _networkChangePending;
+    private bool _gameWasRunning;
+    private int _recoverySequence;
     private DateTime _lastReadyAlertUtc = DateTime.MinValue;
     private DateTime _lastQueueAlertUtc = DateTime.MinValue;
     private DateTime _lastCaptureErrorNoticeUtc = DateTime.MinValue;
     private DateTime _lastCleanupUtc = DateTime.MinValue;
     private DateTime _lastStatsUtc = DateTime.MinValue;
+    private DateTime _lastWatchdogUtc = DateTime.MinValue;
+    private DateTime _captureOpenedUtc = DateTime.MinValue;
+    private DateTime _lastBpsrPacketUtc = DateTime.MinValue;
+    private DateTime _lastValidFrameUtc = DateTime.MinValue;
 
     internal CaptureEngine(ConcurrentQueue<AlertEvent> events, NpcapCapturePlan plan)
     {
         _events = events;
         _plan = plan;
-        foreach (var candidate in plan.Candidates)
-            _stats[candidate.DeviceName] = new CaptureStats(candidate);
+        EnsureStatsForPlan(plan);
+        NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+        NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
     }
 
     internal void Start()
@@ -61,14 +71,33 @@ internal sealed class CaptureEngine : IDisposable
 
     private void Run()
     {
+        var consecutiveFailures = 0;
+        var refreshPlan = string.IsNullOrWhiteSpace(_plan.Primary.DeviceName);
+        var refreshReason = refreshPlan ? "startup-waiting-plan" : string.Empty;
+
         while (!_stopping)
         {
+            if (refreshPlan)
+            {
+                if (!TryRefreshPlan(refreshReason))
+                {
+                    consecutiveFailures++;
+                    NotifyCaptureErrorThrottled("Waiting for a usable Npcap adapter.");
+                    WaitForRetry(CaptureRecoveryPolicy.RetryDelayMs(consecutiveFailures));
+                    continue;
+                }
+                refreshPlan = false;
+                refreshReason = string.Empty;
+            }
+
             var captures = new List<OpenedCapture>();
+            var rebuildReason = string.Empty;
             try
             {
                 foreach (var candidate in _plan.Candidates)
                 {
                     if (_stopping) break;
+                    if (string.IsNullOrWhiteSpace(candidate.DeviceName)) continue;
                     try
                     {
                         AppLog.Write($"capture: opening Npcap device={candidate.DeviceName} source={candidate.Source}");
@@ -84,18 +113,35 @@ internal sealed class CaptureEngine : IDisposable
 
                 if (captures.Count == 0)
                 {
-                    const string error = "Npcap could not open any capture adapter.";
+                    const string error = "Npcap could not open the selected capture adapter.";
                     AppLog.Write("capture: " + error);
                     NotifyCaptureErrorThrottled(error);
-                    SleepWhileRunning(1500);
+                    consecutiveFailures++;
+                    refreshPlan = true;
+                    refreshReason = "open-failure";
+                    WaitForRetry(CaptureRecoveryPolicy.RetryDelayMs(consecutiveFailures));
                     continue;
                 }
 
-                AppLog.Write($"capture: started backend=Npcap adapters={captures.Count} parser=ZDPS-compatible");
+                consecutiveFailures = 0;
+                _captureOpenedUtc = DateTime.UtcNow;
+                _lastBpsrPacketUtc = DateTime.MinValue;
+                _lastValidFrameUtc = DateTime.MinValue;
+                _lastWatchdogUtc = DateTime.MinValue;
                 _lastStatsUtc = DateTime.UtcNow;
+                AppLog.Write($"capture: started backend=Npcap adapters={captures.Count} parser=ZDPS-compatible recovery=self-healing");
 
                 while (!_stopping && captures.Count > 0)
                 {
+                    if (ConsumeNetworkChange())
+                    {
+                        rebuildReason = "network-change";
+                        refreshPlan = true;
+                        refreshReason = rebuildReason;
+                        AppLog.Write("capture-recovery: Windows network change detected; rebuilding capture");
+                        break;
+                    }
+
                     var sawPacket = false;
 
                     for (var i = captures.Count - 1; i >= 0; i--)
@@ -107,6 +153,7 @@ internal sealed class CaptureEngine : IDisposable
                                 continue;
 
                             sawPacket = true;
+                            _lastBpsrPacketUtc = DateTime.UtcNow;
                             ProcessCapturedPacket(packet, opened.Capture.DataLink, opened.Candidate);
                         }
                         catch (Exception ex)
@@ -117,28 +164,79 @@ internal sealed class CaptureEngine : IDisposable
                         }
                     }
 
-                    if ((DateTime.UtcNow - _lastStatsUtc).TotalSeconds >= 15)
+                    var now = DateTime.UtcNow;
+                    if ((now - _lastWatchdogUtc).TotalSeconds >= 1)
                     {
-                        _lastStatsUtc = DateTime.UtcNow;
+                        _lastWatchdogUtc = now;
+                        var gameRunning = BpsrProcessProbe.IsRunning();
+                        if (_gameWasRunning && !gameRunning)
+                        {
+                            _flows.Clear();
+                            _lastBpsrPacketUtc = DateTime.MinValue;
+                            _lastValidFrameUtc = DateTime.MinValue;
+                            PlayerIdentityCaptureBridge.ClearCurrent();
+                            AppLog.Write("capture-recovery: BPSR process exited; cleared transient session state");
+                        }
+                        _gameWasRunning = gameRunning;
+
+                        if (CaptureRecoveryPolicy.ShouldRestartSilentCapture(
+                                gameRunning,
+                                now,
+                                _captureOpenedUtc,
+                                _lastBpsrPacketUtc))
+                        {
+                            rebuildReason = "silent-watchdog";
+                            refreshPlan = true;
+                            refreshReason = rebuildReason;
+                            AppLog.Write("capture-recovery: BPSR is running but no captured game packets arrived within watchdog window; rebuilding capture");
+                            break;
+                        }
+
+                        // If capture joined an existing TCP stream mid-frame and has not
+                        // produced even one valid protocol frame yet, use capture-open
+                        // time as the initial stall anchor. Once a frame is parsed, the
+                        // normal last-valid-frame timestamp becomes the anchor.
+                        var frameAnchorUtc = _lastValidFrameUtc == DateTime.MinValue
+                            ? _captureOpenedUtc
+                            : _lastValidFrameUtc;
+                        if (CaptureRecoveryPolicy.ShouldResetProtocolFlows(
+                                gameRunning,
+                                now,
+                                _lastBpsrPacketUtc,
+                                frameAnchorUtc))
+                        {
+                            _flows.Clear();
+                            _lastValidFrameUtc = now;
+                            AppLog.Write("capture-recovery: BPSR packets are arriving but protocol frames stalled; reset TCP reassembly state");
+                        }
+                    }
+
+                    if ((now - _lastStatsUtc).TotalSeconds >= 15)
+                    {
+                        _lastStatsUtc = now;
                         LogCaptureStats();
                     }
 
                     if (!sawPacket)
-                        Thread.Sleep(1);
+                        _wake.WaitOne(1);
                 }
 
                 if (!_stopping && captures.Count == 0)
                 {
-                    NotifyCaptureErrorThrottled("All Npcap capture adapters stopped.");
-                    SleepWhileRunning(1000);
+                    rebuildReason = "read-failure";
+                    refreshPlan = true;
+                    refreshReason = rebuildReason;
+                    NotifyCaptureErrorThrottled("All Npcap capture handles stopped. ReadyAlert is recovering automatically.");
                 }
             }
             catch (Exception ex)
             {
                 if (_stopping) break;
+                rebuildReason = "capture-fatal";
+                refreshPlan = true;
+                refreshReason = rebuildReason;
                 AppLog.Write("capture: Npcap fatal " + ex);
                 NotifyCaptureErrorThrottled(ex.Message);
-                SleepWhileRunning(1500);
             }
             finally
             {
@@ -146,10 +244,87 @@ internal sealed class CaptureEngine : IDisposable
                     opened.Dispose();
                 _flows.Clear();
             }
+
+            if (_stopping) break;
+
+            if (string.Equals(rebuildReason, "network-change", StringComparison.Ordinal))
+            {
+                WaitForRetry(CaptureRecoveryPolicy.NetworkChangeSettleMs);
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(rebuildReason))
+            {
+                consecutiveFailures++;
+                WaitForRetry(CaptureRecoveryPolicy.RetryDelayMs(consecutiveFailures));
+            }
         }
 
         AppLog.Write("capture: stopped");
     }
+
+    private bool TryRefreshPlan(string reason)
+    {
+        try
+        {
+            // CaptureRecoveryPlanner updates the shared plan object in place so the
+            // tray sees recovery changes too. Snapshot transition data before refresh
+            // so failover diagnostics/notifications still compare old vs new correctly.
+            var previousDeviceName = _plan.Primary.DeviceName;
+            var hadPreviousDevice = !string.IsNullOrWhiteSpace(previousDeviceName);
+            var refreshed = CaptureRecoveryPlanner.Refresh(_plan);
+            var changed = !string.Equals(
+                previousDeviceName,
+                refreshed.Primary.DeviceName,
+                StringComparison.OrdinalIgnoreCase);
+
+            _plan = refreshed;
+            EnsureStatsForPlan(refreshed);
+            var sequence = Interlocked.Increment(ref _recoverySequence);
+            AppLog.Write(
+                $"capture-recovery: plan refreshed seq={sequence} reason={reason} " +
+                $"device={refreshed.Primary.DeviceName} description={refreshed.Primary.Description} " +
+                $"source={refreshed.Primary.Source} changed={changed}");
+
+            if (changed && hadPreviousDevice)
+            {
+                _events.Enqueue(new AlertEvent(
+                    "capture-recovered",
+                    "BPSR Ready Alert",
+                    "Network changed. ReadyAlert moved capture to " + refreshed.Primary.Description + "."));
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write($"capture-recovery: plan refresh failed reason={reason}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void EnsureStatsForPlan(NpcapCapturePlan plan)
+    {
+        foreach (var candidate in plan.Candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate.DeviceName) || _stats.ContainsKey(candidate.DeviceName))
+                continue;
+            _stats[candidate.DeviceName] = new CaptureStats(candidate);
+        }
+    }
+
+    private void OnNetworkAddressChanged(object? sender, EventArgs e) => SignalNetworkChange();
+
+    private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e) => SignalNetworkChange();
+
+    private void SignalNetworkChange()
+    {
+        if (_stopping) return;
+        Interlocked.Exchange(ref _networkChangePending, 1);
+        _wake.Set();
+    }
+
+    private bool ConsumeNetworkChange() =>
+        Interlocked.Exchange(ref _networkChangePending, 0) != 0;
 
     private void LogCaptureStats()
     {
@@ -159,7 +334,8 @@ internal sealed class CaptureEngine : IDisposable
             AppLog.Write(
                 $"capture: stats device={candidate.Description} source={candidate.Source} " +
                 $"packets={stats.Packets} tcpPayload={stats.TcpPayloadPackets} " +
-                $"gameFrames={stats.GameFrames} protocolMessages={stats.ProtocolMessages} notifyFrames={stats.NotifyFrames}");
+                $"gameFrames={stats.GameFrames} protocolMessages={stats.ProtocolMessages} " +
+                $"notifyFrames={stats.NotifyFrames} tcpGapRecoveries={stats.TcpGapRecoveries}");
         }
     }
 
@@ -171,7 +347,7 @@ internal sealed class CaptureEngine : IDisposable
         _events.Enqueue(new AlertEvent(
             "error",
             "BPSR Ready Alert",
-            "Npcap capture is unavailable: " + error));
+            "Npcap capture is temporarily unavailable: " + error + " No app restart is required; ReadyAlert will keep retrying."));
     }
 
     private void ProcessCapturedPacket(byte[] packet, int datalink, NpcapCaptureCandidate candidate)
@@ -270,7 +446,8 @@ internal sealed class CaptureEngine : IDisposable
         flow.LastSeenUtc = DateTime.UtcNow;
         if ((flags & 0x02) != 0) flow.Reset(seq + 1);
         if (payloadLen > 0) InsertSegment(flow, seq, packet, payloadOffset, payloadLen, candidate, stats);
-        if ((flags & 0x05) != 0) flow.Reset(null);
+        if ((flags & 0x05) != 0)
+            _flows.Remove(key);
 
         if ((DateTime.UtcNow - _lastCleanupUtc).TotalSeconds >= 30)
         {
@@ -428,6 +605,7 @@ internal sealed class CaptureEngine : IDisposable
             AppendStream(flow, packet, offset, len, candidate, stats);
             flow.NextSeq += (uint)len;
             DrainPending(flow, candidate, stats);
+            if (flow.Pending.Count == 0) flow.GapStartedUtc = null;
             return;
         }
 
@@ -439,8 +617,41 @@ internal sealed class CaptureEngine : IDisposable
             flow.PendingBytes += len;
         }
 
+        flow.GapStartedUtc ??= DateTime.UtcNow;
+        if (CaptureRecoveryPolicy.ShouldRecoverTcpGap(
+                DateTime.UtcNow,
+                flow.GapStartedUtc,
+                flow.PendingBytes,
+                flow.Pending.Count))
+        {
+            RecoverTcpGap(flow, candidate, stats);
+            return;
+        }
+
         if (flow.PendingBytes <= MaxPending) return;
+        AppLog.Write($"capture-recovery: TCP pending data exceeded hard limit device={candidate.Description}; resetting flow");
         flow.Reset(null);
+    }
+
+    private void RecoverTcpGap(FlowState flow, NpcapCaptureCandidate candidate, CaptureStats stats)
+    {
+        if (flow.Pending.Count == 0) return;
+        var first = flow.Pending.First();
+        stats.TcpGapRecoveries++;
+        AppLog.Write(
+            $"capture-recovery: TCP capture gap resync device={candidate.Description} " +
+            $"expectedSeq={flow.NextSeq} resumeSeq={first.Key} pendingSegments={flow.Pending.Count} pendingBytes={flow.PendingBytes}");
+
+        // A packet missed by Npcap must not poison this flow indefinitely. Drop the
+        // incomplete frame prefix and resume from the earliest captured segment. The
+        // game frame parser already byte-scans invalid prefixes, so it can find the
+        // next complete protocol-frame boundary without restarting ReadyAlert.
+        flow.Stream.Clear();
+        flow.LooksLikeGame = false;
+        flow.HasNext = true;
+        flow.NextSeq = first.Key;
+        flow.GapStartedUtc = null;
+        DrainPending(flow, candidate, stats);
     }
 
     private void DrainPending(FlowState flow, NpcapCaptureCandidate candidate, CaptureStats stats)
@@ -455,9 +666,18 @@ internal sealed class CaptureEngine : IDisposable
                 continue;
             }
 
-            if (flow.Pending.Count == 0) return;
+            if (flow.Pending.Count == 0)
+            {
+                flow.GapStartedUtc = null;
+                return;
+            }
+
             var first = flow.Pending.First();
-            if (!SeqBefore(first.Key, flow.NextSeq)) return;
+            if (!SeqBefore(first.Key, flow.NextSeq))
+            {
+                flow.GapStartedUtc ??= DateTime.UtcNow;
+                return;
+            }
 
             var overlap = flow.NextSeq - first.Key;
             flow.Pending.Remove(first.Key);
@@ -514,6 +734,7 @@ internal sealed class CaptureEngine : IDisposable
             flow.Stream.RemoveRange(0, checked((int)size));
             flow.LooksLikeGame = true;
             stats.GameFrames++;
+            _lastValidFrameUtc = DateTime.UtcNow;
             ProcessGameMessages(frame, 0, frame.Length, depth: 0, candidate, stats);
         }
     }
@@ -635,7 +856,8 @@ internal sealed class CaptureEngine : IDisposable
             AppLog.Write($"probe: notify device={candidate.Description} service={service} method=0x{method:X} compressed={compressed} protoLen={payload.Length}");
 
         // Chat is another consumer of this already-filtered/reassembled/decompressed
-        // Notify stream. No second Npcap handle or duplicate TCP pipeline is used.
+        // Notify stream. Its dispatcher also routes independent queue/party and local-
+        // player identity consumers before optional chat handling.
         if (ChatCaptureBridge.TryHandle(service, method, payload))
             return;
 
@@ -658,9 +880,8 @@ internal sealed class CaptureEngine : IDisposable
             }
         }
 
-        // ZDPS also alerts when a party activity/dungeon vote opens. That is a
-        // different protocol path from WorldNtf Ready Check: GrpcTeamNtf method 0xE,
-        // VRequest.State.State == ETeamActivity_Voting (3).
+        // Legacy fallback only. QueueAlertCaptureBridge normally consumes Voting before
+        // this point and emits kind=queue; keep this parser for diagnostics/compatibility.
         if (service == GrpcTeamNtfService && method == NotifyTeamActivityState)
         {
             if (TryParseTeamActivityState(payload, 0, payload.Length, out var state))
@@ -869,17 +1090,32 @@ internal sealed class CaptureEngine : IDisposable
         ((ulong)data[offset + 6] << 8) |
         data[offset + 7];
 
-    private void SleepWhileRunning(int milliseconds)
+    private void WaitForRetry(int milliseconds)
     {
-        for (var elapsed = 0; elapsed < milliseconds && !_stopping; elapsed += 100)
-            Thread.Sleep(Math.Min(100, milliseconds - elapsed));
+        for (var elapsed = 0; elapsed < milliseconds && !_stopping;)
+        {
+            var slice = Math.Min(250, milliseconds - elapsed);
+            _wake.WaitOne(slice);
+            if (_stopping) return;
+
+            // A network-change wake means "retry now" while capture is already in a
+            // recovery state. Consume it here so multiple Windows network events do
+            // not leave the flag permanently set and collapse backoff into a CPU spin.
+            if (Interlocked.Exchange(ref _networkChangePending, 0) != 0)
+                return;
+            elapsed += slice;
+        }
     }
 
     public void Dispose()
     {
         _stopping = true;
+        NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+        NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
+        _wake.Set();
         if (_thread is { IsAlive: true }) _thread.Join(3000);
         _zstd.Dispose();
+        _wake.Dispose();
     }
 
     private readonly record struct NetworkFlowAddress(
@@ -921,6 +1157,7 @@ internal sealed class CaptureEngine : IDisposable
         internal long GameFrames;
         internal long ProtocolMessages;
         internal long NotifyFrames;
+        internal long TcpGapRecoveries;
 
         internal CaptureStats(NpcapCaptureCandidate candidate) => Candidate = candidate;
     }
@@ -934,6 +1171,7 @@ internal sealed class CaptureEngine : IDisposable
         internal List<byte> Stream { get; } = new(8192);
         internal bool LooksLikeGame;
         internal DateTime LastSeenUtc = DateTime.UtcNow;
+        internal DateTime? GapStartedUtc;
 
         internal void Reset(uint? next)
         {
@@ -941,6 +1179,7 @@ internal sealed class CaptureEngine : IDisposable
             PendingBytes = 0;
             Stream.Clear();
             LooksLikeGame = false;
+            GapStartedUtc = null;
             if (next.HasValue)
             {
                 HasNext = true;

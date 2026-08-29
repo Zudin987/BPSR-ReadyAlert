@@ -6,12 +6,55 @@ namespace BPSR.ReadyAlert;
 
 internal sealed record NpcapCaptureCandidate(string DeviceName, string Description, string Source);
 
-internal sealed record NpcapCapturePlan(
-    IReadOnlyList<NpcapCaptureCandidate> Candidates,
-    IReadOnlyList<NpcapDevice> AvailableDevices,
-    string? ResonanceLogsConfigPath)
+/// <summary>
+/// One logical capture plan shared by the tray and CaptureEngine. Recovery replaces
+/// the immutable snapshot inside this object instead of replacing the object itself,
+/// so the tray always sees an automatic Wi-Fi/Ethernet failover performed by the
+/// capture thread without adding cross-thread UI callbacks.
+/// </summary>
+internal sealed class NpcapCapturePlan
 {
-    internal NpcapCaptureCandidate Primary => Candidates[0];
+    private sealed record Snapshot(
+        IReadOnlyList<NpcapCaptureCandidate> Candidates,
+        IReadOnlyList<NpcapDevice> AvailableDevices,
+        string? ResonanceLogsConfigPath);
+
+    private Snapshot _snapshot;
+
+    internal NpcapCapturePlan(
+        IReadOnlyList<NpcapCaptureCandidate> candidates,
+        IReadOnlyList<NpcapDevice> availableDevices,
+        string? resonanceLogsConfigPath)
+    {
+        if (candidates.Count == 0)
+            throw new ArgumentException("At least one capture candidate is required.", nameof(candidates));
+        _snapshot = new Snapshot(candidates, availableDevices, resonanceLogsConfigPath);
+    }
+
+    internal IReadOnlyList<NpcapCaptureCandidate> Candidates =>
+        Volatile.Read(ref _snapshot).Candidates;
+
+    internal IReadOnlyList<NpcapDevice> AvailableDevices =>
+        Volatile.Read(ref _snapshot).AvailableDevices;
+
+    internal string? ResonanceLogsConfigPath =>
+        Volatile.Read(ref _snapshot).ResonanceLogsConfigPath;
+
+    internal NpcapCaptureCandidate Primary
+    {
+        get
+        {
+            var snapshot = Volatile.Read(ref _snapshot);
+            return snapshot.Candidates[0];
+        }
+    }
+
+    internal void ReplaceWith(NpcapCapturePlan replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        var snapshot = Volatile.Read(ref replacement._snapshot);
+        Volatile.Write(ref _snapshot, snapshot);
+    }
 }
 
 internal static class NpcapDeviceSelector
