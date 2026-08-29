@@ -141,7 +141,7 @@ internal sealed partial class ChatOverlayForm
         _settings.SpeechTranslation.Normalize();
         RemoveOverflowHistoryFromView();
         _settingsStore.Save(_settings);
-        ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
+        PlayerIdentityCaptureBridge.ConfigureSpeechEngine(_settings.SpeechTranslation, _v120TranslationQueue);
         ApplyWindowSettings(registerHotkeys: true);
         RebuildTabBar();
         RebuildVisibleMessages(keepScroll: true);
@@ -155,7 +155,7 @@ internal sealed partial class ChatOverlayForm
     {
         _settings.SpeechTranslation.Normalize();
         if (save) _settingsStore.Save(_settings);
-        ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
+        PlayerIdentityCaptureBridge.ConfigureSpeechEngine(_settings.SpeechTranslation, _v120TranslationQueue);
         RebuildVisibleMessages(keepScroll: true);
     }
 

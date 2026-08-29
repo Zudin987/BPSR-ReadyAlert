@@ -14,8 +14,9 @@ internal readonly record struct ChatCaptureStatus(
 
 /// <summary>
 /// Lightweight Notify dispatcher attached to CaptureEngine's existing decoded stream.
-/// Chat remains opt-in, while independent core consumers such as party alerts can
-/// inspect their own exact Notify methods without owning another Npcap/TCP pipeline.
+/// Chat remains opt-in, while independent core consumers such as party alerts and
+/// local-player identity detection can inspect their exact Notify methods without
+/// owning another Npcap/TCP pipeline.
 /// </summary>
 internal static class ChatCaptureBridge
 {
@@ -65,11 +66,16 @@ internal static class ChatCaptureBridge
 
     /// <summary>
     /// Dispatches core Notify consumers first, then handles the optional chat packet.
-    /// Party alerts therefore remain active even when Chat Overlay/TTS is disabled.
-    /// Returns true when a known consumer owns the Notify.
+    /// Party alerts and local-player identity detection therefore remain active even
+    /// when Chat Overlay/TTS is disabled. Returns true when a known consumer owns the
+    /// Notify.
     /// </summary>
     internal static bool TryHandle(ulong service, uint method, byte[] payload)
     {
+        // Identity detection is observational only: it reads EnterScene from this
+        // existing Notify stream and never consumes the packet from other handlers.
+        _ = PlayerIdentityCaptureBridge.TryHandle(service, method, payload);
+
         if (PartyAlertCaptureBridge.TryHandle(service, method, payload))
             return true;
 

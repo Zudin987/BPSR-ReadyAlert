@@ -34,6 +34,7 @@ internal sealed partial class ChatGeneralSettingsForm
         {
             RegisterPage("Speech", "Speech & translation", BuildSpeechTranslationPage());
             InstallV120ContentFilters();
+            InstallV133PlayerIdentityUi();
 
             if (_pages.TryGetValue("Speech", out var speech) && _pages.TryGetValue("Advanced", out var advanced))
             {
@@ -115,8 +116,14 @@ internal sealed partial class ChatGeneralSettingsForm
         ttsChannels.Controls.Add(_ttsGuild);
         ttsChannels.Controls.Add(_ttsParty);
 
+        _v133DetectedUsername.AutoSize = true;
+        _v133DetectedUsername.Font = ChatUiTheme.UiFont(9.5F, FontStyle.Bold);
+        _v133DetectedUsername.Margin = new Padding(20, 4, 0, 5);
+        _v133DetectedUsername.AccessibleName = "Detected BPSR username";
+
         _ttsOwnUsername.Width = 330;
         _ttsOwnUsername.MaxLength = 128;
+        _ttsOwnUsername.PlaceholderText = "Leave empty to use detected username";
         ChatUiTheme.StyleTextBox(_ttsOwnUsername);
 
         var tts = MakeSingleColumnTable();
@@ -127,8 +134,12 @@ internal sealed partial class ChatGeneralSettingsForm
             ttsChannels));
         AddStack(tts, _ttsReadSender);
         AddStack(tts, MakeFieldBlock(
-            "My BPSR username — never read my own messages",
-            "Exact name match, case-insensitive. Leave empty if you want your own messages read too.",
+            "Detected BPSR username",
+            "ReadyAlert reads your local character name from BPSR's EnterScene data on the existing capture pipeline. Your own matching Guild / Party messages are not read aloud.",
+            _v133DetectedUsername));
+        AddStack(tts, MakeFieldBlock(
+            "Manual username override (optional)",
+            "Leave empty to use the detected username. If detection shows the wrong character, enter your exact in-game name here instead; matching is case-insensitive.",
             _ttsOwnUsername));
         AddStack(tts, MakeSliderRow(
             "TTS volume",

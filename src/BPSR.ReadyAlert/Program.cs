@@ -34,6 +34,7 @@ internal static class Program
                 RunSmokeStep(PartyAlertV130SelfTest.Run, 26);
                 RunSmokeStep(CoreAlertV131SelfTest.Run, 27);
                 RunSmokeStep(UiPerformanceV132SelfTest.Run, 28);
+                RunSmokeStep(PlayerIdentityV133SelfTest.Run, 29);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -93,7 +94,7 @@ internal static class Program
             // for users who leave both translation and TTS disabled.
             ChatNotificationEngine.Configure(settings.Chat, paths.AlertSoundPath);
             if (settings.SpeechTranslation.TranslationEnabled || settings.SpeechTranslation.TtsEnabled)
-                ChatSpeechTranslationEngine.Configure(settings.SpeechTranslation);
+                PlayerIdentityCaptureBridge.ConfigureSpeechEngine(settings.SpeechTranslation);
 
             var beforeNpcap = startup.ElapsedMilliseconds;
             var capturePlan = NpcapDeviceSelector.SelectPlan(settings);
