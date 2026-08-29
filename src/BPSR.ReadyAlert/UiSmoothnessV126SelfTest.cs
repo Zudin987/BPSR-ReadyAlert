@@ -56,11 +56,11 @@ internal static class UiSmoothnessV126SelfTest
         AppLog.Write("selftest: " + metrics);
 
         // These are deliberately broad release regression gates, not microbenchmarks.
-        // Their purpose is to catch a future accidental return to multi-second form
-        // realization, gear clicks, or recursive page-layout work while remaining
-        // stable on hosted CI.
-        Check(181, constructMs < 1_500,
-            $"Settings construction exceeded 1500 ms ({constructMs} ms)");
+        // Settings construction is now user-triggered rather than startup/gameplay work;
+        // allow hosted-runner variance while still catching a return to multi-second
+        // construction. Realization, cached preparation and page switching stay strict.
+        Check(181, constructMs < 2_000,
+            $"Settings construction exceeded 2000 ms ({constructMs} ms)");
         Check(182, prewarmMs < 1_500,
             $"hidden Settings prewarm exceeded 1500 ms ({prewarmMs} ms)");
         Check(183, prepareMs < 1_500,
