@@ -52,7 +52,9 @@ Write-Host "Bundled alert WAV prepared. SHA-256: $((Get-FileHash $SoundDestinati
 
 # Reconstruct the four user-supplied v1.3.1 core alert sounds from one lossless
 # FLAC archive. The source is split only because repository writes are text-only;
-# lexical sorting preserves the exact original base64 stream.
+# lexical sorting preserves the exact base64 stream. The archive container can
+# differ in tar metadata/compression while its four FLAC payloads remain identical,
+# so both the committed archive and every extracted FLAC are integrity checked.
 $CoreSourceChunks = @(
     Get-ChildItem -Path $AudioSourceDir -File |
         Where-Object { $_.Name -like 'CoreAlerts.user.flac.tar.xz.b64.*' } |
@@ -73,16 +75,16 @@ try {
 } catch {
     throw "Bundled core alert source is not valid base64: $($_.Exception.Message)"
 }
-if ($CoreArchiveBytes.Length -ne 248004) {
-    throw "Bundled core alert archive length mismatch: expected 248004 bytes, got $($CoreArchiveBytes.Length)."
+if ($CoreArchiveBytes.Length -ne 247544) {
+    throw "Bundled core alert archive length mismatch: expected 247544 bytes, got $($CoreArchiveBytes.Length)."
 }
 
 $CoreArchiveTemp = Join-Path $env:TEMP 'BPSR-ReadyAlert-CoreAlerts.tar.xz'
 $CoreExtractTemp = Join-Path $env:TEMP ('BPSR-ReadyAlert-CoreAlerts-' + [Guid]::NewGuid().ToString('N'))
 [IO.File]::WriteAllBytes($CoreArchiveTemp, $CoreArchiveBytes)
 $CoreArchiveHash = (Get-FileHash $CoreArchiveTemp -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($CoreArchiveHash -ne '9d1291d7220d05835dddacf5bbd709058bfc290c5a5b1e793fe3141c38cc424d') {
-    throw "Bundled core alert archive SHA-256 mismatch: expected 9d1291d7220d05835dddacf5bbd709058bfc290c5a5b1e793fe3141c38cc424d, got $CoreArchiveHash."
+if ($CoreArchiveHash -ne '1e346ef2aed3dc36ce4edd9f36c6c90cc42dcbe47921fb5b2086d6625d7b0b17') {
+    throw "Bundled core alert archive SHA-256 mismatch: expected 1e346ef2aed3dc36ce4edd9f36c6c90cc42dcbe47921fb5b2086d6625d7b0b17, got $CoreArchiveHash."
 }
 
 New-Item -ItemType Directory -Force -Path $CoreExtractTemp | Out-Null
@@ -95,16 +97,21 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "tar failed to unpack bundled core alert sources (exit code $LASTEXITCODE)." }
 
     $CoreMappings = @(
-        @{ Source = 'queue.flac';         Destination = 'Queue.wav' },
-        @{ Source = 'ready-check.flac';   Destination = 'ReadyCheck.wav' },
-        @{ Source = 'party-invite.flac';  Destination = 'PartyInvite.wav' },
-        @{ Source = 'party-request.flac'; Destination = 'PartyRequest.wav' }
+        @{ Source = 'queue.flac';         SourceHash = '4dbdc89817a143446784651ddf18f29fded3ad330b04a616d66e678e34bb54bb'; Destination = 'Queue.wav' },
+        @{ Source = 'ready-check.flac';   SourceHash = '2696249963e67c1e5e1fad78b779f1636cfb21f4e4c60e4e95c139766387aba6'; Destination = 'ReadyCheck.wav' },
+        @{ Source = 'party-invite.flac';  SourceHash = 'acb17af6c5fb929782ec74ad5bd44cc31e7d6a5c0752ccc5513f23c2a94b4915'; Destination = 'PartyInvite.wav' },
+        @{ Source = 'party-request.flac'; SourceHash = '8a4aa9a5995d4fd5eb083964726ef362ee71c58cbc0804423c7607db460ecfe3'; Destination = 'PartyRequest.wav' }
     )
 
     foreach ($mapping in $CoreMappings) {
         $source = Join-Path $CoreExtractTemp $mapping.Source
         $destination = Join-Path $Root ('src\BPSR.ReadyAlert\Assets\' + $mapping.Destination)
         if (-not (Test-Path $source)) { throw "Bundled core alert source is missing $($mapping.Source)." }
+
+        $sourceHash = (Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($sourceHash -ne $mapping.SourceHash) {
+            throw "Bundled $($mapping.Source) SHA-256 mismatch: expected $($mapping.SourceHash), got $sourceHash."
+        }
 
         & $ffmpeg.Source -hide_banner -loglevel error -y -i $source -ac 1 -ar 44100 -c:a pcm_s16le $destination
         if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to prepare $($mapping.Destination) (exit code $LASTEXITCODE)." }
@@ -115,7 +122,7 @@ try {
         if ([Text.Encoding]::ASCII.GetString($wavHeader) -ne 'RIFF') {
             throw "Generated $($mapping.Destination) does not have a valid RIFF header."
         }
-        Write-Host "$($mapping.Destination) prepared. SHA-256: $((Get-FileHash $destination -Algorithm SHA256).Hash.ToLowerInvariant())"
+        Write-Host "$($mapping.Destination) prepared from verified FLAC. SHA-256: $((Get-FileHash $destination -Algorithm SHA256).Hash.ToLowerInvariant())"
     }
 } finally {
     Remove-Item $CoreArchiveTemp -Force -ErrorAction SilentlyContinue
