@@ -318,3 +318,31 @@ jobs:
             - retains the single shared Npcap/TCP pipeline and portable self-contained Windows x64 EXE.
 
             Requires Npcap to be installed.
+
+      - name: Create v1.3.5 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.3.5]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.3.5
+          name: BPSR Ready Alert v1.3.5
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            Stable v1.3.5 release.
+
+            Highlights:
+            - fixes relay / passive-capture chat delays caused by joining an existing StarSEA TCP stream mid-frame;
+            - separates TCP sequence continuity from BPSR application-frame synchronization and reacquires a strong protocol boundary immediately;
+            - bypasses plausible-but-incomplete false frame headers when a later known BPSR Notify is already available;
+            - fast-resynchronizes after capture gaps when pending bytes already contain a recognizable BPSR frame instead of always waiting for the gap timer;
+            - recognizes known Notify services, zstd FrameDown packets, nested known Notify packets, and consecutive complete frames as safe synchronization anchors;
+            - refreshes the Windows TCP-owner snapshot on a rate-limited unmatched SYN to reduce new relay-connection startup races;
+            - bounds unsynchronized relay buffering and incrementally scans only newly appended data to avoid capture-thread CPU spikes;
+            - preserves v1.3.4 network self-healing, local-player identity detection, and the single shared Npcap/TCP capture pipeline.
+
+            Requires Npcap to be installed.
