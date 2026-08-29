@@ -8,9 +8,9 @@ internal readonly record struct GameFrameSyncMatch(int Offset, int Size, ushort 
 
 /// <summary>
 /// Finds trustworthy BPSR packet boundaries after passive capture joins an existing
-/// TCP stream mid-frame. This is deliberately stricter than the normal synchronized
-/// parser: arbitrary relay payload bytes must never be allowed to pin the parser behind
-/// a plausible-but-incomplete fake frame header for the global watchdog interval.
+/// TCP stream mid-frame. A strong signature may be identified before the full declared
+/// frame arrives, allowing the caller to lock onto the real header and then wait only
+/// for that frame instead of repeatedly rescanning an ever-growing relay buffer.
 /// </summary>
 internal static class GameFrameSynchronizer
 {
@@ -18,69 +18,69 @@ internal static class GameFrameSynchronizer
     internal const int RpcHeaderBytes = 16;
     internal const int MaxUnsynchronizedBytes = 512 * 1024;
     internal const int UnsynchronizedTailBytes = 128 * 1024;
+    internal const int SignatureLookBehindBytes = 40;
 
     private const ulong WorldNtfService = 1_664_308_034UL;
     private const ulong MatchNtfService = 822_849_903UL;
     private const ulong GrpcTeamNtfService = 966_773_353UL;
 
-    internal static GameFrameSyncMatch FindStrongFrame(IReadOnlyList<byte> data, int maxFrame)
+    internal static GameFrameSyncMatch FindStrongFrame(
+        IReadOnlyList<byte> data,
+        int maxFrame,
+        int startOffset = 0)
     {
         if (data.Count < HeaderBytes)
             return new GameFrameSyncMatch(-1, 0, 0);
 
-        // First preference: a complete Notify for a service ReadyAlert actually knows.
-        // Matching a 64-bit service ID makes accidental synchronization inside arbitrary
-        // relay bytes vanishingly unlikely, while chat/ready/team/match traffic gives us
-        // frequent anchors in a real BPSR stream.
-        for (var offset = 0; offset <= data.Count - HeaderBytes; offset++)
+        startOffset = Math.Clamp(startOffset, 0, Math.Max(0, data.Count - HeaderBytes));
+        for (var offset = startOffset; offset <= data.Count - HeaderBytes; offset++)
         {
-            if (!TryReadCompleteHeader(data, offset, maxFrame, out var size, out var typeRaw))
-                continue;
-            if ((typeRaw & 0x7FFF) != 2 || size < HeaderBytes + RpcHeaderBytes)
+            if (!IsPlausibleHeader(data, offset, maxFrame, out var size, out var typeRaw))
                 continue;
 
-            var service = ReadU64BE(data, offset + HeaderBytes);
-            if (IsKnownNotifyService(service))
+            var messageType = typeRaw & 0x7FFF;
+
+            // A Notify exposes its service/method routing header before the protobuf
+            // body. A known 64-bit service is strong enough to establish alignment even
+            // if the full Notify body is still split across later TCP segments.
+            if (messageType == 2 &&
+                size >= HeaderBytes + RpcHeaderBytes &&
+                offset + HeaderBytes + RpcHeaderBytes <= data.Count)
+            {
+                var service = ReadU64BE(data, offset + HeaderBytes);
+                if (IsKnownNotifyService(service))
+                    return new GameFrameSyncMatch(offset, size, typeRaw);
+            }
+
+            if (messageType != 6 || size < 10)
+                continue;
+
+            var compressed = (typeRaw & 0x8000) != 0;
+            if (compressed)
+            {
+                // FrameDown = 6-byte game header + 4-byte sequence + zstd frame.
+                // Standard zstd magic gives a strong signature without requiring a
+                // second outer frame or the complete compressed payload.
+                var zstd = offset + 10;
+                if (size >= 14 && zstd + 4 <= data.Count &&
+                    data[zstd] == 0x28 && data[zstd + 1] == 0xB5 &&
+                    data[zstd + 2] == 0x2F && data[zstd + 3] == 0xFD)
+                    return new GameFrameSyncMatch(offset, size, typeRaw);
+                continue;
+            }
+
+            // Uncompressed FrameDown exposes its nested packet stream. Recognize a
+            // nested known Notify as another relay-safe single-frame anchor.
+            var nested = offset + 10;
+            if (nested + HeaderBytes + RpcHeaderBytes > data.Count || size < 10 + HeaderBytes + RpcHeaderBytes)
+                continue;
+            if (!IsPlausibleHeader(data, nested, maxFrame, out _, out var nestedType) ||
+                (nestedType & 0x7FFF) != 2)
+                continue;
+
+            var nestedService = ReadU64BE(data, nested + HeaderBytes);
+            if (IsKnownNotifyService(nestedService))
                 return new GameFrameSyncMatch(offset, size, typeRaw);
-        }
-
-        // A compressed FrameDown has a four-byte sequence field followed by a standard
-        // zstd frame. Size/type + zstd magic is a strong standalone signature, allowing
-        // a quiet relay connection to synchronize immediately without waiting for a
-        // second outer BPSR frame just to prove alignment.
-        for (var offset = 0; offset <= data.Count - HeaderBytes; offset++)
-        {
-            if (!TryReadCompleteHeader(data, offset, maxFrame, out var size, out var typeRaw))
-                continue;
-            if ((typeRaw & 0x7FFF) != 6 || (typeRaw & 0x8000) == 0 || size < 14)
-                continue;
-
-            var zstd = offset + 10; // 6-byte game header + 4-byte FrameDown sequence.
-            if (data[zstd] == 0x28 && data[zstd + 1] == 0xB5 &&
-                data[zstd + 2] == 0x2F && data[zstd + 3] == 0xFD)
-                return new GameFrameSyncMatch(offset, size, typeRaw);
-        }
-
-        // Final fallback: two complete consecutive protocol frames, with at least one
-        // carrying server data (Notify or FrameDown). This also covers non-standard
-        // compressed containers where a future zstd framing variant is encountered.
-        for (var offset = 0; offset <= data.Count - HeaderBytes; offset++)
-        {
-            if (!TryReadCompleteHeader(data, offset, maxFrame, out var firstSize, out var firstType))
-                continue;
-
-            var secondOffset = offset + firstSize;
-            if (secondOffset > data.Count - HeaderBytes)
-                continue;
-            if (!TryReadCompleteHeader(data, secondOffset, maxFrame, out _, out var secondType))
-                continue;
-
-            var firstMessageType = firstType & 0x7FFF;
-            var secondMessageType = secondType & 0x7FFF;
-            if (firstMessageType is not (2 or 6) && secondMessageType is not (2 or 6))
-                continue;
-
-            return new GameFrameSyncMatch(offset, firstSize, firstType);
         }
 
         return new GameFrameSyncMatch(-1, 0, 0);
@@ -93,20 +93,8 @@ internal static class GameFrameSynchronizer
         out int size,
         out ushort typeRaw)
     {
-        size = 0;
-        typeRaw = 0;
-        if (offset < 0 || offset > data.Count - HeaderBytes)
+        if (!IsPlausibleHeader(data, offset, maxFrame, out size, out typeRaw))
             return false;
-
-        var rawSize = ReadU32BE(data, offset);
-        typeRaw = ReadU16BE(data, offset + 4);
-        var messageType = typeRaw & 0x7FFF;
-        if (rawSize < HeaderBytes || rawSize > maxFrame || messageType > 8)
-            return false;
-        if (rawSize > int.MaxValue)
-            return false;
-
-        size = (int)rawSize;
         return size <= data.Count - offset;
     }
 
@@ -130,6 +118,14 @@ internal static class GameFrameSynchronizer
 
         size = (int)rawSize;
         return true;
+    }
+
+    internal static int NextIncrementalScanOffset(int previousCount)
+    {
+        // A strong signature needs at most ~32 bytes after its candidate frame header.
+        // Revisit a small overlap to catch signatures split across append boundaries,
+        // but never rescan the whole historical prefix on every TCP segment.
+        return Math.Max(0, previousCount - SignatureLookBehindBytes);
     }
 
     internal static int BytesToTrimWhenUnsynchronized(int count)
