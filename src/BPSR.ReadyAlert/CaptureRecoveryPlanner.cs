@@ -35,10 +35,17 @@ internal static class CaptureRecoveryPlanner
                 ? current.Primary.Source
                 : "Recovery auto-selected";
 
-        return new NpcapCapturePlan(
+        var refreshed = new NpcapCapturePlan(
             [new NpcapCaptureCandidate(selected.Name, selected.Description, source)],
             SortAvailable(devices),
             current.ResonanceLogsConfigPath);
+
+        // CaptureEngine and TrayApplicationContext intentionally share this plan
+        // instance. Replacing its immutable snapshot keeps the tray's adapter label,
+        // available-device list and later manual switch/rollback logic synchronized
+        // with automatic recovery performed on the background capture thread.
+        current.ReplaceWith(refreshed);
+        return current;
     }
 
     internal static NpcapCapturePlan CreateWaitingPlan(string? manualDeviceName)
