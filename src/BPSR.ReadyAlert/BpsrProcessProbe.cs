@@ -19,7 +19,10 @@ internal static class BpsrProcessProbe
         lock (Gate)
         {
             var now = DateTime.UtcNow;
-            if ((now - _lastRefreshUtc).TotalSeconds < 2)
+            // Recovery decisions operate on 20-45 second windows. A five-second
+            // process snapshot is responsive enough for session cleanup/watchdogs
+            // while avoiding another full Windows process-table walk every 2 seconds.
+            if ((now - _lastRefreshUtc).TotalSeconds < 5)
                 return _lastResult;
 
             _lastRefreshUtc = now;
