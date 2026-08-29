@@ -179,13 +179,12 @@ internal sealed partial class ChatGeneralSettingsForm
             MessageBoxDefaultButton.Button2);
         if (answer != DialogResult.Yes) return;
 
-        var defaults = new ChatOverlaySettings();
-        defaults.Normalize();
-        var speechDefaults = new ChatSpeechTranslationSettings();
-        speechDefaults.Normalize();
+        var defaults = DefaultSettingsProfile.CreateChatOverlay();
+        var speechDefaults = DefaultSettingsProfile.CreateSpeechTranslation();
 
         _settings.Tabs = defaults.Tabs.Select(x => x.Clone()).ToList();
         _settings.LastSelectedTabId = _settings.Tabs[0].Id;
+        _settings.ClickThrough = defaults.ClickThrough;
         _blockedWorking = [];
         _channelColorsWorking = new Dictionary<int, string>(defaults.ChannelColors);
         LoadControlsFrom(defaults);
@@ -234,7 +233,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
         _privateHighlight.Checked = source.PrivateHighlightEnabled;
         _privateColorValue = source.PrivateHighlightColor;
-        ConfigureColorButton(_privateColor, _privateColorValue, "Private / Talk color");
+        ConfigureColorButton(_privateHighlight, _privateColorValue, "Private / Talk color");
         _privateSound.Checked = source.PrivateSoundEnabled;
         _privateSoundPath.Text = source.PrivateSoundPath;
         _soundVolume.Value = Math.Clamp(source.ChatSoundVolume, _soundVolume.Minimum, _soundVolume.Maximum);
