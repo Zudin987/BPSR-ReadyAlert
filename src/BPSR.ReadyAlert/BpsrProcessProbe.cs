@@ -32,21 +32,23 @@ internal static class BpsrProcessProbe
     {
         try
         {
+            var found = false;
             foreach (var process in Process.GetProcesses())
             {
                 try
                 {
                     if (ProcessNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase))
-                        return true;
+                        found = true;
                 }
                 catch { }
                 finally { process.Dispose(); }
             }
+            return found;
         }
         catch (Exception ex)
         {
             AppLog.Write("capture-watchdog: process probe failed " + ex.Message);
+            return false;
         }
-        return false;
     }
 }
