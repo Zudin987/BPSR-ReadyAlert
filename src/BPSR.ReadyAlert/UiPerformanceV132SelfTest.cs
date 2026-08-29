@@ -134,6 +134,9 @@ internal static class UiPerformanceV132SelfTest
         Check(196, firstCustom != secondCustom && form.V132ChannelColorCacheCountForSelfTest <= channels.Length,
             "channel render cache did not track a live color change correctly");
 
+        Check(207, form.RebuildV132TabBarDisposesOldControlsForSelfTest(),
+            "chat tab rebuild left replaced buttons/context menus undisposed");
+
         var tabIds = settings.Chat.Tabs.Select(x => x.Id).ToArray();
         var switchDurations = new double[ChatTabSwitchCount];
         for (var i = 0; i < ChatTabSwitchCount; i++)
@@ -190,6 +193,7 @@ internal static class UiPerformanceV132SelfTest
         metrics.Add($"overlay.repaint60.max.ms={repaintMaxMs:F2}");
         metrics.Add($"overlay.repaint.syntheticFps={syntheticFps:F1}");
         metrics.Add($"overlay.colorCache.10k.allocatedBytes={colorCacheAllocatedBytes}");
+        metrics.Add("overlay.tabRebuild.resourceCleanup=PASS");
     }
 
     private static void TestSettingsNavigation(List<string> metrics)
