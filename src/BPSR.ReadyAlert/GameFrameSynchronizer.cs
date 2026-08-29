@@ -44,10 +44,10 @@ internal static class GameFrameSynchronizer
                 return new GameFrameSyncMatch(offset, size, typeRaw);
         }
 
-        // Second preference: two complete consecutive protocol frames. This covers
-        // compressed FrameDown traffic where the nested Notify is not visible until
-        // decompression, while still being far stronger than accepting one random
-        // six-byte header in the middle of a relay packet.
+        // Second preference: two complete consecutive protocol frames, with at least
+        // one carrying server data (Notify or FrameDown). This covers compressed
+        // FrameDown traffic where nested Notify bytes are hidden by zstd, while being
+        // materially safer than accepting coincidental Echo/Return-looking bytes.
         for (var offset = 0; offset <= data.Count - HeaderBytes; offset++)
         {
             if (!TryReadCompleteHeader(data, offset, maxFrame, out var firstSize, out var firstType))
@@ -56,7 +56,12 @@ internal static class GameFrameSynchronizer
             var secondOffset = offset + firstSize;
             if (secondOffset > data.Count - HeaderBytes)
                 continue;
-            if (!TryReadCompleteHeader(data, secondOffset, maxFrame, out _, out _))
+            if (!TryReadCompleteHeader(data, secondOffset, maxFrame, out _, out var secondType))
+                continue;
+
+            var firstMessageType = firstType & 0x7FFF;
+            var secondMessageType = secondType & 0x7FFF;
+            if (firstMessageType is not (2 or 6) && secondMessageType is not (2 or 6))
                 continue;
 
             return new GameFrameSyncMatch(offset, firstSize, firstType);
