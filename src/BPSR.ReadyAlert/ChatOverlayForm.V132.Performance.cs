@@ -40,6 +40,16 @@ internal sealed partial class ChatOverlayForm
     internal int V132ChannelColorCacheCountForSelfTest => _v132ChannelColorCache.Count;
     internal int V132VisibleMessageCountForSelfTest => _messages.Items.Count;
 
+    internal bool RebuildV132TabBarDisposesOldControlsForSelfTest()
+    {
+        var old = _tabBar.Controls
+            .OfType<System.Windows.Forms.Control>()
+            .Select(control => (Control: control, Menu: control.ContextMenuStrip))
+            .ToArray();
+        RebuildTabBar();
+        return old.All(x => x.Control.IsDisposed && (x.Menu is null || x.Menu.IsDisposed));
+    }
+
     internal void StopV132SettingsPrewarmForSelfTest()
     {
         _v124SettingsPrewarmTimer?.Stop();
