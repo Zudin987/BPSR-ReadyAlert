@@ -49,4 +49,12 @@ internal sealed partial class ChatOverlayForm
         RebuildTabBar();
         return old.All(x => x.Control.IsDisposed && (x.Menu is null || x.Menu.IsDisposed));
     }
+
+    // Retained so the v1.3.2 performance fixture can keep the same call sequence.
+    // Automatic Settings construction no longer exists, therefore there is nothing
+    // to cancel here. Keeping this as a no-op also makes a future reintroduction of
+    // startup prewarming an explicit code/test change rather than an accidental one.
+    internal void StopV132SettingsPrewarmForSelfTest()
+    {
+    }
 }
