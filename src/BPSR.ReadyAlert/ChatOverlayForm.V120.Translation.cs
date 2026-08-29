@@ -15,7 +15,7 @@ internal sealed partial class ChatOverlayForm
     private void AttachV120SpeechTranslation()
     {
         if (_settings.SpeechTranslation.TranslationEnabled || _settings.SpeechTranslation.TtsEnabled)
-            ChatSpeechTranslationEngine.Configure(_settings.SpeechTranslation, _v120TranslationQueue);
+            PlayerIdentityCaptureBridge.ConfigureSpeechEngine(_settings.SpeechTranslation, _v120TranslationQueue);
 
         if (_v120TranslationTimer is null)
         {
