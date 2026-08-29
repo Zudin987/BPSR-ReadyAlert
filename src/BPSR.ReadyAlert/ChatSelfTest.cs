@@ -164,13 +164,26 @@ internal static class ChatSelfTest
         };
         settings.Normalize();
 
-        Assert(settings.Tabs.Count == 3, "default tabs");
-        Assert(settings.Tabs.Any(x => x.Name == "World"), "World tab");
-        Assert(settings.Tabs.Any(x => x.Name == "Guild / Team"), "Guild / Team tab");
-        var all = settings.Tabs.Single(x => x.Name == "All");
-        Assert(all.Channels.Contains((int)ChatChannel.Null), "All includes Null");
-        Assert(all.Channels.Contains((int)ChatChannel.Newbie), "All includes Newbie");
-        Assert(all.Channels.Contains((int)ChatChannel.Play), "All includes Play");
+        Assert(settings.Tabs.Count == 4, "v1.3.2 default tab count");
+        Assert(settings.Tabs.Select(x => x.Name).SequenceEqual(new[] { "All", "Guild&Team", "Guild", "Team" }),
+            "v1.3.2 default tab names/order");
+        var all = settings.Tabs[0];
+        Assert(all.Id == 639233255393111833L && all.MinLevel == 50,
+            "All default tab identity and level");
+        Assert(all.Channels.SequenceEqual(new[] { 1, 2, 3, 4, 5, 6, 9 }),
+            "All default tab uses requested channels");
+        Assert(settings.Tabs[1].Id == 639233255393111900L &&
+               settings.Tabs[1].Channels.SequenceEqual(new[] { 3, 4, 5, 6 }) &&
+               settings.Tabs[1].MinLevel == 1,
+            "Guild&Team default tab");
+        Assert(settings.Tabs[2].Id == 639233255393111918L &&
+               settings.Tabs[2].Channels.SequenceEqual(new[] { 4 }) &&
+               settings.Tabs[2].MinLevel == 1,
+            "Guild default tab");
+        Assert(settings.Tabs[3].Id == 639235625391474596L &&
+               settings.Tabs[3].Channels.SequenceEqual(new[] { 3, 6 }) &&
+               settings.Tabs[3].MinLevel == 1,
+            "Team default tab");
         Assert(settings.BackgroundOpacity == 82, "removed background opacity uses fixed v1.2.4 preset");
         Assert(settings.ToolbarOpacity == 92, "removed toolbar opacity uses fixed v1.2.4 preset");
         Assert(settings.TextOpacity == 100, "removed text opacity uses fixed v1.2.4 preset");
@@ -178,7 +191,7 @@ internal static class ChatSelfTest
         Assert(Math.Abs(settings.FontSize - 24F) < 0.01F, "font size clamp");
         Assert(settings.CollapseHotkey.Length == 0, "removed collapse hotkey is cleared during normalization");
         Assert(settings.HighlightSoundRules.Count == 2, "v1.2.4 keeps at most two sound rules");
-        Assert(settings.CollapseSide == "Right", "collapse side normalization");
+        Assert(settings.CollapseSide == "Left", "invalid collapse side falls back to requested Left default");
         Assert(settings.MaxHistory == 10, "history clamp");
         Assert(!settings.ChannelColors.ContainsKey(12345), "unknown channel color removed");
         Assert(settings.ChannelColors[(int)ChatChannel.World] == "#63C7FF", "invalid channel color repaired");
