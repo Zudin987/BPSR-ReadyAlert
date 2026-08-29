@@ -351,7 +351,14 @@ internal sealed partial class ChatOverlayForm
         _tabBar.SuspendLayout();
         try
         {
-            _tabBar.Controls.Clear();
+            while (_tabBar.Controls.Count > 0)
+            {
+                var old = _tabBar.Controls[0];
+                _tabBar.Controls.RemoveAt(0);
+                old.ContextMenuStrip?.Dispose();
+                old.Dispose();
+            }
+
             foreach (var tab in _settings.Chat.Tabs)
                 _tabBar.Controls.Add(MakeTabButton(tab));
         }
