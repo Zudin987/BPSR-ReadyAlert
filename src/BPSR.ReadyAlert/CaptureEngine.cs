@@ -129,7 +129,7 @@ internal sealed class CaptureEngine : IDisposable
                 _lastValidFrameUtc = DateTime.MinValue;
                 _lastWatchdogUtc = DateTime.MinValue;
                 _lastStatsUtc = DateTime.UtcNow;
-                AppLog.Write($"capture: started backend=Npcap adapters={captures.Count} parser=ZDPS-compatible recovery=self-healing");
+                AppLog.Write($"capture: started backend=Npcap adapters={captures.Count} parser=ZDPS-compatible recovery=self-healing relay-resync=v1.3.5");
 
                 while (!_stopping && captures.Count > 0)
                 {
@@ -192,10 +192,6 @@ internal sealed class CaptureEngine : IDisposable
                             break;
                         }
 
-                        // If capture joined an existing TCP stream mid-frame and has not
-                        // produced even one valid protocol frame yet, use capture-open
-                        // time as the initial stall anchor. Once a frame is parsed, the
-                        // normal last-valid-frame timestamp becomes the anchor.
                         var frameAnchorUtc = _lastValidFrameUtc == DateTime.MinValue
                             ? _captureOpenedUtc
                             : _lastValidFrameUtc;
@@ -267,9 +263,6 @@ internal sealed class CaptureEngine : IDisposable
     {
         try
         {
-            // CaptureRecoveryPlanner updates the shared plan object in place so the
-            // tray sees recovery changes too. Snapshot transition data before refresh
-            // so failover diagnostics/notifications still compare old vs new correctly.
             var previousDeviceName = _plan.Primary.DeviceName;
             var hadPreviousDevice = !string.IsNullOrWhiteSpace(previousDeviceName);
             var refreshed = CaptureRecoveryPlanner.Refresh(_plan);
@@ -335,7 +328,9 @@ internal sealed class CaptureEngine : IDisposable
                 $"capture: stats device={candidate.Description} source={candidate.Source} " +
                 $"packets={stats.Packets} tcpPayload={stats.TcpPayloadPackets} " +
                 $"gameFrames={stats.GameFrames} protocolMessages={stats.ProtocolMessages} " +
-                $"notifyFrames={stats.NotifyFrames} tcpGapRecoveries={stats.TcpGapRecoveries}");
+                $"notifyFrames={stats.NotifyFrames} tcpGapRecoveries={stats.TcpGapRecoveries} " +
+                $"fastGapResyncs={stats.FastGapResyncs} frameResyncs={stats.FrameResyncs} " +
+                $"frameResyncBytes={stats.FrameResyncBytes} unsyncTrimBytes={stats.UnsyncTrimBytes}");
         }
     }
 
@@ -378,10 +373,6 @@ internal sealed class CaptureEngine : IDisposable
         }
 
         if (offset >= packet.Length) return;
-
-        // Parse directly inside the Npcap packet buffer. The old Ethernet/loopback
-        // path copied packet[offset..] into a new byte[] for every captured IP packet,
-        // creating continuous allocation/GC pressure while the game was running.
         ProcessIpPacket(packet, offset, packet.Length, candidate, stats);
     }
 
@@ -444,8 +435,14 @@ internal sealed class CaptureEngine : IDisposable
         }
 
         flow.LastSeenUtc = DateTime.UtcNow;
-        if ((flags & 0x02) != 0) flow.Reset(seq + 1);
-        if (payloadLen > 0) InsertSegment(flow, seq, packet, payloadOffset, payloadLen, candidate, stats);
+        var syn = (flags & 0x02) != 0;
+        if (syn)
+            flow.Reset(seq + 1, frameSynchronized: true);
+
+        // TCP SYN consumes one sequence number. Supporting SYN-with-data correctly also
+        // avoids dropping byte 0 if a relay/runtime ever uses TCP Fast Open.
+        var payloadSeq = syn ? seq + 1 : seq;
+        if (payloadLen > 0) InsertSegment(flow, payloadSeq, packet, payloadOffset, payloadLen, candidate, stats);
         if ((flags & 0x05) != 0)
             _flows.Remove(key);
 
@@ -587,8 +584,11 @@ internal sealed class CaptureEngine : IDisposable
     {
         if (!flow.HasNext)
         {
+            // If ReadyAlert starts after StarSEA's connection is already established,
+            // TCP sequence continuity begins here but BPSR frame alignment is unknown.
             flow.HasNext = true;
             flow.NextSeq = seq;
+            flow.FrameSynchronized = false;
         }
 
         if (SeqBefore(seq, flow.NextSeq))
@@ -617,6 +617,13 @@ internal sealed class CaptureEngine : IDisposable
             flow.PendingBytes += len;
         }
 
+        // Do not always wait 1.5 seconds. If the bytes after a missing captured TCP
+        // segment already contain a complete, strongly recognizable BPSR frame, resume
+        // immediately at that frame boundary. This is especially useful for relay TCP
+        // segmentation and passive-capture packet loss.
+        if (TryFastRecoverTcpGap(flow, candidate, stats))
+            return;
+
         flow.GapStartedUtc ??= DateTime.UtcNow;
         if (CaptureRecoveryPolicy.ShouldRecoverTcpGap(
                 DateTime.UtcNow,
@@ -630,7 +637,58 @@ internal sealed class CaptureEngine : IDisposable
 
         if (flow.PendingBytes <= MaxPending) return;
         AppLog.Write($"capture-recovery: TCP pending data exceeded hard limit device={candidate.Description}; resetting flow");
-        flow.Reset(null);
+        flow.Reset(null, frameSynchronized: false);
+    }
+
+    private bool TryFastRecoverTcpGap(FlowState flow, NpcapCaptureCandidate candidate, CaptureStats stats)
+    {
+        if (flow.Pending.Count == 0) return false;
+
+        var first = flow.Pending.First();
+        var firstSeq = first.Key;
+        var expected = firstSeq;
+        var combined = new List<byte>(Math.Min(flow.PendingBytes, GameFrameSynchronizer.MaxUnsynchronizedBytes));
+        var consumedKeys = new List<uint>();
+        var consumedBytes = 0;
+
+        foreach (var pending in flow.Pending)
+        {
+            if (pending.Key != expected) break;
+            if (combined.Count + pending.Value.Length > GameFrameSynchronizer.MaxUnsynchronizedBytes) break;
+            combined.AddRange(pending.Value);
+            consumedKeys.Add(pending.Key);
+            consumedBytes += pending.Value.Length;
+            expected += (uint)pending.Value.Length;
+        }
+
+        if (combined.Count < GameFrameSynchronizer.HeaderBytes) return false;
+        var match = GameFrameSynchronizer.FindStrongFrame(combined, MaxGameFrame);
+        if (!match.Found) return false;
+
+        foreach (var key in consumedKeys)
+            flow.Pending.Remove(key);
+        flow.PendingBytes -= consumedBytes;
+
+        stats.TcpGapRecoveries++;
+        stats.FastGapResyncs++;
+        stats.FrameResyncs++;
+        stats.FrameResyncBytes += match.Offset;
+        AppLog.Write(
+            $"capture-recovery: fast TCP gap/frame resync device={candidate.Description} " +
+            $"expectedSeq={flow.NextSeq} resumeSeq={firstSeq + (uint)match.Offset} " +
+            $"skippedBytes={match.Offset} bufferedBytes={combined.Count}");
+
+        flow.Stream.Clear();
+        flow.LooksLikeGame = true;
+        flow.FrameSynchronized = true;
+        flow.HasNext = true;
+        flow.NextSeq = firstSeq + (uint)combined.Count;
+        flow.GapStartedUtc = null;
+
+        var bytes = combined.ToArray();
+        AppendStream(flow, bytes, match.Offset, bytes.Length - match.Offset, candidate, stats);
+        DrainPending(flow, candidate, stats);
+        return true;
     }
 
     private void RecoverTcpGap(FlowState flow, NpcapCaptureCandidate candidate, CaptureStats stats)
@@ -642,12 +700,12 @@ internal sealed class CaptureEngine : IDisposable
             $"capture-recovery: TCP capture gap resync device={candidate.Description} " +
             $"expectedSeq={flow.NextSeq} resumeSeq={first.Key} pendingSegments={flow.Pending.Count} pendingBytes={flow.PendingBytes}");
 
-        // A packet missed by Npcap must not poison this flow indefinitely. Drop the
-        // incomplete frame prefix and resume from the earliest captured segment. The
-        // game frame parser already byte-scans invalid prefixes, so it can find the
-        // next complete protocol-frame boundary without restarting ReadyAlert.
+        // Missing capture bytes destroy application-frame alignment. Resume TCP at the
+        // earliest available segment, but explicitly return the BPSR parser to hunter
+        // mode so a plausible fake length cannot block later valid chat for 20 seconds.
         flow.Stream.Clear();
         flow.LooksLikeGame = false;
+        flow.FrameSynchronized = false;
         flow.HasNext = true;
         flow.NextSeq = first.Key;
         flow.GapStartedUtc = null;
@@ -675,6 +733,8 @@ internal sealed class CaptureEngine : IDisposable
             var first = flow.Pending.First();
             if (!SeqBefore(first.Key, flow.NextSeq))
             {
+                if (TryFastRecoverTcpGap(flow, candidate, stats))
+                    return;
                 flow.GapStartedUtc ??= DateTime.UtcNow;
                 return;
             }
@@ -701,42 +761,97 @@ internal sealed class CaptureEngine : IDisposable
         for (var i = 0; i < len; i++) flow.Stream.Add(data[offset + i]);
         ProcessFrames(flow, candidate, stats);
 
-        var cap = flow.LooksLikeGame ? MaxGameFrame * 2 : MaxInitialFrame * 2;
+        var cap = flow.FrameSynchronized ? MaxGameFrame * 2 : GameFrameSynchronizer.MaxUnsynchronizedBytes;
         if (flow.Stream.Count <= cap) return;
+
+        if (!flow.FrameSynchronized)
+        {
+            TrimUnsynchronizedStream(flow, stats);
+            return;
+        }
+
         flow.Stream.Clear();
         flow.LooksLikeGame = false;
+        flow.FrameSynchronized = false;
     }
 
     private void ProcessFrames(FlowState flow, NpcapCaptureCandidate candidate, CaptureStats stats)
     {
-        while (flow.Stream.Count >= 6)
+        while (flow.Stream.Count >= GameFrameSynchronizer.HeaderBytes)
         {
-            var size = ((uint)flow.Stream[0] << 24) |
-                       ((uint)flow.Stream[1] << 16) |
-                       ((uint)flow.Stream[2] << 8) |
-                       flow.Stream[3];
-            var typeRaw = (ushort)(((uint)flow.Stream[4] << 8) | flow.Stream[5]);
-            var messageType = typeRaw & 0x7FFF;
-            var max = flow.LooksLikeGame ? MaxGameFrame : MaxInitialFrame;
-
-            // ZDPS MsgTypeId is 0..8. Consuming Echo/UNK/Return/None frames is
-            // important even though ReadyAlert ignores their contents; treating them
-            // as invalid corrupts stream alignment and can hide the next Notify.
-            if (size < 6 || size > max || messageType > 8)
+            if (!flow.FrameSynchronized)
             {
-                flow.Stream.RemoveAt(0);
+                var match = GameFrameSynchronizer.FindStrongFrame(flow.Stream, MaxGameFrame);
+                if (!match.Found)
+                {
+                    TrimUnsynchronizedStream(flow, stats);
+                    return;
+                }
+
+                if (match.Offset > 0)
+                {
+                    flow.Stream.RemoveRange(0, match.Offset);
+                    stats.FrameResyncBytes += match.Offset;
+                }
+                stats.FrameResyncs++;
+                flow.FrameSynchronized = true;
+                flow.LooksLikeGame = true;
+                AppLog.Write(
+                    $"capture-recovery: BPSR frame boundary acquired device={candidate.Description} " +
+                    $"skippedBytes={match.Offset} type={match.MessageType} size={match.Size}");
+            }
+
+            if (!GameFrameSynchronizer.IsPlausibleHeader(
+                    flow.Stream,
+                    0,
+                    MaxGameFrame,
+                    out var size,
+                    out _))
+            {
+                // Corruption or a prior false alignment: do not byte-remove O(n^2).
+                // Return to strong-boundary hunter mode and discard the bad prefix in
+                // one operation once a trustworthy frame is found.
+                flow.FrameSynchronized = false;
+                flow.LooksLikeGame = false;
                 continue;
             }
 
-            if (flow.Stream.Count < (int)size) return;
+            if (flow.Stream.Count < size)
+            {
+                // Even a previously synchronized stream can lose capture bytes. If a
+                // later complete strong frame is already buffered, do not wait behind
+                // this plausible-but-incomplete length field.
+                var later = GameFrameSynchronizer.FindStrongFrame(flow.Stream, MaxGameFrame);
+                if (later.Found && later.Offset > 0)
+                {
+                    flow.Stream.RemoveRange(0, later.Offset);
+                    stats.FrameResyncs++;
+                    stats.FrameResyncBytes += later.Offset;
+                    flow.FrameSynchronized = true;
+                    flow.LooksLikeGame = true;
+                    AppLog.Write(
+                        $"capture-recovery: bypassed incomplete false frame device={candidate.Description} " +
+                        $"skippedBytes={later.Offset} replacementType={later.MessageType} replacementSize={later.Size}");
+                    continue;
+                }
+                return;
+            }
 
-            var frame = flow.Stream.GetRange(0, checked((int)size)).ToArray();
-            flow.Stream.RemoveRange(0, checked((int)size));
+            var frame = flow.Stream.GetRange(0, size).ToArray();
+            flow.Stream.RemoveRange(0, size);
             flow.LooksLikeGame = true;
             stats.GameFrames++;
             _lastValidFrameUtc = DateTime.UtcNow;
             ProcessGameMessages(frame, 0, frame.Length, depth: 0, candidate, stats);
         }
+    }
+
+    private static void TrimUnsynchronizedStream(FlowState flow, CaptureStats stats)
+    {
+        var trim = GameFrameSynchronizer.BytesToTrimWhenUnsynchronized(flow.Stream.Count);
+        if (trim <= 0) return;
+        flow.Stream.RemoveRange(0, trim);
+        stats.UnsyncTrimBytes += trim;
     }
 
     private void ProcessGameMessages(
@@ -774,18 +889,12 @@ internal sealed class CaptureEngine : IDisposable
 
             switch (messageType)
             {
-                case 2: // Notify
+                case 2:
                     ProcessNotify(data, payloadStart, payloadEnd, compressed, candidate, stats);
                     break;
-
-                case 6: // FrameDown: uint32 sequence + nested packet stream
+                case 6:
                     ProcessFrameDown(data, payloadStart, payloadEnd, compressed, depth, candidate, stats);
                     break;
-
-                // 0=None, 1=Call, 3=Return, 4=Echo, 5=FrameUp, 7/8=UNK.
-                // ZDPS consumes all of these but only FrameDown contains server->client
-                // nested Notify messages. FrameUp has a different embedded proxy layout
-                // and must NOT be parsed as FrameDown.
                 default:
                     break;
             }
@@ -804,7 +913,7 @@ internal sealed class CaptureEngine : IDisposable
         CaptureStats stats)
     {
         if (payloadEnd - payloadStart < 4) return;
-        var nestedStart = payloadStart + 4; // skip FrameDown sequence number
+        var nestedStart = payloadStart + 4;
 
         if (!compressed)
         {
@@ -855,15 +964,9 @@ internal sealed class CaptureEngine : IDisposable
         if (_seenNotifyKeys.Add((candidate.DeviceName, service, method)))
             AppLog.Write($"probe: notify device={candidate.Description} service={service} method=0x{method:X} compressed={compressed} protoLen={payload.Length}");
 
-        // Chat is another consumer of this already-filtered/reassembled/decompressed
-        // Notify stream. Its dispatcher also routes independent queue/party and local-
-        // player identity consumers before optional chat handling.
         if (ChatCaptureBridge.TryHandle(service, method, payload))
             return;
 
-        // Exact ZDPS Ready Check trigger: NotifyAllMemberReady opens the Ready Check UI.
-        // NotifyCaptainReady is a response/update and is used by ZDPS to stop its loop,
-        // not to start the alert.
         if (service == WorldNtfService)
         {
             if (method == NotifyAllMemberReady)
@@ -880,8 +983,6 @@ internal sealed class CaptureEngine : IDisposable
             }
         }
 
-        // Legacy fallback only. QueueAlertCaptureBridge normally consumes Voting before
-        // this point and emits kind=queue; keep this parser for diagnostics/compatibility.
         if (service == GrpcTeamNtfService && method == NotifyTeamActivityState)
         {
             if (TryParseTeamActivityState(payload, 0, payload.Length, out var state))
@@ -938,14 +1039,9 @@ internal sealed class CaptureEngine : IDisposable
     private static bool TryParseMatchStatus(byte[] data, int offset, int length, out int status)
     {
         status = -1;
-
-        // MatchNtf.EnterMatchResultNtf.vRequest = field 1
         if (!TryGetLengthField(data, offset, length, 1, out var requestOffset, out var requestLength)) return false;
-        // EnterMatchResultNtfRequest.matchInfo = field 2
         if (!TryGetLengthField(data, requestOffset, requestLength, 2, out var infoOffset, out var infoLength)) return false;
-        // MatchInfo.matchStatus = field 2
         if (!TryGetVarintField(data, infoOffset, infoLength, 2, out var value)) return false;
-
         status = checked((int)value);
         return true;
     }
@@ -953,14 +1049,9 @@ internal sealed class CaptureEngine : IDisposable
     private static bool TryParseTeamActivityState(byte[] data, int offset, int length, out int state)
     {
         state = -1;
-
-        // GrpcTeamNtf.NotifyTeamActivityState.vRequest = field 1
         if (!TryGetLengthField(data, offset, length, 1, out var requestOffset, out var requestLength)) return false;
-        // NotifyTeamActivityStateRequest.state (TeamActivity) = field 1
         if (!TryGetLengthField(data, requestOffset, requestLength, 1, out var activityOffset, out var activityLength)) return false;
-        // TeamActivity.state = field 2
         if (!TryGetVarintField(data, activityOffset, activityLength, 2, out var value)) return false;
-
         state = checked((int)value);
         return true;
     }
@@ -1097,10 +1188,6 @@ internal sealed class CaptureEngine : IDisposable
             var slice = Math.Min(250, milliseconds - elapsed);
             _wake.WaitOne(slice);
             if (_stopping) return;
-
-            // A network-change wake means "retry now" while capture is already in a
-            // recovery state. Consume it here so multiple Windows network events do
-            // not leave the flag permanently set and collapse backoff into a CPU spin.
             if (Interlocked.Exchange(ref _networkChangePending, 0) != 0)
                 return;
             elapsed += slice;
@@ -1158,6 +1245,10 @@ internal sealed class CaptureEngine : IDisposable
         internal long ProtocolMessages;
         internal long NotifyFrames;
         internal long TcpGapRecoveries;
+        internal long FastGapResyncs;
+        internal long FrameResyncs;
+        internal long FrameResyncBytes;
+        internal long UnsyncTrimBytes;
 
         internal CaptureStats(NpcapCaptureCandidate candidate) => Candidate = candidate;
     }
@@ -1170,15 +1261,17 @@ internal sealed class CaptureEngine : IDisposable
         internal int PendingBytes;
         internal List<byte> Stream { get; } = new(8192);
         internal bool LooksLikeGame;
+        internal bool FrameSynchronized;
         internal DateTime LastSeenUtc = DateTime.UtcNow;
         internal DateTime? GapStartedUtc;
 
-        internal void Reset(uint? next)
+        internal void Reset(uint? next, bool frameSynchronized = false)
         {
             Pending.Clear();
             PendingBytes = 0;
             Stream.Clear();
-            LooksLikeGame = false;
+            LooksLikeGame = frameSynchronized;
+            FrameSynchronized = frameSynchronized;
             GapStartedUtc = null;
             if (next.HasValue)
             {
