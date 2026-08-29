@@ -233,7 +233,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
         _privateHighlight.Checked = source.PrivateHighlightEnabled;
         _privateColorValue = source.PrivateHighlightColor;
-        ConfigureColorButton(_privateHighlight, _privateColorValue, "Private / Talk color");
+        ConfigureColorButton(_privateColor, _privateColorValue, "Private / Talk color");
         _privateSound.Checked = source.PrivateSoundEnabled;
         _privateSoundPath.Text = source.PrivateSoundPath;
         _soundVolume.Value = Math.Clamp(source.ChatSoundVolume, _soundVolume.Minimum, _soundVolume.Maximum);
