@@ -240,3 +240,29 @@ jobs:
             dist/SHA256SUMS.txt
           body: |
             Stable v1.3.0 release.
+
+      - name: Create v1.3.2 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.3.2]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.3.2
+          name: BPSR Ready Alert v1.3.2
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            Stable v1.3.2 release.
+
+            Highlights:
+            - fixes live Queue Pop protocol routing so queue acceptance uses Queue.wav instead of ReadyCheck.wav;
+            - keeps Queue Pop, Ready Check, Party Invite and Party Request alerts independently toggleable with distinct bundled sounds;
+            - applies the finalized fresh-install/reset Chat Overlay, translation and TTS defaults while preserving explicit saved settings on upgrade;
+            - removes hidden automatic Settings construction from startup/gameplay to avoid a delayed UI-thread hitch;
+            - reduces capture-path allocations/copies and improves chat rendering/tab-navigation resource handling;
+            - retains the portable self-contained Windows x64 single-EXE design.
+
+            Requires Npcap to be installed.
