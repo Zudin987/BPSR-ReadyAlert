@@ -49,11 +49,4 @@ internal sealed partial class ChatOverlayForm
         RebuildTabBar();
         return old.All(x => x.Control.IsDisposed && (x.Menu is null || x.Menu.IsDisposed));
     }
-
-    internal void StopV132SettingsPrewarmForSelfTest()
-    {
-        _v124SettingsPrewarmTimer?.Stop();
-        _v124SettingsPrewarmTimer?.Dispose();
-        _v124SettingsPrewarmTimer = null;
-    }
 }
