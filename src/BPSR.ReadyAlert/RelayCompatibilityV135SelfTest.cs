@@ -18,10 +18,10 @@ internal static class RelayCompatibilityV135SelfTest
         var stream = new List<byte>(prefixLength + 22);
 
         // This is the exact failure shape from v1.3.4: offset zero looks like a valid
-        // 400 KiB Notify header, so the old parser returned and waited for hundreds of
-        // kilobytes (or the 20-second protocol watchdog) even though a complete chat
-        // Notify was already present later in the buffer.
-        stream.AddRange(BuildHeader(400 * 1024, 2));
+        // 400 KiB Notify header, but only the six-byte header itself is present. The
+        // old parser therefore waited for the declared 400 KiB (or its 20-second
+        // watchdog) even though a complete chat Notify was already buffered later.
+        stream.AddRange(BuildHeaderOnly(400 * 1024, 2));
         while (stream.Count < prefixLength) stream.Add((byte)(0xA0 + stream.Count % 31));
         stream.AddRange(BuildKnownNotify(ChatProtocol.ServiceId, ChatProtocol.NotifyNewestChitChatMsgs));
 
@@ -54,8 +54,8 @@ internal static class RelayCompatibilityV135SelfTest
     private static void TestConsecutiveFramesProvideFallbackAnchor()
     {
         var stream = new List<byte> { 0xEE, 0xEE, 0xEE };
-        stream.AddRange(BuildHeader(6, 4)); // Echo/no payload.
-        stream.AddRange(BuildHeader(6, 3)); // Return/no payload fixture.
+        stream.AddRange(BuildHeaderOnly(6, 4));
+        stream.AddRange(BuildHeaderOnly(6, 3));
 
         var match = GameFrameSynchronizer.FindStrongFrame(stream, 2 * 1024 * 1024);
         Check(236, match.Found && match.Offset == 3,
@@ -64,9 +64,9 @@ internal static class RelayCompatibilityV135SelfTest
 
     private static void TestUnknownSingleFrameIsNotTrusted()
     {
-        var frame = BuildHeader(22, 2).ToList();
+        var frame = new byte[22];
+        Array.Copy(BuildHeaderOnly(22, 2), frame, 6);
         WriteU64BE(frame, 6, 0x1122334455667788UL);
-        while (frame.Count < 22) frame.Add(0);
 
         var match = GameFrameSynchronizer.FindStrongFrame(frame, 2 * 1024 * 1024);
         Check(237, !match.Found,
@@ -105,18 +105,18 @@ internal static class RelayCompatibilityV135SelfTest
 
     private static byte[] BuildKnownNotify(ulong service, uint method)
     {
-        const int frameSize = 22; // 6-byte game header + 16-byte RPC header.
-        var frame = BuildHeader(frameSize, 2);
+        const int frameSize = 22;
+        var frame = new byte[frameSize];
+        Array.Copy(BuildHeaderOnly(frameSize, 2), frame, 6);
         WriteU64BE(frame, 6, service);
-        // bytes 14..17 are the RPC field between service and method.
         WriteU32BE(frame, 18, method);
         return frame;
     }
 
-    private static byte[] BuildHeader(int size, ushort typeRaw)
+    private static byte[] BuildHeaderOnly(int declaredSize, ushort typeRaw)
     {
-        var bytes = new byte[Math.Max(size, 6)];
-        WriteU32BE(bytes, 0, checked((uint)size));
+        var bytes = new byte[6];
+        WriteU32BE(bytes, 0, checked((uint)declaredSize));
         bytes[4] = (byte)(typeRaw >> 8);
         bytes[5] = (byte)typeRaw;
         return bytes;
@@ -142,9 +142,9 @@ internal static class RelayCompatibilityV135SelfTest
         packet[ip + 18] = 8;
         packet[ip + 19] = 7;
         packet[tcp] = 0xC3;
-        packet[tcp + 1] = 0x50; // 50000
+        packet[tcp + 1] = 0x50;
         packet[tcp + 2] = 0xC7;
-        packet[tcp + 3] = 0x38; // 51000
+        packet[tcp + 3] = 0x38;
         packet[tcp + 12] = 0x50;
         packet[tcp + 13] = flags;
         return packet;
