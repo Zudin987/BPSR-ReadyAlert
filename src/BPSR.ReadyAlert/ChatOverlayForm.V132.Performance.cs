@@ -35,5 +35,15 @@ internal sealed partial class ChatOverlayForm
         return parsed;
     }
 
+    internal void SelectV132TabForSelfTest(long id) => SelectTab(id);
+    internal Color GetV132ChannelColorForSelfTest(ChatChannel channel) => GetV132ChannelColor(channel);
     internal int V132ChannelColorCacheCountForSelfTest => _v132ChannelColorCache.Count;
+    internal int V132VisibleMessageCountForSelfTest => _messages.Items.Count;
+
+    internal void StopV132SettingsPrewarmForSelfTest()
+    {
+        _v124SettingsPrewarmTimer?.Stop();
+        _v124SettingsPrewarmTimer?.Dispose();
+        _v124SettingsPrewarmTimer = null;
+    }
 }
