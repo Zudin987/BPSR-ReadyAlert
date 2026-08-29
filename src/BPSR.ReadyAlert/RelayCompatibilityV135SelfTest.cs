@@ -9,6 +9,7 @@ internal static class RelayCompatibilityV135SelfTest
         TestCompressedFrameDownIsStandaloneAnchor();
         TestConsecutiveFramesProvideFallbackAnchor();
         TestUnknownSingleFrameIsNotTrusted();
+        TestIncrementalScanDoesNotRescanWholeRelayBuffer();
         TestUnsynchronizedBufferIsBounded();
         TestSynOwnerRefreshPolicyAndFlagParsing();
     }
@@ -39,12 +40,12 @@ internal static class RelayCompatibilityV135SelfTest
         var full = BuildKnownNotify(ChatProtocol.ServiceId, ChatProtocol.NotifyNewestChitChatMsgs);
         var partial = full.Take(13).ToList();
         var before = GameFrameSynchronizer.FindStrongFrame(partial, 2 * 1024 * 1024);
-        Check(234, !before.Found, "truncated chat frame was accepted as complete");
+        Check(234, !before.Found, "truncated chat frame was accepted before its routing header arrived");
 
         partial.AddRange(full.Skip(13));
         var after = GameFrameSynchronizer.FindStrongFrame(partial, 2 * 1024 * 1024);
         Check(235, after.Found && after.Offset == 0 && after.Size == full.Length,
-            "split chat frame did not synchronize after its remaining bytes arrived");
+            "split chat frame did not synchronize after its routing header arrived");
     }
 
     private static void TestCompressedFrameDownIsStandaloneAnchor()
@@ -86,6 +87,27 @@ internal static class RelayCompatibilityV135SelfTest
         var match = GameFrameSynchronizer.FindStrongFrame(frame, 2 * 1024 * 1024);
         Check(237, !match.Found,
             "one arbitrary complete Notify was trusted without a known service or consecutive frame");
+    }
+
+    private static void TestIncrementalScanDoesNotRescanWholeRelayBuffer()
+    {
+        var stream = Enumerable.Repeat((byte)0xFF, 64 * 1024).ToList();
+        GameFrameSynchronizer.ResetScanMetricsForSelfTest();
+
+        var first = GameFrameSynchronizer.FindStrongFrame(stream, 2 * 1024 * 1024);
+        var firstExamined = GameFrameSynchronizer.ExaminedOffsetsForSelfTest();
+        Check(243, !first.Found && firstExamined > 60_000,
+            "initial relay garbage scan did not exercise the large-buffer path");
+
+        for (var i = 0; i < 17; i++) stream.Add(0xFE);
+        var expectedOffset = stream.Count;
+        stream.AddRange(BuildKnownNotify(ChatProtocol.ServiceId, ChatProtocol.NotifyNewestChitChatMsgs));
+
+        var second = GameFrameSynchronizer.FindStrongFrame(stream, 2 * 1024 * 1024);
+        var incrementalExamined = GameFrameSynchronizer.ExaminedOffsetsForSelfTest() - firstExamined;
+        Check(244,
+            second.Found && second.Offset == expectedOffset && incrementalExamined < 256,
+            $"incremental relay scan re-walked too much buffered data offsets={incrementalExamined} match={second.Offset}");
     }
 
     private static void TestUnsynchronizedBufferIsBounded()
