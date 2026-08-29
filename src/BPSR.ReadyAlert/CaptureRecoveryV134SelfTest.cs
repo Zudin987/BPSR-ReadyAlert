@@ -9,6 +9,7 @@ internal static class CaptureRecoveryV134SelfTest
         TestProtocolStallWatchdog();
         TestTcpGapPolicy();
         TestAdapterRecoverySelection();
+        TestSharedRecoveryPlan();
         TestWaitingPlans();
     }
 
@@ -111,6 +112,32 @@ internal static class CaptureRecoveryV134SelfTest
             manual: true);
         Assert(missingManual is null,
             "missing manual adapter waits for that exact adapter instead of switching");
+    }
+
+    private static void TestSharedRecoveryPlan()
+    {
+        var wifi = new NpcapDevice(@"\\Device\\NPF_{WIFI}", "Wi-Fi Adapter");
+        var ethernet = new NpcapDevice(@"\\Device\\NPF_{ETH}", "Ethernet Adapter");
+        var shared = new NpcapCapturePlan(
+            [new NpcapCaptureCandidate(wifi.Name, wifi.Description, "Auto-selected")],
+            [wifi],
+            "old-config.json");
+        var trayReference = shared;
+
+        shared.ReplaceWith(new NpcapCapturePlan(
+            [new NpcapCaptureCandidate(ethernet.Name, ethernet.Description, "Recovery auto-selected")],
+            [ethernet, wifi],
+            "new-config.json"));
+
+        Assert(ReferenceEquals(shared, trayReference),
+            "automatic recovery keeps the same logical plan object shared with the tray");
+        Assert(trayReference.Primary.DeviceName == ethernet.Name &&
+               trayReference.Primary.Source == "Recovery auto-selected",
+            "shared tray plan sees the recovered primary adapter");
+        Assert(trayReference.AvailableDevices.Count == 2 &&
+               trayReference.AvailableDevices[0].Name == ethernet.Name &&
+               trayReference.ResonanceLogsConfigPath == "new-config.json",
+            "shared tray plan sees the refreshed adapter list and metadata");
     }
 
     private static void TestWaitingPlans()
