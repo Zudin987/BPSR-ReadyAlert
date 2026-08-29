@@ -39,7 +39,7 @@ if (-not $ffmpeg) {
     choco install ffmpeg -y --no-progress
     $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
 }
-if (-not $ffmpeg) { throw 'ffmpeg is required to prepare LetsDoThis.wav but could not be found.' }
+if (-not $ffmpeg) { throw 'ffmpeg is required to prepare alert WAV assets but could not be found.' }
 
 & $ffmpeg.Source -hide_banner -loglevel error -y -i $Mp3Temp -ac 1 -ar 48000 -c:a pcm_s16le $SoundDestination
 if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to prepare LetsDoThis.wav (exit code $LASTEXITCODE)." }
@@ -49,6 +49,85 @@ if (-not (Test-Path $SoundDestination) -or (Get-Item $SoundDestination).Length -
 $header = [IO.File]::ReadAllBytes($SoundDestination)[0..3]
 if ([Text.Encoding]::ASCII.GetString($header) -ne 'RIFF') { throw 'Generated LetsDoThis.wav does not have a valid RIFF header.' }
 Write-Host "Bundled alert WAV prepared. SHA-256: $((Get-FileHash $SoundDestination -Algorithm SHA256).Hash.ToLowerInvariant())"
+
+# Reconstruct the four user-supplied v1.3.1 core alert sounds from one lossless
+# FLAC archive. The source is split only because repository writes are text-only;
+# lexical sorting preserves the exact base64 stream. The archive container can
+# differ in tar metadata/compression while its four FLAC payloads remain identical,
+# so both the committed archive and every extracted FLAC are integrity checked.
+$CoreSourceChunks = @(
+    Get-ChildItem -Path $AudioSourceDir -File |
+        Where-Object { $_.Name -like 'CoreAlerts.user.flac.tar.xz.b64.*' } |
+        Sort-Object Name
+)
+if ($CoreSourceChunks.Count -lt 21) {
+    throw "Bundled core alert source is incomplete: expected at least 21 ordered chunks, found $($CoreSourceChunks.Count)."
+}
+
+$CoreEncoded = ($CoreSourceChunks | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ''
+$CoreEncoded = $CoreEncoded -replace '\s', ''
+if ($CoreEncoded.Length -ne 330060) {
+    throw "Bundled core alert base64 length mismatch: expected 330060, got $($CoreEncoded.Length)."
+}
+
+try {
+    $CoreArchiveBytes = [Convert]::FromBase64String($CoreEncoded)
+} catch {
+    throw "Bundled core alert source is not valid base64: $($_.Exception.Message)"
+}
+if ($CoreArchiveBytes.Length -ne 247544) {
+    throw "Bundled core alert archive length mismatch: expected 247544 bytes, got $($CoreArchiveBytes.Length)."
+}
+
+$CoreArchiveTemp = Join-Path $env:TEMP 'BPSR-ReadyAlert-CoreAlerts.tar.xz'
+$CoreExtractTemp = Join-Path $env:TEMP ('BPSR-ReadyAlert-CoreAlerts-' + [Guid]::NewGuid().ToString('N'))
+[IO.File]::WriteAllBytes($CoreArchiveTemp, $CoreArchiveBytes)
+$CoreArchiveHash = (Get-FileHash $CoreArchiveTemp -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($CoreArchiveHash -ne '1e346ef2aed3dc36ce4edd9f36c6c90cc42dcbe47921fb5b2086d6625d7b0b17') {
+    throw "Bundled core alert archive SHA-256 mismatch: expected 1e346ef2aed3dc36ce4edd9f36c6c90cc42dcbe47921fb5b2086d6625d7b0b17, got $CoreArchiveHash."
+}
+
+New-Item -ItemType Directory -Force -Path $CoreExtractTemp | Out-Null
+try {
+    $tar = Get-Command tar.exe -ErrorAction SilentlyContinue
+    if (-not $tar) { $tar = Get-Command tar -ErrorAction SilentlyContinue }
+    if (-not $tar) { throw 'tar is required to unpack bundled core alert audio sources but could not be found.' }
+
+    & $tar.Source -xf $CoreArchiveTemp -C $CoreExtractTemp
+    if ($LASTEXITCODE -ne 0) { throw "tar failed to unpack bundled core alert sources (exit code $LASTEXITCODE)." }
+
+    $CoreMappings = @(
+        @{ Source = 'queue.flac';         SourceHash = '4dbdc89817a143446784651ddf18f29fded3ad330b04a616d66e678e34bb54bb'; Destination = 'Queue.wav' },
+        @{ Source = 'ready-check.flac';   SourceHash = '2696249963e67c1e5e1fad78b779f1636cfb21f4e4c60e4e95c139766387aba6'; Destination = 'ReadyCheck.wav' },
+        @{ Source = 'party-invite.flac';  SourceHash = 'acb17af6c5fb929782ec74ad5bd44cc31e7d6a5c0752ccc5513f23c2a94b4915'; Destination = 'PartyInvite.wav' },
+        @{ Source = 'party-request.flac'; SourceHash = '8a4aa9a5995d4fd5eb083964726ef362ee71c58cbc0804423c7607db460ecfe3'; Destination = 'PartyRequest.wav' }
+    )
+
+    foreach ($mapping in $CoreMappings) {
+        $source = Join-Path $CoreExtractTemp $mapping.Source
+        $destination = Join-Path $Root ('src\BPSR.ReadyAlert\Assets\' + $mapping.Destination)
+        if (-not (Test-Path $source)) { throw "Bundled core alert source is missing $($mapping.Source)." }
+
+        $sourceHash = (Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($sourceHash -ne $mapping.SourceHash) {
+            throw "Bundled $($mapping.Source) SHA-256 mismatch: expected $($mapping.SourceHash), got $sourceHash."
+        }
+
+        & $ffmpeg.Source -hide_banner -loglevel error -y -i $source -ac 1 -ar 44100 -c:a pcm_s16le $destination
+        if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to prepare $($mapping.Destination) (exit code $LASTEXITCODE)." }
+        if (-not (Test-Path $destination) -or (Get-Item $destination).Length -le 44) {
+            throw "$($mapping.Destination) was not generated correctly."
+        }
+        $wavHeader = [IO.File]::ReadAllBytes($destination)[0..3]
+        if ([Text.Encoding]::ASCII.GetString($wavHeader) -ne 'RIFF') {
+            throw "Generated $($mapping.Destination) does not have a valid RIFF header."
+        }
+        Write-Host "$($mapping.Destination) prepared from verified FLAC. SHA-256: $((Get-FileHash $destination -Algorithm SHA256).Hash.ToLowerInvariant())"
+    }
+} finally {
+    Remove-Item $CoreArchiveTemp -Force -ErrorAction SilentlyContinue
+    Remove-Item $CoreExtractTemp -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # Exact icon policy: do not resize, crop, pad or re-render the supplied artwork.
 # The 16x16 frame is used by Explorer Details/Small Icons and the system tray;

@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BPSR-ReadyAlert</AssemblyName>
     <RootNamespace>BPSR.ReadyAlert</RootNamespace>
-    <Version>1.3.0</Version>
+    <Version>1.3.1</Version>
     <Authors>Zudin987</Authors>
     <Description>Portable Ready Check, matchmaking, party-invite/request alerts, and optional chat overlay companion for Blue Protocol: Star Resonance.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -30,11 +30,19 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\LetsDoThis.wav" LogicalName="BPSR.ReadyAlert.Assets.LetsDoThis.wav" />
+    <EmbeddedResource Include="Assets\Queue.wav" LogicalName="BPSR.ReadyAlert.Assets.Queue.wav" />
+    <EmbeddedResource Include="Assets\ReadyCheck.wav" LogicalName="BPSR.ReadyAlert.Assets.ReadyCheck.wav" />
+    <EmbeddedResource Include="Assets\PartyInvite.wav" LogicalName="BPSR.ReadyAlert.Assets.PartyInvite.wav" />
+    <EmbeddedResource Include="Assets\PartyRequest.wav" LogicalName="BPSR.ReadyAlert.Assets.PartyRequest.wav" />
     <EmbeddedResource Include="Assets\App.ico" LogicalName="BPSR.ReadyAlert.Assets.App.ico" />
   </ItemGroup>
 
   <Target Name="RequireBuildInputs" BeforeTargets="BeforeBuild">
     <Error Condition="!Exists('Assets\App.ico')" Text="Missing Assets/App.ico." />
     <Error Condition="!Exists('Assets\LetsDoThis.wav')" Text="Missing Assets/LetsDoThis.wav. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('Assets\Queue.wav')" Text="Missing Assets/Queue.wav. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('Assets\ReadyCheck.wav')" Text="Missing Assets/ReadyCheck.wav. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('Assets\PartyInvite.wav')" Text="Missing Assets/PartyInvite.wav. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
+    <Error Condition="!Exists('Assets\PartyRequest.wav')" Text="Missing Assets/PartyRequest.wav. Run scripts/prepare-build-assets.ps1 or use the GitHub Actions build." />
   </Target>
 </Project>
