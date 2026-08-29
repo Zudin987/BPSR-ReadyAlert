@@ -35,6 +35,7 @@ internal static class Program
                 RunSmokeStep(CoreAlertV131SelfTest.Run, 27);
                 RunSmokeStep(UiPerformanceV132SelfTest.Run, 28);
                 RunSmokeStep(PlayerIdentityV133SelfTest.Run, 29);
+                RunSmokeStep(CaptureRecoveryV134SelfTest.Run, 30);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -97,16 +98,31 @@ internal static class Program
                 PlayerIdentityCaptureBridge.ConfigureSpeechEngine(settings.SpeechTranslation);
 
             var beforeNpcap = startup.ElapsedMilliseconds;
-            var capturePlan = NpcapDeviceSelector.SelectPlan(settings);
+            NpcapCapturePlan capturePlan;
+            try
+            {
+                capturePlan = NpcapDeviceSelector.SelectPlan(settings);
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message.Contains("no capture adapters", StringComparison.OrdinalIgnoreCase))
+            {
+                // Npcap itself is present, but Windows currently exposes no usable
+                // capture adapter. Keep the tray/UI alive and let CaptureEngine's
+                // self-healing loop discover the adapter when networking returns.
+                AppLog.Write("startup: no Npcap adapter currently available; entering recovery mode");
+                capturePlan = CaptureRecoveryPlanner.CreateWaitingPlan(settings.NpcapDeviceName);
+            }
             AppLog.Write($"startup: Npcap plan selected in {startup.ElapsedMilliseconds - beforeNpcap} ms");
 
-            if (!string.IsNullOrWhiteSpace(settings.NpcapDeviceName) &&
-                !capturePlan.AvailableDevices.Any(d =>
-                    string.Equals(d.Name, settings.NpcapDeviceName, StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrWhiteSpace(settings.NpcapDeviceName))
             {
-                AppLog.Write("settings: clearing unavailable NpcapDeviceName=" + settings.NpcapDeviceName);
-                settings.NpcapDeviceName = string.Empty;
-                settingsStore.Save(settings);
+                // A user-selected adapter is an explicit preference. Older versions
+                // silently cleared it when the NIC was temporarily unavailable at
+                // startup, which defeated recovery after USB/Wi-Fi reconnects.
+                capturePlan = CaptureRecoveryPlanner.PreserveUnavailableManual(
+                    settings.NpcapDeviceName.Trim(),
+                    capturePlan);
+                AppLog.Write("startup: preserving manual Npcap adapter for self-healing recovery=" + settings.NpcapDeviceName);
             }
 
             // The tray/capture context is the startup-critical path. Creating a Start
