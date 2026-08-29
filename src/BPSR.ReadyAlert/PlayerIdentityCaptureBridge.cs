@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace BPSR.ReadyAlert;
@@ -21,6 +22,8 @@ internal static class PlayerIdentityCaptureBridge
 
     private static readonly object Gate = new();
     private static DetectedPlayerIdentity? _current;
+    private static ChatSpeechTranslationSettings? _speechTemplate;
+    private static ConcurrentQueue<ChatTranslationResult>? _translationResults;
     private static int _loggedParseFailure;
 
     internal static event Action<DetectedPlayerIdentity?>? IdentityChanged;
@@ -50,21 +53,46 @@ internal static class PlayerIdentityCaptureBridge
         return true;
     }
 
+    /// <summary>
+    /// Centralizes speech-engine configuration so the persisted/manual username stays
+    /// separate from the transient auto-detected name. Existing translation result
+    /// routing is retained when detection refreshes the TTS filter from the capture
+    /// thread.
+    /// </summary>
+    internal static void ConfigureSpeechEngine(
+        ChatSpeechTranslationSettings settings,
+        ConcurrentQueue<ChatTranslationResult>? translationResults = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var template = CloneSpeechSettings(settings, settings.IgnoreOwnUsername);
+        template.Normalize();
+
+        DetectedPlayerIdentity? detected;
+        ConcurrentQueue<ChatTranslationResult>? results;
+        lock (Gate)
+        {
+            _speechTemplate = template;
+            if (translationResults is not null)
+                _translationResults = translationResults;
+            detected = _current;
+            results = _translationResults;
+        }
+
+        var runtime = CloneSpeechSettings(
+            template,
+            EffectiveUsername(template.IgnoreOwnUsername, detected));
+        ChatSpeechTranslationEngine.Configure(runtime, results);
+    }
+
     internal static bool IsOwnUsername(string? senderName, string? manualOverride)
     {
-        var expected = NormalizeUsername(manualOverride);
-        if (expected.Length == 0)
-            expected = Current?.Name ?? string.Empty;
-
+        var expected = EffectiveUsername(manualOverride, Current);
         return expected.Length > 0 &&
                string.Equals(expected, senderName?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string EffectiveUsername(string? manualOverride)
-    {
-        var manual = NormalizeUsername(manualOverride);
-        return manual.Length > 0 ? manual : Current?.Name ?? string.Empty;
-    }
+    internal static string EffectiveUsername(string? manualOverride) =>
+        EffectiveUsername(manualOverride, Current);
 
     internal static void ClearCurrent()
     {
@@ -77,6 +105,7 @@ internal static class PlayerIdentityCaptureBridge
         }
 
         NotifyHandlers(handlers, null);
+        RefreshSpeechEngine();
     }
 
     private static bool Publish(DetectedPlayerIdentity identity)
@@ -104,7 +133,56 @@ internal static class PlayerIdentityCaptureBridge
         }
 
         NotifyHandlers(handlers, identity);
+        RefreshSpeechEngine();
         return true;
+    }
+
+    private static void RefreshSpeechEngine()
+    {
+        ChatSpeechTranslationSettings? template;
+        ConcurrentQueue<ChatTranslationResult>? results;
+        DetectedPlayerIdentity? detected;
+        lock (Gate)
+        {
+            template = _speechTemplate is null
+                ? null
+                : CloneSpeechSettings(_speechTemplate, _speechTemplate.IgnoreOwnUsername);
+            results = _translationResults;
+            detected = _current;
+        }
+
+        if (template is null) return;
+        var runtime = CloneSpeechSettings(
+            template,
+            EffectiveUsername(template.IgnoreOwnUsername, detected));
+        ChatSpeechTranslationEngine.Configure(runtime, results);
+    }
+
+    private static ChatSpeechTranslationSettings CloneSpeechSettings(
+        ChatSpeechTranslationSettings source,
+        string ignoreOwnUsername) => new()
+    {
+        TranslationEnabled = source.TranslationEnabled,
+        TranslationWorld = source.TranslationWorld,
+        TranslationGuild = source.TranslationGuild,
+        TranslationPartyTeam = source.TranslationPartyTeam,
+        ShowTranslationInOverlay = source.ShowTranslationInOverlay,
+        TtsEnabled = source.TtsEnabled,
+        TtsGuild = source.TtsGuild,
+        TtsPartyTeam = source.TtsPartyTeam,
+        ReadSenderName = source.ReadSenderName,
+        IgnoreOwnUsername = ignoreOwnUsername,
+        TtsVolume = source.TtsVolume,
+        HideEmojiMessages = source.HideEmojiMessages,
+        HideLinkedItemMessages = source.HideLinkedItemMessages
+    };
+
+    private static string EffectiveUsername(
+        string? manualOverride,
+        DetectedPlayerIdentity? detected)
+    {
+        var manual = NormalizeUsername(manualOverride);
+        return manual.Length > 0 ? manual : detected?.Name ?? string.Empty;
     }
 
     private static void NotifyHandlers(
