@@ -6,6 +6,7 @@ internal static class RelayCompatibilityV135SelfTest
     {
         TestFalseIncompleteHeaderCannotHideChat();
         TestSplitStrongFrameWaitsOnlyForCompletion();
+        TestCompressedFrameDownIsStandaloneAnchor();
         TestConsecutiveFramesProvideFallbackAnchor();
         TestUnknownSingleFrameIsNotTrusted();
         TestUnsynchronizedBufferIsBounded();
@@ -44,6 +45,23 @@ internal static class RelayCompatibilityV135SelfTest
         var after = GameFrameSynchronizer.FindStrongFrame(partial, 2 * 1024 * 1024);
         Check(235, after.Found && after.Offset == 0 && after.Size == full.Length,
             "split chat frame did not synchronize after its remaining bytes arrived");
+    }
+
+    private static void TestCompressedFrameDownIsStandaloneAnchor()
+    {
+        var stream = new List<byte> { 0x91, 0x92, 0x93, 0x94 };
+        var frame = new byte[18];
+        Array.Copy(BuildHeaderOnly(frame.Length, 0x8006), frame, 6);
+        // FrameDown sequence occupies bytes 6..9. Standard zstd magic starts at 10.
+        frame[10] = 0x28;
+        frame[11] = 0xB5;
+        frame[12] = 0x2F;
+        frame[13] = 0xFD;
+        stream.AddRange(frame);
+
+        var match = GameFrameSynchronizer.FindStrongFrame(stream, 2 * 1024 * 1024);
+        Check(242, match.Found && match.Offset == 4 && match.MessageType == 6,
+            "standalone compressed FrameDown with zstd signature was not a strong sync anchor");
     }
 
     private static void TestConsecutiveFramesProvideFallbackAnchor()
