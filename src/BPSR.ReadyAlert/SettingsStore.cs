@@ -192,6 +192,7 @@ internal sealed class SettingsStore
         ChatContentVisibility.Configure(
             settings.SpeechTranslation.HideEmojiMessages,
             settings.SpeechTranslation.HideLinkedItemMessages);
+        ChatLocalLogService.RetentionHours = settings.Chat.LocalChatLogRetentionHours;
         ChatLocalLogService.Enabled = settings.Chat.KeepLocalChatLogs24Hours;
     }
 }
