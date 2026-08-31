@@ -31,6 +31,7 @@ internal static class ChatLocalLogV136SelfTest
         finally
         {
             ChatLocalLogService.Enabled = false;
+            ChatLocalLogService.RetentionHours = ChatLocalLogRetention.DefaultHours;
             ChatCaptureBridge.Enabled = false;
             try { Directory.Delete(root, recursive: true); } catch { }
         }
@@ -70,38 +71,71 @@ internal static class ChatLocalLogV136SelfTest
         Directory.CreateDirectory(directory);
         using var writer = new ChatLocalLogWriter(directory, startWorker: false);
         var now = new DateTimeOffset(2026, 8, 31, 12, 30, 0, TimeSpan.Zero);
-        var keep2359 = Message(now.AddHours(-23).AddMinutes(-59), ChatChannel.World, "Keep2359", "keep");
-        var keepExact24 = Message(now.AddHours(-24), ChatChannel.Team, "Keep24", "keep exact cutoff");
-        var removeOld = Message(now.AddHours(-24).AddMinutes(-1), ChatChannel.Union, "Remove2401", "remove");
 
-        // Deliberately mix old/new records in one boundary file so cleanup cannot
-        // simply trust an hourly filename.
+        Assert(writer.RetentionHoursForSelfTest == ChatLocalLogRetention.SevenDaysHours,
+            "new writer defaults to seven-day retention");
+
+        var keepSevenMinusMinute = Message(now.AddDays(-7).AddMinutes(1), ChatChannel.World, "Keep7Less", "keep");
+        var keepExactSeven = Message(now.AddDays(-7), ChatChannel.Team, "Keep7Exact", "keep exact cutoff");
+        var removeSevenPlusMinute = Message(now.AddDays(-7).AddMinutes(-1), ChatChannel.Union, "Remove7Plus", "remove");
+
         var boundary = Path.Combine(directory, "boundary.txt");
         File.WriteAllLines(boundary,
         [
-            ChatLocalLogWriter.FormatLineForSelfTest(removeOld),
-            ChatLocalLogWriter.FormatLineForSelfTest(keepExact24),
-            ChatLocalLogWriter.FormatLineForSelfTest(keep2359)
+            ChatLocalLogWriter.FormatLineForSelfTest(removeSevenPlusMinute),
+            ChatLocalLogWriter.FormatLineForSelfTest(keepExactSeven),
+            ChatLocalLogWriter.FormatLineForSelfTest(keepSevenMinusMinute)
         ], Encoding.UTF8);
 
         writer.CleanupForSelfTest(now);
         var result = File.ReadAllText(boundary, Encoding.UTF8);
-        Assert(!result.Contains("Remove2401", StringComparison.Ordinal), "record older than 24 hours is removed");
-        Assert(result.Contains("Keep24", StringComparison.Ordinal), "record exactly 24 hours old remains");
-        Assert(result.Contains("Keep2359", StringComparison.Ordinal), "record 23h59m old remains");
+        Assert(!result.Contains("Remove7Plus", StringComparison.Ordinal), "record older than seven days is removed by default");
+        Assert(result.Contains("Keep7Exact", StringComparison.Ordinal), "record exactly seven days old remains by default");
+        Assert(result.Contains("Keep7Less", StringComparison.Ordinal), "record just inside seven days remains by default");
 
+        // Verify both alternate UI choices use true rolling line-level boundaries.
+        writer.SetRetentionHours(ChatLocalLogRetention.OneDayHours);
+        Assert(writer.RetentionHoursForSelfTest == 24, "24-hour retention selection is applied");
+        var oneDayPath = Path.Combine(directory, "one-day-boundary.txt");
+        File.WriteAllLines(oneDayPath,
+        [
+            ChatLocalLogWriter.FormatLineForSelfTest(Message(now.AddHours(-24).AddMinutes(-1), ChatChannel.World, "Remove2401", "remove")),
+            ChatLocalLogWriter.FormatLineForSelfTest(Message(now.AddHours(-24), ChatChannel.Team, "Keep24", "keep")),
+            ChatLocalLogWriter.FormatLineForSelfTest(Message(now.AddHours(-23).AddMinutes(-59), ChatChannel.Union, "Keep2359", "keep"))
+        ], Encoding.UTF8);
+        writer.CleanupForSelfTest(now);
+        var oneDay = File.ReadAllText(oneDayPath, Encoding.UTF8);
+        Assert(!oneDay.Contains("Remove2401", StringComparison.Ordinal) &&
+               oneDay.Contains("Keep24", StringComparison.Ordinal) &&
+               oneDay.Contains("Keep2359", StringComparison.Ordinal),
+            "24-hour selection keeps exact cutoff and removes older records");
+
+        writer.SetRetentionHours(ChatLocalLogRetention.ThreeDaysHours);
+        Assert(writer.RetentionHoursForSelfTest == 72, "three-day retention selection is applied");
+        var threeDayPath = Path.Combine(directory, "three-day-boundary.txt");
+        File.WriteAllLines(threeDayPath,
+        [
+            ChatLocalLogWriter.FormatLineForSelfTest(Message(now.AddHours(-72).AddMinutes(-1), ChatChannel.World, "Remove7201", "remove")),
+            ChatLocalLogWriter.FormatLineForSelfTest(Message(now.AddHours(-72), ChatChannel.Team, "Keep72", "keep"))
+        ], Encoding.UTF8);
+        writer.CleanupForSelfTest(now);
+        var threeDay = File.ReadAllText(threeDayPath, Encoding.UTF8);
+        Assert(!threeDay.Contains("Remove7201", StringComparison.Ordinal) && threeDay.Contains("Keep72", StringComparison.Ordinal),
+            "three-day selection keeps exact cutoff and removes older records");
+
+        writer.SetRetentionHours(ChatLocalLogRetention.SevenDaysHours);
         foreach (var name in new[] { "old-a.txt", "old-b.txt", "old-c.txt" })
-            File.WriteAllText(Path.Combine(directory, name), ChatLocalLogWriter.FormatLineForSelfTest(removeOld) + Environment.NewLine, Encoding.UTF8);
+            File.WriteAllText(Path.Combine(directory, name), ChatLocalLogWriter.FormatLineForSelfTest(removeSevenPlusMinute) + Environment.NewLine, Encoding.UTF8);
         writer.CleanupForSelfTest(now);
         Assert(new[] { "old-a.txt", "old-b.txt", "old-c.txt" }.All(x => !File.Exists(Path.Combine(directory, x))),
-            "multiple fully expired log files are removed");
+            "multiple fully expired seven-day log files are removed");
     }
 
     private static void TestStartupAndCorruptCleanup(string root)
     {
         var startupDir = Path.Combine(root, "startup");
         Directory.CreateDirectory(startupDir);
-        var old = Message(DateTimeOffset.UtcNow.AddHours(-30), ChatChannel.World, "Old", "expired");
+        var old = Message(DateTimeOffset.UtcNow.AddDays(-8), ChatChannel.World, "Old", "expired");
         var oldPath = Path.Combine(startupDir, "old-on-startup.txt");
         File.WriteAllText(oldPath, ChatLocalLogWriter.FormatLineForSelfTest(old) + Environment.NewLine, Encoding.UTF8);
 
@@ -109,7 +143,7 @@ internal static class ChatLocalLogV136SelfTest
         {
             Assert(startupWriter.WaitForStartupCleanupForSelfTest(TimeSpan.FromSeconds(5)),
                 "startup cleanup completes on the background writer");
-            Assert(!File.Exists(oldPath), "startup cleanup removes chat older than 24 hours");
+            Assert(!File.Exists(oldPath), "startup cleanup removes chat older than seven days by default");
         }
 
         var corruptDir = Path.Combine(root, "corrupt");
@@ -138,7 +172,7 @@ internal static class ChatLocalLogV136SelfTest
         Directory.CreateDirectory(directory);
         using var writer = new ChatLocalLogWriter(directory, startWorker: false);
         var now = DateTimeOffset.UtcNow;
-        var expired = Message(now.AddHours(-30), ChatChannel.World, "Expired", "locked old line");
+        var expired = Message(now.AddDays(-8), ChatChannel.World, "Expired", "locked old line");
         var lockedCleanupPath = Path.Combine(directory, "locked-cleanup.txt");
         File.WriteAllText(lockedCleanupPath, ChatLocalLogWriter.FormatLineForSelfTest(expired) + Environment.NewLine, Encoding.UTF8);
 
@@ -190,24 +224,38 @@ internal static class ChatLocalLogV136SelfTest
         var loaded = store.Load();
         Assert(!loaded.ChatOverlayEnabled && !loaded.Chat.TopMost && loaded.Chat.MaxHistory == 123,
             "legacy settings keep unrelated saved values during v1.3.6 load");
-        Assert(loaded.Chat.KeepLocalChatLogs24Hours,
-            "old settings.json missing the new field safely normalizes to 24-hour local history enabled");
+        Assert(loaded.Chat.KeepLocalChatLogs24Hours && loaded.Chat.LocalChatLogRetentionHours == ChatLocalLogRetention.SevenDaysHours,
+            "old settings.json missing retention safely defaults to enabled seven-day local history");
+        Assert(ChatLocalLogService.RetentionHours == ChatLocalLogRetention.SevenDaysHours,
+            "loaded seven-day default is applied to the runtime logger service");
 
         loaded.Chat.KeepLocalChatLogs24Hours = false;
-        Assert(store.Save(loaded), "new chat-log preference saves through existing atomic settings store");
+        loaded.Chat.LocalChatLogRetentionHours = ChatLocalLogRetention.ThreeDaysHours;
+        Assert(store.Save(loaded), "chat-log enabled and retention preferences save through existing atomic settings store");
         var reloaded = new SettingsStore(path).Load();
-        Assert(!reloaded.Chat.KeepLocalChatLogs24Hours,
-            "explicit local chat-log preference survives settings round-trip");
+        Assert(!reloaded.Chat.KeepLocalChatLogs24Hours &&
+               reloaded.Chat.LocalChatLogRetentionHours == ChatLocalLogRetention.ThreeDaysHours,
+            "explicit three-day chat-log preference survives settings round-trip");
+
+        reloaded.Chat.LocalChatLogRetentionHours = 999;
+        Assert(store.Save(reloaded), "invalid manually supplied retention still saves after normalization");
+        var normalized = new SettingsStore(path).Load();
+        Assert(normalized.Chat.LocalChatLogRetentionHours == ChatLocalLogRetention.SevenDaysHours,
+            "unsupported retention values normalize to safe seven-day default");
     }
 
     private static void TestSettingsUi()
     {
         var settings = DefaultSettingsProfile.CreateChatOverlay();
         settings.KeepLocalChatLogs24Hours = true;
+        settings.LocalChatLogRetentionHours = ChatLocalLogRetention.SevenDaysHours;
         using var form = new ChatGeneralSettingsForm(settings);
         var state = form.GetV136ChatLogUiForSelfTest();
-        Assert(state.Checked && state.Text.Contains("24 hours", StringComparison.OrdinalIgnoreCase),
-            "Settings exposes the enabled 24-hour local chat history preference");
+        Assert(state.Checked && state.Text.Contains("local chat logs", StringComparison.OrdinalIgnoreCase),
+            "Settings exposes the local chat-history enable preference");
+        Assert(state.RetentionHours == ChatLocalLogRetention.SevenDaysHours &&
+               state.RetentionText.Contains("7 days", StringComparison.OrdinalIgnoreCase),
+            "Settings exposes seven days as the default retention selection");
     }
 
     private static void TestSharedCaptureRouting()
@@ -227,7 +275,6 @@ internal static class ChatLocalLogV136SelfTest
         Assert(!ChatNotificationEngine.Enabled && !ChatSpeechTranslationEngine.Enabled,
             "logging-only mode does not enable notification, translation or TTS routing");
 
-        // Verify the pre-existing overlay route still receives the same parsed event.
         ChatLocalLogService.Enabled = false;
         ChatCaptureBridge.Enabled = true;
         ChatNotificationEngine.Enabled = false;
@@ -272,7 +319,7 @@ internal static class ChatLocalLogV136SelfTest
 
         Assert(writer.GetStatus().Written == count, "high-volume synthetic batch writes every accepted record");
         Assert(writeWatch.Elapsed < TimeSpan.FromSeconds(5), "5,000-message batch write stays within a broad CI CPU/I/O guard");
-        Assert(cleanupWatch.Elapsed < TimeSpan.FromSeconds(5), "5,000-message retention scan stays within a broad CI CPU/I/O guard");
+        Assert(cleanupWatch.Elapsed < TimeSpan.FromSeconds(5), "5,000-message seven-day retention scan stays within a broad CI CPU/I/O guard");
         Assert(allocated < 96L * 1024 * 1024, "5,000-message batch avoids unreasonable managed allocation growth");
 
         try
@@ -284,7 +331,8 @@ internal static class ChatLocalLogV136SelfTest
                     $"chatlog_v136_write_ms={writeWatch.Elapsed.TotalMilliseconds:F2}",
                     $"chatlog_v136_cleanup_ms={cleanupWatch.Elapsed.TotalMilliseconds:F2}",
                     $"chatlog_v136_alloc_mib={allocated / 1024d / 1024d:F2}",
-                    $"chatlog_v136_queue_capacity={ChatLocalLogWriter.MaxQueuedMessages}"
+                    $"chatlog_v136_queue_capacity={ChatLocalLogWriter.MaxQueuedMessages}",
+                    $"chatlog_v136_default_retention_hours={ChatLocalLogRetention.DefaultHours}"
                 ]);
         }
         catch { }
