@@ -40,6 +40,7 @@ internal static class Program
                 RunSmokeStep(ChatLocalLogV136SelfTest.Run, 32);
                 RunSmokeStep(AppLogV136SelfTest.Run, 33);
                 RunSmokeStep(TranslationLanguageLabelV136SelfTest.Run, 34);
+                RunSmokeStep(ReleaseAuditV136SelfTest.Run, 35);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -84,14 +85,17 @@ internal static class Program
             AppLog.Initialize(paths.LogPath);
             AppLog.Write($"startup: version={AppVersion.Current} exe={Environment.ProcessPath}");
 
-            // Chat-log directory creation, startup retention cleanup, and all later
-            // chat filesystem I/O stay on this service's dedicated background thread.
-            ChatLocalLogService.Initialize(paths.ChatLogsDir);
-
             RuntimeAssets.Ensure(paths);
 
             var settingsStore = new SettingsStore(paths.SettingsPath);
             var settings = settingsStore.Load();
+
+            // SettingsStore applies the persisted local-log retention/enable values
+            // even before the writer exists. Start the writer only after that load so
+            // its first background startup cleanup uses the user's actual 24h/3d/7d
+            // selection instead of performing a redundant default-retention scan.
+            ChatLocalLogService.Initialize(paths.ChatLogsDir);
+
             var launcher = new ResonanceLogsLauncher(settings, settingsStore);
 
             ChatNotificationEngine.Configure(settings.Chat, paths.AlertSoundPath);
