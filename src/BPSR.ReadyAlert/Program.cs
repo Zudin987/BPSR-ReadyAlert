@@ -37,6 +37,7 @@ internal static class Program
                 RunSmokeStep(PlayerIdentityV133SelfTest.Run, 29);
                 RunSmokeStep(CaptureRecoveryV134SelfTest.Run, 30);
                 RunSmokeStep(RelayCompatibilityV135SelfTest.Run, 31);
+                RunSmokeStep(ChatLocalLogV136SelfTest.Run, 32);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -80,6 +81,10 @@ internal static class Program
             var paths = AppPaths.Create();
             AppLog.Initialize(paths.LogPath);
             AppLog.Write($"startup: version={AppVersion.Current} exe={Environment.ProcessPath}");
+
+            // Chat-log directory creation, startup retention cleanup, and all later
+            // chat filesystem I/O stay on this service's dedicated background thread.
+            ChatLocalLogService.Initialize(paths.ChatLogsDir);
 
             RuntimeAssets.Ensure(paths);
 
@@ -148,6 +153,7 @@ internal static class Program
         }
         finally
         {
+            ChatLocalLogService.Shutdown();
             ChatSpeechTranslationEngine.Shutdown();
             try { mutex.ReleaseMutex(); } catch { }
         }
