@@ -113,6 +113,7 @@ internal sealed partial class ChatGeneralSettingsForm
         _settings.CollapseSide = _collapseSide.SelectedItem?.ToString() ?? "Right";
         _settings.MaxHistory = (int)_maxHistory.Value;
         _settings.KeepLocalChatLogs24Hours = _keepLocalChatLogs.Checked;
+        _settings.LocalChatLogRetentionHours = SelectedChatLogRetentionHours();
 
         _settings.HighlightIfMatches = _highlight.Text.Trim();
         _settings.HighlightColor = _highlightColorValue;
@@ -219,6 +220,8 @@ internal sealed partial class ChatGeneralSettingsForm
         _collapseSide.SelectedItem = source.CollapseSide;
         _maxHistory.Value = Math.Clamp(source.MaxHistory, (int)_maxHistory.Minimum, (int)_maxHistory.Maximum);
         _keepLocalChatLogs.Checked = source.KeepLocalChatLogs24Hours;
+        _chatLogRetention.SelectedIndex = RetentionIndexFromHours(source.LocalChatLogRetentionHours);
+        _chatLogRetention.Enabled = _keepLocalChatLogs.Checked;
 
         _highlight.Text = source.HighlightIfMatches;
         _highlightColorValue = source.HighlightColor;
