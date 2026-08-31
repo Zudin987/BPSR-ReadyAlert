@@ -38,6 +38,7 @@ internal static class Program
                 RunSmokeStep(CaptureRecoveryV134SelfTest.Run, 30);
                 RunSmokeStep(RelayCompatibilityV135SelfTest.Run, 31);
                 RunSmokeStep(ChatLocalLogV136SelfTest.Run, 32);
+                RunSmokeStep(AppLogV136SelfTest.Run, 33);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -155,6 +156,7 @@ internal static class Program
         {
             ChatLocalLogService.Shutdown();
             ChatSpeechTranslationEngine.Shutdown();
+            AppLog.Shutdown();
             try { mutex.ReleaseMutex(); } catch { }
         }
     }
