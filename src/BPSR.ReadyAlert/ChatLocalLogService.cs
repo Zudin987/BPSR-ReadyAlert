@@ -24,6 +24,7 @@ internal static class ChatLocalLogService
     private static readonly object Gate = new();
     private static ChatLocalLogWriter? _writer;
     private static volatile bool _enabled;
+    private static int _retentionHours = ChatLocalLogRetention.DefaultHours;
 
     internal static bool Enabled
     {
@@ -32,6 +33,17 @@ internal static class ChatLocalLogService
         {
             _enabled = value;
             Volatile.Read(ref _writer)?.SetEnabled(value);
+        }
+    }
+
+    internal static int RetentionHours
+    {
+        get => Volatile.Read(ref _retentionHours);
+        set
+        {
+            var normalized = ChatLocalLogRetention.NormalizeHours(value);
+            Volatile.Write(ref _retentionHours, normalized);
+            Volatile.Read(ref _writer)?.SetRetentionHours(normalized);
         }
     }
 
@@ -44,6 +56,7 @@ internal static class ChatLocalLogService
         {
             if (_writer is not null) return;
             var writer = new ChatLocalLogWriter(directory, startWorker: true);
+            writer.SetRetentionHours(RetentionHours);
             writer.SetEnabled(_enabled);
             Volatile.Write(ref _writer, writer);
         }
@@ -113,7 +126,6 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private const int MaxQueuedDiagnostics = 64;
     private const int MaxBatchMessages = 256;
     private const int MaxLogLineChars = 256 * 1024;
-    private static readonly TimeSpan Retention = TimeSpan.FromHours(24);
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan FutureTimestampTolerance = TimeSpan.FromMinutes(5);
     private static readonly UTF8Encoding Utf8NoBom = new(false);
@@ -126,6 +138,8 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private readonly ManualResetEventSlim _startupCleanupDone = new(false);
     private volatile bool _enabled;
     private volatile bool _stopping;
+    private int _retentionHours = ChatLocalLogRetention.DefaultHours;
+    private int _cleanupRequested;
     private int _queueCount;
     private int _diagnosticCount;
     private long _enqueued;
@@ -160,10 +174,27 @@ internal sealed class ChatLocalLogWriter : IDisposable
     {
         _enabled = enabled;
         if (enabled)
-        {
-            try { _signal.Set(); }
-            catch (ObjectDisposedException) { }
-        }
+            SignalWorker();
+    }
+
+    internal void SetRetentionHours(int hours)
+    {
+        var normalized = ChatLocalLogRetention.NormalizeHours(hours);
+        if (Interlocked.Exchange(ref _retentionHours, normalized) == normalized) return;
+
+        // A shorter selection should take effect promptly without doing any filesystem
+        // work on the settings/UI thread. The background worker performs the cleanup.
+        Interlocked.Exchange(ref _cleanupRequested, 1);
+        SignalWorker();
+    }
+
+    private TimeSpan CurrentRetention() =>
+        TimeSpan.FromHours(ChatLocalLogRetention.NormalizeHours(Volatile.Read(ref _retentionHours)));
+
+    private void SignalWorker()
+    {
+        try { _signal.Set(); }
+        catch (ObjectDisposedException) { }
     }
 
     internal bool TryEnqueue(ChatMessageEvent message)
@@ -193,8 +224,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
         _queue.Enqueue(entry);
         Interlocked.Increment(ref _enqueued);
-        try { _signal.Set(); }
-        catch (ObjectDisposedException) { }
+        SignalWorker();
         return true;
     }
 
@@ -209,8 +239,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
         }
 
         _diagnostics.Enqueue(message);
-        try { _signal.Set(); }
-        catch (ObjectDisposedException) { }
+        SignalWorker();
         return true;
     }
 
@@ -240,7 +269,8 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
             var now = DateTimeOffset.UtcNow;
             ReportQueueDropsIfNeeded(now, force: false);
-            if (now >= _nextCleanupUtc)
+            var requested = Interlocked.Exchange(ref _cleanupRequested, 0) != 0;
+            if (requested || now >= _nextCleanupUtc)
             {
                 RunCleanupSafe(now);
                 _nextCleanupUtc = now + CleanupInterval;
@@ -262,10 +292,11 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private void DrainBatch(List<ChatLocalLogEntry> batch, DateTimeOffset nowUtc)
     {
         batch.Clear();
+        var retention = CurrentRetention();
         while (batch.Count < MaxBatchMessages && _queue.TryDequeue(out var entry))
         {
             Interlocked.Decrement(ref _queueCount);
-            if (entry.UtcTimestamp >= nowUtc - Retention &&
+            if (entry.UtcTimestamp >= nowUtc - retention &&
                 entry.UtcTimestamp <= nowUtc + FutureTimestampTolerance)
                 batch.Add(entry);
         }
@@ -348,7 +379,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
     {
         Directory.CreateDirectory(DirectoryPath);
         var normalizedNow = nowUtc.ToUniversalTime();
-        var cutoffUtc = normalizedNow - Retention;
+        var cutoffUtc = normalizedNow - CurrentRetention();
         var futureLimitUtc = normalizedNow + FutureTimestampTolerance;
 
         foreach (var staleTemp in Directory.EnumerateFiles(DirectoryPath, "*.cleanup.tmp", SearchOption.TopDirectoryOnly))
@@ -554,7 +585,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
     internal void WriteMessagesForSelfTest(IReadOnlyList<ChatMessageEvent> messages, DateTimeOffset nowUtc)
     {
         var normalizedNow = nowUtc.ToUniversalTime();
-        var cutoff = normalizedNow - Retention;
+        var cutoff = normalizedNow - CurrentRetention();
         var futureLimit = normalizedNow + FutureTimestampTolerance;
         var entries = messages
             .Select(x => new ChatLocalLogEntry(ToLocalTimestamp(x.Timestamp), x.Channel, x.SenderName, x.Text))
@@ -569,12 +600,13 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
     internal int QueueCountForSelfTest => Math.Max(0, Volatile.Read(ref _queueCount));
     internal long DroppedForSelfTest => Interlocked.Read(ref _dropped);
+    internal int RetentionHoursForSelfTest => Volatile.Read(ref _retentionHours);
 
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _stopping = true;
-        try { _signal.Set(); } catch (ObjectDisposedException) { }
+        SignalWorker();
 
         var stopped = _thread is null || !_thread.IsAlive || _thread.Join(TimeSpan.FromSeconds(2));
         if (!stopped)
