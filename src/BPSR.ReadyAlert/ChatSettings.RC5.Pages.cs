@@ -269,11 +269,22 @@ internal sealed partial class ChatGeneralSettingsForm
 
         _keepLocalChatLogs.Checked = _settings.KeepLocalChatLogs24Hours;
         ChatUiTheme.StyleSettingsCheckBox(_keepLocalChatLogs);
+        ChatUiTheme.StyleSettingsComboBox(_chatLogRetention);
+        _chatLogRetention.Items.Clear();
+        _chatLogRetention.Items.AddRange(["24 hours", "3 days", "7 days"]);
+        _chatLogRetention.SelectedIndex = RetentionIndexFromHours(_settings.LocalChatLogRetentionHours);
+        _chatLogRetention.Enabled = _keepLocalChatLogs.Checked;
+        _keepLocalChatLogs.CheckedChanged += (_, _) => _chatLogRetention.Enabled = _keepLocalChatLogs.Checked;
+
         var localHistory = MakeSingleColumnTable();
         AddStack(localHistory, _keepLocalChatLogs);
+        AddStack(localHistory, MakeFieldBlock(
+            "Retention",
+            "Automatically remove entries older than this rolling window.",
+            _chatLogRetention));
         AddStack(localHistory, MakeActionRow(
             "Chat logs folder",
-            "Stored only on this PC; entries older than 24 hours are removed automatically.",
+            "Stored only on this PC; default retention is 7 days.",
             "Open folder",
             ChatLocalLogService.OpenFolder));
         AddPageCard(stack, MakeCard(
