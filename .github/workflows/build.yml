@@ -32,6 +32,34 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Validate version and release metadata
+        shell: pwsh
+        run: |
+          $appVersionSource = Get-Content ./src/BPSR.ReadyAlert/AppVersion.cs -Raw
+          $appVersionMatch = [regex]::Match($appVersionSource, 'Current\s*=\s*"([^"]+)"')
+          if (-not $appVersionMatch.Success) {
+            throw 'Could not read AppVersion.Current.'
+          }
+          $version = $appVersionMatch.Groups[1].Value
+
+          $projectSource = Get-Content ./src/BPSR.ReadyAlert/BPSR.ReadyAlert.csproj -Raw
+          $projectVersionMatch = [regex]::Match($projectSource, '<Version>([^<]+)</Version>')
+          if (-not $projectVersionMatch.Success) {
+            throw 'Could not read the project Version.'
+          }
+          $projectVersion = $projectVersionMatch.Groups[1].Value.Trim()
+          if ($projectVersion -ne $version) {
+            throw "AppVersion.Current ($version) does not match csproj Version ($projectVersion)."
+          }
+
+          $workflow = Get-Content ./.github/workflows/build.yml -Raw
+          foreach ($needle in @("tag_name: v$version", "[release-v$version]", "name: BPSR Ready Alert v$version")) {
+            if (-not $workflow.Contains($needle, [System.StringComparison]::Ordinal)) {
+              throw "Stable release metadata is missing '$needle'."
+            }
+          }
+          Write-Host "Release metadata is consistent for v$version."
+
       - name: Prepare and verify embedded runtime assets
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
@@ -344,5 +372,32 @@ jobs:
             - refreshes the Windows TCP-owner snapshot on a rate-limited unmatched SYN to reduce new relay-connection startup races;
             - bounds unsynchronized relay buffering and incrementally scans only newly appended data to avoid capture-thread CPU spikes;
             - preserves v1.3.4 network self-healing, local-player identity detection, and the single shared Npcap/TCP capture pipeline.
+
+            Requires Npcap to be installed.
+
+      - name: Create v1.3.6 stable release
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v1.3.6]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.3.6
+          name: BPSR Ready Alert v1.3.6
+          prerelease: false
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          files: |
+            dist/BPSR-ReadyAlert.exe
+            dist/SHA256SUMS.txt
+          body: |
+            Stable v1.3.6 release.
+
+            Highlights:
+            - adds local-only UTF-8 TXT chat history with a true rolling retention window, defaulting to 7 days and configurable as 24 hours / 3 days / 7 days;
+            - keeps capture-side logging bounded and nonblocking, with all chat-log filesystem work and ReadyAlert diagnostic logging isolated to background writers;
+            - stores only the original parsed BPSR chat event, never generated translation or TTS text;
+            - performs startup and periodic line-level retention cleanup while handling Unicode, multiline messages, corrupt records, locked files, sleep/resume, clock changes, and settings upgrades safely;
+            - shows the detected translation source language in the overlay, for example `MY → EN`, reusing Google Translate's existing source-language result with no extra detection request;
+            - preserves v1.3.5 relay/midstream capture hardening, player identity detection, and the single shared Npcap/TCP/protobuf pipeline;
+            - retains the portable self-contained Windows x64 single-EXE design.
 
             Requires Npcap to be installed.
