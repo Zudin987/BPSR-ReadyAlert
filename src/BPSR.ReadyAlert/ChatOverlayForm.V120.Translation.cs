@@ -116,8 +116,34 @@ internal sealed partial class ChatOverlayForm
 
     private string GetV120TranslationLabel(ChatMessageEvent message)
     {
-        var translation = GetV120TranslationText(message);
-        return translation.Length == 0 ? string.Empty : "↳ EN: " + translation;
+        if (message.SequenceId == 0 ||
+            !_settings.SpeechTranslation.ShowTranslationInOverlay ||
+            !_settings.SpeechTranslation.TranslationEnabledFor(message.Channel) ||
+            !_v120Translations.TryGetValue(message.SequenceId, out var result) ||
+            string.IsNullOrWhiteSpace(result.EnglishText))
+            return string.Empty;
+
+        var source = GetV120TranslationSourceLabel(result.SourceLanguage);
+        return $"↳ {source} → EN: {result.EnglishText}";
+    }
+
+    private static string GetV120TranslationSourceLabel(string? sourceLanguage)
+    {
+        if (string.IsNullOrWhiteSpace(sourceLanguage)) return "AUTO";
+
+        var value = sourceLanguage.Trim();
+        var dash = value.IndexOf('-');
+        var underscore = value.IndexOf('_');
+        var separator = dash < 0 ? underscore : underscore < 0 ? dash : Math.Min(dash, underscore);
+        if (separator > 0)
+            value = value[..separator];
+
+        // Google Translate returns ISO language code "ms" for Malay. Use MY in the
+        // overlay because it is the compact user-facing label used by ReadyAlert's
+        // Malaysian audience (for example: MY → EN).
+        if (value.Equals("ms", StringComparison.OrdinalIgnoreCase)) return "MY";
+
+        return value.Length == 0 ? "AUTO" : value.ToUpperInvariant();
     }
 
     private Color GetV120TranslationColor(Color background) =>
@@ -137,6 +163,12 @@ internal sealed partial class ChatOverlayForm
 
     internal string GetV120TranslationTextForSelfTest(ChatMessageEvent message) =>
         GetV120TranslationText(message);
+
+    internal string GetV120TranslationLabelForSelfTest(ChatMessageEvent message) =>
+        GetV120TranslationLabel(message);
+
+    internal static string GetV120TranslationSourceLabelForSelfTest(string? sourceLanguage) =>
+        GetV120TranslationSourceLabel(sourceLanguage);
 
     private void ClearV120SpeechTranslationUi()
     {

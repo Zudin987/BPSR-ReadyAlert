@@ -37,6 +37,10 @@ internal static class Program
                 RunSmokeStep(PlayerIdentityV133SelfTest.Run, 29);
                 RunSmokeStep(CaptureRecoveryV134SelfTest.Run, 30);
                 RunSmokeStep(RelayCompatibilityV135SelfTest.Run, 31);
+                RunSmokeStep(ChatLocalLogV136SelfTest.Run, 32);
+                RunSmokeStep(AppLogV136SelfTest.Run, 33);
+                RunSmokeStep(TranslationLanguageLabelV136SelfTest.Run, 34);
+                RunSmokeStep(ReleaseAuditV136SelfTest.Run, 35);
                 Environment.ExitCode = 0;
                 return;
             }
@@ -85,6 +89,13 @@ internal static class Program
 
             var settingsStore = new SettingsStore(paths.SettingsPath);
             var settings = settingsStore.Load();
+
+            // SettingsStore applies the persisted local-log retention/enable values
+            // even before the writer exists. Start the writer only after that load so
+            // its first background startup cleanup uses the user's actual 24h/3d/7d
+            // selection instead of performing a redundant default-retention scan.
+            ChatLocalLogService.Initialize(paths.ChatLogsDir);
+
             var launcher = new ResonanceLogsLauncher(settings, settingsStore);
 
             ChatNotificationEngine.Configure(settings.Chat, paths.AlertSoundPath);
@@ -148,7 +159,9 @@ internal static class Program
         }
         finally
         {
+            ChatLocalLogService.Shutdown();
             ChatSpeechTranslationEngine.Shutdown();
+            AppLog.Shutdown();
             try { mutex.ReleaseMutex(); } catch { }
         }
     }

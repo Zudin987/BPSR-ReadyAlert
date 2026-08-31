@@ -29,6 +29,8 @@ internal static class DefaultSettingsProfile
             ShowColorBand = true,
             ClickThrough = false,
             CollapseSide = "Left",
+            KeepLocalChatLogs24Hours = true,
+            LocalChatLogRetentionHours = ChatLocalLogRetention.DefaultHours,
             Tabs =
             [
                 new ChatTabSettings

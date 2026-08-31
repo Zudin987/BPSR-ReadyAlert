@@ -123,6 +123,10 @@ internal sealed class ChatOverlaySettings
     public Dictionary<int, string> ChannelColors { get; set; } = [];
 
     public int MaxHistory { get; set; } = 200;
+    // Keep the v1.3.6 boolean name for settings.json compatibility; it remains the
+    // on/off preference while LocalChatLogRetentionHours controls the rolling window.
+    public bool KeepLocalChatLogs24Hours { get; set; } = true;
+    public int LocalChatLogRetentionHours { get; set; } = ChatLocalLogRetention.DefaultHours;
     public int WindowX { get; set; } = int.MinValue;
     public int WindowY { get; set; } = int.MinValue;
     public int WindowWidth { get; set; } = 700;
@@ -184,6 +188,7 @@ internal sealed class ChatOverlaySettings
         HighlightSoundPath = string.Empty;
 
         MaxHistory = Math.Clamp(MaxHistory, 10, 500);
+        LocalChatLogRetentionHours = ChatLocalLogRetention.NormalizeHours(LocalChatLogRetentionHours);
         WindowWidth = Math.Clamp(WindowWidth, 360, 2400);
         WindowHeight = Math.Clamp(WindowHeight, 180, 1600);
         Tabs ??= [];
