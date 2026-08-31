@@ -55,9 +55,16 @@ internal static class ChatLocalLogService
         lock (Gate)
         {
             if (_writer is not null) return;
-            var writer = new ChatLocalLogWriter(directory, startWorker: true);
-            writer.SetRetentionHours(RetentionHours);
-            writer.SetEnabled(_enabled);
+
+            // SettingsStore applies the persisted retention/enable values before this
+            // worker starts. Seed them into the writer constructor so its very first
+            // startup cleanup uses the user's actual rolling window rather than doing
+            // a redundant scan at the built-in default first.
+            var writer = new ChatLocalLogWriter(
+                directory,
+                startWorker: true,
+                initialRetentionHours: RetentionHours,
+                initialEnabled: _enabled);
             Volatile.Write(ref _writer, writer);
         }
     }
@@ -104,7 +111,7 @@ internal static class ChatLocalLogService
         lock (Gate)
         {
             writer = _writer;
-            _writer = null;
+            Volatile.Write(ref _writer, null);
         }
 
         writer?.Dispose();
@@ -126,6 +133,8 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private const int MaxQueuedDiagnostics = 64;
     private const int MaxBatchMessages = 256;
     private const int MaxLogLineChars = 256 * 1024;
+    private const long DropReportIntervalMs = 30_000;
+    private const long FailureReportIntervalMs = 30_000;
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan FutureTimestampTolerance = TimeSpan.FromMinutes(5);
     private static readonly UTF8Encoding Utf8NoBom = new(false);
@@ -147,19 +156,24 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private long _dropped;
     private long _writeFailures;
     private long _cleanupFailures;
-    private long _lastFailureLogUtcTicks;
+    private long _lastFailureLogTickCount;
     private long _lastReportedDropped;
-    private DateTimeOffset _nextDropReportUtc;
+    private long _nextDropReportTickCount;
     private DateTimeOffset _nextCleanupUtc;
     private int _disposed;
 
     internal string DirectoryPath { get; }
 
-    internal ChatLocalLogWriter(string directory, bool startWorker)
+    internal ChatLocalLogWriter(
+        string directory,
+        bool startWorker,
+        int initialRetentionHours = ChatLocalLogRetention.DefaultHours,
+        bool initialEnabled = false)
     {
         DirectoryPath = directory;
+        _retentionHours = ChatLocalLogRetention.NormalizeHours(initialRetentionHours);
+        _enabled = initialEnabled;
         _nextCleanupUtc = DateTimeOffset.MinValue;
-        _nextDropReportUtc = DateTimeOffset.MinValue;
         if (!startWorker) return;
 
         _thread = new Thread(WorkerMain)
@@ -182,7 +196,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
         var normalized = ChatLocalLogRetention.NormalizeHours(hours);
         if (Interlocked.Exchange(ref _retentionHours, normalized) == normalized) return;
 
-        // A shorter selection should take effect promptly without doing any filesystem
+        // A changed selection should take effect promptly without doing filesystem
         // work on the settings/UI thread. The background worker performs the cleanup.
         Interlocked.Exchange(ref _cleanupRequested, 1);
         SignalWorker();
@@ -254,9 +268,10 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
     private void WorkerMain()
     {
-        RunCleanupSafe(DateTimeOffset.UtcNow);
+        var startupNow = DateTimeOffset.UtcNow;
+        RunCleanupSafe(startupNow);
         _startupCleanupDone.Set();
-        _nextCleanupUtc = DateTimeOffset.UtcNow + CleanupInterval;
+        _nextCleanupUtc = startupNow + CleanupInterval;
         var batch = new List<ChatLocalLogEntry>(MaxBatchMessages);
 
         while (!_stopping)
@@ -268,9 +283,9 @@ internal sealed class ChatLocalLogWriter : IDisposable
             DrainAllAvailable(batch);
 
             var now = DateTimeOffset.UtcNow;
-            ReportQueueDropsIfNeeded(now, force: false);
+            ReportQueueDropsIfNeeded(force: false);
             var requested = Interlocked.Exchange(ref _cleanupRequested, 0) != 0;
-            if (requested || now >= _nextCleanupUtc)
+            if (requested || IsPeriodicCleanupDue(now, _nextCleanupUtc))
             {
                 RunCleanupSafe(now);
                 _nextCleanupUtc = now + CleanupInterval;
@@ -279,30 +294,50 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
         DrainDiagnostics();
         DrainAllAvailable(batch);
-        ReportQueueDropsIfNeeded(DateTimeOffset.UtcNow, force: true);
+        ReportQueueDropsIfNeeded(force: true);
         RunCleanupSafe(DateTimeOffset.UtcNow);
+    }
+
+    private static bool IsPeriodicCleanupDue(DateTimeOffset nowUtc, DateTimeOffset nextCleanupUtc)
+    {
+        if (nextCleanupUtc == DateTimeOffset.MinValue || nowUtc >= nextCleanupUtc)
+            return true;
+
+        // nextCleanupUtc is always lastCleanup + CleanupInterval. If wall clock jumps
+        // backwards past the previous cleanup point, schedule a cleanup now and
+        // re-anchor the cadence instead of waiting for the clock to catch up.
+        return nowUtc < nextCleanupUtc - CleanupInterval;
     }
 
     private void DrainAllAvailable(List<ChatLocalLogEntry> batch)
     {
         while (Volatile.Read(ref _queueCount) > 0)
-            DrainBatch(batch, DateTimeOffset.UtcNow);
+        {
+            // A producer reserves its bounded slot immediately before ConcurrentQueue
+            // enqueue. If it is preempted in that tiny window, do not busy-spin the
+            // background worker; the producer will signal us again after enqueue.
+            if (!DrainBatch(batch, DateTimeOffset.UtcNow))
+                break;
+        }
     }
 
-    private void DrainBatch(List<ChatLocalLogEntry> batch, DateTimeOffset nowUtc)
+    private bool DrainBatch(List<ChatLocalLogEntry> batch, DateTimeOffset nowUtc)
     {
         batch.Clear();
         var retention = CurrentRetention();
-        while (batch.Count < MaxBatchMessages && _queue.TryDequeue(out var entry))
+        var dequeued = 0;
+        while (dequeued < MaxBatchMessages && _queue.TryDequeue(out var entry))
         {
+            dequeued++;
             Interlocked.Decrement(ref _queueCount);
             if (entry.UtcTimestamp >= nowUtc - retention &&
                 entry.UtcTimestamp <= nowUtc + FutureTimestampTolerance)
                 batch.Add(entry);
         }
 
-        if (batch.Count == 0) return;
-        WriteBatchSafe(batch);
+        if (batch.Count > 0)
+            WriteBatchSafe(batch);
+        return dequeued > 0;
     }
 
     private void WriteBatchSafe(IReadOnlyList<ChatLocalLogEntry> entries)
@@ -353,15 +388,17 @@ internal sealed class ChatLocalLogWriter : IDisposable
         }
     }
 
-    private void ReportQueueDropsIfNeeded(DateTimeOffset nowUtc, bool force)
+    private void ReportQueueDropsIfNeeded(bool force)
     {
         var dropped = Interlocked.Read(ref _dropped);
         if (dropped <= _lastReportedDropped) return;
-        if (!force && nowUtc < _nextDropReportUtc) return;
+
+        var nowTick = Environment.TickCount64;
+        if (!force && nowTick < Interlocked.Read(ref _nextDropReportTickCount)) return;
 
         var delta = dropped - _lastReportedDropped;
         _lastReportedDropped = dropped;
-        _nextDropReportUtc = nowUtc + TimeSpan.FromSeconds(30);
+        Interlocked.Exchange(ref _nextDropReportTickCount, nowTick + DropReportIntervalMs);
         AppLog.Write($"chatlog: bounded queue dropped {delta} message(s); capture/overlay/TTS continued normally");
     }
 
@@ -481,12 +518,12 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
     private void ReportFailure(string operation, Exception ex)
     {
-        // A locked/full/broken disk may fail repeatedly. Rate-limit diagnostics so
-        // the independent ReadyAlert diagnostic log cannot be flooded by one fault.
-        var nowTicks = DateTime.UtcNow.Ticks;
-        var previous = Interlocked.Read(ref _lastFailureLogUtcTicks);
-        if (previous != 0 && nowTicks - previous < TimeSpan.FromSeconds(30).Ticks) return;
-        if (Interlocked.CompareExchange(ref _lastFailureLogUtcTicks, nowTicks, previous) != previous) return;
+        // A locked/full/broken disk may fail repeatedly. Use monotonic uptime rather
+        // than wall clock so manual clock changes cannot suppress diagnostics for hours.
+        var nowTick = Environment.TickCount64;
+        var previous = Interlocked.Read(ref _lastFailureLogTickCount);
+        if (previous != 0 && nowTick - previous < FailureReportIntervalMs) return;
+        if (Interlocked.CompareExchange(ref _lastFailureLogTickCount, nowTick, previous) != previous) return;
         AppLog.Write($"chatlog: {operation} failed; chat capture continues. {ex.Message}");
     }
 
@@ -581,6 +618,9 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
     internal static bool TryParseTimestampForSelfTest(string line, out DateTimeOffset timestamp) =>
         TryParseTimestamp(line, out timestamp);
+
+    internal static bool IsPeriodicCleanupDueForSelfTest(DateTimeOffset nowUtc, DateTimeOffset nextCleanupUtc) =>
+        IsPeriodicCleanupDue(nowUtc, nextCleanupUtc);
 
     internal void WriteMessagesForSelfTest(IReadOnlyList<ChatMessageEvent> messages, DateTimeOffset nowUtc)
     {
