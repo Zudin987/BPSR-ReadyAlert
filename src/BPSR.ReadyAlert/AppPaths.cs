@@ -4,6 +4,7 @@ internal sealed class AppPaths
 {
     internal string Root { get; }
     internal string AssetsDir { get; }
+    internal string ChatLogsDir => Path.Combine(Root, "ChatLogs");
     internal string AlertSoundPath => Path.Combine(AssetsDir, $"LetsDoThis-{AppVersion.Current}.wav");
     internal string QueueSoundPath => Path.Combine(AssetsDir, $"Queue-{AppVersion.Current}.wav");
     internal string ReadyCheckSoundPath => Path.Combine(AssetsDir, $"ReadyCheck-{AppVersion.Current}.wav");
