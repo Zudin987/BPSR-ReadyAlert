@@ -70,7 +70,7 @@ internal static class ChatLocalLogService
         var path = LogDirectory;
         if (string.IsNullOrWhiteSpace(path)) return;
 
-        ThreadPool.UnsafeQueueUserWorkItem(static state =>
+        ThreadPool.QueueUserWorkItem(static state =>
         {
             var folder = (string)state!;
             try
@@ -82,7 +82,7 @@ internal static class ChatLocalLogService
             {
                 AppLog.Write("chatlog: open folder failed " + ex.Message);
             }
-        }, path, preferLocal: false);
+        }, path);
     }
 
     internal static void Shutdown()
@@ -115,12 +115,13 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private const int MaxLogLineChars = 256 * 1024;
     private static readonly TimeSpan Retention = TimeSpan.FromHours(24);
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan FutureTimestampTolerance = TimeSpan.FromMinutes(5);
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz";
 
     private readonly ConcurrentQueue<ChatLocalLogEntry> _queue = new();
     private readonly ConcurrentQueue<string> _diagnostics = new();
-    private readonly SemaphoreSlim _signal = new(0);
+    private readonly AutoResetEvent _signal = new(false);
     private readonly Thread? _thread;
     private readonly ManualResetEventSlim _startupCleanupDone = new(false);
     private volatile bool _enabled;
@@ -133,6 +134,8 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private long _writeFailures;
     private long _cleanupFailures;
     private long _lastFailureLogUtcTicks;
+    private long _lastReportedDropped;
+    private DateTimeOffset _nextDropReportUtc;
     private DateTimeOffset _nextCleanupUtc;
     private int _disposed;
 
@@ -142,6 +145,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
     {
         DirectoryPath = directory;
         _nextCleanupUtc = DateTimeOffset.MinValue;
+        _nextDropReportUtc = DateTimeOffset.MinValue;
         if (!startWorker) return;
 
         _thread = new Thread(WorkerMain)
@@ -157,7 +161,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
         _enabled = enabled;
         if (enabled)
         {
-            try { _signal.Release(); }
+            try { _signal.Set(); }
             catch (ObjectDisposedException) { }
         }
     }
@@ -166,9 +170,11 @@ internal sealed class ChatLocalLogWriter : IDisposable
     {
         if (!_enabled || _stopping) return false;
 
-        var localTimestamp = ToLocalTimestamp(message.Timestamp);
+        // Retention is based on when ReadyAlert captured the message, not on a
+        // potentially stale/corrupt game-server timestamp. Capture the local offset
+        // now so DST/time-zone changes after enqueue cannot reinterpret this record.
         var entry = new ChatLocalLogEntry(
-            localTimestamp,
+            DateTimeOffset.Now,
             message.Channel,
             message.SenderName ?? string.Empty,
             message.Text ?? string.Empty);
@@ -187,7 +193,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
         _queue.Enqueue(entry);
         Interlocked.Increment(ref _enqueued);
-        try { _signal.Release(); }
+        try { _signal.Set(); }
         catch (ObjectDisposedException) { }
         return true;
     }
@@ -203,7 +209,7 @@ internal sealed class ChatLocalLogWriter : IDisposable
         }
 
         _diagnostics.Enqueue(message);
-        try { _signal.Release(); }
+        try { _signal.Set(); }
         catch (ObjectDisposedException) { }
         return true;
     }
@@ -219,32 +225,21 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
     private void WorkerMain()
     {
-        try
-        {
-            RunCleanup(DateTimeOffset.UtcNow);
-        }
-        catch (Exception ex)
-        {
-            Interlocked.Increment(ref _cleanupFailures);
-            ReportFailure("startup cleanup", ex);
-        }
-        finally
-        {
-            _startupCleanupDone.Set();
-        }
-
+        RunCleanupSafe(DateTimeOffset.UtcNow);
+        _startupCleanupDone.Set();
         _nextCleanupUtc = DateTimeOffset.UtcNow + CleanupInterval;
         var batch = new List<ChatLocalLogEntry>(MaxBatchMessages);
 
         while (!_stopping)
         {
-            try { _signal.Wait(TimeSpan.FromSeconds(2)); }
+            try { _signal.WaitOne(TimeSpan.FromSeconds(2)); }
             catch (ObjectDisposedException) { break; }
 
             DrainDiagnostics();
-            DrainBatch(batch, DateTimeOffset.UtcNow);
+            DrainAllAvailable(batch);
 
             var now = DateTimeOffset.UtcNow;
+            ReportQueueDropsIfNeeded(now, force: false);
             if (now >= _nextCleanupUtc)
             {
                 RunCleanupSafe(now);
@@ -253,11 +248,15 @@ internal sealed class ChatLocalLogWriter : IDisposable
         }
 
         DrainDiagnostics();
-        do
-        {
-            DrainBatch(batch, DateTimeOffset.UtcNow);
-        } while (Volatile.Read(ref _queueCount) > 0);
+        DrainAllAvailable(batch);
+        ReportQueueDropsIfNeeded(DateTimeOffset.UtcNow, force: true);
         RunCleanupSafe(DateTimeOffset.UtcNow);
+    }
+
+    private void DrainAllAvailable(List<ChatLocalLogEntry> batch)
+    {
+        while (Volatile.Read(ref _queueCount) > 0)
+            DrainBatch(batch, DateTimeOffset.UtcNow);
     }
 
     private void DrainBatch(List<ChatLocalLogEntry> batch, DateTimeOffset nowUtc)
@@ -266,7 +265,8 @@ internal sealed class ChatLocalLogWriter : IDisposable
         while (batch.Count < MaxBatchMessages && _queue.TryDequeue(out var entry))
         {
             Interlocked.Decrement(ref _queueCount);
-            if (entry.UtcTimestamp >= nowUtc - Retention)
+            if (entry.UtcTimestamp >= nowUtc - Retention &&
+                entry.UtcTimestamp <= nowUtc + FutureTimestampTolerance)
                 batch.Add(entry);
         }
 
@@ -322,6 +322,18 @@ internal sealed class ChatLocalLogWriter : IDisposable
         }
     }
 
+    private void ReportQueueDropsIfNeeded(DateTimeOffset nowUtc, bool force)
+    {
+        var dropped = Interlocked.Read(ref _dropped);
+        if (dropped <= _lastReportedDropped) return;
+        if (!force && nowUtc < _nextDropReportUtc) return;
+
+        var delta = dropped - _lastReportedDropped;
+        _lastReportedDropped = dropped;
+        _nextDropReportUtc = nowUtc + TimeSpan.FromSeconds(30);
+        AppLog.Write($"chatlog: bounded queue dropped {delta} message(s); capture/overlay/TTS continued normally");
+    }
+
     private void RunCleanupSafe(DateTimeOffset nowUtc)
     {
         try { RunCleanup(nowUtc); }
@@ -335,7 +347,9 @@ internal sealed class ChatLocalLogWriter : IDisposable
     private void RunCleanup(DateTimeOffset nowUtc)
     {
         Directory.CreateDirectory(DirectoryPath);
-        var cutoffUtc = nowUtc.ToUniversalTime() - Retention;
+        var normalizedNow = nowUtc.ToUniversalTime();
+        var cutoffUtc = normalizedNow - Retention;
+        var futureLimitUtc = normalizedNow + FutureTimestampTolerance;
 
         foreach (var staleTemp in Directory.EnumerateFiles(DirectoryPath, "*.cleanup.tmp", SearchOption.TopDirectoryOnly))
         {
@@ -347,67 +361,69 @@ internal sealed class ChatLocalLogWriter : IDisposable
             }
         }
 
+        // Never trust a filename as proof that its contents are recent. Every TXT is
+        // scanned so renamed/corrupt/boundary files cannot retain expired chat forever.
         foreach (var path in Directory.EnumerateFiles(DirectoryPath, "*.txt", SearchOption.TopDirectoryOnly))
-            CleanupFile(path, cutoffUtc);
+            CleanupFile(path, cutoffUtc, futureLimitUtc);
     }
 
-    private void CleanupFile(string path, DateTimeOffset cutoffUtc)
+    private void CleanupFile(string path, DateTimeOffset cutoffUtc, DateTimeOffset futureLimitUtc)
     {
         var tempPath = path + ".cleanup.tmp";
         var kept = 0;
         var removed = 0;
         var invalid = 0;
-        var changed = false;
 
         try
         {
+            // First pass is read-only. Healthy files therefore cause zero rewrite I/O.
+            // Only a file containing expired/corrupt/far-future records gets rewritten.
             using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 16 * 1024, FileOptions.SequentialScan))
             using (var reader = new StreamReader(input, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 16 * 1024, leaveOpen: false))
-            using (var output = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
-            using (var writer = new StreamWriter(output, Utf8NoBom, bufferSize: 16 * 1024, leaveOpen: false))
             {
                 string? line;
                 while ((line = reader.ReadLine()) is not null)
                 {
-                    if (line.Length > MaxLogLineChars || !TryParseTimestamp(line, out var timestamp))
+                    if (!ShouldKeepLine(line, cutoffUtc, futureLimitUtc, out var isValid))
                     {
-                        invalid++;
-                        changed = true;
-                        continue;
+                        if (isValid) removed++;
+                        else invalid++;
                     }
-
-                    if (timestamp.ToUniversalTime() < cutoffUtc)
+                    else
                     {
-                        removed++;
-                        changed = true;
-                        continue;
+                        kept++;
                     }
-
-                    writer.WriteLine(line);
-                    kept++;
                 }
             }
 
-            if (!changed)
-            {
-                File.Delete(tempPath);
-                return;
-            }
+            if (removed == 0 && invalid == 0) return;
 
             if (kept == 0)
             {
                 File.Delete(path);
-                File.Delete(tempPath);
             }
             else
             {
+                using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 16 * 1024, FileOptions.SequentialScan))
+                using (var reader = new StreamReader(input, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 16 * 1024, leaveOpen: false))
+                using (var output = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+                using (var writer = new StreamWriter(output, Utf8NoBom, bufferSize: 16 * 1024, leaveOpen: false))
+                {
+                    string? line;
+                    while ((line = reader.ReadLine()) is not null)
+                    {
+                        if (ShouldKeepLine(line, cutoffUtc, futureLimitUtc, out _))
+                            writer.WriteLine(line);
+                    }
+                }
+
                 File.Move(tempPath, path, overwrite: true);
             }
 
             if (invalid > 0)
                 AppLog.Write($"chatlog: cleanup dropped {invalid} invalid/corrupt line(s) from {Path.GetFileName(path)}");
             if (removed > 0)
-                AppLog.Write($"chatlog: cleanup removed {removed} expired line(s) from {Path.GetFileName(path)}");
+                AppLog.Write($"chatlog: cleanup removed {removed} expired/future line(s) from {Path.GetFileName(path)}");
         }
         catch (Exception ex)
         {
@@ -415,6 +431,21 @@ internal sealed class ChatLocalLogWriter : IDisposable
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
             ReportFailure("cleanup file " + Path.GetFileName(path), ex);
         }
+    }
+
+    private static bool ShouldKeepLine(
+        string line,
+        DateTimeOffset cutoffUtc,
+        DateTimeOffset futureLimitUtc,
+        out bool isValid)
+    {
+        isValid = false;
+        if (line.Length > MaxLogLineChars || !TryParseTimestamp(line, out var timestamp))
+            return false;
+
+        isValid = true;
+        var utc = timestamp.ToUniversalTime();
+        return utc >= cutoffUtc && utc <= futureLimitUtc;
     }
 
     private void ReportFailure(string operation, Exception ex)
@@ -522,10 +553,12 @@ internal sealed class ChatLocalLogWriter : IDisposable
 
     internal void WriteMessagesForSelfTest(IReadOnlyList<ChatMessageEvent> messages, DateTimeOffset nowUtc)
     {
-        var cutoff = nowUtc.ToUniversalTime() - Retention;
+        var normalizedNow = nowUtc.ToUniversalTime();
+        var cutoff = normalizedNow - Retention;
+        var futureLimit = normalizedNow + FutureTimestampTolerance;
         var entries = messages
             .Select(x => new ChatLocalLogEntry(ToLocalTimestamp(x.Timestamp), x.Channel, x.SenderName, x.Text))
-            .Where(x => x.UtcTimestamp >= cutoff)
+            .Where(x => x.UtcTimestamp >= cutoff && x.UtcTimestamp <= futureLimit)
             .ToArray();
         if (entries.Length > 0) WriteBatchSafe(entries);
     }
@@ -541,10 +574,17 @@ internal sealed class ChatLocalLogWriter : IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _stopping = true;
-        try { _signal.Release(); } catch (ObjectDisposedException) { }
+        try { _signal.Set(); } catch (ObjectDisposedException) { }
 
-        if (_thread is not null && _thread.IsAlive && !_thread.Join(TimeSpan.FromSeconds(2)))
+        var stopped = _thread is null || !_thread.IsAlive || _thread.Join(TimeSpan.FromSeconds(2));
+        if (!stopped)
+        {
+            // Never block normal ReadyAlert shutdown indefinitely on a broken disk.
+            // Leave these tiny wait handles alive for the background thread/process
+            // lifetime rather than disposing them underneath an in-flight worker.
             AppLog.Write("chatlog: writer did not stop within 2 seconds; shutdown continues");
+            return;
+        }
 
         _startupCleanupDone.Dispose();
         _signal.Dispose();
