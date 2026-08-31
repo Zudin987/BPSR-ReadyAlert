@@ -123,6 +123,7 @@ internal sealed class ChatOverlaySettings
     public Dictionary<int, string> ChannelColors { get; set; } = [];
 
     public int MaxHistory { get; set; } = 200;
+    public bool KeepLocalChatLogs24Hours { get; set; } = true;
     public int WindowX { get; set; } = int.MinValue;
     public int WindowY { get; set; } = int.MinValue;
     public int WindowWidth { get; set; } = 700;
