@@ -39,6 +39,7 @@ internal static class Program
                 RunSmokeStep(RelayCompatibilityV135SelfTest.Run, 31);
                 RunSmokeStep(ChatLocalLogV136SelfTest.Run, 32);
                 RunSmokeStep(AppLogV136SelfTest.Run, 33);
+                RunSmokeStep(TranslationLanguageLabelV136SelfTest.Run, 34);
                 Environment.ExitCode = 0;
                 return;
             }
