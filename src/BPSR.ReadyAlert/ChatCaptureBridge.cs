@@ -82,25 +82,32 @@ internal static class ChatCaptureBridge
         if (service != ChatProtocol.ServiceId || method != ChatProtocol.NotifyNewestChitChatMsgs)
             return false;
 
-        if (!_enabled) return true;
+        // Parsing is required when either the overlay/speech route OR local history is
+        // enabled. This keeps one protobuf parse and one shared Npcap/TCP pipeline while
+        // allowing 24-hour local history to continue with the overlay hidden.
+        var routeOverlay = _enabled;
+        if (!routeOverlay && !ChatLocalLogService.Enabled) return true;
 
         Interlocked.Increment(ref _matchingNotifies);
         Volatile.Write(ref _lastPayloadLength, payload.Length);
-
-        var events = Volatile.Read(ref _events);
-        if (events is null) return true;
 
         if (!ChatProtocol.TryParseNotify(payload, out var message))
         {
             Interlocked.Increment(ref _parseFailures);
             if (Interlocked.Exchange(ref _loggedParseFailure, 1) == 0)
-                AppLog.Write($"chat: first ChitChatNtf parse failure protoLen={payload.Length}");
+                ChatLocalLogService.QueueAppDiagnostic($"chat: first ChitChatNtf parse failure protoLen={payload.Length}");
             return true;
         }
 
         message = message with { SequenceId = Interlocked.Increment(ref _sequenceId) };
         Interlocked.Increment(ref _parsedMessages);
         Interlocked.Exchange(ref _lastMessageUtcTicks, DateTime.UtcNow.Ticks);
+
+        // Queue the original parsed BPSR event before any translation/TTS routing.
+        // The logger never receives generated translations or speech text.
+        ChatLocalLogService.TryEnqueue(message);
+
+        if (!routeOverlay) return true;
 
         var blocked = ChatNotificationEngine.IsSenderBlocked(message.SenderId);
         if (!blocked)
@@ -113,6 +120,9 @@ internal static class ChatCaptureBridge
         // Keep bounded history routing unchanged so unblocking can reveal any still-
         // retained rows. While the block is active the overlay hides them, and work
         // skipped here (keyword/private sound, translation and TTS) is never replayed.
+        var events = Volatile.Read(ref _events);
+        if (events is null) return true;
+
         while (events.Count >= MaxQueuedMessages && events.TryDequeue(out _))
             Interlocked.Increment(ref _droppedQueuedMessages);
 
