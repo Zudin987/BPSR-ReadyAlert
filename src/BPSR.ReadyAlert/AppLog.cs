@@ -88,18 +88,24 @@ internal static class AppLog
         {
             try { Signal.WaitOne(TimeSpan.FromSeconds(2)); }
             catch (ObjectDisposedException) { break; }
-            DrainBatch(batch);
+            DrainAllAvailable(batch);
         }
 
-        while (Volatile.Read(ref _queueCount) > 0)
-            DrainBatch(batch);
-
+        DrainAllAvailable(batch);
         batch.Clear();
         WriteDropNoticeIfNeeded(batch, force: true);
         FlushBatch(batch);
     }
 
-    private static void DrainBatch(StringBuilder batch)
+    private static void DrainAllAvailable(StringBuilder batch)
+    {
+        while (Volatile.Read(ref _queueCount) > 0)
+        {
+            if (!DrainBatch(batch)) break;
+        }
+    }
+
+    private static bool DrainBatch(StringBuilder batch)
     {
         batch.Clear();
         var count = 0;
@@ -114,6 +120,7 @@ internal static class AppLog
 
         WriteDropNoticeIfNeeded(batch, force: false);
         if (batch.Length > 0) FlushBatch(batch);
+        return count > 0;
     }
 
     private static void WriteDropNoticeIfNeeded(StringBuilder batch, bool force)
