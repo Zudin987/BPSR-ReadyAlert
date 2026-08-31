@@ -44,7 +44,7 @@ internal static class AppLog
 
     internal static void Write(string message)
     {
-        if (string.IsNullOrWhiteSpace(message) || string.IsNullOrWhiteSpace(Volatile.Read(ref _path)))
+        if (_stopping || string.IsNullOrWhiteSpace(message) || string.IsNullOrWhiteSpace(Volatile.Read(ref _path)))
             return;
 
         var reserved = Interlocked.Increment(ref _queueCount);
@@ -93,6 +93,8 @@ internal static class AppLog
 
         while (Volatile.Read(ref _queueCount) > 0)
             DrainBatch(batch);
+
+        batch.Clear();
         WriteDropNoticeIfNeeded(batch, force: true);
         FlushBatch(batch);
     }
