@@ -251,7 +251,7 @@ internal sealed partial class ChatGeneralSettingsForm
 
     private Control BuildAdvancedPage()
     {
-        var page = CreatePage("Advanced", "Customization and diagnostics.");
+        var page = CreatePage("Advanced", "Customization, local history and diagnostics.");
         var stack = (TableLayoutPanel)page.Tag!;
 
         var customize = MakeSingleColumnTable();
@@ -266,6 +266,20 @@ internal sealed partial class ChatGeneralSettingsForm
             dialog.ShowDialog(this);
         }));
         AddPageCard(stack, MakeCard("Customization", string.Empty, customize));
+
+        _keepLocalChatLogs.Checked = _settings.KeepLocalChatLogs24Hours;
+        ChatUiTheme.StyleSettingsCheckBox(_keepLocalChatLogs);
+        var localHistory = MakeSingleColumnTable();
+        AddStack(localHistory, _keepLocalChatLogs);
+        AddStack(localHistory, MakeActionRow(
+            "Chat logs folder",
+            "Stored only on this PC; entries older than 24 hours are removed automatically.",
+            "Open folder",
+            ChatLocalLogService.OpenFolder));
+        AddPageCard(stack, MakeCard(
+            "Local chat history",
+            "UTF-8 TXT history captured from original BPSR chat. No translation/TTS text is added.",
+            localHistory));
 
         var diagnostics = MakeActionRow("Chat capture status", "Shared capture counters", "Open status…", () =>
         {
