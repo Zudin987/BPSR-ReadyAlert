@@ -187,8 +187,11 @@ internal sealed class SettingsStore
         settings.SpeechTranslation.Normalize();
     }
 
-    private static void ApplyRuntimeSettings(AppSettings settings) =>
+    private static void ApplyRuntimeSettings(AppSettings settings)
+    {
         ChatContentVisibility.Configure(
             settings.SpeechTranslation.HideEmojiMessages,
             settings.SpeechTranslation.HideLinkedItemMessages);
+        ChatLocalLogService.Enabled = settings.Chat.KeepLocalChatLogs24Hours;
+    }
 }
