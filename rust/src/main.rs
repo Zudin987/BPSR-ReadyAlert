@@ -46,7 +46,7 @@ mod settings;
 mod settings_cleanup_v160;
 mod settings_repaint_hotfix;
 mod settings_ui;
-#[path = "telemetry_v170.rs"]
+#[path = "telemetry_adapter_v170.rs"]
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
