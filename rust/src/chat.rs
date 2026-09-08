@@ -4,20 +4,24 @@ use crate::{
     paths::AppPaths,
     settings::AppSettings,
 };
+use regex::{Regex, RegexBuilder};
 use serde_json::Value;
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fs::{self, OpenOptions},
     io::{Read, Write},
     path::PathBuf,
     sync::{
         mpsc::{self, SyncSender, TrySendError},
-        Arc, Mutex, RwLock,
+        Arc, Mutex, OnceLock, RwLock,
     },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use windows_sys::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetLocalTime};
+
+const MAX_FILTER_EXPRESSION: usize = 4096;
+const MAX_FILTER_CACHE: usize = 256;
 
 #[derive(Clone)]
 pub struct ChatRuntime {
@@ -137,15 +141,78 @@ pub fn should_hide_in_overlay(settings: &AppSettings, message: &ChatMessage) -> 
     if should_hide_globally(settings, message) { return true; }
     let tab = settings.chat.active_tab();
     if !tab.channels.contains(&message.channel) || message.sender_level < tab.min_level { return true; }
-    let hay = format!("{} {}", message.sender_name, message.text).to_ascii_lowercase();
+    let hay = format!("{} {}", message.sender_name, message.text);
     if !tab.show_if_matches.trim().is_empty() && !matches_expression(&hay, &tab.show_if_matches) { return true; }
     if !tab.hide_if_matches.trim().is_empty() && matches_expression(&hay, &tab.hide_if_matches) { return true; }
     false
 }
 
+#[derive(Clone)]
+struct CompiledFilter {
+    groups: Vec<Vec<Regex>>,
+    error: Option<String>,
+}
+
+fn filter_cache() -> &'static Mutex<HashMap<String, CompiledFilter>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, CompiledFilter>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn or_splitter() -> &'static Regex {
+    static SPLITTER: OnceLock<Regex> = OnceLock::new();
+    SPLITTER.get_or_init(|| Regex::new(r"(?i)[\r\n]+|\s*(?:\|\||\bOR\b)\s*|\s+\|\s+").expect("filter OR splitter"))
+}
+
+fn and_splitter() -> &'static Regex {
+    static SPLITTER: OnceLock<Regex> = OnceLock::new();
+    SPLITTER.get_or_init(|| Regex::new(r"(?i)\s*(?:&&|\bAND\b)\s*").expect("filter AND splitter"))
+}
+
+fn compile_expression(expression: &str) -> CompiledFilter {
+    let mut groups = Vec::new();
+    for or_group in or_splitter().split(expression).map(str::trim).filter(|x| !x.is_empty()) {
+        let mut atoms = Vec::new();
+        for atom in and_splitter().split(or_group).map(str::trim).filter(|x| !x.is_empty()) {
+            match RegexBuilder::new(atom).case_insensitive(true).build() {
+                Ok(regex) => atoms.push(regex),
+                Err(err) => return CompiledFilter { groups: Vec::new(), error: Some(err.to_string()) },
+            }
+        }
+        if !atoms.is_empty() { groups.push(atoms); }
+    }
+    if groups.is_empty() {
+        CompiledFilter { groups, error: Some("Enter at least one word or regular expression.".into()) }
+    } else {
+        CompiledFilter { groups, error: None }
+    }
+}
+
+fn compiled_expression(expression: &str) -> CompiledFilter {
+    if let Ok(mut cache) = filter_cache().lock() {
+        if let Some(found) = cache.get(expression) { return found.clone(); }
+        if cache.len() >= MAX_FILTER_CACHE { cache.clear(); }
+        let compiled = compile_expression(expression);
+        cache.insert(expression.to_string(), compiled.clone());
+        return compiled;
+    }
+    compile_expression(expression)
+}
+
 pub(crate) fn matches_expression(hay: &str, expression: &str) -> bool {
-    expression.split(|c: char| matches!(c, ',' | ';' | '|' | '\n')).map(str::trim).filter(|x| !x.is_empty())
-        .any(|needle| hay.contains(&needle.to_ascii_lowercase()))
+    if expression.trim().is_empty() { return true; }
+    if expression.len() > MAX_FILTER_EXPRESSION { return false; }
+    let compiled = compiled_expression(expression);
+    if compiled.error.is_some() { return false; }
+    compiled.groups.iter().any(|group| group.iter().all(|atom| atom.is_match(hay)))
+}
+
+pub(crate) fn validate_expression(expression: &str) -> Result<(), String> {
+    if expression.trim().is_empty() { return Ok(()); }
+    if expression.len() > MAX_FILTER_EXPRESSION {
+        return Err(format!("Filter is too long. Keep it under {MAX_FILTER_EXPRESSION} characters."));
+    }
+    let compiled = compiled_expression(expression);
+    match compiled.error { Some(err) => Err(err), None => Ok(()) }
 }
 
 fn message_key(message: &ChatMessage) -> u64 {
@@ -303,5 +370,17 @@ mod tests {
     #[test] fn empty_plain_text_is_hidden() {
         let settings = AppSettings::default();
         assert!(should_hide_globally(&settings, &message(1, "   ")));
+    }
+    #[test] fn friendly_or_and_regex_filters_match_v136_semantics() {
+        assert!(matches_expression("serum raid", "serum AND raid"));
+        assert!(!matches_expression("serum only", "serum AND raid"));
+        assert!(matches_expression("food ping", "serum | food"));
+        assert!(matches_expression("FOOD ping", "food"));
+        assert!(matches_expression("foo", "f(o|a)o"));
+        assert!(matches_expression("bar", "foo OR bar"));
+    }
+    #[test] fn invalid_filter_fails_closed() {
+        assert!(!matches_expression("anything", "["));
+        assert!(validate_expression("[").is_err());
     }
 }

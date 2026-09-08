@@ -2,15 +2,19 @@
 
 mod audio;
 mod capture;
+mod capture_supervisor;
 mod chat;
 mod game_filter;
 mod logging;
 mod model;
 mod npcap;
+#[path = "overlay_v150.rs"]
 mod overlay;
 mod paths;
 mod proto;
 mod settings;
+mod settings_ui;
+mod tray;
 mod win;
 
 use crate::{chat::ChatRuntime, model::PlayerIdentity};
@@ -63,9 +67,16 @@ fn main() {
     let (tx, rx) = mpsc::channel();
     let chat_runtime = ChatRuntime::start(paths.clone(), settings.clone(), identity.clone(), tx.clone());
     let stop = Arc::new(AtomicBool::new(false));
-    let capture_thread = capture::spawn(api, settings.clone(), identity, chat_runtime, tx, stop.clone());
+    let capture_thread = capture_supervisor::spawn(
+        api.clone(),
+        settings.clone(),
+        identity,
+        chat_runtime,
+        tx,
+        stop.clone(),
+    );
 
-    if let Err(err) = win::run_ui(settings, paths, rx, stop.clone()) {
+    if let Err(err) = win::run_ui(settings, paths, rx, stop.clone(), api) {
         logging::write(format!("startup/ui: {err}"));
         win::message_box("BPSR Ready Alert - Error", &err, true);
     }
@@ -77,7 +88,6 @@ fn main() {
 }
 
 fn smoke_test() -> Result<(), String> {
-    // Deterministic protocol tests that also prove all statically embedded assets link.
     let mut frame = vec![0u8; 22];
     frame[0..4].copy_from_slice(&22u32.to_be_bytes());
     frame[4..6].copy_from_slice(&2u16.to_be_bytes());

@@ -8,6 +8,7 @@ static READY_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/Ready
 static QUEUE_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/Queue.wav");
 static INVITE_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/PartyInvite.wav");
 static REQUEST_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/PartyRequest.wav");
+static CHAT_FALLBACK_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/LetsDoThis.wav");
 
 pub fn play_alert(kind: crate::model::AlertKind, volume: i32) {
     let bytes = match kind {
@@ -26,10 +27,28 @@ pub fn play_mp3(bytes: &[u8], volume: i32) -> Result<(), String> {
     play_bytes(bytes, "mp3", volume)
 }
 
+/// Custom file playback is currently used by keyword/private chat notifications.
+/// Match v1.3.6's resilient policy: a missing, unreadable or MCI-incompatible custom
+/// file falls back to the bundled LetsDoThis sound instead of losing the alert.
 pub fn play_file(path: &Path, volume: i32) -> Result<(), String> {
-    let extension = path.extension().and_then(|x| x.to_str()).unwrap_or("wav");
-    let bytes = fs::read(path).map_err(|e| format!("read custom sound {}: {e}", path.display()))?;
-    play_bytes(&bytes, extension, volume)
+    if volume <= 0 {
+        return Ok(());
+    }
+    let custom = (|| {
+        let extension = path.extension().and_then(|x| x.to_str()).unwrap_or("wav");
+        let bytes = fs::read(path).map_err(|e| format!("read custom sound {}: {e}", path.display()))?;
+        play_bytes(&bytes, extension, volume)
+    })();
+    match custom {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            logging::write(format!(
+                "audio: custom chat sound failed {}; using bundled fallback: {err}",
+                path.display()
+            ));
+            play_bytes(CHAT_FALLBACK_WAV, "wav", volume)
+        }
+    }
 }
 
 fn play_bytes(bytes: &[u8], extension: &str, volume: i32) -> Result<(), String> {
