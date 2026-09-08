@@ -11,6 +11,7 @@ mod overlay;
 mod paths;
 mod proto;
 mod settings;
+mod settings_ui;
 mod win;
 
 use crate::{chat::ChatRuntime, model::PlayerIdentity};
