@@ -1,8 +1,9 @@
 use crate::{model::{AppEvent, DpsRow, DpsSnapshot}, proto};
 use std::{collections::HashSet, sync::mpsc::{self, Receiver, Sender}};
 
-#[path = "telemetry_v170.rs"]
-mod inner;
+mod inner {
+    include!(concat!(env!("OUT_DIR"), "/telemetry_v170_fixed.rs"));
+}
 
 pub struct TelemetryRuntime {
     inner: inner::TelemetryRuntime,
