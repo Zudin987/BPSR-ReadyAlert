@@ -13,14 +13,14 @@ use windows_sys::Win32::{
     Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::Gdi::{
         BeginPaint, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, GetStockObject,
-        InvalidateRect, SelectObject, SetBkMode, SetTextColor, DEFAULT_GUI_FONT, PAINTSTRUCT,
+        InvalidateRect, SelectObject, SetBkMode, SetTextColor, DEFAULT_GUI_FONT, HDC, PAINTSTRUCT,
         TRANSPARENT,
     },
     UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, GetClientRect, GetWindowLongPtrW, GetWindowRect, LoadCursorW,
         PostMessageW, RegisterClassW, SendMessageW, SetLayeredWindowAttributes, SetWindowLongPtrW,
-        SetWindowPos, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_TOPMOST,
-        IDC_ARROW, LWA_ALPHA, SW_HIDE, SWP_NOACTIVATE, WM_ERASEBKGND, WM_EXITSIZEMOVE,
+        SetWindowPos, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_TOPMOST,
+        IDC_ARROW, LWA_ALPHA, SWP_NOACTIVATE, WM_ERASEBKGND, WM_EXITSIZEMOVE,
         WM_LBUTTONDOWN, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SIZE, WS_EX_LAYERED,
         WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WNDCLASSW,
     },
@@ -124,7 +124,7 @@ unsafe fn paint(hwnd:HWND,state:&mut State){
     let mut ps:PAINTSTRUCT=std::mem::zeroed();let hdc=BeginPaint(hwnd,&mut ps);if hdc.is_null(){return;}
     let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);
     fill(hdc,&rc,rgb(18,22,27));
-    SelectObject(hdc,GetStockObject(DEFAULT_GUI_FONT));SetBkMode(hdc,TRANSPARENT);
+    SelectObject(hdc,GetStockObject(DEFAULT_GUI_FONT));SetBkMode(hdc,TRANSPARENT as i32);
     if state.collapsed{
         SetTextColor(hdc,rgb(99,199,255));draw(hdc,if state.kind==Kind::Dps{"D"}else{"M"},rc,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);EndPaint(hwnd,&ps);return;
     }
@@ -139,7 +139,7 @@ unsafe fn paint(hwnd:HWND,state:&mut State){
     EndPaint(hwnd,&ps);
 }
 
-unsafe fn paint_dps(hdc:isize,rc:RECT,s:&DpsSnapshot){
+unsafe fn paint_dps(hdc:HDC,rc:RECT,s:&DpsSnapshot){
     let summary=format!("{}  Total {}",format_time(s.encounter_ms),compact(s.total_damage as f64));
     SetTextColor(hdc,rgb(145,160,180));draw(hdc,&summary,RECT{left:10,top:TOOLBAR_H+4,right:rc.right-10,bottom:TOOLBAR_H+27},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);
     let top=TOOLBAR_H+30;let row_h=29;let max=((rc.bottom-top)/row_h).max(0) as usize;
@@ -153,7 +153,7 @@ unsafe fn paint_dps(hdc:isize,rc:RECT,s:&DpsSnapshot){
     }
 }
 
-unsafe fn paint_mechanics(hdc:isize,rc:RECT,s:&MechanicSnapshot){
+unsafe fn paint_mechanics(hdc:HDC,rc:RECT,s:&MechanicSnapshot){
     let top=TOOLBAR_H+7;let row_h=40;let max=((rc.bottom-top)/row_h).max(0)as usize;let now=now_ms();
     if s.rows.is_empty(){SetTextColor(hdc,rgb(132,145,162));draw(hdc,"No active mechanic",RECT{left:10,top:top+18,right:rc.right-10,bottom:top+58},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);return;}
     for(i,row)in s.rows.iter().filter(|r|r.persistent||r.expires_unix_ms<=0||r.expires_unix_ms>now).take(max).enumerate(){let y=top+i as i32*row_h;let r=RECT{left:6,top:y,right:rc.right-6,bottom:y+row_h-3};fill(hdc,&r,if i%2==0{rgb(28,33,40)}else{rgb(24,29,35)});let accent=if row.priority>=3{rgb(255,99,99)}else{rgb(99,199,255)};fill(hdc,&RECT{left:r.left,top:r.top,right:r.left+3,bottom:r.bottom},accent);
@@ -179,8 +179,8 @@ fn layout_side(state:&State)->String{state.features.read().map(|f|if state.kind=
 unsafe fn monitor_work(hwnd:HWND)->RECT{let m=MonitorFromWindow(hwnd,2);let mut i=MonitorInfo{cb_size:std::mem::size_of::<MonitorInfo>()as u32,rc_monitor:std::mem::zeroed(),rc_work:std::mem::zeroed(),flags:0};if !m.is_null()&&GetMonitorInfoW(m,&mut i)!=0{i.rc_work}else{RECT{left:0,top:0,right:1920,bottom:1080}}}
 
 unsafe fn with_state<F:FnOnce(&mut State)>(hwnd:HWND,f:F){let p=GetWindowLongPtrW(hwnd,GWLP_USERDATA)as *mut State;if !p.is_null(){f(&mut*p);}}
-unsafe fn fill(hdc:isize,r:&RECT,c:u32){let b=CreateSolidBrush(c);if !b.is_null(){FillRect(hdc,r,b);DeleteObject(b);}}
-unsafe fn draw(hdc:isize,text:&str,mut r:RECT,flags:u32){let w=wide(text);DrawTextW(hdc,w.as_ptr(),-1,&mut r,flags);}
+unsafe fn fill(hdc:HDC,r:&RECT,c:u32){let b=CreateSolidBrush(c);if !b.is_null(){FillRect(hdc,r,b);DeleteObject(b);}}
+unsafe fn draw(hdc:HDC,text:&str,mut r:RECT,flags:u32){let w=wide(text);DrawTextW(hdc,w.as_ptr(),-1,&mut r,flags);}
 fn compact(v:f64)->String{let a=v.abs();if a>=1_000_000_000.0{format!("{:.2}B",v/1_000_000_000.0)}else if a>=1_000_000.0{format!("{:.2}M",v/1_000_000.0)}else if a>=1_000.0{format!("{:.1}K",v/1_000.0)}else{format!("{:.0}",v)}}
 fn format_time(ms:u64)->String{let s=ms/1000;format!("{}:{:02}",s/60,s%60)}
 fn now_ms()->i64{SystemTime::now().duration_since(UNIX_EPOCH).map(|d|d.as_millis().min(i64::MAX as u128)as i64).unwrap_or(0)}
