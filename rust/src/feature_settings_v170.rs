@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{fs, io};
 
 // Current protocol ids mirrored from CN Resonance Logs `live/protocol/attrs.rs`.
+// These are the wire EntityAttr identifiers, not the similarly-numbered
+// character-panel/loadout ids used by some UI data tables.
 pub const ATTR_DEFENSE_POWER: i32 = 0x0033;
 pub const ATTR_BASE_STRENGTH: i32 = 0x0046;
 pub const ATTR_ENDURANCE: i32 = 0x0067;
@@ -44,8 +46,14 @@ pub const ATTR_VERSATILITY: i32 = 11_465;
 
 /// Full compact catalog exposed by Dungeon Mechanics. Users may select at most six.
 pub const ATTRIBUTE_CATALOG: &[(i32, &str)] = &[
+    (ATTR_CRIT, "Crit"),
+    (ATTR_LUCKY, "Lucky"),
+    (ATTR_HASTE, "Haste"),
+    (ATTR_MASTERY, "Mastery"),
     (ATTR_FIGHT_POINT, "Ability Score"),
     (ATTR_SEASON_STRENGTH, "Illusion Break"),
+    (ATTR_CURRENT_HP, "HP"),
+    (ATTR_MAX_HP, "Max HP"),
     (ATTR_LEVEL, "Level"),
     (ATTR_RANK_LEVEL, "Rank"),
     (ATTR_TOTAL_POWER, "Total Power"),
@@ -54,12 +62,6 @@ pub const ATTRIBUTE_CATALOG: &[(i32, &str)] = &[
     (ATTR_DEFENSE_POWER, "Defense"),
     (ATTR_BASE_STRENGTH, "Base Strength"),
     (ATTR_ENDURANCE, "Endurance"),
-    (ATTR_CRIT, "Crit"),
-    (ATTR_LUCKY, "Lucky"),
-    (ATTR_HASTE, "Haste"),
-    (ATTR_MASTERY, "Mastery"),
-    (ATTR_CURRENT_HP, "HP"),
-    (ATTR_MAX_HP, "Max HP"),
     (ATTR_MAX_MP, "Max MP"),
     (ATTR_STAMINA, "Stamina"),
     (ATTR_CURRENT_SHIELD, "Shield"),
@@ -83,6 +85,46 @@ pub fn tracked_attr_ids() -> impl Iterator<Item = i32> {
 
 pub fn is_trackable_attr(id: i32) -> bool {
     ATTRIBUTE_CATALOG.iter().any(|(candidate, _)| *candidate == id)
+}
+
+/// BPSR sends the core rate attributes as fixed-point thousandths of a
+/// percentage point: 48_160 means 48.160%. CN Resonance tracks the same wire
+/// ids above; format the rate family as rates instead of exposing the raw
+/// fixed-point integers.
+pub const fn attr_is_percent(id: i32) -> bool {
+    matches!(
+        id,
+        ATTR_CRIT
+            | ATTR_LUCKY
+            | ATTR_HASTE
+            | ATTR_MASTERY
+            | ATTR_SKILL_CD_PCT
+            | ATTR_CD_ACCELERATE_PCT
+    )
+}
+
+pub fn format_attr_value(id: i32, value: i64) -> String {
+    if attr_is_percent(id) {
+        let percent = value as f64 / 1000.0;
+        // Keep useful precision for small Mastery/CD values without filling the
+        // compact header with insignificant trailing zeroes.
+        let mut text = format!("{percent:.3}");
+        while text.contains('.') && text.ends_with('0') {
+            text.pop();
+        }
+        if text.ends_with('.') {
+            text.pop();
+        }
+        return format!("{text}%");
+    }
+    let abs = value.unsigned_abs();
+    if abs >= 1_000_000 {
+        format!("{:.2}M", value as f64 / 1_000_000.0)
+    } else if abs >= 100_000 {
+        format!("{:.1}K", value as f64 / 1000.0)
+    } else {
+        value.to_string()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -150,7 +192,7 @@ pub struct MechanicAttributeSettings {
     pub tracked: Vec<i32>,
 }
 impl Default for MechanicAttributeSettings {
-    fn default() -> Self { Self { tracked: vec![ATTR_LUCKY, ATTR_HASTE, ATTR_MASTERY] } }
+    fn default() -> Self { Self { tracked: vec![ATTR_CRIT, ATTR_LUCKY, ATTR_HASTE, ATTR_MASTERY] } }
 }
 
 impl FeatureSettings {
@@ -213,4 +255,22 @@ pub fn save(paths: &AppPaths, settings: &FeatureSettings) -> io::Result<()> {
     let p = path(paths); let tmp = p.with_extension("json.new");
     let json = serde_json::to_string_pretty(&value).map_err(io::Error::other)?;
     fs::write(&tmp, json)?; if p.exists() { fs::remove_file(&p)?; } fs::rename(tmp, p)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn core_rate_attributes_are_fixed_point_percentages() {
+        assert_eq!(format_attr_value(ATTR_LUCKY, 48_160), "48.16%");
+        assert_eq!(format_attr_value(ATTR_HASTE, 41_672), "41.672%");
+        assert_eq!(format_attr_value(ATTR_MASTERY, 5_640), "5.64%");
+    }
+
+    #[test]
+    fn non_rate_attributes_keep_compact_numeric_format() {
+        assert_eq!(format_attr_value(ATTR_CURRENT_HP, 247_900), "247.9K");
+        assert_eq!(format_attr_value(ATTR_FIGHT_POINT, 58_404), "58404");
+    }
 }
