@@ -500,9 +500,36 @@ unsafe fn sync_hotkey(hwnd: HWND, state: &mut OverlayState, snapshot: &AppSettin
         let _ = UnregisterHotKey(hwnd, CLICK_HOTKEY_ID);
         state.hotkey_registered = false;
     }
-    if let Some((mods, vk)) = parse_hotkey(&snapshot.chat.click_through_hotkey) {
+    let parsed = parse_hotkey(&snapshot.chat.click_through_hotkey);
+    if let Some((mods, vk)) = parsed {
         state.hotkey_registered = RegisterHotKey(hwnd, CLICK_HOTKEY_ID, mods, vk) != 0;
-        if !state.hotkey_registered { logging::write("chat: click-through hotkey registration failed"); }
+    }
+    if state.hotkey_registered {
+        return;
+    }
+
+    logging::write(if parsed.is_some() {
+        "chat: click-through hotkey registration failed"
+    } else {
+        "chat: click-through hotkey is invalid"
+    });
+
+    if snapshot.chat.click_through {
+        let corrected = if let Ok(mut current) = state.settings.write() {
+            current.chat.click_through = false;
+            current.normalize();
+            current.clone()
+        } else {
+            return;
+        };
+        if let Err(err) = settings::save(&state.paths, &corrected) {
+            logging::write(format!("chat: fail-safe disabled click-through for session but save failed: {err}"));
+        }
+        let mut ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        ex &= !WS_EX_TRANSPARENT;
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex as isize);
+        logging::write("chat: click-through forced OFF because recovery hotkey is unavailable");
+        InvalidateRect(hwnd, null(), 0);
     }
 }
 
@@ -662,6 +689,13 @@ unsafe fn paint(hwnd: HWND, state: &mut OverlayState) {
     SelectObject(hdc, before_toolbar);
 
     let filtered: Vec<&OverlayItem> = state.items.iter().filter(|x| !chat::should_hide_in_overlay(&snapshot, &x.message)).collect();
+    if filtered.is_empty() {
+        draw_empty_state(hdc, state, &client, window_back);
+        SelectObject(hdc, old_font);
+        EndPaint(hwnd, &ps);
+        return;
+    }
+
     let max_scroll = filtered.len().saturating_sub(1);
     state.scroll_from_bottom = state.scroll_from_bottom.min(max_scroll);
     let end = filtered.len().saturating_sub(state.scroll_from_bottom);
@@ -692,6 +726,26 @@ unsafe fn paint(hwnd: HWND, state: &mut OverlayState) {
     }
     SelectObject(hdc, old_font);
     EndPaint(hwnd, &ps);
+}
+
+unsafe fn draw_empty_state(hdc: HDC, state: &OverlayState, client: &RECT, back: u32) {
+    let center = ((client.top + client.bottom) / 2).max(TOOLBAR_HEIGHT + 70);
+    let title = if state.items.is_empty() { "Waiting for chat" } else { "No messages in this tab" };
+    let hint = if state.items.is_empty() {
+        "ReadyAlert is listening for BPSR chat messages on the shared capture pipeline."
+    } else {
+        "Recent chat exists, but none matches this tab's channels, level rule or filters."
+    };
+    let title_rect = RECT { left: 30, top: center - 42, right: client.right - 30, bottom: center - 10 };
+    if !state.bold_font.is_null() {
+        let old = SelectObject(hdc, state.bold_font);
+        draw_text(hdc, title, title_rect, blend_color(rgb(239,243,247), back, 100), DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX, false);
+        SelectObject(hdc, old);
+    } else {
+        draw_text(hdc, title, title_rect, blend_color(rgb(239,243,247), back, 100), DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX, false);
+    }
+    let hint_rect = RECT { left: 50, top: center, right: client.right - 50, bottom: center + 58 };
+    draw_text(hdc, hint, hint_rect, blend_color(rgb(157,170,188), back, 100), DT_CENTER | DT_WORDBREAK | DT_NOPREFIX, false);
 }
 
 unsafe fn draw_border(hdc: HDC, client: RECT) {
@@ -878,28 +932,81 @@ unsafe fn try_dark_titlebar(hwnd: HWND) {
 }
 
 fn sender_color(message: &ChatMessage) -> u32 {
-    const PALETTE: [(u8,u8,u8);10] = [(121,192,255),(255,174,121),(143,237,143),(255,181,194),(205,170,255),(255,214,102),(115,220,210),(255,151,196),(159,184,255),(190,224,126)];
-    let mut h = 14695981039346656037u64;
-    if message.sender_id != 0 { for b in message.sender_id.to_le_bytes() { h=(h^u64::from(b)).wrapping_mul(1099511628211); } }
-    else { for b in message.sender_name.as_bytes() { h=(h^u64::from(*b)).wrapping_mul(1099511628211); } }
-    let c=PALETTE[(h as usize)%PALETTE.len()]; rgb(c.0,c.1,c.2)
+    let mut key = if message.sender_id != 0 {
+        (message.sender_id as u64).wrapping_mul(11_400_714_819_323_198_485u64)
+    } else {
+        let mut hash = 14_695_981_039_346_656_037u64;
+        let lower = message.sender_name.to_lowercase();
+        for unit in lower.encode_utf16() {
+            hash ^= u64::from(unit);
+            hash = hash.wrapping_mul(1_099_511_628_211u64);
+        }
+        hash
+    };
+    key ^= key >> 33;
+    key = key.wrapping_mul(0xff51_afd7_ed55_8ccdu64);
+    key ^= key >> 33;
+    key = key.wrapping_mul(0xc4ce_b9fe_1a85_ec53u64);
+    key ^= key >> 33;
+
+    let hue_slot = (key % 48) as f64;
+    let hue = (hue_slot * 137.507_764_050_037_85) % 360.0;
+    let saturation = 0.58 + ((key >> 8) % 3) as f64 * 0.055;
+    let lightness = (0.68 + ((key >> 12) % 3) as f64 * 0.035).min(0.76);
+    let (r, g, b) = hsl_to_rgb(hue, saturation, lightness);
+    rgb(r, g, b)
+}
+
+fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> (u8, u8, u8) {
+    let c = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
+    let h = hue / 60.0;
+    let x = c * (1.0 - (h % 2.0 - 1.0).abs());
+    let (r, g, b) = if h < 1.0 { (c, x, 0.0) }
+    else if h < 2.0 { (x, c, 0.0) }
+    else if h < 3.0 { (0.0, c, x) }
+    else if h < 4.0 { (0.0, x, c) }
+    else if h < 5.0 { (x, 0.0, c) }
+    else { (c, 0.0, x) };
+    let m = lightness - c / 2.0;
+    (
+        ((r + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+        ((g + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+        ((b + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+    )
 }
 
 fn time_text(message: &ChatMessage, ago: bool) -> String {
     if message.unix_seconds <= 0 { return String::new(); }
     if ago {
-        let now=SystemTime::now().duration_since(UNIX_EPOCH).map(|d|d.as_secs() as i64).unwrap_or(message.unix_seconds);
-        let secs=now.saturating_sub(message.unix_seconds).max(0);
-        return if secs < 60 { format!("{}s", secs) } else if secs < 3600 { format!("{}m", secs/60) } else if secs < 86_400 { format!("{}h", secs/3600) } else { format!("{}d", secs/86_400) };
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(message.unix_seconds);
+        let secs = now.saturating_sub(message.unix_seconds).max(0);
+        if secs < 60 { return format!("{}s", secs); }
+        if secs < 3600 { return format!("{}m", secs / 60); }
+        if secs < 86_400 { return format!("{}h", secs / 3600); }
+        if let Some(local) = local_system_time(message.unix_seconds) {
+            return format!("{:02}-{:02} {:02}:{:02}", local.wMonth, local.wDay, local.wHour, local.wMinute);
+        }
+        return format!("{}d", secs / 86_400);
     }
+    local_system_time(message.unix_seconds)
+        .map(|local| format!("{:02}:{:02}", local.wHour, local.wMinute))
+        .unwrap_or_default()
+}
+
+fn local_system_time(unix_seconds: i64) -> Option<SYSTEMTIME> {
     unsafe {
-        const WINDOWS_TO_UNIX_SECONDS:i128=11_644_473_600;
-        let ticks=(i128::from(message.unix_seconds)+WINDOWS_TO_UNIX_SECONDS)*10_000_000;
-        if ticks<0 || ticks>i128::from(u64::MAX) { return String::new(); }
-        let ticks=ticks as u64;
-        let utc=FILETIME{dwLowDateTime:ticks as u32,dwHighDateTime:(ticks>>32)as u32};
-        let mut local_ft:FILETIME=std::mem::zeroed(); let mut local:SYSTEMTIME=std::mem::zeroed();
-        if FileTimeToLocalFileTime(&utc,&mut local_ft)!=0 && FileTimeToSystemTime(&local_ft,&mut local)!=0 { format!("{:02}:{:02}",local.wHour,local.wMinute) } else { String::new() }
+        const WINDOWS_TO_UNIX_SECONDS: i128 = 11_644_473_600;
+        let ticks = (i128::from(unix_seconds) + WINDOWS_TO_UNIX_SECONDS) * 10_000_000;
+        if ticks < 0 || ticks > i128::from(u64::MAX) { return None; }
+        let ticks = ticks as u64;
+        let utc = FILETIME { dwLowDateTime: ticks as u32, dwHighDateTime: (ticks >> 32) as u32 };
+        let mut local_ft: FILETIME = std::mem::zeroed();
+        let mut local: SYSTEMTIME = std::mem::zeroed();
+        if FileTimeToLocalFileTime(&utc, &mut local_ft) != 0 && FileTimeToSystemTime(&local_ft, &mut local) != 0 {
+            Some(local)
+        } else {
+            None
+        }
     }
 }
 
