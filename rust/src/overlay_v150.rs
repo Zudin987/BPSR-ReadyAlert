@@ -3,7 +3,7 @@ use crate::{
     logging,
     model::{channel_name, ChatMessage},
     paths::AppPaths,
-    settings::{self, AppSettings},
+    settings::{self, AppSettings, ChatBlockedUser},
 };
 use std::{
     collections::VecDeque,
@@ -13,25 +13,27 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use windows_sys::Win32::{
-    Foundation::{FILETIME, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, RECT, SYSTEMTIME, WPARAM},
+    Foundation::{FILETIME, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SYSTEMTIME, WPARAM},
     Graphics::Gdi::{
-        BeginPaint, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, GetStockObject,
-        InvalidateRect, SelectObject, SetBkMode, SetTextColor, DEFAULT_GUI_FONT, HDC, PAINTSTRUCT,
-        TRANSPARENT,
+        BeginPaint, CreateFontW, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect,
+        GetStockObject, InvalidateRect, SelectObject, SetBkMode, SetTextColor, DEFAULT_GUI_FONT,
+        HDC, HFONT, PAINTSTRUCT, TRANSPARENT,
     },
     UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, GetClientRect, GetWindowLongPtrW, GetWindowRect,
-        IsWindow, LoadCursorW, PostMessageW, RegisterClassW, SendMessageW,
-        SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow, CREATESTRUCTW,
-        CW_USEDEFAULT, GWL_EXSTYLE, GWLP_USERDATA, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW,
-        LWA_ALPHA, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-        WM_CLOSE, WM_COMMAND, WM_ERASEBKGND, WM_EXITSIZEMOVE, WM_HOTKEY, WM_LBUTTONDOWN,
-        WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SIZE, WS_EX_LAYERED,
-        WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, WNDCLASSW,
+        AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, GetClientRect,
+        GetCursorPos, GetWindowLongPtrW, GetWindowRect, IsWindow, LoadCursorW, PostMessageW,
+        RegisterClassW, SendMessageW, SetForegroundWindow, SetLayeredWindowAttributes,
+        SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, CREATESTRUCTW, CW_USEDEFAULT,
+        GWL_EXSTYLE, GWLP_USERDATA, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW, LWA_ALPHA, MF_SEPARATOR,
+        MF_STRING, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+        TPM_LEFTALIGN, TPM_RETURNCMD, TPM_RIGHTBUTTON, WM_CLOSE, WM_COMMAND, WM_ERASEBKGND,
+        WM_EXITSIZEMOVE, WM_HOTKEY, WM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY,
+        WM_PAINT, WM_RBUTTONUP, WM_SIZE, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+        WS_EX_TRANSPARENT, WS_POPUP, WNDCLASSW,
     },
 };
 
-const CLASS_NAME: &str = "BPSRReadyAlertRustOverlayV150";
+const CLASS_NAME: &str = "BPSRReadyAlertRustOverlayV151";
 const CMD_OPEN_SETTINGS: u32 = 1010;
 const CMD_TTS_TOGGLE: u32 = 1013;
 const CMD_ADD_TAB: u32 = 1014;
@@ -48,6 +50,11 @@ const ROW_GAP: i32 = 4;
 const RESIZE_GRIP: i32 = 10;
 const COLLAPSED_THICKNESS: i32 = 24;
 const CLICK_HOTKEY_ID: i32 = 0x5141;
+
+const MENU_COPY_NAME: u32 = 4101;
+const MENU_COPY_UID: u32 = 4102;
+const MENU_BLOCK: u32 = 4103;
+
 const WM_NCHITTEST_: u32 = 0x0084;
 const WM_NCLBUTTONDOWN_: u32 = 0x00A1;
 const HTCLIENT_: isize = 1;
@@ -69,6 +76,9 @@ const DT_CALCRECT: u32 = 0x0400;
 const DT_NOPREFIX: u32 = 0x0800;
 const DT_END_ELLIPSIS: u32 = 0x8000;
 
+const CF_UNICODETEXT: u32 = 13;
+const GMEM_MOVEABLE: u32 = 0x0002;
+
 #[repr(C)]
 struct MonitorInfo {
     cb_size: u32,
@@ -86,6 +96,10 @@ extern "system" {
 extern "system" {
     fn FileTimeToLocalFileTime(file_time: *const FILETIME, local_file_time: *mut FILETIME) -> i32;
     fn FileTimeToSystemTime(file_time: *const FILETIME, system_time: *mut SYSTEMTIME) -> i32;
+    fn GlobalAlloc(flags: u32, bytes: usize) -> *mut c_void;
+    fn GlobalLock(memory: *mut c_void) -> *mut c_void;
+    fn GlobalUnlock(memory: *mut c_void) -> i32;
+    fn GlobalFree(memory: *mut c_void) -> *mut c_void;
 }
 
 #[link(name = "user32")]
@@ -95,12 +109,23 @@ extern "system" {
     fn RegisterHotKey(hwnd: HWND, id: i32, modifiers: u32, vk: u32) -> i32;
     fn UnregisterHotKey(hwnd: HWND, id: i32) -> i32;
     fn ReleaseCapture() -> i32;
+    fn OpenClipboard(hwnd: HWND) -> i32;
+    fn EmptyClipboard() -> i32;
+    fn SetClipboardData(format: u32, memory: *mut c_void) -> *mut c_void;
+    fn CloseClipboard() -> i32;
 }
 
 #[derive(Clone)]
 struct OverlayItem {
     message: ChatMessage,
     translation: Option<(String, String)>,
+}
+
+#[derive(Clone)]
+struct HitRow {
+    rect: RECT,
+    sender_id: i64,
+    sender_name: String,
 }
 
 struct OverlayState {
@@ -112,6 +137,11 @@ struct OverlayState {
     collapsed: bool,
     expanded_bounds: RECT,
     hotkey_registered: bool,
+    visible_rows: Vec<HitRow>,
+    regular_font: HFONT,
+    bold_font: HFONT,
+    font_family_key: String,
+    font_size_key: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -157,6 +187,11 @@ pub unsafe fn create(
         collapsed: false,
         expanded_bounds: RECT { left: 0, top: 0, right: snapshot.chat.window_width, bottom: snapshot.chat.window_height },
         hotkey_registered: false,
+        visible_rows: Vec::new(),
+        regular_font: null_mut(),
+        bold_font: null_mut(),
+        font_family_key: String::new(),
+        font_size_key: 0,
     });
     let state_ptr = Box::into_raw(state);
     let hwnd = CreateWindowExW(
@@ -317,6 +352,20 @@ unsafe extern "system" fn overlay_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM,
             }
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }
+        WM_RBUTTONUP => {
+            if let Some(state) = state_mut(hwnd) {
+                if state.collapsed { return 0; }
+                let x = (lparam & 0xffff) as u16 as i16 as i32;
+                let y = ((lparam >> 16) & 0xffff) as u16 as i16 as i32;
+                if y >= TOOLBAR_HEIGHT {
+                    if let Some(row) = state.visible_rows.iter().find(|row| hit(row.rect, x, y)).cloned() {
+                        show_message_menu(hwnd, state, &row);
+                        return 0;
+                    }
+                }
+            }
+            DefWindowProcW(hwnd, msg, wparam, lparam)
+        }
         WM_HOTKEY => {
             if wparam as i32 == CLICK_HOTKEY_ID {
                 if let Some(state) = state_mut(hwnd) { toggle_clickthrough(hwnd, state); }
@@ -354,12 +403,85 @@ unsafe extern "system" fn overlay_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM,
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             if !ptr.is_null() {
                 if (*ptr).hotkey_registered { let _ = UnregisterHotKey(hwnd, CLICK_HOTKEY_ID); }
+                if !(*ptr).regular_font.is_null() { DeleteObject((*ptr).regular_font); }
+                if !(*ptr).bold_font.is_null() { DeleteObject((*ptr).bold_font); }
                 drop(Box::from_raw(ptr));
             }
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
+}
+
+unsafe fn show_message_menu(hwnd: HWND, state: &mut OverlayState, row: &HitRow) {
+    let menu = CreatePopupMenu();
+    if menu.is_null() { return; }
+    if !row.sender_name.trim().is_empty() {
+        AppendMenuW(menu, MF_STRING, MENU_COPY_NAME as usize, wide("Copy player name").as_ptr());
+    }
+    if row.sender_id != 0 {
+        AppendMenuW(menu, MF_STRING, MENU_COPY_UID as usize, wide("Copy UID").as_ptr());
+        AppendMenuW(menu, MF_SEPARATOR, 0, null());
+        AppendMenuW(menu, MF_STRING, MENU_BLOCK as usize, wide("Block player in ReadyAlert chat").as_ptr());
+    }
+    let mut point: POINT = std::mem::zeroed();
+    GetCursorPos(&mut point);
+    SetForegroundWindow(hwnd);
+    let command = TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, point.x, point.y, 0, hwnd, null());
+    DestroyMenu(menu);
+    match command as u32 {
+        MENU_COPY_NAME => { let _ = copy_to_clipboard(hwnd, &row.sender_name); }
+        MENU_COPY_UID => { let _ = copy_to_clipboard(hwnd, &row.sender_id.to_string()); }
+        MENU_BLOCK => { block_player(hwnd, state, row); }
+        _ => {}
+    }
+}
+
+unsafe fn block_player(hwnd: HWND, state: &mut OverlayState, row: &HitRow) {
+    if row.sender_id == 0 { return; }
+    let snapshot = if let Ok(mut settings) = state.settings.write() {
+        if settings.chat.is_blocked(row.sender_id) { return; }
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        settings.chat.blocked_users.push(ChatBlockedUser {
+            id: row.sender_id,
+            name: row.sender_name.clone(),
+            blocked_at_utc: format!("unix:{stamp}"),
+        });
+        settings.normalize();
+        settings.clone()
+    } else { return; };
+    if let Err(err) = settings::save(&state.paths, &snapshot) {
+        logging::write(format!("chat: block active for session but save failed sender={} error={err}", row.sender_id));
+    } else {
+        logging::write(format!("chat: blocked sender={} name={}", row.sender_id, row.sender_name));
+    }
+    state.visible_rows.clear();
+    InvalidateRect(hwnd, null(), 0);
+}
+
+unsafe fn copy_to_clipboard(hwnd: HWND, text: &str) -> bool {
+    if text.is_empty() || OpenClipboard(hwnd) == 0 { return false; }
+    let mut wide_text: Vec<u16> = text.encode_utf16().collect();
+    wide_text.push(0);
+    let bytes = wide_text.len() * std::mem::size_of::<u16>();
+    let memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if memory.is_null() {
+        CloseClipboard();
+        return false;
+    }
+    let target = GlobalLock(memory) as *mut u16;
+    if target.is_null() {
+        let _ = GlobalFree(memory);
+        CloseClipboard();
+        return false;
+    }
+    std::ptr::copy_nonoverlapping(wide_text.as_ptr(), target, wide_text.len());
+    let _ = GlobalUnlock(memory);
+    let _ = EmptyClipboard();
+    let stored = SetClipboardData(CF_UNICODETEXT, memory);
+    if stored.is_null() { let _ = GlobalFree(memory); }
+    CloseClipboard();
+    !stored.is_null()
 }
 
 unsafe fn toggle_clickthrough(hwnd: HWND, state: &mut OverlayState) {
@@ -430,6 +552,7 @@ unsafe fn collapse_to_edge(hwnd: HWND, state: &mut OverlayState) {
         (x, y, w, COLLAPSED_THICKNESS)
     };
     state.collapsed = true;
+    state.visible_rows.clear();
     SetWindowPos(hwnd, null_mut(), x, y, w, h, SWP_NOACTIVATE | SWP_NOZORDER);
     apply_style(hwnd, &snapshot);
     InvalidateRect(hwnd, null(), 0);
@@ -482,18 +605,43 @@ unsafe fn state_mut(hwnd: HWND) -> Option<&'static mut OverlayState> {
     ptr.as_mut()
 }
 
+unsafe fn ensure_fonts(state: &mut OverlayState, settings: &AppSettings) {
+    let family = settings.chat.font_family.trim();
+    let family = if family.is_empty() { "Segoe UI" } else { family };
+    let size_key = (settings.chat.font_size.clamp(8.0, 24.0) * 10.0).round() as i32;
+    if state.font_family_key.eq_ignore_ascii_case(family)
+        && state.font_size_key == size_key
+        && !state.regular_font.is_null()
+        && !state.bold_font.is_null()
+    {
+        return;
+    }
+    if !state.regular_font.is_null() { DeleteObject(state.regular_font); state.regular_font = null_mut(); }
+    if !state.bold_font.is_null() { DeleteObject(state.bold_font); state.bold_font = null_mut(); }
+    let height = -(((settings.chat.font_size.clamp(8.0, 24.0) * 96.0 / 72.0).round() as i32).max(10));
+    let face = wide(family);
+    state.regular_font = CreateFontW(height, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, face.as_ptr());
+    state.bold_font = CreateFontW(height, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 5, 0, face.as_ptr());
+    state.font_family_key = family.to_string();
+    state.font_size_key = size_key;
+}
+
 unsafe fn paint(hwnd: HWND, state: &mut OverlayState) {
     let snapshot = state.settings.read().map(|s| s.clone()).unwrap_or_default();
+    ensure_fonts(state, &snapshot);
     let mut ps: PAINTSTRUCT = std::mem::zeroed();
     let hdc = BeginPaint(hwnd, &mut ps);
     if hdc.is_null() { return; }
     SetBkMode(hdc, TRANSPARENT as i32);
-    let font = GetStockObject(DEFAULT_GUI_FONT);
-    let old_font = SelectObject(hdc, font);
+    let stock_font = GetStockObject(DEFAULT_GUI_FONT);
+    let regular_font = if state.regular_font.is_null() { stock_font } else { state.regular_font };
+    let old_font = SelectObject(hdc, regular_font);
     let mut client: RECT = std::mem::zeroed();
     GetClientRect(hwnd, &mut client);
+    state.visible_rows.clear();
 
     if state.collapsed {
+        SelectObject(hdc, stock_font);
         fill(hdc, &client, rgb(26, 30, 36));
         let glyph = match snapshot.chat.collapse_side.to_ascii_lowercase().as_str() {
             "left" => "▶", "top" => "▼", "bottom" => "▲", _ => "◀"
@@ -509,7 +657,9 @@ unsafe fn paint(hwnd: HWND, state: &mut OverlayState) {
     draw_border(hdc, client);
     let toolbar = RECT { left: 2, top: 2, right: client.right - 2, bottom: TOOLBAR_HEIGHT };
     fill(hdc, &toolbar, scaled_color((26, 30, 36), snapshot.chat.toolbar_opacity));
+    let before_toolbar = SelectObject(hdc, stock_font);
     draw_toolbar(hdc, &snapshot, client.right);
+    SelectObject(hdc, before_toolbar);
 
     let filtered: Vec<&OverlayItem> = state.items.iter().filter(|x| !chat::should_hide_in_overlay(&snapshot, &x.message)).collect();
     let max_scroll = filtered.len().saturating_sub(1);
@@ -525,7 +675,13 @@ unsafe fn paint(hwnd: HWND, state: &mut OverlayState) {
         let top = y - row_height;
         if top < TOOLBAR_HEIGHT + 2 { break; }
         ordinal = ordinal.saturating_sub(1);
-        draw_row(hdc, &snapshot, item, ordinal, RECT { left: 4, top, right: client.right - 4, bottom: y });
+        let row_rect = RECT { left: 4, top, right: client.right - 4, bottom: y };
+        draw_row(hdc, &snapshot, item, ordinal, row_rect, state.bold_font);
+        state.visible_rows.push(HitRow {
+            rect: row_rect,
+            sender_id: item.message.sender_id,
+            sender_name: item.message.sender_name.clone(),
+        });
         y = top - ROW_GAP;
     }
     if state.scroll_from_bottom > 0 {
@@ -611,17 +767,21 @@ fn tab_rects(settings: &AppSettings, max_right: i32) -> Vec<RECT> {
 
 fn hit(rect: RECT, x: i32, y: i32) -> bool { x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom }
 
-unsafe fn measure_row(hdc: HDC, settings: &AppSettings, item: &OverlayItem, width: i32) -> i32 {
-    let message_width = (width - 16).max(50);
-    let message_h = measure_text(hdc, item.message.text.trim(), message_width).max(18);
-    let translation_h = item.translation.as_ref().map(|(source, text)| measure_text(hdc, &format!("{source} → EN: {text}"), message_width).max(16) + 4).unwrap_or(0);
-    if settings.chat.compact_mode { message_h + translation_h + 14 } else { 22 + message_h + translation_h + 14 }
+fn line_height(settings: &AppSettings) -> i32 {
+    ((settings.chat.font_size.clamp(8.0, 24.0) * 96.0 / 72.0).ceil() as i32 + 7).clamp(20, 42)
 }
 
-unsafe fn draw_row(hdc: HDC, settings: &AppSettings, item: &OverlayItem, ordinal: usize, rect: RECT) {
+unsafe fn measure_row(hdc: HDC, settings: &AppSettings, item: &OverlayItem, width: i32) -> i32 {
+    let message_width = (width - 16).max(50);
+    let message_h = measure_text(hdc, item.message.text.trim(), message_width).max(line_height(settings) - 3);
+    let translation_h = item.translation.as_ref().map(|(source, text)| measure_text(hdc, &format!("{source} → EN: {text}"), message_width).max(16) + 4).unwrap_or(0);
+    if settings.chat.compact_mode { message_h + translation_h + 14 } else { line_height(settings) + message_h + translation_h + 14 }
+}
+
+unsafe fn draw_row(hdc: HDC, settings: &AppSettings, item: &OverlayItem, ordinal: usize, rect: RECT, bold_font: HFONT) {
     let base = if settings.chat.show_zebra_stripes && (ordinal & 1) == 1 { (26,30,36) } else { (20,23,28) };
     let mut back = base;
-    let hay = format!("{} {}", item.message.sender_name, item.message.text).to_ascii_lowercase();
+    let hay = format!("{} {}", item.message.sender_name, item.message.text);
     if item.message.channel == 5 && settings.chat.private_highlight_enabled {
         back = blend_tuple(parse_hex(&settings.chat.private_highlight_color).unwrap_or((86,53,93)), back, 40);
     } else if !settings.chat.highlight_if_matches.trim().is_empty() && chat::matches_expression(&hay, &settings.chat.highlight_if_matches) {
@@ -641,25 +801,38 @@ unsafe fn draw_row(hdc: HDC, settings: &AppSettings, item: &OverlayItem, ordinal
     let text_color = blend_color(rgb(239,243,247), back_ref, settings.chat.text_opacity);
     let meta_color = blend_color(rgb(157,170,188), back_ref, settings.chat.text_opacity);
     let shadow = settings.chat.text_shadow;
+    let lh = line_height(settings);
     if settings.chat.compact_mode {
         let mut x = left;
-        x = draw_inline(hdc, &format!("{} · ", channel_name(item.message.channel)), x, y, right, channel, shadow);
-        if settings.chat.show_time { x = draw_inline(hdc, &format!("{}  ", time_text(&item.message, settings.chat.show_time_as_ago)), x, y, right, meta_color, shadow); }
-        x = draw_inline(hdc, &format!("{}  ", sender_label), x, y, right, sender_color, shadow);
-        draw_text(hdc, item.message.text.trim(), RECT { left: x.min(right-20), top: y, right, bottom: rect.bottom - 5 - if item.translation.is_some() {20} else {0} }, text_color, DT_WORDBREAK | DT_NOPREFIX, shadow);
+        x = draw_inline(hdc, &format!("{} · ", channel_name(item.message.channel)), x, y, right, channel, shadow, lh);
+        if settings.chat.show_time { x = draw_inline(hdc, &format!("{}  ", time_text(&item.message, settings.chat.show_time_as_ago)), x, y, right, meta_color, shadow, lh); }
+        x = draw_inline(hdc, &format!("{}  ", sender_label), x, y, right, sender_color, shadow, lh);
+        let message_rect = RECT { left: x.min(right-20), top: y, right, bottom: rect.bottom - 5 - if item.translation.is_some() { lh } else { 0 } };
+        draw_message_text(hdc, settings, bold_font, item.message.text.trim(), message_rect, text_color, shadow);
     } else {
         let mut x = left;
-        x = draw_inline(hdc, &format!("{}  ", channel_name(item.message.channel)), x, y, right, channel, shadow);
-        x = draw_inline(hdc, &sender_label, x, y, right, sender_color, shadow);
-        if settings.chat.show_time { let _ = draw_inline(hdc, &format!("   {}", time_text(&item.message, settings.chat.show_time_as_ago)), x, y, right, meta_color, shadow); }
-        y += 22;
-        let translation_space = if item.translation.is_some() { 22 } else { 0 };
-        draw_text(hdc, item.message.text.trim(), RECT { left, top: y, right, bottom: rect.bottom - 5 - translation_space }, text_color, DT_WORDBREAK | DT_NOPREFIX, shadow);
+        x = draw_inline(hdc, &format!("{}  ", channel_name(item.message.channel)), x, y, right, channel, shadow, lh);
+        x = draw_inline(hdc, &sender_label, x, y, right, sender_color, shadow, lh);
+        if settings.chat.show_time { let _ = draw_inline(hdc, &format!("   {}", time_text(&item.message, settings.chat.show_time_as_ago)), x, y, right, meta_color, shadow, lh); }
+        y += lh;
+        let translation_space = if item.translation.is_some() { lh } else { 0 };
+        let message_rect = RECT { left, top: y, right, bottom: rect.bottom - 5 - translation_space };
+        draw_message_text(hdc, settings, bold_font, item.message.text.trim(), message_rect, text_color, shadow);
     }
     if let Some((source, text)) = &item.translation {
-        draw_text(hdc, &format!("{source} → EN: {text}"), RECT { left, top: rect.bottom-24, right, bottom: rect.bottom-4 }, blend_color(rgb(143,203,255), back_ref, settings.chat.text_opacity), DT_WORDBREAK | DT_NOPREFIX, shadow);
+        draw_text(hdc, &format!("{source} → EN: {text}"), RECT { left, top: rect.bottom-lh, right, bottom: rect.bottom-4 }, blend_color(rgb(143,203,255), back_ref, settings.chat.text_opacity), DT_WORDBREAK | DT_NOPREFIX, shadow);
     }
     if settings.chat.show_separators { fill(hdc, &RECT { left: rect.left+9, top: rect.bottom-1, right: rect.right-2, bottom: rect.bottom }, blend_color(rgb(255,255,255), back_ref, 10)); }
+}
+
+unsafe fn draw_message_text(hdc: HDC, settings: &AppSettings, bold_font: HFONT, text: &str, rect: RECT, color: u32, shadow: bool) {
+    if settings.chat.bold_message_text && !bold_font.is_null() {
+        let old = SelectObject(hdc, bold_font);
+        draw_text(hdc, text, rect, color, DT_WORDBREAK | DT_NOPREFIX, shadow);
+        SelectObject(hdc, old);
+    } else {
+        draw_text(hdc, text, rect, color, DT_WORDBREAK | DT_NOPREFIX, shadow);
+    }
 }
 
 unsafe fn measure_text(hdc: HDC, text: &str, width: i32) -> i32 {
@@ -670,13 +843,13 @@ unsafe fn measure_text(hdc: HDC, text: &str, width: i32) -> i32 {
     (rect.bottom - rect.top).max(0)
 }
 
-unsafe fn draw_inline(hdc: HDC, text: &str, x: i32, y: i32, right: i32, color: u32, shadow: bool) -> i32 {
+unsafe fn draw_inline(hdc: HDC, text: &str, x: i32, y: i32, right: i32, color: u32, shadow: bool, height: i32) -> i32 {
     if x >= right { return x; }
     let w = wide(text);
     let mut measure = RECT { left: 0, top: 0, right: (right-x).max(1), bottom: 0 };
     DrawTextW(hdc, w.as_ptr(), -1, &mut measure, DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX);
     let width = (measure.right-measure.left).max(1).min((right-x).max(1));
-    draw_text(hdc, text, RECT { left: x, top: y, right: x+width, bottom: y+20 }, color, DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX, shadow);
+    draw_text(hdc, text, RECT { left: x, top: y, right: x+width, bottom: y+height }, color, DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX, shadow);
     x + width
 }
 
@@ -724,7 +897,7 @@ fn time_text(message: &ChatMessage, ago: bool) -> String {
         let ticks=(i128::from(message.unix_seconds)+WINDOWS_TO_UNIX_SECONDS)*10_000_000;
         if ticks<0 || ticks>i128::from(u64::MAX) { return String::new(); }
         let ticks=ticks as u64;
-        let utc=FILETIME{dwLowDateTime:ticks as u32,dwHighDateTime:(ticks>>32) as u32};
+        let utc=FILETIME{dwLowDateTime:ticks as u32,dwHighDateTime:(ticks>>32)as u32};
         let mut local_ft:FILETIME=std::mem::zeroed(); let mut local:SYSTEMTIME=std::mem::zeroed();
         if FileTimeToLocalFileTime(&utc,&mut local_ft)!=0 && FileTimeToSystemTime(&local_ft,&mut local)!=0 { format!("{:02}:{:02}",local.wHour,local.wMinute) } else { String::new() }
     }
