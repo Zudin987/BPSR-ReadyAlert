@@ -96,18 +96,20 @@ fn main() {
 
     // Keep the standard thick-frame resize semantics but make the whole popup a
     // client area. A custom NCHITTEST below restores resize grips without the
-    // bright Win11 non-client strip that v1.8 left above the overlay.
-    patch_once(
-        &mut overlay,
-        "SetForegroundWindow, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow,",
-        "SetForegroundWindow, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackMouseEvent,",
-        "TrackMouseEvent import",
-    );
+    // bright Win11 non-client strip that v1.8 left above the overlay. Use a tiny
+    // direct User32 binding for mouse-leave tracking so we don't grow the
+    // windows-sys feature surface for one function.
     patch_once(
         &mut overlay,
         "CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_TOPMOST, IDC_ARROW, LWA_ALPHA,\nSWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_SHOW, WM_ERASEBKGND, WM_EXITSIZEMOVE,\nWM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SIZE,\nWS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_THICKFRAME, WNDCLASSW,",
-        "CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_TOPMOST, IDC_ARROW, LWA_ALPHA,\nHTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,\nSWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_SHOW, TME_LEAVE, TRACKMOUSEEVENT, WM_ERASEBKGND, WM_EXITSIZEMOVE,\nWM_LBUTTONDOWN, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCALCSIZE, WM_NCHITTEST, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SIZE,\nWS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_THICKFRAME, WNDCLASSW,",
-        "borderless-resize and hover imports",
+        "CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_TOPMOST, IDC_ARROW, LWA_ALPHA,\nHTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,\nSWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_SHOW, WM_ERASEBKGND, WM_EXITSIZEMOVE,\nWM_LBUTTONDOWN, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCALCSIZE, WM_NCHITTEST, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SIZE,\nWS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_THICKFRAME, WNDCLASSW,",
+        "borderless-resize imports",
+    );
+    patch_once(
+        &mut overlay,
+        "const HTCAPTION_: usize = 2;\nconst DT_CENTER: u32 = 0x0001;",
+        "const HTCAPTION_: usize = 2;\nconst WM_MOUSELEAVE_:u32=0x02A3;\nconst TME_LEAVE_:u32=0x00000002;\n#[repr(C)]struct TrackMouseEventData{cb_size:u32,flags:u32,hwnd:HWND,hover_time:u32,}\n#[link(name=\"user32\")]extern \"system\"{fn TrackMouseEvent(event:*mut TrackMouseEventData)->i32;}\nconst DT_CENTER: u32 = 0x0001;",
+        "native mouse leave binding",
     );
 
     patch_once(
@@ -126,7 +128,7 @@ fn main() {
     patch_once(
         &mut overlay,
         "let ptr=GetWindowLongPtrW(hwnd,GWLP_USERDATA)as *mut State;match msg{WM_ERASEBKGND=>1,WM_PAINT=>",
-        "let ptr=GetWindowLongPtrW(hwnd,GWLP_USERDATA)as *mut State;match msg{WM_NCCALCSIZE=>0,WM_NCHITTEST=>{if ptr.is_null(){DefWindowProcW(hwnd,msg,wparam,lparam)}else{resize_hit_test(hwnd,lparam)}},WM_ERASEBKGND=>1,WM_MOUSEMOVE=>{if !ptr.is_null(){on_mouse_move(hwnd,&mut*ptr,lparam);}0},WM_MOUSELEAVE=>{if !ptr.is_null(){(*ptr).hover_text=None;InvalidateRect(hwnd,null(),0);}0},WM_PAINT=>",
+        "let ptr=GetWindowLongPtrW(hwnd,GWLP_USERDATA)as *mut State;match msg{WM_NCCALCSIZE=>0,WM_NCHITTEST=>{if ptr.is_null(){DefWindowProcW(hwnd,msg,wparam,lparam)}else{resize_hit_test(hwnd,lparam)}},WM_ERASEBKGND=>1,WM_MOUSEMOVE=>{if !ptr.is_null(){on_mouse_move(hwnd,&mut*ptr,lparam);}0},WM_MOUSELEAVE_=>{if !ptr.is_null(){(*ptr).hover_text=None;InvalidateRect(hwnd,null(),0);}0},WM_PAINT=>",
         "custom non-client frame and hover messages",
     );
 
@@ -134,7 +136,7 @@ fn main() {
         &mut overlay,
         "unsafe fn on_wheel(hwnd:HWND,state:&mut State,wparam:WPARAM){if state.collapsed{return;}",
         r#"unsafe fn resize_hit_test(hwnd:HWND,lparam:LPARAM)->LRESULT{let x=lo_signed(lparam);let y=hi_signed(lparam);let mut wr:RECT=std::mem::zeroed();GetWindowRect(hwnd,&mut wr);let b=6;let left=x<wr.left+b;let right=x>=wr.right-b;let top=y<wr.top+b;let bottom=y>=wr.bottom-b;if top&&left{HTTOPLEFT as LRESULT}else if top&&right{HTTOPRIGHT as LRESULT}else if bottom&&left{HTBOTTOMLEFT as LRESULT}else if bottom&&right{HTBOTTOMRIGHT as LRESULT}else if left{HTLEFT as LRESULT}else if right{HTRIGHT as LRESULT}else if top{HTTOP as LRESULT}else if bottom{HTBOTTOM as LRESULT}else{HTCLIENT as LRESULT}}
-unsafe fn on_mouse_move(hwnd:HWND,state:&mut State,lparam:LPARAM){let mut track=TRACKMOUSEEVENT{cbSize:std::mem::size_of::<TRACKMOUSEEVENT>() as u32,dwFlags:TME_LEAVE,hwndTrack:hwnd,dwHoverTime:0};TrackMouseEvent(&mut track);let x=lo_signed(lparam);let y=hi_signed(lparam);let next=hover_badge_at(hwnd,state,x,y);if state.hover_text!=next||state.hover_x!=x||state.hover_y!=y{state.hover_text=next;state.hover_x=x;state.hover_y=y;InvalidateRect(hwnd,null(),0);}}
+unsafe fn on_mouse_move(hwnd:HWND,state:&mut State,lparam:LPARAM){let mut track=TrackMouseEventData{cb_size:std::mem::size_of::<TrackMouseEventData>() as u32,flags:TME_LEAVE_,hwnd,hover_time:0};TrackMouseEvent(&mut track);let x=lo_signed(lparam);let y=hi_signed(lparam);let next=hover_badge_at(hwnd,state,x,y);if state.hover_text!=next||state.hover_x!=x||state.hover_y!=y{state.hover_text=next;state.hover_x=x;state.hover_y=y;InvalidateRect(hwnd,null(),0);}}
 unsafe fn hover_badge_at(hwnd:HWND,state:&State,x:i32,y:i32)->Option<String>{if state.kind!=Kind::Dps||state.collapsed||!state.features.read().map(|f|f.meter.show_imagines).unwrap_or(true){return None;}let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);let top=dps_rows_top();if y<top||y>=rc.bottom{return None;}let screen_i=((y-top)/DPS_ROW_H)as usize;if screen_i>=visible_dps_rows(rc.bottom){return None;}let rows=sorted_rows(&state.dps,state.sort_mode);let row=*rows.get(state.scroll+screen_i)?;let r=RECT{left:6,top:top+screen_i as i32*DPS_ROW_H,right:rc.right-8,bottom:top+screen_i as i32*DPS_ROW_H+DPS_ROW_H-2};let base_x=r.left+30;let metric_area=235;let identity_right=(r.right-metric_area).max(base_x+80);let badge_count=row.imagines.len().min(2)as i32;let badge_reserve=badge_count*(BADGE_W+BADGE_GAP);let name_right=(base_x+((identity_right-base_x)*45/100)-badge_reserve/2).max(base_x+70);let mut badge_x=name_right+5;for badge in row.imagines.iter().take(2){if x>=badge_x&&x<badge_x+BADGE_W&&y>=r.top+5&&y<r.top+24{let tier=if badge.tier>0{badge.tier.to_string()}else{"?".into()};return Some(format!("{} · Tier {}",badge.name,tier));}badge_x+=BADGE_W+BADGE_GAP;}None}
 unsafe fn paint_hover(hdc:HDC,rc:RECT,state:&State){let Some(text)=state.hover_text.as_ref()else{return;};let width=((text.chars().count()as i32)*7+20).clamp(110,340);let height=25;let mut left=state.hover_x+14;let mut top=state.hover_y+16;if left+width>rc.right-4{left=(state.hover_x-width-10).max(4);}if top+height>rc.bottom-4{top=(state.hover_y-height-8).max(4);}let r=RECT{left,top,right:left+width,bottom:top+height};fill(hdc,&r,rgb(12,16,21));outline(hdc,r,rgb(99,199,255),1);SetTextColor(hdc,rgb(238,242,247));draw(hdc,text,RECT{left:r.left+8,top:r.top,right:r.right-8,bottom:r.bottom},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);}
 unsafe fn on_wheel(hwnd:HWND,state:&mut State,wparam:WPARAM){state.hover_text=None;if state.collapsed{return;}"#,
