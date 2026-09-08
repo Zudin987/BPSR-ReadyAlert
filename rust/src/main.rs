@@ -24,8 +24,9 @@ mod chat {
 }
 #[path = "feature_settings_v170.rs"]
 mod feature_settings;
-#[path = "feature_overlays_v170.rs"]
-mod feature_overlays_impl;
+mod feature_overlays_impl {
+    include!(concat!(env!("OUT_DIR"), "/feature_overlays_v170_fixed.rs"));
+}
 mod feature_overlays {
     pub use crate::feature_overlays_impl::*;
     use windows_sys::Win32::{Foundation::HWND, Graphics::Gdi::InvalidateRect};
