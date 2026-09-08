@@ -1,11 +1,42 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+#[path = "capture_v160.rs"]
 mod capture;
 mod capture_supervisor;
-mod chat;
+#[path = "chat.rs"]
+mod chat_legacy;
+mod chat {
+    pub use crate::chat_legacy::{ChatRuntime, should_hide_globally};
+    pub(crate) use crate::chat_legacy::{matches_expression, validate_expression};
+    use crate::{model::ChatMessage, settings::AppSettings};
+
+    // v1.6 display copies carry a negative sender level so the legacy renderer
+    // omits "LvXX". Filters still evaluate the real absolute level.
+    pub fn should_hide_in_overlay(settings: &AppSettings, message: &ChatMessage) -> bool {
+        if should_hide_globally(settings, message) { return true; }
+        let tab = settings.chat.active_tab();
+        let level = message.sender_level.saturating_abs();
+        if !tab.channels.contains(&message.channel) || level < tab.min_level { return true; }
+        let hay = format!("{} {}", message.sender_name, message.text);
+        if !tab.show_if_matches.trim().is_empty() && !matches_expression(&hay, &tab.show_if_matches) { return true; }
+        if !tab.hide_if_matches.trim().is_empty() && matches_expression(&hay, &tab.hide_if_matches) { return true; }
+        false
+    }
+}
+mod feature_settings;
+#[path = "feature_overlays.rs"]
+mod feature_overlays_impl;
+mod feature_overlays {
+    pub use crate::feature_overlays_impl::*;
+    use windows_sys::Win32::{Foundation::HWND, Graphics::Gdi::InvalidateRect};
+    pub unsafe fn tick(hwnd: HWND) {
+        if !hwnd.is_null() { InvalidateRect(hwnd, std::ptr::null(), 0); }
+    }
+}
 mod game_filter;
 mod logging;
+#[path = "model_v160.rs"]
 mod model;
 mod npcap;
 #[path = "overlay_v150.rs"]
@@ -13,9 +44,13 @@ mod overlay;
 mod paths;
 mod proto;
 mod settings;
+mod settings_cleanup_v160;
 mod settings_repaint_hotfix;
 mod settings_ui;
+mod telemetry;
+#[path = "tray_v160.rs"]
 mod tray;
+#[path = "win_v160.rs"]
 mod win;
 
 use crate::{chat::ChatRuntime, model::PlayerIdentity};
@@ -46,9 +81,15 @@ fn main() {
         return;
     }
 
-    let loaded = settings::load(&paths);
-    let settings = Arc::new(RwLock::new(loaded.clone()));
-    win::auto_launch_resonance_logs(&loaded);
+    let mut loaded = settings::load(&paths);
+    loaded.auto_launch_resonance_logs = false;
+    loaded.resonance_logs_path.clear();
+    loaded.chat.bold_message_text = false;
+    loaded.chat.text_shadow = true;
+    loaded.chat.show_separators = false;
+    loaded.normalize();
+    let _ = settings::save(&paths, &loaded);
+    let settings = Arc::new(RwLock::new(loaded));
 
     let api = match npcap::PcapApi::load() {
         Ok(api) => api,
@@ -56,7 +97,7 @@ fn main() {
             logging::write(format!("startup: Npcap missing {err}"));
             win::message_box(
                 "BPSR Ready Alert - Npcap Required",
-                &format!("BPSR Ready Alert could not load Npcap.\n\nInstall Npcap (or repair the Npcap installation used by Resonance Logs CN).\n\nDetails: {err}"),
+                &format!("BPSR Ready Alert could not load Npcap.\n\nInstall or repair Npcap.\n\nDetails: {err}"),
                 true,
             );
             logging::shutdown();
@@ -69,20 +110,17 @@ fn main() {
     let chat_runtime = ChatRuntime::start(paths.clone(), settings.clone(), identity.clone(), tx.clone());
     let stop = Arc::new(AtomicBool::new(false));
     let capture_thread = capture_supervisor::spawn(
-        api.clone(),
-        settings.clone(),
-        identity,
-        chat_runtime,
-        tx,
-        stop.clone(),
+        api.clone(), settings.clone(), identity, chat_runtime, tx, stop.clone(),
     );
     let settings_repaint_thread = settings_repaint_hotfix::start(stop.clone());
+    let settings_cleanup_thread = settings_cleanup_v160::start(stop.clone());
 
     if let Err(err) = win::run_ui(settings, paths, rx, stop.clone(), api) {
         logging::write(format!("startup/ui: {err}"));
         win::message_box("BPSR Ready Alert - Error", &err, true);
     }
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let _ = settings_cleanup_thread.join();
     let _ = settings_repaint_thread.join();
     let _ = capture_thread.join();
     drop(guard);
@@ -98,12 +136,10 @@ fn smoke_test() -> Result<(), String> {
     if frame.len() != 22 { return Err("frame fixture failed".into()); }
     let mut settings = settings::AppSettings::default();
     settings.normalize();
-    if settings.chat.tabs.len() < 4 || settings.chat.local_chat_log_retention_hours != 168 {
-        return Err("settings defaults failed".into());
-    }
-    if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) {
-        return Err("TTS channel defaults failed".into());
-    }
+    if settings.chat.tabs.len() < 4 || settings.chat.local_chat_log_retention_hours != 168 { return Err("settings defaults failed".into()); }
+    let features = feature_settings::FeatureSettings::default();
+    if !features.dps_overlay_enabled || !features.mechanics_overlay_enabled { return Err("feature overlay defaults failed".into()); }
+    if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
     Ok(())
 }
