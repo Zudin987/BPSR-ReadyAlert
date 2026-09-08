@@ -1,8 +1,22 @@
 use crate::{model::{AppEvent, DpsRow, DpsSnapshot}, proto};
-use std::{collections::HashSet, sync::mpsc::{self, Receiver, Sender}};
+use std::{
+    collections::HashSet,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, Sender},
+    },
+};
 
 mod inner {
     include!(concat!(env!("OUT_DIR"), "/telemetry_v170_fixed.rs"));
+}
+
+static MANUAL_RESET_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// Called by the native DPS overlay Reset button. The capture worker consumes
+/// this on its next packet without introducing another thread or runtime.
+pub fn request_manual_reset() {
+    MANUAL_RESET_REQUESTED.store(true, Ordering::Release);
 }
 
 pub struct TelemetryRuntime {
@@ -24,6 +38,10 @@ impl TelemetryRuntime {
     }
 
     pub fn handle_notify(&mut self, service: u64, method: u32, body: &[u8]) {
+        if MANUAL_RESET_REQUESTED.swap(false, Ordering::AcqRel) {
+            self.inner.manual_reset();
+            self.forward_inner_events();
+        }
         if service == proto::TEAM_SERVICE {
             self.update_team(method, body);
         }
@@ -88,7 +106,9 @@ impl TelemetryRuntime {
 }
 
 fn valid_uid(raw: u64) -> Option<i64> {
-    if raw == 0 || raw > i64::MAX as u64 { return None; }
+    if raw == 0 || raw > i64::MAX as u64 {
+        return None;
+    }
     let uid = raw as i64;
     (uid > 0 && uid < 10_000_000_000_000).then_some(uid)
 }
@@ -115,7 +135,9 @@ fn enrich_snapshot(snapshot: &mut DpsSnapshot, team: &HashSet<i64>) {
     }
 
     for uid in team.iter().copied() {
-        if snapshot.rows.iter().any(|r| r.uid == uid) { continue; }
+        if snapshot.rows.iter().any(|row| row.uid == uid) {
+            continue;
+        }
         snapshot.rows.push(DpsRow {
             actor_uuid: canonical_player_uuid(uid),
             uid,
@@ -138,8 +160,8 @@ fn infer_spec(row: &DpsRow) -> Option<(i32, i32, &'static str)> {
             1715 | 1738 | 179906 => (1002, 1, "Moonstrike"),
             120901 | 120902 => (2001, 2, "Icicle"),
             1241 => (2002, 2, "Frostbeam"),
-            160102 | 2208181 | 2208172 => (3001, 3, "Formless Expertise"),
-            1606 | 1621 | 1622 | 35104 => (3002, 3, "Crimson Expertise"),
+            160102 | 2208181 | 2208172 => (3001, 3, "Formless"),
+            1606 | 1621 | 1622 | 35104 => (3002, 3, "Crimson"),
             1405 | 1418 => (4001, 4, "Vanguard"),
             1419 => (4002, 4, "Skyward"),
             1518 | 1541 | 21402 => (5001, 5, "Smite"),
@@ -172,22 +194,49 @@ mod tests {
     fn team_join_extracts_member_ids() {
         let body = [0x0a, 0x09, 0x12, 0x02, 0x08, 0x7b, 0x12, 0x03, 0x08, 0xc8, 0x03];
         let (tx, _rx) = mpsc::channel();
-        let mut t = TelemetryRuntime::new(tx);
-        t.update_team(0x03, &body);
-        assert!(t.team_uids.contains(&123));
-        assert!(t.team_uids.contains(&456));
+        let mut telemetry = TelemetryRuntime::new(tx);
+        telemetry.update_team(0x03, &body);
+        assert!(telemetry.team_uids.contains(&123));
+        assert!(telemetry.team_uids.contains(&456));
     }
 
     #[test]
     fn smite_signature_sets_spec() {
-        let row = DpsRow { skills: vec![SkillBreakdown { skill_id: 1518, ..Default::default() }], ..Default::default() };
+        let row = DpsRow {
+            skills: vec![SkillBreakdown { skill_id: 1518, ..Default::default() }],
+            ..Default::default()
+        };
         assert_eq!(infer_spec(&row), Some((5001, 5, "Smite")));
     }
 
     #[test]
+    fn form_and_crimson_use_requested_names() {
+        let formless = DpsRow {
+            skills: vec![SkillBreakdown { skill_id: 160102, ..Default::default() }],
+            ..Default::default()
+        };
+        let crimson = DpsRow {
+            skills: vec![SkillBreakdown { skill_id: 1606, ..Default::default() }],
+            ..Default::default()
+        };
+        assert_eq!(infer_spec(&formless).map(|x| x.2), Some("Formless"));
+        assert_eq!(infer_spec(&crimson).map(|x| x.2), Some("Crimson"));
+    }
+
+    #[test]
     fn tina_badge_is_tn() {
-        let mut s = DpsSnapshot { rows: vec![DpsRow { imagines: vec![crate::model::ImagineBadge { name: "Tina".into(), icon_key: "TI".into(), ..Default::default() }], ..Default::default() }], ..Default::default() };
-        enrich_snapshot(&mut s, &HashSet::new());
-        assert_eq!(s.rows[0].imagines[0].icon_key, "TN");
+        let mut snapshot = DpsSnapshot {
+            rows: vec![DpsRow {
+                imagines: vec![crate::model::ImagineBadge {
+                    name: "Tina".into(),
+                    icon_key: "TI".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        enrich_snapshot(&mut snapshot, &HashSet::new());
+        assert_eq!(snapshot.rows[0].imagines[0].icon_key, "TN");
     }
 }

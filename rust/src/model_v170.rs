@@ -61,10 +61,10 @@ pub struct PlayerIdentity {
 
 #[derive(Clone, Debug, Default)]
 pub struct ImagineBadge {
-    /// Observed Battle Imagine cast skill id. Kept protocol-native so a future
-    /// icon database can enrich it without changing the capture model.
+    /// Resonance/Battle Imagine skill id resolved from the summon registry.
     pub skill_id: i32,
     pub name: String,
+    /// Fantasy remodel level / tier observed on the summoned monster.
     pub tier: i32,
     pub icon_key: String,
 }
@@ -103,6 +103,8 @@ pub struct DpsRow {
     pub lucky_hits: u64,
     pub deaths: u32,
     pub is_dead: bool,
+    /// True only for the character owned by this ReadyAlert process.
+    pub is_local: bool,
     pub imagines: Vec<ImagineBadge>,
     pub skills: Vec<SkillBreakdown>,
 }
@@ -135,6 +137,14 @@ pub struct TrackedAttribute {
 }
 
 #[derive(Clone, Debug, Default)]
+pub struct ConsumableStatus {
+    pub buff_id: i32,
+    pub name: String,
+    /// Wall-clock expiry; 0 means the protocol did not expose a finite timer.
+    pub expires_unix_ms: i64,
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct MechanicRow {
     pub key: String,
     pub label: String,
@@ -148,6 +158,8 @@ pub struct MechanicRow {
 #[derive(Clone, Debug, Default)]
 pub struct MechanicSnapshot {
     pub tracked_attributes: Vec<TrackedAttribute>,
+    pub food: Option<ConsumableStatus>,
+    pub serum: Option<ConsumableStatus>,
     pub rows: Vec<MechanicRow>,
 }
 
