@@ -33,14 +33,14 @@ pub fn spawn(
         .spawn(move || {
             let mut preference = adapter_preference(&settings);
             let mut child_stop = Arc::new(AtomicBool::new(false));
-            let mut child = capture::spawn(
+            let mut child = Some(capture::spawn(
                 api.clone(),
                 settings.clone(),
                 identity.clone(),
                 chat_runtime.clone(),
                 tx.clone(),
                 child_stop.clone(),
-            );
+            ));
 
             while !stop.load(Ordering::Relaxed) {
                 thread::sleep(Duration::from_millis(250));
@@ -54,25 +54,29 @@ pub fn spawn(
                     preference, next
                 ));
                 child_stop.store(true, Ordering::Relaxed);
-                let _ = child.join();
+                if let Some(handle) = child.take() {
+                    let _ = handle.join();
+                }
                 if stop.load(Ordering::Relaxed) {
                     break;
                 }
 
                 preference = next;
                 child_stop = Arc::new(AtomicBool::new(false));
-                child = capture::spawn(
+                child = Some(capture::spawn(
                     api.clone(),
                     settings.clone(),
                     identity.clone(),
                     chat_runtime.clone(),
                     tx.clone(),
                     child_stop.clone(),
-                );
+                ));
             }
 
             child_stop.store(true, Ordering::Relaxed);
-            let _ = child.join();
+            if let Some(handle) = child.take() {
+                let _ = handle.join();
+            }
             logging::write("capture-supervisor: stopped");
         })
         .expect("spawn capture supervisor")
