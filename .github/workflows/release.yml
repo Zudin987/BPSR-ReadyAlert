@@ -42,8 +42,10 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          $version = (Select-String -Path rust/Cargo.toml -Pattern '^version = "([^"]+)"').Matches.Groups.Value
-          if (-not $version) { throw 'Could not read Cargo package version.' }
+          $match = Select-String -Path rust/Cargo.toml -Pattern '^version = "([^"]+)"' | Select-Object -First 1
+          if (-not $match -or $match.Matches.Count -eq 0) { throw 'Could not read Cargo package version.' }
+          $version = $match.Matches[0].Groups[1].Value
+          if ([string]::IsNullOrWhiteSpace($version)) { throw 'Cargo package version was empty.' }
           $tag = "v$version"
           New-Item -ItemType Directory -Force package | Out-Null
           Copy-Item './rust/target/release/BPSR-ReadyAlert.exe' './package/BPSR-ReadyAlert.exe'
