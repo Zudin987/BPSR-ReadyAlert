@@ -8,6 +8,7 @@ static READY_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/Ready
 static QUEUE_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/Queue.wav");
 static INVITE_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/PartyInvite.wav");
 static REQUEST_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/PartyRequest.wav");
+static CHAT_FALLBACK_WAV: &[u8] = include_bytes!("../../src/BPSR.ReadyAlert/Assets/LetsDoThis.wav");
 
 pub fn play_alert(kind: crate::model::AlertKind, volume: i32) {
     let bytes = match kind {
@@ -30,6 +31,31 @@ pub fn play_file(path: &Path, volume: i32) -> Result<(), String> {
     let extension = path.extension().and_then(|x| x.to_str()).unwrap_or("wav");
     let bytes = fs::read(path).map_err(|e| format!("read custom sound {}: {e}", path.display()))?;
     play_bytes(&bytes, extension, volume)
+}
+
+/// Play a keyword/private chat notification with the same fallback policy as the
+/// mature v1.3.6 notification engine. A missing, unreadable or unsupported custom
+/// path must not turn a matched chat alert into silence; the bundled LetsDoThis WAV
+/// is always the last-resort sound.
+pub fn play_chat_sound(path: Option<&Path>, volume: i32) -> Result<(), String> {
+    if volume <= 0 {
+        return Ok(());
+    }
+    if let Some(path) = path.filter(|p| p.is_file()) {
+        match play_file(path, volume) {
+            Ok(()) => return Ok(()),
+            Err(err) => logging::write(format!(
+                "audio: custom chat sound failed {}; using bundled fallback: {err}",
+                path.display()
+            )),
+        }
+    } else if let Some(path) = path {
+        logging::write(format!(
+            "audio: custom chat sound unavailable {}; using bundled fallback",
+            path.display()
+        ));
+    }
+    play_bytes(CHAT_FALLBACK_WAV, "wav", volume)
 }
 
 fn play_bytes(bytes: &[u8], extension: &str, volume: i32) -> Result<(), String> {
