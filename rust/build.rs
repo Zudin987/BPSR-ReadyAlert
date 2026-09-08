@@ -1,8 +1,8 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
-    // Keep the checked-in v1.7 feature sources readable while normalizing two
-    // small compatibility details for the pinned windows-sys / stable toolchain.
+    // Keep the checked-in v1.7 feature sources readable while normalizing a few
+    // small compatibility/display details for the pinned Windows toolchain.
     // The generated files live only in OUT_DIR and contain no runtime codegen.
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
 
@@ -17,7 +17,11 @@ fn main() {
     overlay = overlay
         .replace("        TrackMouseEvent, CREATESTRUCTW,", "        CREATESTRUCTW,")
         .replace(" SW_SHOW, TME_LEAVE, TRACKMOUSEEVENT,", " SW_SHOW,")
-        .replace(" WM_LBUTTONDOWN, WM_MOUSELEAVE, WM_MOUSEMOVE,", " WM_LBUTTONDOWN, WM_MOUSEMOVE,");
+        .replace(" WM_LBUTTONDOWN, WM_MOUSELEAVE, WM_MOUSEMOVE,", " WM_LBUTTONDOWN, WM_MOUSEMOVE,")
+        .replace(
+            "let label = if badge.icon_key.trim().is_empty() { \"BI\" } else { badge.icon_key.as_str() };",
+            "let label = if badge.icon_key.eq_ignore_ascii_case(\"BI\") { \"\" } else { badge.icon_key.as_str() };",
+        );
     let mouse_abi = r#"
 const WM_MOUSELEAVE: u32 = 0x02A3;
 const TME_LEAVE: u32 = 0x00000002;
