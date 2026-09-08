@@ -141,7 +141,8 @@ fn smoke_test() -> Result<(), String> {
     let mut features = feature_settings::FeatureSettings::default();
     features.normalize();
     if !features.dps_overlay_enabled || !features.mechanics_overlay_enabled { return Err("feature overlay defaults failed".into()); }
-    if features.mechanic_attributes.tracked != vec![feature_settings::ATTR_LUCK, feature_settings::ATTR_HASTE, feature_settings::ATTR_MASTERY] { return Err("mechanic tracked-attribute defaults failed".into()); }
+    if features.mechanic_attributes.tracked != vec![feature_settings::ATTR_CRIT, feature_settings::ATTR_LUCK, feature_settings::ATTR_HASTE, feature_settings::ATTR_MASTERY] { return Err("mechanic tracked-attribute defaults failed".into()); }
+    if feature_settings::format_attr_value(feature_settings::ATTR_LUCK, 48_160) != "48.16%" { return Err("mechanic percentage formatting failed".into()); }
     if features.dps.opacity < 25 || features.mechanics.opacity < 25 { return Err("feature opacity normalization failed".into()); }
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
