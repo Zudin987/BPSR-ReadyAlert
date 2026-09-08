@@ -27,35 +27,28 @@ pub fn play_mp3(bytes: &[u8], volume: i32) -> Result<(), String> {
     play_bytes(bytes, "mp3", volume)
 }
 
+/// Custom file playback is currently used by keyword/private chat notifications.
+/// Match v1.3.6's resilient policy: a missing, unreadable or MCI-incompatible custom
+/// file falls back to the bundled LetsDoThis sound instead of losing the alert.
 pub fn play_file(path: &Path, volume: i32) -> Result<(), String> {
-    let extension = path.extension().and_then(|x| x.to_str()).unwrap_or("wav");
-    let bytes = fs::read(path).map_err(|e| format!("read custom sound {}: {e}", path.display()))?;
-    play_bytes(&bytes, extension, volume)
-}
-
-/// Play a keyword/private chat notification with the same fallback policy as the
-/// mature v1.3.6 notification engine. A missing, unreadable or unsupported custom
-/// path must not turn a matched chat alert into silence; the bundled LetsDoThis WAV
-/// is always the last-resort sound.
-pub fn play_chat_sound(path: Option<&Path>, volume: i32) -> Result<(), String> {
     if volume <= 0 {
         return Ok(());
     }
-    if let Some(path) = path.filter(|p| p.is_file()) {
-        match play_file(path, volume) {
-            Ok(()) => return Ok(()),
-            Err(err) => logging::write(format!(
+    let custom = (|| {
+        let extension = path.extension().and_then(|x| x.to_str()).unwrap_or("wav");
+        let bytes = fs::read(path).map_err(|e| format!("read custom sound {}: {e}", path.display()))?;
+        play_bytes(&bytes, extension, volume)
+    })();
+    match custom {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            logging::write(format!(
                 "audio: custom chat sound failed {}; using bundled fallback: {err}",
                 path.display()
-            )),
+            ));
+            play_bytes(CHAT_FALLBACK_WAV, "wav", volume)
         }
-    } else if let Some(path) = path {
-        logging::write(format!(
-            "audio: custom chat sound unavailable {}; using bundled fallback",
-            path.display()
-        ));
     }
-    play_bytes(CHAT_FALLBACK_WAV, "wav", volume)
 }
 
 fn play_bytes(bytes: &[u8], extension: &str, volume: i32) -> Result<(), String> {
