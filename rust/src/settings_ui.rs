@@ -1,6 +1,6 @@
 use crate::{
     paths::AppPaths,
-    settings::{self, AppSettings, ChatBlockedUser, ChatSoundRule, ChatTabSettings},
+    settings::{self, AppSettings, ChatSoundRule, ChatTabSettings},
 };
 use std::{
     ffi::c_void,
@@ -9,28 +9,28 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use windows_sys::Win32::{
-    Foundation::{GetLastError, HBRUSH, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
+    Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
     Graphics::Gdi::{
         CreateSolidBrush, DeleteObject, GetStockObject, SetBkColor, SetTextColor, DEFAULT_GUI_FONT,
+        HBRUSH, HDC,
     },
     System::LibraryLoader::GetModuleHandleW,
     UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DestroyWindow, EnableWindow, FindWindowW,
-        GetDlgItem, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, LoadCursorW,
-        MessageBoxW, PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow,
-        SetWindowLongPtrW, SetWindowTextW, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT,
-        GWLP_USERDATA, IDC_ARROW, MB_ICONERROR, MB_OK, SW_HIDE, SW_SHOW, WM_APP, WM_CLOSE,
-        WM_COMMAND, WM_CREATE, WM_CTLCOLORBTN, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC,
-        WM_NCCREATE, WM_NCDESTROY, WM_SETFONT, WNDCLASSW, WS_BORDER, WS_CAPTION, WS_CHILD,
-        WS_EX_CLIENTEDGE, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
-        WS_VSCROLL, HMENU,
+        CreateWindowExW, DefWindowProcW, DestroyWindow, FindWindowW, GetDlgItem,
+        GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, LoadCursorW, MessageBoxW,
+        PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow, SetWindowLongPtrW,
+        SetWindowTextW, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, IDC_ARROW,
+        MB_ICONERROR, MB_OK, SW_HIDE, SW_SHOW, WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE,
+        WM_CTLCOLORBTN, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_NCCREATE, WM_NCDESTROY,
+        WM_SETFONT, WNDCLASSW, WS_BORDER, WS_CAPTION, WS_CHILD, WS_EX_CLIENTEDGE,
+        WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WS_VSCROLL, HMENU,
     },
 };
 
 const CLASS_NAME: &str = "BPSRReadyAlertRustSettingsV150";
 const WM_SHOW_PAGE: u32 = WM_APP + 91;
 
-// Shared with win.rs.
+// Shared message/command IDs with win.rs.
 const CMD_SETTINGS_APPLIED: u32 = 1020;
 const CMD_TTS_TEST: u32 = 1021;
 const CMD_OPEN_SETTINGS_JSON: u32 = 1022;
@@ -58,6 +58,7 @@ const ID_REQUEST: i32 = 3203;
 const ID_DESKTOP: i32 = 3204;
 const ID_AUTO_LOGS: i32 = 3205;
 const ID_ALERT_VOLUME: i32 = 3206;
+
 const ID_CHAT_ENABLED: i32 = 3210;
 const ID_TOPMOST: i32 = 3211;
 const ID_COMPACT: i32 = 3212;
@@ -141,6 +142,7 @@ const LB_RESETCONTENT: u32 = 0x0184;
 const LB_SETCURSEL: u32 = 0x0186;
 const LB_GETCURSEL: u32 = 0x0188;
 const CB_ADDSTRING: u32 = 0x0143;
+const CB_RESETCONTENT: u32 = 0x014B;
 const CB_GETCURSEL: u32 = 0x0147;
 const CB_SETCURSEL: u32 = 0x014E;
 const LBN_SELCHANGE: u16 = 1;
@@ -153,6 +155,11 @@ extern "system" {
 #[link(name = "uxtheme")]
 extern "system" {
     fn SetWindowTheme(hwnd: HWND, app_name: *const u16, id_list: *const u16) -> i32;
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn EnableWindow(hwnd: HWND, enable: i32) -> i32;
 }
 
 struct SettingsState {
@@ -211,19 +218,13 @@ pub unsafe fn show(
         input_background: CreateSolidBrush(rgb(31, 36, 43)),
     });
     let state_ptr = Box::into_raw(state);
-    let title = wide("BPSR ReadyAlert Settings");
     let hwnd = CreateWindowExW(
         0,
         class.as_ptr(),
-        title.as_ptr(),
+        wide("BPSR ReadyAlert Settings").as_ptr(),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        860,
-        690,
-        null_mut(),
-        null_mut(),
-        instance,
+        CW_USEDEFAULT, CW_USEDEFAULT, 860, 690,
+        null_mut(), null_mut(), instance,
         state_ptr.cast::<c_void>(),
     );
     if hwnd.is_null() {
@@ -235,18 +236,14 @@ pub unsafe fn show(
     try_dark_titlebar(hwnd);
     ShowWindow(hwnd, SW_SHOW);
     SetForegroundWindow(hwnd);
-    if add_tab {
-        SendMessageW(hwnd, WM_SHOW_PAGE, PAGE_TABS, 1);
-    }
+    if add_tab { SendMessageW(hwnd, WM_SHOW_PAGE, PAGE_TABS, 1); }
     Ok(())
 }
 
 unsafe extern "system" fn settings_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if msg == WM_NCCREATE {
         let cs = lparam as *const CREATESTRUCTW;
-        if !cs.is_null() {
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, (*cs).lpCreateParams as isize);
-        }
+        if !cs.is_null() { SetWindowLongPtrW(hwnd, GWLP_USERDATA, (*cs).lpCreateParams as isize); }
     }
     let state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut SettingsState;
     match msg {
@@ -254,7 +251,8 @@ unsafe extern "system" fn settings_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM
             if !state_ptr.is_null() {
                 build_ui(hwnd, &mut *state_ptr);
                 load_all(hwnd, &mut *state_ptr);
-                show_page(&mut *state_ptr, (*state_ptr).current_page);
+                let page = (*state_ptr).current_page;
+                show_page(&mut *state_ptr, page);
             }
             0
         }
@@ -262,21 +260,19 @@ unsafe extern "system" fn settings_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM
             if !state_ptr.is_null() {
                 let state = &mut *state_ptr;
                 let page = (wparam as usize).min(PAGE_COUNT - 1);
-                if page == PAGE_TABS { store_tab_fields(hwnd, state); }
+                if state.current_page == PAGE_TABS { store_tab_fields(hwnd, state); }
                 show_page(state, page);
                 if lparam != 0 && page == PAGE_TABS { add_tab(hwnd, state); }
             }
             0
         }
         WM_COMMAND => {
-            if !state_ptr.is_null() {
-                handle_command(hwnd, &mut *state_ptr, wparam);
-            }
+            if !state_ptr.is_null() { handle_command(hwnd, &mut *state_ptr, wparam); }
             0
         }
         WM_CTLCOLORSTATIC | WM_CTLCOLORBTN => {
             if !state_ptr.is_null() {
-                let hdc = wparam as *mut c_void;
+                let hdc = wparam as HDC;
                 SetTextColor(hdc, rgb(225, 231, 238));
                 SetBkColor(hdc, rgb(22, 25, 30));
                 return (*state_ptr).background as isize;
@@ -285,7 +281,7 @@ unsafe extern "system" fn settings_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM
         }
         WM_CTLCOLOREDIT => {
             if !state_ptr.is_null() {
-                let hdc = wparam as *mut c_void;
+                let hdc = wparam as HDC;
                 SetTextColor(hdc, rgb(235, 239, 244));
                 SetBkColor(hdc, rgb(31, 36, 43));
                 return (*state_ptr).input_background as isize;
@@ -309,11 +305,10 @@ unsafe extern "system" fn settings_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM
 unsafe fn build_ui(hwnd: HWND, state: &mut SettingsState) {
     let nav = ["General", "Overlay", "Colors", "Speech", "Tabs & filters", "Sounds & logs", "Network", "Blocked users"];
     for (i, name) in nav.iter().enumerate() {
-        create_button(hwnd, NAV_BASE + i as i32, name, 12, 18 + i as i32 * 44, 142, 34, None);
+        create_button(hwnd, NAV_BASE + i as i32, name, 12, 18 + i as i32 * 44, 142, 34);
     }
-    create_button(hwnd, ID_APPLY, "Apply", 650, 610, 86, 34, None);
-    create_button(hwnd, ID_CLOSE, "Close", 742, 610, 86, 34, None);
-
+    create_button(hwnd, ID_APPLY, "Apply", 650, 610, 86, 34);
+    create_button(hwnd, ID_CLOSE, "Close", 742, 610, 86, 34);
     build_general(hwnd, state);
     build_overlay(hwnd, state);
     build_colors(hwnd, state);
@@ -332,9 +327,8 @@ unsafe fn build_general(hwnd: HWND, state: &mut SettingsState) {
     checkbox(hwnd, state, PAGE_GENERAL, ID_REQUEST, "Party Request alert", 184, 158);
     checkbox(hwnd, state, PAGE_GENERAL, ID_DESKTOP, "Desktop notifications", 184, 202);
     checkbox(hwnd, state, PAGE_GENERAL, ID_AUTO_LOGS, "Auto-launch Resonance Logs CN", 184, 234);
-    label(hwnd, state, PAGE_GENERAL, "Alert volume (0-100)", 184, 286, 180, 22);
-    edit(hwnd, state, PAGE_GENERAL, ID_ALERT_VOLUME, 370, 282, 90, 26, false);
-    info(hwnd, state, PAGE_GENERAL, "Ready / Queue alert volume is independent from chat sounds and TTS volume.", 184, 330, 570, 42);
+    field(hwnd, state, PAGE_GENERAL, "Alert volume (0-100)", ID_ALERT_VOLUME, 184, 286, 110);
+    info(hwnd, state, PAGE_GENERAL, "Ready / Queue alert volume is independent from chat sounds and TTS volume.", 184, 356, 570, 42);
 }
 
 unsafe fn build_overlay(hwnd: HWND, state: &mut SettingsState) {
@@ -350,7 +344,6 @@ unsafe fn build_overlay(hwnd: HWND, state: &mut SettingsState) {
     checkbox(hwnd, state, PAGE_OVERLAY, ID_SEPARATORS, "Row separators", 430, 58);
     checkbox(hwnd, state, PAGE_OVERLAY, ID_ZEBRA, "Zebra rows", 430, 90);
     checkbox(hwnd, state, PAGE_OVERLAY, ID_COLOR_BAND, "Channel color band", 430, 122);
-
     field(hwnd, state, PAGE_OVERLAY, "Click-through recovery hotkey", ID_CLICK_HOTKEY, 184, 332, 260);
     field(hwnd, state, PAGE_OVERLAY, "Window opacity (25-100)", ID_WINDOW_OPACITY, 184, 390, 110);
     field(hwnd, state, PAGE_OVERLAY, "Font family", ID_FONT_FAMILY, 430, 332, 230);
@@ -363,16 +356,11 @@ unsafe fn build_overlay(hwnd: HWND, state: &mut SettingsState) {
 
 unsafe fn build_colors(hwnd: HWND, state: &mut SettingsState) {
     heading(hwnd, state, PAGE_COLORS, "Overlay colors", 180, 18);
-    let entries = [
-        (1, "World"), (2, "Local"), (3, "Team"), (4, "Guild"), (5, "Private"),
-        (6, "Group"), (7, "Notice"), (8, "Play"), (9, "Newbie"), (99, "System"),
-    ];
-    for (i, (_, name)) in entries.iter().enumerate() {
+    let entries = ["World", "Local", "Team", "Guild", "Private", "Group", "Notice", "Play", "Newbie", "System"];
+    for (i, name) in entries.iter().enumerate() {
         let col = i / 5;
         let row = i % 5;
-        let x = 184 + col as i32 * 280;
-        let y = 64 + row as i32 * 58;
-        field(hwnd, state, PAGE_COLORS, name, ID_COLOR_BASE + i as i32, x, y, 150);
+        field(hwnd, state, PAGE_COLORS, name, ID_COLOR_BASE + i as i32, 184 + col as i32 * 280, 64 + row as i32 * 58, 150);
     }
     field(hwnd, state, PAGE_COLORS, "Keyword highlight", ID_HIGHLIGHT_COLOR, 184, 378, 150);
     field(hwnd, state, PAGE_COLORS, "Private highlight", ID_PRIVATE_COLOR, 464, 378, 150);
@@ -382,14 +370,13 @@ unsafe fn build_colors(hwnd: HWND, state: &mut SettingsState) {
 unsafe fn build_speech(hwnd: HWND, state: &mut SettingsState) {
     heading(hwnd, state, PAGE_SPEECH, "Speech & translation", 180, 18);
     checkbox(hwnd, state, PAGE_SPEECH, ID_TRANSLATE, "Translate non-English chat to English", 184, 58);
-    checkbox(hwnd, state, PAGE_SPEECH, ID_TRANSLATE_WORLD, "World", 204, 92);
-    checkbox(hwnd, state, PAGE_SPEECH, ID_TRANSLATE_GUILD, "Guild", 304, 92);
-    checkbox(hwnd, state, PAGE_SPEECH, ID_TRANSLATE_PARTY, "Party / Team", 404, 92);
+    checkbox_at(hwnd, state, PAGE_SPEECH, ID_TRANSLATE_WORLD, "World", 204, 92, 90);
+    checkbox_at(hwnd, state, PAGE_SPEECH, ID_TRANSLATE_GUILD, "Guild", 304, 92, 90);
+    checkbox_at(hwnd, state, PAGE_SPEECH, ID_TRANSLATE_PARTY, "Party / Team", 404, 92, 150);
     checkbox(hwnd, state, PAGE_SPEECH, ID_TRANSLATE_OVERLAY, "Show English translation under the original message", 204, 126);
-
     checkbox(hwnd, state, PAGE_SPEECH, ID_TTS, "Enable chat text-to-speech", 184, 184);
-    checkbox(hwnd, state, PAGE_SPEECH, ID_TTS_GUILD, "Guild", 204, 218);
-    checkbox(hwnd, state, PAGE_SPEECH, ID_TTS_PARTY, "Party / Team", 304, 218);
+    checkbox_at(hwnd, state, PAGE_SPEECH, ID_TTS_GUILD, "Guild", 204, 218, 90);
+    checkbox_at(hwnd, state, PAGE_SPEECH, ID_TTS_PARTY, "Party / Team", 304, 218, 150);
     checkbox(hwnd, state, PAGE_SPEECH, ID_TTS_SENDER, "Read sender name before the message", 204, 252);
     field(hwnd, state, PAGE_SPEECH, "Manual own username override (optional)", ID_TTS_USERNAME, 184, 302, 350);
     field(hwnd, state, PAGE_SPEECH, "TTS volume (0-100)", ID_TTS_VOLUME, 184, 366, 110);
@@ -408,13 +395,11 @@ unsafe fn build_tabs(hwnd: HWND, state: &mut SettingsState) {
     field(hwnd, state, PAGE_TABS, "Show only if message matches", ID_TAB_SHOW, 430, 174, 350);
     field(hwnd, state, PAGE_TABS, "Hide if message matches", ID_TAB_HIDE, 430, 232, 350);
     label(hwnd, state, PAGE_TABS, "Channels", 430, 292, 140, 22);
-    let channels = [(1,"World"),(2,"Local"),(3,"Team"),(4,"Guild"),(5,"Private"),(6,"Group"),(7,"Notice"),(8,"Play"),(9,"Newbie"),(99,"System")];
-    for (i, (_, name)) in channels.iter().enumerate() {
-        let col = i % 2;
-        let row = i / 2;
-        checkbox_at(hwnd, state, PAGE_TABS, ID_TAB_CHANNEL_BASE + i as i32, name, 430 + col as i32 * 150, 322 + row as i32 * 32, 140);
+    let channels = ["World", "Local", "Team", "Guild", "Private", "Group", "Notice", "Play", "Newbie", "System"];
+    for (i, name) in channels.iter().enumerate() {
+        checkbox_at(hwnd, state, PAGE_TABS, ID_TAB_CHANNEL_BASE + i as i32, name, 430 + (i % 2) as i32 * 150, 322 + (i / 2) as i32 * 32, 140);
     }
-    info(hwnd, state, PAGE_TABS, "Tab edits are staged here and saved together when you press Apply. The overlay +Tab button opens this page and creates a new tab.", 184, 474, 570, 54);
+    info(hwnd, state, PAGE_TABS, "Tab edits are staged here and saved together when you press Apply. The overlay +Tab button opens this page and creates a new tab.", 184, 492, 570, 54);
 }
 
 unsafe fn build_sounds(hwnd: HWND, state: &mut SettingsState) {
@@ -423,14 +408,12 @@ unsafe fn build_sounds(hwnd: HWND, state: &mut SettingsState) {
     checkbox(hwnd, state, PAGE_SOUNDS, ID_PRIVATE_SOUND, "Play sound for Private / Talk", 184, 90);
     field(hwnd, state, PAGE_SOUNDS, "Private sound path", ID_PRIVATE_SOUND_PATH, 184, 132, 520);
     field(hwnd, state, PAGE_SOUNDS, "Chat sound volume (0-100)", ID_CHAT_SOUND_VOLUME, 184, 190, 110);
-
     checkbox(hwnd, state, PAGE_SOUNDS, ID_RULE1_ENABLED, "Keyword sound rule 1", 184, 246);
     field(hwnd, state, PAGE_SOUNDS, "Match words", ID_RULE1_MATCH, 204, 278, 250);
     field(hwnd, state, PAGE_SOUNDS, "Sound path", ID_RULE1_PATH, 470, 278, 250);
     checkbox(hwnd, state, PAGE_SOUNDS, ID_RULE2_ENABLED, "Keyword sound rule 2", 184, 336);
     field(hwnd, state, PAGE_SOUNDS, "Match words", ID_RULE2_MATCH, 204, 368, 250);
     field(hwnd, state, PAGE_SOUNDS, "Sound path", ID_RULE2_PATH, 470, 368, 250);
-
     checkbox(hwnd, state, PAGE_SOUNDS, ID_LOGS_ENABLED, "Keep local chat logs", 184, 440);
     label(hwnd, state, PAGE_SOUNDS, "Retention", 430, 440, 100, 22);
     combo(hwnd, state, PAGE_SOUNDS, ID_LOG_RETENTION, 510, 436, 140, 120);
@@ -443,7 +426,7 @@ unsafe fn build_network(hwnd: HWND, state: &mut SettingsState) {
     field(hwnd, state, PAGE_NETWORK, "Npcap device name (blank = follow Resonance Logs / auto)", ID_NPCAP_DEVICE, 184, 136, 540);
     button(hwnd, state, PAGE_NETWORK, ID_OPEN_JSON, "Open settings.json", 184, 218, 150, 32);
     button(hwnd, state, PAGE_NETWORK, ID_OPEN_FOLDER, "Open ReadyAlert folder", 346, 218, 170, 32);
-    info(hwnd, state, PAGE_NETWORK, "Changing the Npcap device can require the capture worker to reconnect. Blank is recommended unless you need to force one adapter.", 184, 282, 570, 54);
+    info(hwnd, state, PAGE_NETWORK, "Blank Npcap device is recommended. A forced device is mainly for troubleshooting or multi-adapter PCs.", 184, 282, 570, 54);
 }
 
 unsafe fn build_blocked(hwnd: HWND, state: &mut SettingsState) {
@@ -455,6 +438,9 @@ unsafe fn build_blocked(hwnd: HWND, state: &mut SettingsState) {
 }
 
 unsafe fn load_all(hwnd: HWND, state: &mut SettingsState) {
+    while state.working.chat.highlight_sound_rules.len() < 2 {
+        state.working.chat.highlight_sound_rules.push(ChatSoundRule::default());
+    }
     let s = &state.working;
     set_check(hwnd, ID_QUEUE, s.queue_pop_alert);
     set_check(hwnd, ID_READY, s.ready_check_alert);
@@ -483,8 +469,9 @@ unsafe fn load_all(hwnd: HWND, state: &mut SettingsState) {
     let collapse = match s.chat.collapse_side.to_ascii_lowercase().as_str() { "right" => 1, "top" => 2, "bottom" => 3, _ => 0 };
     set_combo_items(hwnd, ID_COLLAPSE_SIDE, &["Left", "Right", "Top", "Bottom"], collapse);
 
-    let colors = [(1,"#C7C7C7"),(2,"#C7C7C7"),(3,"#C7C7C7"),(4,"#C7C7C7"),(5,"#C7C7C7"),(6,"#C7C7C7"),(7,"#C7C7C7"),(8,"#C7C7C7"),(9,"#C7C7C7"),(99,"#C7C7C7")];
-    for (i, (channel, fallback)) in colors.iter().enumerate() {
+    let channels = [1,2,3,4,5,6,7,8,9,99];
+    for (i, channel) in channels.iter().enumerate() {
+        let fallback = "#C7C7C7";
         set_text(hwnd, ID_COLOR_BASE + i as i32, s.chat.channel_colors.get(channel).map(String::as_str).unwrap_or(fallback));
     }
     set_text(hwnd, ID_HIGHLIGHT_COLOR, &s.chat.highlight_color);
@@ -508,18 +495,16 @@ unsafe fn load_all(hwnd: HWND, state: &mut SettingsState) {
     set_check(hwnd, ID_PRIVATE_SOUND, s.chat.private_sound_enabled);
     set_text(hwnd, ID_PRIVATE_SOUND_PATH, &s.chat.private_sound_path);
     set_text(hwnd, ID_CHAT_SOUND_VOLUME, &s.chat.chat_sound_volume.to_string());
-    while state.working.chat.highlight_sound_rules.len() < 2 { state.working.chat.highlight_sound_rules.push(ChatSoundRule::default()); }
-    let r1 = &state.working.chat.highlight_sound_rules[0];
+    let r1 = &s.chat.highlight_sound_rules[0];
     set_check(hwnd, ID_RULE1_ENABLED, r1.enabled);
     set_text(hwnd, ID_RULE1_MATCH, &r1.match_text);
     set_text(hwnd, ID_RULE1_PATH, &r1.sound_path);
-    let r2 = &state.working.chat.highlight_sound_rules[1];
+    let r2 = &s.chat.highlight_sound_rules[1];
     set_check(hwnd, ID_RULE2_ENABLED, r2.enabled);
     set_text(hwnd, ID_RULE2_MATCH, &r2.match_text);
     set_text(hwnd, ID_RULE2_PATH, &r2.sound_path);
     set_check(hwnd, ID_LOGS_ENABLED, s.chat.keep_local_chat_logs24_hours);
-    let retention = match s.chat.local_chat_log_retention_hours { 24 => 0, 72 => 1, _ => 2 };
-    set_combo_items(hwnd, ID_LOG_RETENTION, &["24 hours", "72 hours", "7 days"], retention);
+    set_combo_items(hwnd, ID_LOG_RETENTION, &["24 hours", "72 hours", "7 days"], match s.chat.local_chat_log_retention_hours { 24 => 0, 72 => 1, _ => 2 });
 
     set_text(hwnd, ID_RESONANCE_PATH, &s.resonance_logs_path);
     set_text(hwnd, ID_NPCAP_DEVICE, &s.npcap_device_name);
@@ -558,9 +543,7 @@ unsafe fn apply(hwnd: HWND, state: &mut SettingsState) {
     s.chat.collapse_side = match combo_sel(hwnd, ID_COLLAPSE_SIDE) { 1 => "Right", 2 => "Top", 3 => "Bottom", _ => "Left" }.into();
 
     let channels = [1,2,3,4,5,6,7,8,9,99];
-    for (i, channel) in channels.iter().enumerate() {
-        s.chat.channel_colors.insert(*channel, get_text(hwnd, ID_COLOR_BASE + i as i32));
-    }
+    for (i, channel) in channels.iter().enumerate() { s.chat.channel_colors.insert(*channel, get_text(hwnd, ID_COLOR_BASE + i as i32)); }
     s.chat.highlight_color = get_text(hwnd, ID_HIGHLIGHT_COLOR);
     s.chat.private_highlight_color = get_text(hwnd, ID_PRIVATE_COLOR);
 
@@ -600,8 +583,7 @@ unsafe fn apply(hwnd: HWND, state: &mut SettingsState) {
 
     if let Ok(mut guard) = state.settings.write() { *guard = s.clone(); }
     if let Err(err) = settings::save(&state.paths, s) {
-        let text = wide(&format!("Could not save settings.\r\n\r\n{err}"));
-        MessageBoxW(hwnd, text.as_ptr(), wide("ReadyAlert Settings").as_ptr(), MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd, wide(&format!("Could not save settings.\r\n\r\n{err}")).as_ptr(), wide("ReadyAlert Settings").as_ptr(), MB_OK | MB_ICONERROR);
     }
     PostMessageW(state.main_hwnd, WM_COMMAND, CMD_SETTINGS_APPLIED as usize, 0);
     load_all(hwnd, state);
@@ -642,9 +624,7 @@ unsafe fn handle_command(hwnd: HWND, state: &mut SettingsState, wparam: WPARAM) 
 
 unsafe fn show_page(state: &mut SettingsState, page: usize) {
     state.current_page = page.min(PAGE_COUNT - 1);
-    for (control, p) in &state.page_controls {
-        ShowWindow(*control, if *p == state.current_page { SW_SHOW } else { SW_HIDE });
-    }
+    for (control, p) in &state.page_controls { ShowWindow(*control, if *p == state.current_page { SW_SHOW } else { SW_HIDE }); }
 }
 
 unsafe fn add_tab(hwnd: HWND, state: &mut SettingsState) {
@@ -704,7 +684,6 @@ unsafe fn store_tab_fields(hwnd: HWND, state: &mut SettingsState) {
     }
     if tab.channels.is_empty() { tab.channels.push(1); }
     tab.name = if tab.name.trim().is_empty() { "Chat".into() } else { tab.name.trim().to_string() };
-    if tab.id == state.working.chat.last_selected_tab_id { state.working.chat.last_selected_tab_id = tab.id; }
 }
 
 unsafe fn load_tab_fields(hwnd: HWND, state: &SettingsState) {
@@ -715,9 +694,7 @@ unsafe fn load_tab_fields(hwnd: HWND, state: &SettingsState) {
     set_text(hwnd, ID_TAB_SHOW, &tab.show_if_matches);
     set_text(hwnd, ID_TAB_HIDE, &tab.hide_if_matches);
     let channels = [1,2,3,4,5,6,7,8,9,99];
-    for (i, channel) in channels.iter().enumerate() {
-        set_check(hwnd, ID_TAB_CHANNEL_BASE + i as i32, tab.channels.contains(channel));
-    }
+    for (i, channel) in channels.iter().enumerate() { set_check(hwnd, ID_TAB_CHANNEL_BASE + i as i32, tab.channels.contains(channel)); }
 }
 
 unsafe fn refresh_blocked_list(hwnd: HWND, state: &SettingsState) {
@@ -742,76 +719,49 @@ unsafe fn unblock_selected(hwnd: HWND, state: &mut SettingsState) {
 
 unsafe fn refresh_speech_enabled(hwnd: HWND) {
     let translate = get_check(hwnd, ID_TRANSLATE);
-    for id in [ID_TRANSLATE_WORLD, ID_TRANSLATE_GUILD, ID_TRANSLATE_PARTY, ID_TRANSLATE_OVERLAY] {
-        EnableWindow(GetDlgItem(hwnd, id), translate as i32);
-    }
+    for id in [ID_TRANSLATE_WORLD, ID_TRANSLATE_GUILD, ID_TRANSLATE_PARTY, ID_TRANSLATE_OVERLAY] { EnableWindow(GetDlgItem(hwnd, id), translate as i32); }
     let tts = get_check(hwnd, ID_TTS);
-    for id in [ID_TTS_GUILD, ID_TTS_PARTY, ID_TTS_SENDER, ID_TTS_USERNAME, ID_TTS_VOLUME, ID_TEST_TTS] {
-        EnableWindow(GetDlgItem(hwnd, id), tts as i32);
-    }
+    for id in [ID_TTS_GUILD, ID_TTS_PARTY, ID_TTS_SENDER, ID_TTS_USERNAME, ID_TTS_VOLUME, ID_TEST_TTS] { EnableWindow(GetDlgItem(hwnd, id), tts as i32); }
 }
 
 unsafe fn heading(hwnd: HWND, state: &mut SettingsState, page: usize, text: &str, x: i32, y: i32) {
-    let h = create_static(hwnd, text, x, y, 570, 28);
-    state.page_controls.push((h, page));
+    let h = create_static(hwnd, text, x, y, 570, 28); state.page_controls.push((h, page));
 }
 unsafe fn info(hwnd: HWND, state: &mut SettingsState, page: usize, text: &str, x: i32, y: i32, w: i32, h: i32) {
-    let c = create_static(hwnd, text, x, y, w, h);
-    state.page_controls.push((c, page));
+    let c = create_static(hwnd, text, x, y, w, h); state.page_controls.push((c, page));
 }
 unsafe fn label(hwnd: HWND, state: &mut SettingsState, page: usize, text: &str, x: i32, y: i32, w: i32, h: i32) {
-    let c = create_static(hwnd, text, x, y, w, h);
-    state.page_controls.push((c, page));
+    let c = create_static(hwnd, text, x, y, w, h); state.page_controls.push((c, page));
 }
 unsafe fn checkbox(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, text: &str, x: i32, y: i32) {
     checkbox_at(hwnd, state, page, id, text, x, y, 360);
 }
 unsafe fn checkbox_at(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, text: &str, x: i32, y: i32, w: i32) {
-    let c = create_control(hwnd, "BUTTON", text, id, x, y, w, 26, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX, 0);
-    state.page_controls.push((c, page));
+    let c = create_control(hwnd, "BUTTON", text, id, x, y, w, 26, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX, 0); state.page_controls.push((c, page));
 }
 unsafe fn edit(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, x: i32, y: i32, w: i32, h: i32, multiline: bool) {
     let mut style = WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL;
     if multiline { style |= ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL; }
-    let c = create_control(hwnd, "EDIT", "", id, x, y, w, h, style, WS_EX_CLIENTEDGE);
-    state.page_controls.push((c, page));
+    let c = create_control(hwnd, "EDIT", "", id, x, y, w, h, style, WS_EX_CLIENTEDGE); state.page_controls.push((c, page));
 }
 unsafe fn field(hwnd: HWND, state: &mut SettingsState, page: usize, text: &str, id: i32, x: i32, y: i32, w: i32) {
-    label(hwnd, state, page, text, x, y, w.max(180), 20);
-    edit(hwnd, state, page, id, x, y + 22, w, 26, false);
+    label(hwnd, state, page, text, x, y, w.max(180), 20); edit(hwnd, state, page, id, x, y + 22, w, 26, false);
 }
 unsafe fn button(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, text: &str, x: i32, y: i32, w: i32, h: i32) {
-    let c = create_button(hwnd, id, text, x, y, w, h, Some(page));
-    state.page_controls.push((c, page));
+    let c = create_button(hwnd, id, text, x, y, w, h); state.page_controls.push((c, page));
 }
 unsafe fn combo(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, x: i32, y: i32, w: i32, h: i32) {
-    let c = create_control(hwnd, "COMBOBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST, 0);
-    state.page_controls.push((c, page));
+    let c = create_control(hwnd, "COMBOBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST, 0); state.page_controls.push((c, page));
 }
 unsafe fn listbox(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, x: i32, y: i32, w: i32, h: i32) {
-    let c = create_control(hwnd, "LISTBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | LBS_NOTIFY | WS_BORDER, WS_EX_CLIENTEDGE);
-    state.page_controls.push((c, page));
+    let c = create_control(hwnd, "LISTBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | LBS_NOTIFY | WS_BORDER, WS_EX_CLIENTEDGE); state.page_controls.push((c, page));
 }
+unsafe fn create_static(hwnd: HWND, text: &str, x: i32, y: i32, w: i32, h: i32) -> HWND { create_control(hwnd, "STATIC", text, 0, x, y, w, h, WS_CHILD | WS_VISIBLE, 0) }
+unsafe fn create_button(hwnd: HWND, id: i32, text: &str, x: i32, y: i32, w: i32, h: i32) -> HWND { create_control(hwnd, "BUTTON", text, id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0) }
 
-unsafe fn create_static(hwnd: HWND, text: &str, x: i32, y: i32, w: i32, h: i32) -> HWND {
-    create_control(hwnd, "STATIC", text, 0, x, y, w, h, WS_CHILD | WS_VISIBLE, 0)
-}
-unsafe fn create_button(hwnd: HWND, id: i32, text: &str, x: i32, y: i32, w: i32, h: i32, _page: Option<usize>) -> HWND {
-    create_control(hwnd, "BUTTON", text, id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0)
-}
 unsafe fn create_control(hwnd: HWND, class: &str, text: &str, id: i32, x: i32, y: i32, w: i32, h: i32, style: u32, ex: u32) -> HWND {
     let instance = GetModuleHandleW(null());
-    let c = CreateWindowExW(
-        ex,
-        wide(class).as_ptr(),
-        wide(text).as_ptr(),
-        style,
-        x, y, w, h,
-        hwnd,
-        id as usize as HMENU,
-        instance,
-        null(),
-    );
+    let c = CreateWindowExW(ex, wide(class).as_ptr(), wide(text).as_ptr(), style, x, y, w, h, hwnd, id as usize as HMENU, instance, null());
     if !c.is_null() {
         let font = GetStockObject(DEFAULT_GUI_FONT);
         SendMessageW(c, WM_SETFONT, font as usize, 1);
@@ -821,33 +771,21 @@ unsafe fn create_control(hwnd: HWND, class: &str, text: &str, id: i32, x: i32, y
     c
 }
 
-unsafe fn set_check(hwnd: HWND, id: i32, checked: bool) {
-    SendMessageW(GetDlgItem(hwnd, id), BM_SETCHECK, if checked { BST_CHECKED } else { 0 }, 0);
-}
-unsafe fn get_check(hwnd: HWND, id: i32) -> bool {
-    SendMessageW(GetDlgItem(hwnd, id), BM_GETCHECK, 0, 0) as usize == BST_CHECKED
-}
-unsafe fn set_text(hwnd: HWND, id: i32, text: &str) {
-    let c = GetDlgItem(hwnd, id);
-    if !c.is_null() { SetWindowTextW(c, wide(text).as_ptr()); }
-}
+unsafe fn set_check(hwnd: HWND, id: i32, checked: bool) { SendMessageW(GetDlgItem(hwnd, id), BM_SETCHECK, if checked { BST_CHECKED } else { 0 }, 0); }
+unsafe fn get_check(hwnd: HWND, id: i32) -> bool { SendMessageW(GetDlgItem(hwnd, id), BM_GETCHECK, 0, 0) as usize == BST_CHECKED }
+unsafe fn set_text(hwnd: HWND, id: i32, text: &str) { let c = GetDlgItem(hwnd, id); if !c.is_null() { SetWindowTextW(c, wide(text).as_ptr()); } }
 unsafe fn get_text(hwnd: HWND, id: i32) -> String {
-    let c = GetDlgItem(hwnd, id);
-    if c.is_null() { return String::new(); }
+    let c = GetDlgItem(hwnd, id); if c.is_null() { return String::new(); }
     let len = GetWindowTextLengthW(c).max(0) as usize;
     let mut buf = vec![0u16; len + 1];
     let got = GetWindowTextW(c, buf.as_mut_ptr(), buf.len() as i32).max(0) as usize;
     String::from_utf16_lossy(&buf[..got])
 }
-unsafe fn read_i32(hwnd: HWND, id: i32, fallback: i32) -> i32 {
-    get_text(hwnd, id).trim().parse::<i32>().unwrap_or(fallback)
-}
+unsafe fn read_i32(hwnd: HWND, id: i32, fallback: i32) -> i32 { get_text(hwnd, id).trim().parse::<i32>().unwrap_or(fallback) }
 unsafe fn set_combo_items(hwnd: HWND, id: i32, values: &[&str], selected: usize) {
     let c = GetDlgItem(hwnd, id);
-    for value in values {
-        let w = wide(value);
-        SendMessageW(c, CB_ADDSTRING, 0, w.as_ptr() as isize);
-    }
+    SendMessageW(c, CB_RESETCONTENT, 0, 0);
+    for value in values { let w = wide(value); SendMessageW(c, CB_ADDSTRING, 0, w.as_ptr() as isize); }
     SendMessageW(c, CB_SETCURSEL, selected.min(values.len().saturating_sub(1)), 0);
 }
 unsafe fn combo_sel(hwnd: HWND, id: i32) -> isize { SendMessageW(GetDlgItem(hwnd, id), CB_GETCURSEL, 0, 0) }
@@ -856,9 +794,7 @@ unsafe fn list_sel(hwnd: HWND, id: i32) -> isize { SendMessageW(GetDlgItem(hwnd,
 unsafe fn try_dark_titlebar(hwnd: HWND) {
     let enabled: i32 = 1;
     let ptr = (&enabled as *const i32).cast::<c_void>();
-    if DwmSetWindowAttribute(hwnd, 20, ptr, std::mem::size_of::<i32>() as u32) != 0 {
-        let _ = DwmSetWindowAttribute(hwnd, 19, ptr, std::mem::size_of::<i32>() as u32);
-    }
+    if DwmSetWindowAttribute(hwnd, 20, ptr, std::mem::size_of::<i32>() as u32) != 0 { let _ = DwmSetWindowAttribute(hwnd, 19, ptr, std::mem::size_of::<i32>() as u32); }
 }
 
 fn rgb(r: u8, g: u8, b: u8) -> u32 { u32::from(r) | (u32::from(g) << 8) | (u32::from(b) << 16) }
