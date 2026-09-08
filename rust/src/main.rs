@@ -11,8 +11,6 @@ mod chat {
     pub(crate) use crate::chat_legacy::{matches_expression, validate_expression};
     use crate::{model::ChatMessage, settings::AppSettings};
 
-    // v1.6 display copies carry a negative sender level so the legacy renderer
-    // omits "LvXX". Filters still evaluate the real absolute level.
     pub fn should_hide_in_overlay(settings: &AppSettings, message: &ChatMessage) -> bool {
         if should_hide_globally(settings, message) { return true; }
         let tab = settings.chat.active_tab();
@@ -24,9 +22,11 @@ mod chat {
         false
     }
 }
+#[path = "feature_settings_v170.rs"]
 mod feature_settings;
-#[path = "feature_overlays.rs"]
-mod feature_overlays_impl;
+mod feature_overlays_impl {
+    include!(concat!(env!("OUT_DIR"), "/feature_overlays_v170_fixed.rs"));
+}
 mod feature_overlays {
     pub use crate::feature_overlays_impl::*;
     use windows_sys::Win32::{Foundation::HWND, Graphics::Gdi::InvalidateRect};
@@ -36,7 +36,7 @@ mod feature_overlays {
 }
 mod game_filter;
 mod logging;
-#[path = "model_v160.rs"]
+#[path = "model_v170.rs"]
 mod model;
 mod npcap;
 #[path = "overlay_v150.rs"]
@@ -47,6 +47,7 @@ mod settings;
 mod settings_cleanup_v160;
 mod settings_repaint_hotfix;
 mod settings_ui;
+#[path = "telemetry_adapter_v170.rs"]
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
@@ -137,8 +138,11 @@ fn smoke_test() -> Result<(), String> {
     let mut settings = settings::AppSettings::default();
     settings.normalize();
     if settings.chat.tabs.len() < 4 || settings.chat.local_chat_log_retention_hours != 168 { return Err("settings defaults failed".into()); }
-    let features = feature_settings::FeatureSettings::default();
+    let mut features = feature_settings::FeatureSettings::default();
+    features.normalize();
     if !features.dps_overlay_enabled || !features.mechanics_overlay_enabled { return Err("feature overlay defaults failed".into()); }
+    if features.mechanic_attributes.tracked != vec![feature_settings::ATTR_LUCK, feature_settings::ATTR_HASTE, feature_settings::ATTR_MASTERY] { return Err("mechanic tracked-attribute defaults failed".into()); }
+    if features.dps.opacity < 25 || features.mechanics.opacity < 25 { return Err("feature opacity normalization failed".into()); }
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
     Ok(())
