@@ -2,6 +2,7 @@
 
 mod audio;
 mod capture;
+mod capture_supervisor;
 mod chat;
 mod game_filter;
 mod logging;
@@ -65,9 +66,16 @@ fn main() {
     let (tx, rx) = mpsc::channel();
     let chat_runtime = ChatRuntime::start(paths.clone(), settings.clone(), identity.clone(), tx.clone());
     let stop = Arc::new(AtomicBool::new(false));
-    let capture_thread = capture::spawn(api, settings.clone(), identity, chat_runtime, tx, stop.clone());
+    let capture_thread = capture_supervisor::spawn(
+        api.clone(),
+        settings.clone(),
+        identity,
+        chat_runtime,
+        tx,
+        stop.clone(),
+    );
 
-    if let Err(err) = win::run_ui(settings, paths, rx, stop.clone()) {
+    if let Err(err) = win::run_ui(settings, paths, rx, stop.clone(), api) {
         logging::write(format!("startup/ui: {err}"));
         win::message_box("BPSR Ready Alert - Error", &err, true);
     }
