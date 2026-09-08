@@ -103,10 +103,11 @@ pub unsafe fn show(hwnd: HWND, settings: &AppSettings, api: &PcapApi) -> TrayAct
     if !volume_menu.is_null() {
         for step in 0..=10 {
             let volume = step * 10;
+            let label = if volume == 0 { "Mute".to_string() } else { format!("{volume}%") };
             append_check(
                 volume_menu,
                 CMD_VOLUME_BASE + step as u32,
-                if volume == 0 { "Mute".to_string() } else { format!("{volume}%") }.as_str(),
+                &label,
                 settings.alert_volume == volume,
             );
         }
