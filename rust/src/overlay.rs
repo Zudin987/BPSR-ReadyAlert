@@ -6,7 +6,7 @@ use crate::{
 };
 use std::{collections::VecDeque, ffi::c_void, ptr::{null, null_mut}, sync::{Arc, RwLock}, time::{SystemTime, UNIX_EPOCH}};
 use windows_sys::Win32::{
-    Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
+    Foundation::{FILETIME, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, RECT, SYSTEMTIME, WPARAM},
     Graphics::Gdi::{
         BeginPaint, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, GetStockObject,
         InvalidateRect, SelectObject, SetBkMode, SetTextColor, DEFAULT_GUI_FONT, HDC, PAINTSTRUCT, TRANSPARENT,
@@ -42,22 +42,10 @@ extern "system" {
     fn DwmSetWindowAttribute(hwnd: HWND, attribute: u32, value: *const c_void, size: u32) -> i32;
 }
 
-#[repr(C)]
-struct Tm {
-    tm_sec: i32,
-    tm_min: i32,
-    tm_hour: i32,
-    tm_mday: i32,
-    tm_mon: i32,
-    tm_year: i32,
-    tm_wday: i32,
-    tm_yday: i32,
-    tm_isdst: i32,
-}
-
-#[link(name = "msvcrt")]
-extern "C" {
-    fn localtime_s(result: *mut Tm, time: *const i64) -> i32;
+#[link(name = "kernel32")]
+extern "system" {
+    fn FileTimeToLocalFileTime(file_time: *const FILETIME, local_file_time: *mut FILETIME) -> i32;
+    fn FileTimeToSystemTime(file_time: *const FILETIME, system_time: *mut SYSTEMTIME) -> i32;
 }
 
 #[derive(Clone)]
@@ -513,10 +501,15 @@ fn time_text(message: &ChatMessage, ago: bool) -> String {
         else { format!("{}d", secs / 86_400) };
     }
     unsafe {
-        let t = message.unix_seconds;
-        let mut tm: Tm = std::mem::zeroed();
-        if localtime_s(&mut tm, &t) == 0 {
-            format!("{:02}:{:02}", tm.tm_hour, tm.tm_min)
+        const WINDOWS_TO_UNIX_SECONDS: i128 = 11_644_473_600;
+        let ticks = (i128::from(message.unix_seconds) + WINDOWS_TO_UNIX_SECONDS) * 10_000_000;
+        if ticks < 0 || ticks > i128::from(u64::MAX) { return String::new(); }
+        let ticks = ticks as u64;
+        let utc = FILETIME { dwLowDateTime: ticks as u32, dwHighDateTime: (ticks >> 32) as u32 };
+        let mut local_ft: FILETIME = std::mem::zeroed();
+        let mut local: SYSTEMTIME = std::mem::zeroed();
+        if FileTimeToLocalFileTime(&utc, &mut local_ft) != 0 && FileTimeToSystemTime(&local_ft, &mut local) != 0 {
+            format!("{:02}:{:02}", local.wHour, local.wMinute)
         } else {
             String::new()
         }
