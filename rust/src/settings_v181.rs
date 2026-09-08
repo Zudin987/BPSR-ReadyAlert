@@ -81,6 +81,28 @@ pub fn save(paths: &AppPaths, settings: &AppSettings) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn temp_paths(label: &str) -> AppPaths {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        let root: PathBuf = std::env::temp_dir().join(format!(
+            "bpsr-readyalert-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(root.join("ChatLogs")).expect("create temp app paths");
+        AppPaths {
+            settings: root.join("settings.json"),
+            log: root.join("readyalert.log"),
+            chat_logs: root.join("ChatLogs"),
+            root,
+        }
+    }
 
     #[test]
     fn defaults_remain_compatible() {
@@ -89,5 +111,41 @@ mod tests {
         assert!(settings.chat_overlay_enabled);
         assert_eq!(settings.chat.tabs.len(), 4);
         assert_eq!(settings.chat.local_chat_log_retention_hours, 168);
+    }
+
+    #[test]
+    fn corrupt_primary_never_overwrites_good_backup() {
+        let paths = temp_paths("settings-backup");
+        let backup = paths.settings.with_extension("json.bak");
+
+        let mut known_good = AppSettings::default();
+        known_good.alert_volume = 37;
+        known_good.normalize();
+        fs::write(
+            &backup,
+            serde_json::to_vec_pretty(&known_good).expect("serialize known-good backup"),
+        )
+        .expect("write known-good backup");
+        fs::write(&paths.settings, b"{ definitely-not-valid-json ")
+            .expect("write corrupt primary");
+
+        let mut replacement = AppSettings::default();
+        replacement.alert_volume = 88;
+        save(&paths, &replacement).expect("save replacement settings");
+
+        let preserved: AppSettings = serde_json::from_slice(
+            &fs::read(&backup).expect("read preserved backup"),
+        )
+        .expect("backup remains valid JSON");
+        let primary: AppSettings = serde_json::from_slice(
+            &fs::read(&paths.settings).expect("read replacement primary"),
+        )
+        .expect("replacement primary is valid JSON");
+
+        assert_eq!(preserved.alert_volume, 37);
+        assert_eq!(primary.alert_volume, 88);
+        assert!(!paths.settings.with_extension("json.new").exists());
+
+        fs::remove_dir_all(&paths.root).expect("remove temp app paths");
     }
 }
