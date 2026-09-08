@@ -54,7 +54,7 @@ pub unsafe fn show(hwnd:HWND,settings:&AppSettings,features:&FeatureSettings,api
     let adapter_menu=CreatePopupMenu();let devices=api.devices().unwrap_or_default();
     if !adapter_menu.is_null(){append_check(adapter_menu,CMD_ADAPTER_AUTO,"Auto",settings.npcap_device_name.trim().is_empty());AppendMenuW(adapter_menu,MF_SEPARATOR,0,null());for(index,device)in devices.iter().take(MAX_ADAPTERS).enumerate(){let selected=!settings.npcap_device_name.trim().is_empty()&&settings.npcap_device_name.eq_ignore_ascii_case(&device.name);append_check(adapter_menu,CMD_ADAPTER_BASE+index as u32,&shorten(&device.description,64),selected);}AppendMenuW(menu,MF_POPUP,adapter_menu as usize,wide(&adapter_label(settings,&devices)).as_ptr());}
 
-    let volume_menu=CreatePopupMenu();if !volume_menu.is_null(){for step in 0..=10{let volume=step*10;append_check(volume_menu,CMD_VOLUME_BASE+step as u32,if volume==0{"Mute"}&else_label(volume),settings.alert_volume==volume);}AppendMenuW(menu,MF_POPUP,volume_menu as usize,wide(&format!("Alert Volume: {}%",settings.alert_volume.clamp(0,100))).as_ptr());}
+    let volume_menu=CreatePopupMenu();if !volume_menu.is_null(){for step in 0..=10{let volume=step*10;let label=if volume==0{"Mute".to_string()}else{format!("{volume}%")};append_check(volume_menu,CMD_VOLUME_BASE+step as u32,&label,settings.alert_volume==volume);}AppendMenuW(menu,MF_POPUP,volume_menu as usize,wide(&format!("Alert Volume: {}%",settings.alert_volume.clamp(0,100))).as_ptr());}
 
     AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_SETTINGS,"Settings…");append_string(menu,CMD_CHAT_LOGS,"Open Chat Logs");append_string(menu,CMD_APP_FOLDER,"Open App Data Folder");append_string(menu,CMD_LOG_FILE,"Open Log");AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_EXIT,"Exit");
     let mut p:POINT=std::mem::zeroed();GetCursorPos(&mut p);SetForegroundWindow(hwnd);let command=TrackPopupMenu(menu,TPM_LEFTALIGN|TPM_BOTTOMALIGN|TPM_RIGHTBUTTON|TPM_RETURNCMD,p.x,p.y,0,hwnd,null());DestroyMenu(menu);
@@ -66,7 +66,6 @@ pub unsafe fn show(hwnd:HWND,settings:&AppSettings,features:&FeatureSettings,api
     }
 }
 
-fn else_label(volume:i32)->String{format!("{volume}%")}
 unsafe fn append_check(menu:HMENU,id:u32,text:&str,checked:bool){AppendMenuW(menu,MF_STRING|if checked{MF_CHECKED}else{0},id as usize,wide(text).as_ptr());}
 unsafe fn append_string(menu:HMENU,id:u32,text:&str){AppendMenuW(menu,MF_STRING,id as usize,wide(text).as_ptr());}
 fn adapter_label(settings:&AppSettings,devices:&[crate::npcap::NpcapDevice])->String{if settings.npcap_device_name.trim().is_empty(){return "Network Adapter: Auto".into();}let description=devices.iter().find(|d|d.name.eq_ignore_ascii_case(settings.npcap_device_name.trim())).map(|d|d.description.as_str()).unwrap_or(settings.npcap_device_name.trim());format!("Network Adapter: {}",shorten(description,38))}
