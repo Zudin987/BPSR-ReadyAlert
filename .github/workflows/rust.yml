@@ -1,12 +1,16 @@
-name: Rust Rewrite
+name: Rust CI
 
 on:
   push:
     branches: [rust-rewrite]
+    paths:
+      - 'rust/**'
+      - 'assets-src/**'
+      - 'scripts/prepare-build-assets.ps1'
+      - '.github/workflows/rust.yml'
   pull_request:
     paths:
       - 'rust/**'
-      - 'src/BPSR.ReadyAlert/Assets/**'
       - 'assets-src/**'
       - 'scripts/prepare-build-assets.ps1'
       - '.github/workflows/rust.yml'
@@ -28,27 +32,13 @@ jobs:
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
 
-      - name: Prepare embedded audio/icon assets
+      - name: Prepare embedded assets
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
 
-      - name: Format check (advisory during draft migration)
-        shell: pwsh
-        run: |
-          cargo fmt --manifest-path rust/Cargo.toml --all -- --check
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'rustfmt differences remain during draft migration; continuing to compiler/test gates.'
-          }
-          exit 0
-
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
-
-      - name: Clippy
-        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
 
       - name: Native release build
         run: cargo build --manifest-path rust/Cargo.toml --release

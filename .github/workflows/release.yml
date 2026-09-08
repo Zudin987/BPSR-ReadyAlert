@@ -1,0 +1,70 @@
+name: Release Rust
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: readyalert-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare embedded assets
+        shell: pwsh
+        run: ./scripts/prepare-build-assets.ps1
+
+      - name: Unit tests
+        run: cargo test --manifest-path rust/Cargo.toml --all-targets
+
+      - name: Native release build
+        run: cargo build --manifest-path rust/Cargo.toml --release
+
+      - name: Smoke-test native EXE
+        shell: pwsh
+        run: |
+          $exe = './rust/target/release/BPSR-ReadyAlert.exe'
+          $p = Start-Process -FilePath $exe -ArgumentList '--build-smoke-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Rust smoke test failed with exit code $($p.ExitCode)" }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path rust/Cargo.toml -Pattern '^version = "([^"]+)"').Matches.Groups.Value
+          if (-not $version) { throw 'Could not read Cargo package version.' }
+          $tag = "v$version"
+          New-Item -ItemType Directory -Force package | Out-Null
+          Copy-Item './rust/target/release/BPSR-ReadyAlert.exe' './package/BPSR-ReadyAlert.exe'
+          Copy-Item './README.md' './package/README.md'
+          Copy-Item './LICENSE' './package/LICENSE'
+          Copy-Item './THIRD_PARTY_NOTICES.md' './package/THIRD_PARTY_NOTICES.md'
+          $hash = (Get-FileHash './package/BPSR-ReadyAlert.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  BPSR-ReadyAlert.exe" | Set-Content './package/SHA256SUMS.txt' -Encoding ascii
+          Compress-Archive -Path './package/*' -DestinationPath "./BPSR-ReadyAlert-$tag-win-x64.zip" -Force
+          "TAG=$tag" >> $env:GITHUB_ENV
+          "ARCHIVE=BPSR-ReadyAlert-$tag-win-x64.zip" >> $env:GITHUB_ENV
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$env:TAG" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:TAG already exists; skipping publication."
+            exit 0
+          }
+          gh release create "$env:TAG" "$env:ARCHIVE" --target "${{ github.sha }}" --title "BPSR ReadyAlert $env:TAG" --generate-notes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

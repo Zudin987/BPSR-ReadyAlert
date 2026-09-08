@@ -45,7 +45,7 @@ fn main() {
     win::auto_launch_resonance_logs(&loaded);
 
     let api = match npcap::PcapApi::load() {
-        Ok(api) => Arc::new(api),
+        Ok(api) => api,
         Err(err) => {
             logging::write(format!("startup: Npcap missing {err}"));
             win::message_box(
@@ -76,6 +76,7 @@ fn main() {
 }
 
 fn smoke_test() -> Result<(), String> {
+    // Deterministic protocol tests that also prove all statically embedded assets link.
     let mut frame = vec![0u8; 22];
     frame[0..4].copy_from_slice(&22u32.to_be_bytes());
     frame[4..6].copy_from_slice(&2u16.to_be_bytes());

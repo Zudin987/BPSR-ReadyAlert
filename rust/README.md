@@ -1,27 +1,3 @@
-# BPSR Ready Alert â€” Native Rust rewrite
+# BPSR Ready Alert â€” native Rust implementation
 
-This directory is the native Windows rewrite of BPSR Ready Alert. It intentionally keeps the existing `%LOCALAPPDATA%\\BPSR-ReadyAlert\\settings.json`, chat-log folder and Npcap behavior compatible with v1.3.6 while removing the .NET/WinForms runtime from the hot path.
-
-## Architecture
-
-- `npcap.rs`: dynamically loads the installed Npcap `wpcap.dll`; no import library is bundled.
-- `game_filter.rs`: maps BPSR/StarSEA TCP endpoints to game process IDs through Windows TCP owner tables.
-- `capture.rs`: zero-copy packet intake, bounded TCP reassembly, mid-stream BPSR frame synchronization, zstd decoding and alert dispatch.
-- `proto.rs`: allocation-light protobuf field scanning for Ready/queue/party/chat/player-identity events.
-- `chat.rs`: bounded local-log and translation/TTS workers; network/audio work never runs on the capture thread.
-- `win.rs`: native Win32 tray icon, notification balloons and chat overlay; no WebView/Electron/WinForms runtime.
-
-The old C# source remains in `src/BPSR.ReadyAlert` during the migration so live behavior can be compared and releases can fall back safely until the native build has passed Windows CI and live Npcap testing.
-
-## Build
-
-```powershell
-./scripts/prepare-build-assets.ps1
-cargo build --manifest-path rust/Cargo.toml --release
-```
-
-Output: `rust/target/release/BPSR-ReadyAlert.exe`.
-
-## Compatibility notes
-
-The Rust build reads and writes the same camelCase `settings.json`. Core alert toggles, desktop notifications, Npcap adapter selection, chat tabs/filters, local logs, translation and Guild/Party TTS settings are preserved. Advanced chat appearance fields remain readable for compatibility; the native overlay deliberately uses one Windows text surface instead of recreating WinForms owner-draw controls.
+The production application is now the native Rust implementation in this directory. The previous C#/.NET WinForlÈ[\[Y[][ÛˆØ\È™[[İ™YY\ˆHZYÜ˜][Û‹‚‚ˆÈÈ\˜Ú]Xİ\™B‚‹H˜]]™HœØ\ØY\ˆ[™XÚÙ]Ø\\™HÚ]H›Üœ›İÙYXÚÙ]Y™™\ˆÛˆ[ZÙK‚‹HÚ[™İÜÈÔ[İÛ™\ˆ›ØÙ\ÜÈš[\š[™È›Üˆ”Ôˆ^Xİ]X›\Ë‚‹H›İ[™YÔ›İÈ™X\ÜÙ[X›HÚ]ÛÛ\Xİ[™È]Hİ™X[\È[™Ü\œÙHİ][Ù‹[Ü™\ˆİÜ˜YÙK‚‹H›İØÛÛ\œÚ[™È›Üˆ]Y]YKÜ™XYHÚXÚÜË\HXİ]š]KÚ[š]\ËÜ™\]Y\İË^Y\ˆY[]H[™Ú]‚‹H˜]]™HÚ[ŒÌˆ˜^HÚ[™İË\ÚİÜ›İYšXØ][ÛœÈ[™YÚÙZYÚÚ]İ™\›^K‚‹H˜XÚÙÜ›İ[™ØØ[ÙÙÚ[™Ë˜[œÛ][Ûˆ[™ÈÛÜšÙ\œÈÛÈ™]ÛÜšËØ]Y[ÈÛÜšÈÙ\È›İ›ØÚÈØ\\™K‚‹H^\İ[™È	SĞĞSTUIW”Ô‹T™XYP[\Ù][™ÜËšœÛÛ˜Ù][™ÜÈ™[XZ[ˆÛÛ\]X›HÚ\™Hİ\ÜY‚‚ˆÈÈZ[‚‘œ›ÛHH™\ÜÚ]ÜH›ÛİÛˆÚ[™İÜÎ‚‚˜İÙ\œÚ[‹‹ÜØÜš\ËÜ™\\™KXZ[X\ÜÙ]ËœÌB˜Ø\™ÛÈZ[K[X[šY™\İ\]\İĞØ\™ÛËÛ[K\™[X\ÙB˜‚“İ]]‚‚˜^œ\İİ\™Ù]Ü™[X\ÙKĞ”Ô‹T™XYP[\™^B˜‚“œØ\™[XZ[œÈ[ˆ^\›˜[[[YH\[™[˜ŞH[™\È›İ™Y\İšX]Y‚‚ˆÈÈ\ÜÙ]Â‚˜™\\™KXZ[X\ÜÙ]ËœÌX™XÛÛœİXİÈH[™Y[\ĞUœÈ[™XÛÛˆ[™\ˆÜ˜ËĞ”Ô‹”™XYP[\Ğ\ÜÙ]ËØœ›ÛHHÚXÚÙYZ[ˆÛİ\˜ÙHÚ[šÜÈ[™\ˆ\ÜÙ]Ë\Ü˜ËØˆ]ÛX[Ú\™Y\ÜÙ]\™XİÜH\È™]Z[™Y\ÈHZ[Z[œ]ØØ][ÛÈH™]š[İ\ÈÈÈÛİ\˜ÙH]Ù[ˆ\È™Y[ˆ™[[İ™Y‚‚ˆÈÈÒHÈ™[X\ÙB‚‹H\İÒXÛÛ\[\Ë\İÈ[™Û[ÚÙK]\İÈHÚ[™İÜÈ^Xİ]X›HÛˆ[™\]Y\İÈ[™H™]Üš]Hœ˜[˜Ú‚‹H™[X\ÙH\İZ[ÈHY\™ÙYXZ[˜œ˜[˜Ú[™X›\Ú\ÈHØ\™ÛÈ™\œÚ[Ûˆ\ÈHÚ]Xˆ™[X\ÙK‚
