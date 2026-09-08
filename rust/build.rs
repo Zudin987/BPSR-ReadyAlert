@@ -17,8 +17,12 @@ fn main() {
     // in CI instead of producing subtly different runtime behavior.
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
 
+    // Git's Windows checkout may materialize CRLF source while these audited
+    // patch anchors intentionally use LF. Normalize the in-memory generated-source
+    // inputs so CI behavior does not depend on core.autocrlf / runner platform.
     let mut telemetry = fs::read_to_string("src/telemetry_v170.rs")
-        .expect("read telemetry_v170.rs");
+        .expect("read telemetry_v170.rs")
+        .replace("\r\n", "\n");
 
     patch_once(
         &mut telemetry,
@@ -74,6 +78,7 @@ fn main() {
 
     let mut overlay = fs::read_to_string("src/feature_overlays_v170.rs")
         .expect("read feature_overlays_v170.rs")
+        .replace("\r\n", "\n")
         .replace("return\"", "return \"");
 
     patch_once(
