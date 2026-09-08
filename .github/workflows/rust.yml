@@ -1,0 +1,77 @@
+name: Rust Rewrite
+
+on:
+  push:
+    branches: [rust-rewrite]
+  pull_request:
+    paths:
+      - 'rust/**'
+      - 'src/BPSR.ReadyAlert/Assets/**'
+      - 'assets-src/**'
+      - 'scripts/prepare-build-assets.ps1'
+      - '.github/workflows/rust.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-native:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Prepare embedded audio/icon assets
+        shell: pwsh
+        run: ./scripts/prepare-build-assets.ps1
+
+      - name: Format check
+        run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+
+      - name: Unit tests
+        run: cargo test --manifest-path rust/Cargo.toml --all-targets
+
+      - name: Clippy
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+
+      - name: Native release build
+        run: cargo build --manifest-path rust/Cargo.toml --release
+
+      - name: Smoke-test native EXE
+        shell: pwsh
+        run: |
+          $exe = './rust/target/release/BPSR-ReadyAlert.exe'
+          $p = Start-Process -FilePath $exe -ArgumentList '--build-smoke-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Rust smoke test failed with exit code $($p.ExitCode)" }
+
+      - name: Enforce native size budget
+        shell: pwsh
+        run: |
+          $exe = Get-Item './rust/target/release/BPSR-ReadyAlert.exe'
+          $limit = 20MB
+          Write-Host ("Rust BPSR-ReadyAlert.exe: {0:N2} MiB" -f ($exe.Length / 1MB))
+          if ($exe.Length -gt $limit) { throw 'Native EXE exceeded the 20 MiB budget.' }
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist-rust | Out-Null
+          Copy-Item './rust/target/release/BPSR-ReadyAlert.exe' './dist-rust/BPSR-ReadyAlert.exe'
+          $hash = (Get-FileHash './dist-rust/BPSR-ReadyAlert.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  BPSR-ReadyAlert.exe" | Set-Content './dist-rust/SHA256SUMS.txt' -Encoding ascii
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BPSR-ReadyAlert-rust-win-x64
+          path: dist-rust/
+          if-no-files-found: error
