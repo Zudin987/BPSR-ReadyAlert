@@ -9,11 +9,13 @@ use std::{
 };
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
-    Graphics::Gdi::{CreateSolidBrush, DeleteObject, FillRect, HDC},
+    Graphics::Gdi::{
+        CreateSolidBrush, DeleteObject, FillRect, RedrawWindow, HDC, RDW_ALLCHILDREN, RDW_ERASE,
+        RDW_INVALIDATE, RDW_UPDATENOW,
+    },
     UI::WindowsAndMessaging::{
-        CallWindowProcW, DefWindowProcW, FindWindowW, GetClientRect, IsWindow, RedrawWindow,
-        SetWindowLongPtrW, GWLP_WNDPROC, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE,
-        RDW_UPDATENOW, WM_APP, WM_COMMAND, WM_ERASEBKGND, WM_NCDESTROY, WNDPROC,
+        CallWindowProcW, DefWindowProcW, FindWindowW, GetClientRect, IsWindow, SetWindowLongPtrW,
+        GWLP_WNDPROC, WM_APP, WM_COMMAND, WM_ERASEBKGND, WM_NCDESTROY, WNDPROC,
     },
 };
 
