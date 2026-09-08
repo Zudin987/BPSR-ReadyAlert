@@ -13,6 +13,7 @@ mod overlay;
 mod paths;
 mod proto;
 mod settings;
+mod settings_repaint_hotfix;
 mod settings_ui;
 mod tray;
 mod win;
@@ -75,12 +76,14 @@ fn main() {
         tx,
         stop.clone(),
     );
+    let settings_repaint_thread = settings_repaint_hotfix::start(stop.clone());
 
     if let Err(err) = win::run_ui(settings, paths, rx, stop.clone(), api) {
         logging::write(format!("startup/ui: {err}"));
         win::message_box("BPSR Ready Alert - Error", &err, true);
     }
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let _ = settings_repaint_thread.join();
     let _ = capture_thread.join();
     drop(guard);
     logging::write("shutdown: complete");
