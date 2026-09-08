@@ -7,6 +7,7 @@ mod game_filter;
 mod logging;
 mod model;
 mod npcap;
+mod overlay;
 mod paths;
 mod proto;
 mod settings;
