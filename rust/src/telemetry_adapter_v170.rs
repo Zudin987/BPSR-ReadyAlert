@@ -32,7 +32,6 @@ impl TelemetryRuntime {
 
     fn update_team(&mut self, method: u32, body: &[u8]) {
         match method {
-            // NoticeUpdateTeamMemberInfo
             0x02 => {
                 if let Some(req) = proto::get_len_field(body, 1) {
                     for field in [5_u32, 6_u32] {
@@ -42,13 +41,11 @@ impl TelemetryRuntime {
                     }
                 }
             }
-            // NotifyJoinTeam
             0x03 => {
                 if let Some(req) = proto::get_len_field(body, 1) {
                     for member in proto::len_fields(req, 2) {
                         self.add_char_id(proto::get_varint_field(member, 1));
                     }
-                    // memberSyncDatas is a protobuf map<int64, TeamMemberFastSyncData>.
                     for entry in proto::len_fields(req, 6) {
                         self.add_char_id(proto::get_varint_field(entry, 1));
                         if let Some(value) = proto::get_len_field(entry, 2) {
@@ -57,7 +54,6 @@ impl TelemetryRuntime {
                     }
                 }
             }
-            // NotifyLeaveTeam
             0x04 => {
                 if let Some(req) = proto::get_len_field(body, 1) {
                     if let Some(id) = proto::get_varint_field(req, 1).and_then(valid_uid) {
@@ -65,7 +61,6 @@ impl TelemetryRuntime {
                     }
                 }
             }
-            // NoticeTeamDissolve
             0x0d => self.team_uids.clear(),
             _ => {}
         }
@@ -94,8 +89,6 @@ impl TelemetryRuntime {
 fn valid_uid(raw: u64) -> Option<i64> {
     if raw == 0 || raw > i64::MAX as u64 { return None; }
     let uid = raw as i64;
-    // BPSR charId is the UID, not the packed entity UUID. The upper bound
-    // rejects unrelated timestamps / huge identifiers if a schema drifts.
     (uid > 0 && uid < 10_000_000_000_000).then_some(uid)
 }
 
@@ -138,9 +131,6 @@ fn enrich_snapshot(snapshot: &mut DpsSnapshot, team: &HashSet<i64>) {
 }
 
 fn infer_spec(row: &DpsRow) -> Option<(i32, i32, &'static str)> {
-    // Spec-identifying skill ids. This is intentionally a small factual map,
-    // not a copied third-party implementation; unknown/new skills simply leave
-    // the spec blank until a known signature skill is observed.
     for skill in &row.skills {
         let result = match skill.skill_id {
             1714 | 1734 => (1001, 1, "Iaido"),
@@ -179,8 +169,7 @@ mod tests {
 
     #[test]
     fn team_join_extracts_member_ids() {
-        // NotifyJoinTeam { vRequest { memberData { charId: 123 }, memberData { charId: 456 } } }
-        let body = [0x0a, 0x08, 0x12, 0x02, 0x08, 0x7b, 0x12, 0x02, 0x08, 0xc8, 0x03];
+        let body = [0x0a, 0x09, 0x12, 0x02, 0x08, 0x7b, 0x12, 0x03, 0x08, 0xc8, 0x03];
         let (tx, _rx) = mpsc::channel();
         let mut t = TelemetryRuntime::new(tx);
         t.update_team(0x03, &body);
