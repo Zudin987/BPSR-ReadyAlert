@@ -205,7 +205,10 @@ impl Default for MechanicAttributeSettings {
 
 impl FeatureSettings {
     pub fn normalize(&mut self) {
-        self.dps.normalize(420, 220);
+        // The v1.8.3 grouped row reserves independent left identity, middle
+        // throughput and right share regions. Below 600 px those regions can
+        // physically overlap, so prevent resizing into an unreadable state.
+        self.dps.normalize(600, 220);
         self.mechanics.normalize(400, 220);
 
         // Migrate v1.7 and v1.8.0/1.8.1 selections by their UI meaning. Those
@@ -294,6 +297,14 @@ mod tests {
         value.mechanic_attributes.tracked = vec![11_110, 11_130, 11_140, 11_150];
         value.normalize();
         assert_eq!(value.mechanic_attributes.tracked, vec![ATTR_CRIT, ATTR_LUCKY, ATTR_HASTE, ATTR_MASTERY]);
+    }
+
+    #[test]
+    fn grouped_dps_layout_keeps_safe_minimum_width() {
+        let mut value = FeatureSettings::default();
+        value.dps.width = 420;
+        value.normalize();
+        assert_eq!(value.dps.width, 600);
     }
 
     #[test]
