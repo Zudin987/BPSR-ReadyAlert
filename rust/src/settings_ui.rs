@@ -1,4 +1,5 @@
 use crate::{
+    chat,
     paths::AppPaths,
     settings::{self, AppSettings, ChatSoundRule, ChatTabSettings},
 };
@@ -20,14 +21,15 @@ use windows_sys::Win32::{
         GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, LoadCursorW, MessageBoxW,
         PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow, SetWindowLongPtrW,
         SetWindowTextW, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, IDC_ARROW,
-        MB_ICONERROR, MB_OK, SW_HIDE, SW_SHOW, WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE,
-        WM_CTLCOLORBTN, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_NCCREATE, WM_NCDESTROY,
-        WM_SETFONT, WNDCLASSW, WS_BORDER, WS_CAPTION, WS_CHILD, WS_EX_CLIENTEDGE,
-        WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WS_VSCROLL, HMENU,
+        MB_ICONERROR, MB_ICONINFORMATION, MB_OK, SW_HIDE, SW_SHOW, WM_APP, WM_CLOSE, WM_COMMAND,
+        WM_CREATE, WM_CTLCOLORBTN, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_NCCREATE,
+        WM_NCDESTROY, WM_SETFONT, WNDCLASSW, WS_BORDER, WS_CAPTION, WS_CHILD,
+        WS_EX_CLIENTEDGE, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
+        WS_VSCROLL, HMENU,
     },
 };
 
-const CLASS_NAME: &str = "BPSRReadyAlertRustSettingsV150";
+const CLASS_NAME: &str = "BPSRReadyAlertRustSettingsV151";
 const WM_SHOW_PAGE: u32 = WM_APP + 91;
 
 // Shared message/command IDs with win.rs.
@@ -76,6 +78,7 @@ const ID_FONT_FAMILY: i32 = 3223;
 const ID_FONT_SIZE: i32 = 3224;
 const ID_MAX_HISTORY: i32 = 3225;
 const ID_COLLAPSE_SIDE: i32 = 3226;
+const ID_HIDE_STICKERS: i32 = 3227;
 
 const ID_TRANSLATE: i32 = 3240;
 const ID_TRANSLATE_WORLD: i32 = 3241;
@@ -126,6 +129,7 @@ const ID_CLEAR_BLOCKED: i32 = 3352;
 const ID_COLOR_BASE: i32 = 3400;
 const ID_HIGHLIGHT_COLOR: i32 = 3420;
 const ID_PRIVATE_COLOR: i32 = 3421;
+const ID_HIGHLIGHT_EXPR: i32 = 3422;
 
 const BM_GETCHECK: u32 = 0x00F0;
 const BM_SETCHECK: u32 = 0x00F1;
@@ -223,7 +227,7 @@ pub unsafe fn show(
         class.as_ptr(),
         wide("BPSR ReadyAlert Settings").as_ptr(),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 860, 690,
+        CW_USEDEFAULT, CW_USEDEFAULT, 900, 710,
         null_mut(), null_mut(), instance,
         state_ptr.cast::<c_void>(),
     );
@@ -307,8 +311,8 @@ unsafe fn build_ui(hwnd: HWND, state: &mut SettingsState) {
     for (i, name) in nav.iter().enumerate() {
         create_button(hwnd, NAV_BASE + i as i32, name, 12, 18 + i as i32 * 44, 142, 34);
     }
-    create_button(hwnd, ID_APPLY, "Apply", 650, 610, 86, 34);
-    create_button(hwnd, ID_CLOSE, "Close", 742, 610, 86, 34);
+    create_button(hwnd, ID_APPLY, "Apply", 690, 630, 86, 34);
+    create_button(hwnd, ID_CLOSE, "Close", 782, 630, 86, 34);
     build_general(hwnd, state);
     build_overlay(hwnd, state);
     build_colors(hwnd, state);
@@ -328,7 +332,7 @@ unsafe fn build_general(hwnd: HWND, state: &mut SettingsState) {
     checkbox(hwnd, state, PAGE_GENERAL, ID_DESKTOP, "Desktop notifications", 184, 202);
     checkbox(hwnd, state, PAGE_GENERAL, ID_AUTO_LOGS, "Auto-launch Resonance Logs CN", 184, 234);
     field(hwnd, state, PAGE_GENERAL, "Alert volume (0-100)", ID_ALERT_VOLUME, 184, 286, 110);
-    info(hwnd, state, PAGE_GENERAL, "Ready / Queue alert volume is independent from chat sounds and TTS volume.", 184, 356, 570, 42);
+    info(hwnd, state, PAGE_GENERAL, "Ready / Queue alert volume is independent from chat sounds and TTS volume.", 184, 356, 610, 42);
 }
 
 unsafe fn build_overlay(hwnd: HWND, state: &mut SettingsState) {
@@ -341,30 +345,34 @@ unsafe fn build_overlay(hwnd: HWND, state: &mut SettingsState) {
     checkbox(hwnd, state, PAGE_OVERLAY, ID_CLICKTHROUGH, "Click-through overlay", 184, 218);
     checkbox(hwnd, state, PAGE_OVERLAY, ID_BOLD, "Bold message text", 184, 250);
     checkbox(hwnd, state, PAGE_OVERLAY, ID_SHADOW, "Text shadow", 184, 282);
-    checkbox(hwnd, state, PAGE_OVERLAY, ID_SEPARATORS, "Row separators", 430, 58);
-    checkbox(hwnd, state, PAGE_OVERLAY, ID_ZEBRA, "Zebra rows", 430, 90);
-    checkbox(hwnd, state, PAGE_OVERLAY, ID_COLOR_BAND, "Channel color band", 430, 122);
+
+    checkbox(hwnd, state, PAGE_OVERLAY, ID_SEPARATORS, "Row separators", 470, 58);
+    checkbox(hwnd, state, PAGE_OVERLAY, ID_ZEBRA, "Zebra rows", 470, 90);
+    checkbox(hwnd, state, PAGE_OVERLAY, ID_COLOR_BAND, "Channel color band", 470, 122);
+    checkbox(hwnd, state, PAGE_OVERLAY, ID_HIDE_STICKERS, "Hide sticker / picture messages", 470, 154);
+
     field(hwnd, state, PAGE_OVERLAY, "Click-through recovery hotkey", ID_CLICK_HOTKEY, 184, 332, 260);
     field(hwnd, state, PAGE_OVERLAY, "Window opacity (25-100)", ID_WINDOW_OPACITY, 184, 390, 110);
-    field(hwnd, state, PAGE_OVERLAY, "Font family", ID_FONT_FAMILY, 430, 332, 230);
-    field(hwnd, state, PAGE_OVERLAY, "Font size (8-24)", ID_FONT_SIZE, 430, 390, 110);
+    field(hwnd, state, PAGE_OVERLAY, "Font family", ID_FONT_FAMILY, 470, 332, 230);
+    field(hwnd, state, PAGE_OVERLAY, "Font size (8-24)", ID_FONT_SIZE, 470, 390, 110);
     field(hwnd, state, PAGE_OVERLAY, "Max history (10-500)", ID_MAX_HISTORY, 184, 448, 110);
-    label(hwnd, state, PAGE_OVERLAY, "Collapse edge", 430, 448, 140, 22);
-    combo(hwnd, state, PAGE_OVERLAY, ID_COLLAPSE_SIDE, 430, 472, 180, 180);
-    info(hwnd, state, PAGE_OVERLAY, "The toolbar collapse button shrinks chat to a 24px handle on the selected screen edge. Click the handle to expand.", 184, 520, 570, 54);
+    label(hwnd, state, PAGE_OVERLAY, "Collapse edge", 470, 448, 140, 22);
+    combo(hwnd, state, PAGE_OVERLAY, ID_COLLAPSE_SIDE, 470, 472, 180, 180);
+    info(hwnd, state, PAGE_OVERLAY, "Collapse shrinks chat to a 24px Left / Right / Top / Bottom screen-edge handle. Click the handle to expand. Ctrl+Shift+F10 recovers click-through by default.", 184, 520, 610, 58);
 }
 
 unsafe fn build_colors(hwnd: HWND, state: &mut SettingsState) {
-    heading(hwnd, state, PAGE_COLORS, "Overlay colors", 180, 18);
+    heading(hwnd, state, PAGE_COLORS, "Overlay colors & visual highlight", 180, 18);
     let entries = ["World", "Local", "Team", "Guild", "Private", "Group", "Notice", "Play", "Newbie", "System"];
     for (i, name) in entries.iter().enumerate() {
         let col = i / 5;
         let row = i % 5;
-        field(hwnd, state, PAGE_COLORS, name, ID_COLOR_BASE + i as i32, 184 + col as i32 * 280, 64 + row as i32 * 58, 150);
+        field(hwnd, state, PAGE_COLORS, name, ID_COLOR_BASE + i as i32, 184 + col as i32 * 300, 58 + row as i32 * 54, 160);
     }
-    field(hwnd, state, PAGE_COLORS, "Keyword highlight", ID_HIGHLIGHT_COLOR, 184, 378, 150);
-    field(hwnd, state, PAGE_COLORS, "Private highlight", ID_PRIVATE_COLOR, 464, 378, 150);
-    info(hwnd, state, PAGE_COLORS, "Use #RRGGBB values. Invalid colors fall back to the built-in palette when Apply is pressed.", 184, 454, 570, 44);
+    field(hwnd, state, PAGE_COLORS, "Visual highlight rule", ID_HIGHLIGHT_EXPR, 184, 340, 610);
+    field(hwnd, state, PAGE_COLORS, "Keyword highlight color", ID_HIGHLIGHT_COLOR, 184, 400, 170);
+    field(hwnd, state, PAGE_COLORS, "Private highlight color", ID_PRIVATE_COLOR, 484, 400, 170);
+    info(hwnd, state, PAGE_COLORS, "Filter syntax matches v1.3.6: OR / || / spaced |, AND / &&, or regular expressions. Example: serum | food | raid. Colors use #RRGGBB.", 184, 480, 610, 58);
 }
 
 unsafe fn build_speech(hwnd: HWND, state: &mut SettingsState) {
@@ -382,7 +390,7 @@ unsafe fn build_speech(hwnd: HWND, state: &mut SettingsState) {
     field(hwnd, state, PAGE_SPEECH, "TTS volume (0-100)", ID_TTS_VOLUME, 184, 366, 110);
     checkbox(hwnd, state, PAGE_SPEECH, ID_HIDE_RICH, "Hide emoji-only and linked-item noise", 184, 424);
     button(hwnd, state, PAGE_SPEECH, ID_TEST_TTS, "Test Google English TTS", 184, 470, 190, 32);
-    info(hwnd, state, PAGE_SPEECH, "TTS is intentionally limited to Guild and Party / Team. World chat is never spoken. Translation/TTS run off the capture thread.", 184, 522, 570, 54);
+    info(hwnd, state, PAGE_SPEECH, "TTS is intentionally limited to Guild and Party / Team. World chat is never spoken. Translation/TTS run off the capture thread.", 184, 522, 610, 54);
 }
 
 unsafe fn build_tabs(hwnd: HWND, state: &mut SettingsState) {
@@ -390,51 +398,51 @@ unsafe fn build_tabs(hwnd: HWND, state: &mut SettingsState) {
     listbox(hwnd, state, PAGE_TABS, ID_TAB_LIST, 184, 58, 220, 210);
     button(hwnd, state, PAGE_TABS, ID_TAB_ADD, "+ Add tab", 184, 278, 104, 30);
     button(hwnd, state, PAGE_TABS, ID_TAB_DELETE, "Delete", 296, 278, 104, 30);
-    field(hwnd, state, PAGE_TABS, "Tab name", ID_TAB_NAME, 430, 58, 250);
+    field(hwnd, state, PAGE_TABS, "Tab name", ID_TAB_NAME, 430, 58, 310);
     field(hwnd, state, PAGE_TABS, "Minimum player level", ID_TAB_MIN_LEVEL, 430, 116, 110);
-    field(hwnd, state, PAGE_TABS, "Show only if message matches", ID_TAB_SHOW, 430, 174, 350);
-    field(hwnd, state, PAGE_TABS, "Hide if message matches", ID_TAB_HIDE, 430, 232, 350);
+    field(hwnd, state, PAGE_TABS, "Show only if message matches", ID_TAB_SHOW, 430, 174, 390);
+    field(hwnd, state, PAGE_TABS, "Hide if message matches", ID_TAB_HIDE, 430, 232, 390);
     label(hwnd, state, PAGE_TABS, "Channels", 430, 292, 140, 22);
     let channels = ["World", "Local", "Team", "Guild", "Private", "Group", "Notice", "Play", "Newbie", "System"];
     for (i, name) in channels.iter().enumerate() {
-        checkbox_at(hwnd, state, PAGE_TABS, ID_TAB_CHANNEL_BASE + i as i32, name, 430 + (i % 2) as i32 * 150, 322 + (i / 2) as i32 * 32, 140);
+        checkbox_at(hwnd, state, PAGE_TABS, ID_TAB_CHANNEL_BASE + i as i32, name, 430 + (i % 2) as i32 * 170, 322 + (i / 2) as i32 * 32, 160);
     }
-    info(hwnd, state, PAGE_TABS, "Tab edits are staged here and saved together when you press Apply. The overlay +Tab button opens this page and creates a new tab.", 184, 492, 570, 54);
+    info(hwnd, state, PAGE_TABS, "Filter syntax: OR / || / spaced |, AND / &&, or regex. Compact regex pipes such as foo|bar remain regex alternation. +Tab opens this page and creates a new tab.", 184, 500, 610, 58);
 }
 
 unsafe fn build_sounds(hwnd: HWND, state: &mut SettingsState) {
     heading(hwnd, state, PAGE_SOUNDS, "Highlights, sounds & logs", 180, 18);
     checkbox(hwnd, state, PAGE_SOUNDS, ID_PRIVATE_HIGHLIGHT, "Highlight Private / Talk messages", 184, 58);
     checkbox(hwnd, state, PAGE_SOUNDS, ID_PRIVATE_SOUND, "Play sound for Private / Talk", 184, 90);
-    field(hwnd, state, PAGE_SOUNDS, "Private sound path", ID_PRIVATE_SOUND_PATH, 184, 132, 520);
+    field(hwnd, state, PAGE_SOUNDS, "Private sound path", ID_PRIVATE_SOUND_PATH, 184, 132, 560);
     field(hwnd, state, PAGE_SOUNDS, "Chat sound volume (0-100)", ID_CHAT_SOUND_VOLUME, 184, 190, 110);
     checkbox(hwnd, state, PAGE_SOUNDS, ID_RULE1_ENABLED, "Keyword sound rule 1", 184, 246);
-    field(hwnd, state, PAGE_SOUNDS, "Match words", ID_RULE1_MATCH, 204, 278, 250);
-    field(hwnd, state, PAGE_SOUNDS, "Sound path", ID_RULE1_PATH, 470, 278, 250);
+    field(hwnd, state, PAGE_SOUNDS, "Match (same OR / AND / regex syntax)", ID_RULE1_MATCH, 204, 278, 280);
+    field(hwnd, state, PAGE_SOUNDS, "Sound path", ID_RULE1_PATH, 500, 278, 300);
     checkbox(hwnd, state, PAGE_SOUNDS, ID_RULE2_ENABLED, "Keyword sound rule 2", 184, 336);
-    field(hwnd, state, PAGE_SOUNDS, "Match words", ID_RULE2_MATCH, 204, 368, 250);
-    field(hwnd, state, PAGE_SOUNDS, "Sound path", ID_RULE2_PATH, 470, 368, 250);
+    field(hwnd, state, PAGE_SOUNDS, "Match (same OR / AND / regex syntax)", ID_RULE2_MATCH, 204, 368, 280);
+    field(hwnd, state, PAGE_SOUNDS, "Sound path", ID_RULE2_PATH, 500, 368, 300);
     checkbox(hwnd, state, PAGE_SOUNDS, ID_LOGS_ENABLED, "Keep local chat logs", 184, 440);
-    label(hwnd, state, PAGE_SOUNDS, "Retention", 430, 440, 100, 22);
-    combo(hwnd, state, PAGE_SOUNDS, ID_LOG_RETENTION, 510, 436, 140, 120);
+    label(hwnd, state, PAGE_SOUNDS, "Retention", 470, 440, 100, 22);
+    combo(hwnd, state, PAGE_SOUNDS, ID_LOG_RETENTION, 550, 436, 140, 120);
     button(hwnd, state, PAGE_SOUNDS, ID_OPEN_LOGS, "Open chat logs", 184, 492, 130, 30);
 }
 
 unsafe fn build_network(hwnd: HWND, state: &mut SettingsState) {
     heading(hwnd, state, PAGE_NETWORK, "Network & integration", 180, 18);
-    field(hwnd, state, PAGE_NETWORK, "Resonance Logs CN executable path", ID_RESONANCE_PATH, 184, 66, 540);
-    field(hwnd, state, PAGE_NETWORK, "Npcap device name (blank = follow Resonance Logs / auto)", ID_NPCAP_DEVICE, 184, 136, 540);
-    button(hwnd, state, PAGE_NETWORK, ID_OPEN_JSON, "Open settings.json", 184, 218, 150, 32);
-    button(hwnd, state, PAGE_NETWORK, ID_OPEN_FOLDER, "Open ReadyAlert folder", 346, 218, 170, 32);
-    info(hwnd, state, PAGE_NETWORK, "Blank Npcap device is recommended. A forced device is mainly for troubleshooting or multi-adapter PCs.", 184, 282, 570, 54);
+    field(hwnd, state, PAGE_NETWORK, "Resonance Logs CN executable path", ID_RESONANCE_PATH, 184, 66, 600);
+    field(hwnd, state, PAGE_NETWORK, "Npcap device name (blank = follow Resonance Logs / auto)", ID_NPCAP_DEVICE, 184, 136, 600);
+    button(hwnd, state, PAGE_NETWORK, ID_OPEN_JSON, "Advanced: settings.json", 184, 218, 180, 32);
+    button(hwnd, state, PAGE_NETWORK, ID_OPEN_FOLDER, "Open ReadyAlert folder", 376, 218, 170, 32);
+    info(hwnd, state, PAGE_NETWORK, "Normal settings should be changed in this window. Raw JSON is retained only as an advanced / recovery option. Blank Npcap device is recommended.", 184, 282, 610, 58);
 }
 
 unsafe fn build_blocked(hwnd: HWND, state: &mut SettingsState) {
     heading(hwnd, state, PAGE_BLOCKED, "Blocked users", 180, 18);
-    listbox(hwnd, state, PAGE_BLOCKED, ID_BLOCKED_LIST, 184, 58, 520, 360);
+    listbox(hwnd, state, PAGE_BLOCKED, ID_BLOCKED_LIST, 184, 58, 600, 360);
     button(hwnd, state, PAGE_BLOCKED, ID_UNBLOCK, "Unblock selected", 184, 432, 150, 32);
     button(hwnd, state, PAGE_BLOCKED, ID_CLEAR_BLOCKED, "Clear all", 346, 432, 110, 32);
-    info(hwnd, state, PAGE_BLOCKED, "Blocked players are suppressed from overlay display, chat sounds, translation and TTS.", 184, 492, 570, 44);
+    info(hwnd, state, PAGE_BLOCKED, "Blocked players are suppressed from overlay display, chat sounds, translation and TTS. Players blocked from the overlay right-click menu appear here.", 184, 492, 610, 54);
 }
 
 unsafe fn load_all(hwnd: HWND, state: &mut SettingsState) {
@@ -461,6 +469,7 @@ unsafe fn load_all(hwnd: HWND, state: &mut SettingsState) {
     set_check(hwnd, ID_SEPARATORS, s.chat.show_separators);
     set_check(hwnd, ID_ZEBRA, s.chat.show_zebra_stripes);
     set_check(hwnd, ID_COLOR_BAND, s.chat.show_color_band);
+    set_check(hwnd, ID_HIDE_STICKERS, s.chat.hide_stickers);
     set_text(hwnd, ID_CLICK_HOTKEY, &s.chat.click_through_hotkey);
     set_text(hwnd, ID_WINDOW_OPACITY, &s.chat.window_opacity.to_string());
     set_text(hwnd, ID_FONT_FAMILY, &s.chat.font_family);
@@ -474,6 +483,7 @@ unsafe fn load_all(hwnd: HWND, state: &mut SettingsState) {
         let fallback = "#C7C7C7";
         set_text(hwnd, ID_COLOR_BASE + i as i32, s.chat.channel_colors.get(channel).map(String::as_str).unwrap_or(fallback));
     }
+    set_text(hwnd, ID_HIGHLIGHT_EXPR, &s.chat.highlight_if_matches);
     set_text(hwnd, ID_HIGHLIGHT_COLOR, &s.chat.highlight_color);
     set_text(hwnd, ID_PRIVATE_COLOR, &s.chat.private_highlight_color);
 
@@ -515,6 +525,18 @@ unsafe fn load_all(hwnd: HWND, state: &mut SettingsState) {
 
 unsafe fn apply(hwnd: HWND, state: &mut SettingsState) {
     store_tab_fields(hwnd, state);
+
+    let highlight_expr = get_text(hwnd, ID_HIGHLIGHT_EXPR);
+    if !validate_filter(hwnd, "Visual highlight rule", &highlight_expr) { return; }
+    for (index, tab) in state.working.chat.tabs.iter().enumerate() {
+        if !validate_filter(hwnd, &format!("Tab {} show filter", index + 1), &tab.show_if_matches) { return; }
+        if !validate_filter(hwnd, &format!("Tab {} hide filter", index + 1), &tab.hide_if_matches) { return; }
+    }
+    let rule1 = get_text(hwnd, ID_RULE1_MATCH);
+    let rule2 = get_text(hwnd, ID_RULE2_MATCH);
+    if get_check(hwnd, ID_RULE1_ENABLED) && !validate_filter(hwnd, "Keyword sound rule 1", &rule1) { return; }
+    if get_check(hwnd, ID_RULE2_ENABLED) && !validate_filter(hwnd, "Keyword sound rule 2", &rule2) { return; }
+
     let s = &mut state.working;
     s.queue_pop_alert = get_check(hwnd, ID_QUEUE);
     s.ready_check_alert = get_check(hwnd, ID_READY);
@@ -535,6 +557,7 @@ unsafe fn apply(hwnd: HWND, state: &mut SettingsState) {
     s.chat.show_separators = get_check(hwnd, ID_SEPARATORS);
     s.chat.show_zebra_stripes = get_check(hwnd, ID_ZEBRA);
     s.chat.show_color_band = get_check(hwnd, ID_COLOR_BAND);
+    s.chat.hide_stickers = get_check(hwnd, ID_HIDE_STICKERS);
     s.chat.click_through_hotkey = get_text(hwnd, ID_CLICK_HOTKEY);
     s.chat.window_opacity = read_i32(hwnd, ID_WINDOW_OPACITY, s.chat.window_opacity);
     s.chat.font_family = get_text(hwnd, ID_FONT_FAMILY);
@@ -544,6 +567,7 @@ unsafe fn apply(hwnd: HWND, state: &mut SettingsState) {
 
     let channels = [1,2,3,4,5,6,7,8,9,99];
     for (i, channel) in channels.iter().enumerate() { s.chat.channel_colors.insert(*channel, get_text(hwnd, ID_COLOR_BASE + i as i32)); }
+    s.chat.highlight_if_matches = highlight_expr;
     s.chat.highlight_color = get_text(hwnd, ID_HIGHLIGHT_COLOR);
     s.chat.private_highlight_color = get_text(hwnd, ID_PRIVATE_COLOR);
 
@@ -569,10 +593,10 @@ unsafe fn apply(hwnd: HWND, state: &mut SettingsState) {
     s.chat.chat_sound_volume = read_i32(hwnd, ID_CHAT_SOUND_VOLUME, s.chat.chat_sound_volume);
     while s.chat.highlight_sound_rules.len() < 2 { s.chat.highlight_sound_rules.push(ChatSoundRule::default()); }
     s.chat.highlight_sound_rules[0].enabled = get_check(hwnd, ID_RULE1_ENABLED);
-    s.chat.highlight_sound_rules[0].match_text = get_text(hwnd, ID_RULE1_MATCH);
+    s.chat.highlight_sound_rules[0].match_text = rule1;
     s.chat.highlight_sound_rules[0].sound_path = get_text(hwnd, ID_RULE1_PATH);
     s.chat.highlight_sound_rules[1].enabled = get_check(hwnd, ID_RULE2_ENABLED);
-    s.chat.highlight_sound_rules[1].match_text = get_text(hwnd, ID_RULE2_MATCH);
+    s.chat.highlight_sound_rules[1].match_text = rule2;
     s.chat.highlight_sound_rules[1].sound_path = get_text(hwnd, ID_RULE2_PATH);
     s.chat.keep_local_chat_logs24_hours = get_check(hwnd, ID_LOGS_ENABLED);
     s.chat.local_chat_log_retention_hours = match combo_sel(hwnd, ID_LOG_RETENTION) { 0 => 24, 1 => 72, _ => 168 };
@@ -584,9 +608,21 @@ unsafe fn apply(hwnd: HWND, state: &mut SettingsState) {
     if let Ok(mut guard) = state.settings.write() { *guard = s.clone(); }
     if let Err(err) = settings::save(&state.paths, s) {
         MessageBoxW(hwnd, wide(&format!("Could not save settings.\r\n\r\n{err}")).as_ptr(), wide("ReadyAlert Settings").as_ptr(), MB_OK | MB_ICONERROR);
+        return;
     }
     PostMessageW(state.main_hwnd, WM_COMMAND, CMD_SETTINGS_APPLIED as usize, 0);
     load_all(hwnd, state);
+}
+
+unsafe fn validate_filter(hwnd: HWND, label: &str, expression: &str) -> bool {
+    match chat::validate_expression(expression) {
+        Ok(()) => true,
+        Err(err) => {
+            let text = format!("{label} is invalid.\r\n\r\n{err}\r\n\r\nUse OR / || / spaced |, AND / &&, or a valid regular expression.");
+            MessageBoxW(hwnd, wide(&text).as_ptr(), wide("Invalid chat filter").as_ptr(), MB_OK | MB_ICONERROR);
+            false
+        }
+    }
 }
 
 unsafe fn handle_command(hwnd: HWND, state: &mut SettingsState, wparam: WPARAM) {
@@ -603,7 +639,11 @@ unsafe fn handle_command(hwnd: HWND, state: &mut SettingsState, wparam: WPARAM) 
         ID_TTS | ID_TRANSLATE => refresh_speech_enabled(hwnd),
         ID_TEST_TTS => {
             let volume = read_i32(hwnd, ID_TTS_VOLUME, state.working.speech_translation.tts_volume).clamp(0,100);
-            PostMessageW(state.main_hwnd, WM_COMMAND, CMD_TTS_TEST as usize, volume as isize);
+            if volume <= 0 {
+                MessageBoxW(hwnd, wide("TTS volume is muted at 0%. Raise it before testing.").as_ptr(), wide("TTS is muted").as_ptr(), MB_OK | MB_ICONINFORMATION);
+            } else {
+                PostMessageW(state.main_hwnd, WM_COMMAND, CMD_TTS_TEST as usize, volume as isize);
+            }
         }
         ID_TAB_LIST if notify == LBN_SELCHANGE => {
             store_tab_fields(hwnd, state);
@@ -646,7 +686,10 @@ unsafe fn add_tab(hwnd: HWND, state: &mut SettingsState) {
 }
 
 unsafe fn delete_tab(hwnd: HWND, state: &mut SettingsState) {
-    if state.working.chat.tabs.len() <= 1 { return; }
+    if state.working.chat.tabs.len() <= 1 {
+        MessageBoxW(hwnd, wide("At least one chat tab is required.").as_ptr(), wide("Chat tab").as_ptr(), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
     store_tab_fields(hwnd, state);
     let Some(index) = state.selected_tab.filter(|i| *i < state.working.chat.tabs.len()) else { return; };
     state.working.chat.tabs.remove(index);
@@ -725,7 +768,7 @@ unsafe fn refresh_speech_enabled(hwnd: HWND) {
 }
 
 unsafe fn heading(hwnd: HWND, state: &mut SettingsState, page: usize, text: &str, x: i32, y: i32) {
-    let h = create_static(hwnd, text, x, y, 570, 28); state.page_controls.push((h, page));
+    let h = create_static(hwnd, text, x, y, 650, 28); state.page_controls.push((h, page));
 }
 unsafe fn info(hwnd: HWND, state: &mut SettingsState, page: usize, text: &str, x: i32, y: i32, w: i32, h: i32) {
     let c = create_static(hwnd, text, x, y, w, h); state.page_controls.push((c, page));
@@ -734,7 +777,7 @@ unsafe fn label(hwnd: HWND, state: &mut SettingsState, page: usize, text: &str, 
     let c = create_static(hwnd, text, x, y, w, h); state.page_controls.push((c, page));
 }
 unsafe fn checkbox(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, text: &str, x: i32, y: i32) {
-    checkbox_at(hwnd, state, page, id, text, x, y, 360);
+    checkbox_at(hwnd, state, page, id, text, x, y, 380);
 }
 unsafe fn checkbox_at(hwnd: HWND, state: &mut SettingsState, page: usize, id: i32, text: &str, x: i32, y: i32, w: i32) {
     let c = create_control(hwnd, "BUTTON", text, id, x, y, w, 26, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX, 0); state.page_controls.push((c, page));
