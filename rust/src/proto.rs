@@ -114,6 +114,7 @@ pub fn parse_chat(payload: &[u8], sequence_id: u64) -> Option<ChatMessage> {
     let channel = get_varint_field(request, 1).unwrap_or(0).min(i32::MAX as u64) as i32;
     let chat = get_len_field(request, 2)?;
 
+    let message_id = get_varint_field(chat, 1).unwrap_or(0) as i64;
     let mut sender_id = 0i64;
     let mut sender_name = String::new();
     let mut sender_level = 0i32;
@@ -131,16 +132,12 @@ pub fn parse_chat(payload: &[u8], sequence_id: u64) -> Option<ChatMessage> {
     match kind {
         ChatKind::Sticker => {
             if let Some(sticker) = get_len_field(info, 5) {
-                if let Some(id) = get_varint_field(sticker, 1) {
-                    text = format!("[Image({id})]");
-                }
+                if let Some(id) = get_varint_field(sticker, 1) { text = format!("[Image({id})]"); }
             }
             if text.trim().is_empty() { text = "[Sticker]".into(); }
         }
         ChatKind::MultiLanguageNotice => {
-            if let Some(notice) = get_len_field(info, 4) {
-                text = combine(text, decode_notice(notice));
-            }
+            if let Some(notice) = get_len_field(info, 4) { text = combine(text, decode_notice(notice)); }
             if text.trim().is_empty() { text = "[Multi-language notice]".into(); }
         }
         ChatKind::Voice => {
@@ -155,10 +152,23 @@ pub fn parse_chat(payload: &[u8], sequence_id: u64) -> Option<ChatMessage> {
         }
         ChatKind::TextNotice if text.trim().is_empty() => text = "[Notice]".into(),
         ChatKind::Picture if text.trim().is_empty() => text = "[Picture]".into(),
+        ChatKind::Text if text.trim().is_empty() => {
+            text = fallback_plain_text(info).unwrap_or_default();
+        }
         _ => {}
     }
 
-    Some(ChatMessage { sequence_id, sender_id, sender_name, sender_level, channel, unix_seconds, kind, text })
+    Some(ChatMessage {
+        message_id,
+        sequence_id,
+        sender_id,
+        sender_name,
+        sender_level,
+        channel,
+        unix_seconds,
+        kind,
+        text,
+    })
 }
 
 pub fn parse_identity(payload: &[u8]) -> Option<PlayerIdentity> {
@@ -172,7 +182,9 @@ pub fn parse_identity(payload: &[u8]) -> Option<PlayerIdentity> {
     let byte_len = usize::try_from(read_varint(name_raw, &mut p)?).ok()?;
     let end = p.checked_add(byte_len)?;
     if byte_len == 0 || byte_len > 512 || end > name_raw.len() { return None; }
-    let name = std::str::from_utf8(&name_raw[p..end]).ok()?.replace(|c: char| matches!(c, '\r' | '\n' | '\0'), " ").trim().to_string();
+    let name = std::str::from_utf8(&name_raw[p..end]).ok()?
+        .replace(|c: char| matches!(c, '\r' | '\n' | '\0'), " ")
+        .trim().to_string();
     if name.is_empty() { return None; }
     let uid = (raw_uuid as i64) >> 16;
     if uid <= 0 { return None; }
@@ -181,9 +193,7 @@ pub fn parse_identity(payload: &[u8]) -> Option<PlayerIdentity> {
 
 fn find_attribute_raw_data(attrs: &[u8], wanted_id: u64) -> Option<&[u8]> {
     for attr in len_fields(attrs, 2) {
-        if get_varint_field(attr, 1) == Some(wanted_id) {
-            return get_len_field(attr, 2);
-        }
+        if get_varint_field(attr, 1) == Some(wanted_id) { return get_len_field(attr, 2); }
     }
     None
 }
@@ -194,11 +204,30 @@ fn get_string_field(data: &[u8], field: u32) -> Option<String> {
     Some(String::from_utf8_lossy(raw).into_owned())
 }
 
+fn fallback_plain_text(data: &[u8]) -> Option<String> {
+    let mut p = 0usize;
+    while p < data.len() {
+        let key = read_varint(data, &mut p)?;
+        let field = (key >> 3) as u32;
+        let wire = (key & 7) as u8;
+        if wire == 2 {
+            let len = usize::try_from(read_varint(data, &mut p)?).ok()?;
+            let end = p.checked_add(len)?;
+            if end > data.len() { return None; }
+            if field >= 3 {
+                if let Some(v) = printable_utf8(&data[p..end]) { return Some(v); }
+            }
+            p = end;
+        } else {
+            skip_field(data, &mut p, wire)?;
+        }
+    }
+    None
+}
+
 fn decode_notice(data: &[u8]) -> String {
     let mut parts = Vec::<String>::new();
-    if let Some(id) = get_varint_field(data, 1).filter(|x| *x != 0) {
-        parts.push(format!("[Notice {id}]"));
-    }
+    if let Some(id) = get_varint_field(data, 1).filter(|x| *x != 0) { parts.push(format!("[Notice {id}]")); }
     for raw in len_fields(data, 2) {
         if let Some(v) = printable_utf8(raw) { add_unique(&mut parts, v); }
     }
@@ -207,9 +236,7 @@ fn decode_notice(data: &[u8]) -> String {
 
 fn decode_hypertext(data: &[u8]) -> String {
     let mut parts = Vec::<String>::new();
-    if let Some(id) = get_varint_field(data, 1).filter(|x| *x != 0) {
-        parts.push(format!("[Hypertext {id}]"));
-    }
+    if let Some(id) = get_varint_field(data, 1).filter(|x| *x != 0) { parts.push(format!("[Hypertext {id}]")); }
     for holder in len_fields(data, 2) {
         let kind = get_varint_field(holder, 1).unwrap_or(0);
         let Some(content) = get_len_field(holder, 2) else { continue; };
@@ -284,5 +311,11 @@ mod tests {
     fn queue_status_parser() {
         let payload = [0x0a, 0x06, 0x12, 0x04, 0x10, 0x02, 0x18, 0x01];
         assert!(parse_match_wait_ready(&payload));
+    }
+
+    #[test]
+    fn fallback_recovers_schema_drift_text() {
+        let info = [0x08, 0x00, 0x42, 0x05, b'h', b'e', b'l', b'l', b'o'];
+        assert_eq!(fallback_plain_text(&info).as_deref(), Some("hello"));
     }
 }

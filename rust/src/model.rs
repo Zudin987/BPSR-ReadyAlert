@@ -42,6 +42,9 @@ impl ChatKind {
 
 #[derive(Clone, Debug)]
 pub struct ChatMessage {
+    /// BPSR ChitChatMsg.msg_id. Strong duplicate key when present.
+    pub message_id: i64,
+    /// Local capture sequence used to associate asynchronous translation results.
     pub sequence_id: u64,
     pub sender_id: i64,
     pub sender_name: String,

@@ -1,12 +1,21 @@
-use crate::{audio, logging, model::{AppEvent, ChatKind, ChatMessage, PlayerIdentity}, paths::AppPaths, settings::AppSettings};
+use crate::{
+    audio, logging,
+    model::{AppEvent, ChatKind, ChatMessage, PlayerIdentity},
+    paths::AppPaths,
+    settings::AppSettings,
+};
 use serde_json::Value;
 use std::{
+    collections::VecDeque,
     fs::{self, OpenOptions},
     io::{Read, Write},
     path::PathBuf,
-    sync::{mpsc::{self, SyncSender, TrySendError}, Arc, RwLock},
+    sync::{
+        mpsc::{self, SyncSender, TrySendError},
+        Arc, Mutex, RwLock,
+    },
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use windows_sys::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetLocalTime};
 
@@ -14,6 +23,26 @@ use windows_sys::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetL
 pub struct ChatRuntime {
     log_tx: SyncSender<ChatMessage>,
     speech_tx: SyncSender<ChatMessage>,
+    dedupe: Arc<Mutex<RecentDedupe>>,
+}
+
+#[derive(Default)]
+struct RecentDedupe {
+    entries: VecDeque<(u64, Instant)>,
+}
+
+impl RecentDedupe {
+    fn accept(&mut self, message: &ChatMessage) -> bool {
+        let now = Instant::now();
+        while self.entries.front().is_some_and(|(_, at)| now.duration_since(*at) > Duration::from_secs(8)) {
+            self.entries.pop_front();
+        }
+        let key = message_key(message);
+        if self.entries.iter().any(|(seen, _)| *seen == key) { return false; }
+        self.entries.push_back((key, now));
+        while self.entries.len() > 512 { self.entries.pop_front(); }
+        true
+    }
 }
 
 impl ChatRuntime {
@@ -62,7 +91,11 @@ impl ChatRuntime {
                     Translation { text: source.clone(), source_language: String::new(), translated: false }
                 });
                 if wants_translation && translated.translated {
-                    let _ = ui_tx.send(AppEvent::Translation { sequence_id: message.sequence_id, text: translated.text.clone(), source_language: translated.source_language.clone() });
+                    let _ = ui_tx.send(AppEvent::Translation {
+                        sequence_id: message.sequence_id,
+                        text: translated.text.clone(),
+                        source_language: translated.source_language.clone(),
+                    });
                 }
                 if !wants_tts { continue; }
                 let mut spoken = clean_text(&translated.text, 500);
@@ -77,20 +110,31 @@ impl ChatRuntime {
                 }
             }
         });
-        Self { log_tx, speech_tx }
+        Self { log_tx, speech_tx, dedupe: Arc::new(Mutex::new(RecentDedupe::default())) }
     }
 
     pub fn handle(&self, message: &ChatMessage) {
+        let accepted = self.dedupe.lock().map(|mut d| d.accept(message)).unwrap_or(true);
+        if !accepted {
+            logging::write(format!("chat: duplicate suppressed msg_id={} seq={}", message.message_id, message.sequence_id));
+            return;
+        }
         let _ = try_bounded(&self.log_tx, message.clone());
         let _ = try_bounded(&self.speech_tx, message.clone());
     }
 }
 
-pub fn should_hide_in_overlay(settings: &AppSettings, message: &ChatMessage) -> bool {
+pub fn should_hide_globally(settings: &AppSettings, message: &ChatMessage) -> bool {
     if settings.chat.is_blocked(message.sender_id) { return true; }
     if settings.chat.hide_stickers && matches!(message.kind, ChatKind::Sticker | ChatKind::Picture) { return true; }
     if settings.speech_translation.hide_emoji_messages && is_sprite_only(&message.text) { return true; }
     if settings.speech_translation.hide_linked_item_messages && is_linked_item(message) { return true; }
+    if message.kind == ChatKind::Text && message.text.trim().is_empty() { return true; }
+    false
+}
+
+pub fn should_hide_in_overlay(settings: &AppSettings, message: &ChatMessage) -> bool {
+    if should_hide_globally(settings, message) { return true; }
     let tab = settings.chat.active_tab();
     if !tab.channels.contains(&message.channel) || message.sender_level < tab.min_level { return true; }
     let hay = format!("{} {}", message.sender_name, message.text).to_ascii_lowercase();
@@ -99,9 +143,26 @@ pub fn should_hide_in_overlay(settings: &AppSettings, message: &ChatMessage) -> 
     false
 }
 
-fn matches_expression(hay: &str, expression: &str) -> bool {
+pub(crate) fn matches_expression(hay: &str, expression: &str) -> bool {
     expression.split(|c: char| matches!(c, ',' | ';' | '|' | '\n')).map(str::trim).filter(|x| !x.is_empty())
         .any(|needle| hay.contains(&needle.to_ascii_lowercase()))
+}
+
+fn message_key(message: &ChatMessage) -> u64 {
+    if message.message_id != 0 {
+        return (message.message_id as u64) ^ (message.channel as u64).rotate_left(17) ^ 0xB5A4_9D21_6C7E_F013;
+    }
+    let mut hash = 14_695_981_039_346_656_037u64;
+    for b in message.sender_id.to_le_bytes().into_iter()
+        .chain(message.channel.to_le_bytes())
+        .chain(message.unix_seconds.to_le_bytes())
+        .chain((message.kind as i32).to_le_bytes())
+        .chain(message.text.as_bytes().iter().copied())
+    {
+        hash ^= u64::from(b);
+        hash = hash.wrapping_mul(1_099_511_628_211);
+    }
+    hash
 }
 
 fn try_bounded(tx: &SyncSender<ChatMessage>, message: ChatMessage) -> bool {
@@ -116,7 +177,7 @@ fn is_sprite_only(text: &str) -> bool {
         let number = &after[..close];
         if number.parse::<u32>().ok().filter(|n| *n >= 1 && *n <= 100).is_none() { return false; }
         found = true;
-        rest = after[close+1..].trim_start();
+        rest = after[close + 1..].trim_start();
     }
     found && rest.is_empty()
 }
@@ -128,9 +189,11 @@ fn is_linked_item(message: &ChatMessage) -> bool {
     }
 }
 
-fn skip_speech(message: &ChatMessage) -> bool { is_sprite_only(&message.text) || is_linked_item(message) || matches!(message.kind, ChatKind::Sticker | ChatKind::Picture) }
+fn skip_speech(message: &ChatMessage) -> bool {
+    is_sprite_only(&message.text) || is_linked_item(message) || matches!(message.kind, ChatKind::Sticker | ChatKind::Picture) || message.text.trim().is_empty()
+}
 
-struct Translation { text:String, source_language:String, translated:bool }
+struct Translation { text: String, source_language: String, translated: bool }
 
 fn translate(agent: &ureq::Agent, text: &str) -> Result<Translation, String> {
     let url = format!("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q={}", urlencoding::encode(text));
@@ -215,6 +278,30 @@ fn local_time() -> SYSTEMTIME {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn message(id: i64, text: &str) -> ChatMessage {
+        ChatMessage {
+            message_id: id,
+            sequence_id: id.max(0) as u64 + 1,
+            sender_id: 7,
+            sender_name: "Tester".into(),
+            sender_level: 60,
+            channel: 1,
+            unix_seconds: 123,
+            kind: ChatKind::Text,
+            text: text.into(),
+        }
+    }
+
     #[test] fn sprites() { assert!(is_sprite_only(" <sprite=1> <sprite=100> ")); assert!(!is_sprite_only("hi <sprite=1>")); }
     #[test] fn split_is_bounded() { assert!(split_tts(&"a ".repeat(250),200).iter().all(|x| x.chars().count() <= 200)); }
+    #[test] fn duplicate_message_id_is_suppressed() {
+        let mut d = RecentDedupe::default();
+        assert!(d.accept(&message(99, "hello")));
+        assert!(!d.accept(&message(99, "hello again")));
+    }
+    #[test] fn empty_plain_text_is_hidden() {
+        let settings = AppSettings::default();
+        assert!(should_hide_globally(&settings, &message(1, "   ")));
+    }
 }
