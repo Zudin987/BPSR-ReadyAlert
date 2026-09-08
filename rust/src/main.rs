@@ -22,7 +22,7 @@ mod chat {
         false
     }
 }
-#[path = "feature_settings_v170.rs"]
+#[path = "feature_settings_v181.rs"]
 mod feature_settings;
 mod feature_overlays_impl {
     include!(concat!(env!("OUT_DIR"), "/feature_overlays_v170_fixed.rs"));
