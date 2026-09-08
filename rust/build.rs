@@ -2,8 +2,9 @@ use std::{env, fs, path::PathBuf};
 
 fn main() {
     // The v1.8 telemetry/overlay sources are checked in directly. Keep the
-    // include!-based module boundary used by production while avoiding runtime
-    // codegen or source rewriting.
+    // include!-based module boundary used by production. Normalize the one
+    // Rust-2021 token boundary introduced by compact source formatting before
+    // including the overlay from OUT_DIR; runtime behavior remains unchanged.
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
 
     let telemetry = fs::read_to_string("src/telemetry_v170.rs")
@@ -12,7 +13,8 @@ fn main() {
         .expect("write generated telemetry source");
 
     let overlay = fs::read_to_string("src/feature_overlays_v170.rs")
-        .expect("read feature_overlays_v170.rs");
+        .expect("read feature_overlays_v170.rs")
+        .replace("return\"", "return \"");
     fs::write(out.join("feature_overlays_v170_fixed.rs"), overlay)
         .expect("write generated overlay source");
 
