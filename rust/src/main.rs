@@ -7,6 +7,7 @@ mod game_filter;
 mod logging;
 mod model;
 mod npcap;
+#[path = "overlay_v150.rs"]
 mod overlay;
 mod paths;
 mod proto;
@@ -78,7 +79,6 @@ fn main() {
 }
 
 fn smoke_test() -> Result<(), String> {
-    // Deterministic protocol tests that also prove all statically embedded assets link.
     let mut frame = vec![0u8; 22];
     frame[0..4].copy_from_slice(&22u32.to_be_bytes());
     frame[4..6].copy_from_slice(&2u16.to_be_bytes());
