@@ -1,6 +1,6 @@
 # BPSR Ready Alert
 
-Windows companion for **Blue Protocol: Star Resonance** with Ready/queue alerts and an optional chat overlay.
+Lightweight native Windows companion for **Blue Protocol: Star Resonance**, written in **Rust**.
 
 **Website:** https://zudin987.github.io/projects/readyalert/
 
@@ -12,15 +12,26 @@ Windows companion for **Blue Protocol: Star Resonance** with Ready/queue alerts 
 4. Leave ReadyAlert running in the system tray.
 5. Enable only the alerts/chat features you want.
 
-Main features:
+## Features
 
 - Queue Pop, Ready Check, party invite and party request sounds.
 - Optional desktop notifications.
 - View-only BPSR chat overlay with filters and keyword alerts.
 - Optional English translation and Guild/Party TTS.
+- Native Npcap capture, process filtering and TCP reassembly without a .NET runtime.
 
 ReadyAlert uses one shared Npcap capture path. It does **not** inject into BPSR, replace game files, send chat, or automate gameplay.
 
 Translation/TTS depend on no-key web endpoints and may be rate-limited or changed upstream; core alerts still work independently.
 
-[Latest release](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+## Build
+
+Run `scripts/prepare-build-assets.ps1`, then:
+
+```powershell
+cargo build --manifest-path rust/Cargo.toml --release
+```
+
+The executable is written to `rust/target/release/BPSR-ReadyAlert.exe`.
+
+[Latest release](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [Rust notes](rust/README.md) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

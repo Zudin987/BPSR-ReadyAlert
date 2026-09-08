@@ -1,7 +1,9 @@
 bin/
 obj/
 dist/
+dist-rust/
 .vs/
 *.user
 *.suo
-src/BPSR.ReadyAlert/Assets/LetsDoThis.wav
+rust/target/
+src/BPSR.ReadyAlert/Assets/*.wav
