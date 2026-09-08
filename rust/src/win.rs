@@ -255,13 +255,9 @@ fn maybe_chat_sound(settings: &AppSettings, message: &ChatMessage) {
     let path = if message.channel == 5 && settings.chat.private_sound_enabled {
         Some(settings.chat.private_sound_path.clone())
     } else {
-        let hay = format!("{} {}", message.sender_name, message.text).to_ascii_lowercase();
+        let hay = format!("{} {}", message.sender_name, message.text);
         settings.chat.highlight_sound_rules.iter().find(|r| {
-            r.enabled && !r.match_text.trim().is_empty() &&
-                r.match_text.split(|c: char| matches!(c, ',' | ';' | '|' | '\n')).any(|needle| {
-                    let needle = needle.trim().to_ascii_lowercase();
-                    !needle.is_empty() && hay.contains(&needle)
-                })
+            r.enabled && !r.match_text.trim().is_empty() && chat::matches_expression(&hay, &r.match_text)
         }).map(|r| r.sound_path.clone())
     };
     if let Some(path) = path.filter(|p| !p.trim().is_empty()) {
