@@ -1,11 +1,27 @@
 use crate::{logging, paths::AppPaths};
-use std::{fs, io, path::PathBuf};
+use std::{ffi::c_void, fs, io, path::PathBuf};
 
 #[cfg(windows)]
-use windows_sys::Win32::{
-    Foundation::RECT,
-    UI::WindowsAndMessaging::{GetMonitorInfoW, MonitorFromRect, MONITORINFO, MONITOR_DEFAULTTONEAREST},
-};
+use windows_sys::Win32::Foundation::RECT;
+
+#[cfg(windows)]
+const MONITOR_DEFAULTTONEAREST: u32 = 2;
+
+#[cfg(windows)]
+#[repr(C)]
+struct MonitorInfo {
+    cb_size: u32,
+    rc_monitor: RECT,
+    rc_work: RECT,
+    flags: u32,
+}
+
+#[cfg(windows)]
+#[link(name = "user32")]
+extern "system" {
+    fn MonitorFromRect(rect: *const RECT, flags: u32) -> *mut c_void;
+    fn GetMonitorInfoW(monitor: *mut c_void, info: *mut MonitorInfo) -> i32;
+}
 
 mod legacy {
     include!("feature_settings_v170.rs");
@@ -112,13 +128,17 @@ fn recover_layout(layout: &mut OverlayLayout) -> bool {
             return false;
         }
 
-        let mut info: MONITORINFO = std::mem::zeroed();
-        info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        let mut info = MonitorInfo {
+            cb_size: std::mem::size_of::<MonitorInfo>() as u32,
+            rc_monitor: std::mem::zeroed(),
+            rc_work: std::mem::zeroed(),
+            flags: 0,
+        };
         if GetMonitorInfoW(monitor, &mut info) == 0 {
             return false;
         }
 
-        let work = info.rcWork;
+        let work = info.rc_work;
         let work_width = (work.right - work.left).max(1);
         let work_height = (work.bottom - work.top).max(1);
         let old = (layout.x, layout.y, layout.width, layout.height);
