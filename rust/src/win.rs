@@ -1,6 +1,7 @@
 use crate::{
-    audio, chat, logging, overlay, settings_ui,
+    audio, chat, logging, overlay, settings_ui, tray::{self, TrayAction},
     model::{AlertKind, AppEvent, ChatMessage},
+    npcap::{CaptureHandle, PcapApi},
     paths::AppPaths,
     settings::{self, AppSettings},
 };
@@ -18,7 +19,7 @@ use std::{
     time::Duration,
 };
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM},
+    Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
     System::{
         LibraryLoader::GetModuleHandleW,
         Threading::{CreateMutexW, ReleaseMutex},
@@ -29,16 +30,13 @@ use windows_sys::Win32::{
             NIIF_ERROR, NIIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
         },
         WindowsAndMessaging::{
-            AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
-            DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW, GetWindowLongPtrW,
-            IsWindow, IsWindowVisible, LoadCursorW, LoadIconW, MessageBoxW, PostMessageW,
+            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+            GetWindowLongPtrW, IsWindow, IsWindowVisible, LoadCursorW, LoadIconW, MessageBoxW,
             PostQuitMessage, RegisterClassW, SetForegroundWindow, SetTimer, SetWindowLongPtrW,
-            ShowWindow, TrackPopupMenu, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA,
-            IDC_ARROW, IDI_APPLICATION, MB_ICONERROR, MB_ICONINFORMATION, MB_OK, MF_CHECKED,
-            MF_POPUP, MF_SEPARATOR, MF_STRING, MSG, SW_HIDE, SW_SHOWNORMAL, SW_SHOW,
-            TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, TPM_RIGHTBUTTON, WM_APP, WM_COMMAND,
-            WM_DESTROY, WM_LBUTTONDBLCLK, WM_NCCREATE, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
-            WS_OVERLAPPED, HICON, HMENU,
+            ShowWindow, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA, IDC_ARROW,
+            IDI_APPLICATION, MB_ICONERROR, MB_ICONINFORMATION, MB_OK, MSG, SW_HIDE,
+            SW_SHOWNORMAL, SW_SHOW, WM_APP, WM_COMMAND, WM_DESTROY, WM_LBUTTONDBLCLK,
+            WM_NCCREATE, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED, HICON,
         },
     },
 };
@@ -99,6 +97,7 @@ struct UiState {
     paths: AppPaths,
     rx: Receiver<AppEvent>,
     stop: Arc<AtomicBool>,
+    api: Arc<PcapApi>,
     overlay: HWND,
     capture_status: String,
 }
@@ -108,6 +107,7 @@ pub fn run_ui(
     paths: AppPaths,
     rx: Receiver<AppEvent>,
     stop: Arc<AtomicBool>,
+    api: Arc<PcapApi>,
 ) -> Result<(), String> {
     unsafe {
         let instance = GetModuleHandleW(null());
@@ -129,6 +129,7 @@ pub fn run_ui(
             paths,
             rx,
             stop,
+            api,
             overlay: null_mut(),
             capture_status: "Starting capture…".into(),
         });
@@ -177,9 +178,15 @@ unsafe extern "system" fn main_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lp
         }
         WM_TRAY => {
             if !state_ptr.is_null() {
+                let state = &mut *state_ptr;
                 let mouse = lparam as u32;
-                if mouse == WM_RBUTTONUP { show_tray_menu(hwnd, &mut *state_ptr); }
-                else if mouse == WM_LBUTTONDBLCLK { toggle_overlay(&mut *state_ptr); }
+                if mouse == WM_RBUTTONUP {
+                    let snapshot = state.settings.read().map(|s| s.clone()).unwrap_or_default();
+                    let action = tray::show(hwnd, &snapshot, &state.api);
+                    handle_tray_action(hwnd, state, action);
+                } else if mouse == WM_LBUTTONDBLCLK {
+                    toggle_overlay(state);
+                }
             }
             0
         }
@@ -214,10 +221,15 @@ unsafe fn handle_event(hwnd: HWND, state: &mut UiState, event: AppEvent) {
     match event {
         AppEvent::Alert(alert) => {
             let snapshot = state.settings.read().map(|s| s.clone()).unwrap_or_default();
-            if alert_enabled(&snapshot, alert.kind) {
-                let volume = snapshot.alert_volume;
-                thread::spawn(move || audio::play_alert(alert.kind, volume));
-                if snapshot.desktop_notification { balloon(hwnd, &alert.title, &alert.message, alert.kind == AlertKind::Error); }
+            let enabled = alert.kind == AlertKind::Error || alert_enabled(&snapshot, alert.kind);
+            if enabled {
+                if alert.kind != AlertKind::Error {
+                    let volume = snapshot.alert_volume;
+                    thread::spawn(move || audio::play_alert(alert.kind, volume));
+                }
+                if snapshot.desktop_notification || alert.kind == AlertKind::Error {
+                    balloon(hwnd, &alert.title, &alert.message, alert.kind == AlertKind::Error);
+                }
             }
         }
         AppEvent::Chat(message) => {
@@ -247,7 +259,7 @@ fn alert_enabled(settings: &AppSettings, kind: AlertKind) -> bool {
         AlertKind::Ready => settings.ready_check_alert,
         AlertKind::PartyInvite => settings.party_invite_alert,
         AlertKind::PartyRequest => settings.party_request_alert,
-        AlertKind::Error => settings.desktop_notification,
+        AlertKind::Error => true,
     }
 }
 
@@ -255,9 +267,8 @@ fn maybe_chat_sound(settings: &AppSettings, message: &ChatMessage) {
     let path = if message.channel == 5 && settings.chat.private_sound_enabled {
         Some(settings.chat.private_sound_path.clone())
     } else {
-        let hay = format!("{} {}", message.sender_name, message.text);
         settings.chat.highlight_sound_rules.iter().find(|r| {
-            r.enabled && !r.match_text.trim().is_empty() && chat::matches_expression(&hay, &r.match_text)
+            r.enabled && !r.match_text.trim().is_empty() && chat::matches_expression(&message.text, &r.match_text)
         }).map(|r| r.sound_path.clone())
     };
     if let Some(path) = path.filter(|p| !p.trim().is_empty()) {
@@ -266,45 +277,102 @@ fn maybe_chat_sound(settings: &AppSettings, message: &ChatMessage) {
     }
 }
 
-unsafe fn show_tray_menu(hwnd: HWND, state: &mut UiState) {
-    let snapshot = state.settings.read().map(|s| s.clone()).unwrap_or_default();
-    let menu = CreatePopupMenu();
-    if menu.is_null() { return; }
-    append_check(menu, CMD_QUEUE, "Queue Pop alert", snapshot.queue_pop_alert);
-    append_check(menu, CMD_READY, "Ready Check alert", snapshot.ready_check_alert);
-    append_check(menu, CMD_INVITE, "Party Invite alert", snapshot.party_invite_alert);
-    append_check(menu, CMD_REQUEST, "Party Request alert", snapshot.party_request_alert);
-    AppendMenuW(menu, MF_SEPARATOR, 0, null());
-    append_check(menu, CMD_DESKTOP, "Desktop notifications", snapshot.desktop_notification);
-    append_check(menu, CMD_CHAT, "Chat Overlay enabled", snapshot.chat_overlay_enabled);
-    append_check(menu, CMD_TTS_TOGGLE, "Chat TTS", snapshot.speech_translation.tts_enabled);
-    append_string(menu, CMD_SHOW_CHAT, "Show / Hide Chat");
-
-    let tabs = CreatePopupMenu();
-    if !tabs.is_null() {
-        for (index, tab) in snapshot.chat.tabs.iter().take(MAX_MENU_TABS).enumerate() {
-            append_check(tabs, CMD_TAB_BASE + index as u32, &tab.name, tab.id == snapshot.chat.last_selected_tab_id);
+unsafe fn handle_tray_action(hwnd: HWND, state: &mut UiState, action: TrayAction) {
+    match action {
+        TrayAction::None => {}
+        TrayAction::Exit => DestroyWindow(hwnd),
+        TrayAction::ShowHideChat => toggle_overlay(state),
+        TrayAction::OpenSettings => handle_command(hwnd, state, CMD_OPEN_SETTINGS, 0),
+        TrayAction::OpenChatLogs => handle_command(hwnd, state, CMD_OPEN_LOGS, 0),
+        TrayAction::OpenAppFolder => handle_command(hwnd, state, CMD_OPEN_APP_FOLDER, 0),
+        TrayAction::OpenLogFile => {
+            if !state.paths.log.exists() {
+                let _ = std::fs::write(&state.paths.log, "No log entries yet.\r\n");
+            }
+            open_path(&state.paths.log);
         }
-        AppendMenuW(menu, MF_POPUP, tabs as usize, wide("Chat tab").as_ptr());
+        TrayAction::LaunchResonanceLogs => {
+            let snapshot = state.settings.read().map(|s| s.clone()).unwrap_or_default();
+            if !launch_resonance_logs(&snapshot) {
+                message_box(
+                    "BPSR Ready Alert",
+                    "Could not find Resonance Logs CN. Set its executable path in Settings > Network.",
+                    true,
+                );
+            }
+        }
+        TrayAction::TestAlert(kind) => {
+            let volume = state.settings.read().map(|s| s.alert_volume).unwrap_or(100);
+            thread::spawn(move || audio::play_alert(kind, volume));
+        }
+        TrayAction::SetAlertVolume(volume) => update_settings(state, |s| s.alert_volume = volume.clamp(0, 100)),
+        TrayAction::ToggleAutoLaunchLogs => update_settings(state, |s| s.auto_launch_resonance_logs = !s.auto_launch_resonance_logs),
+        TrayAction::SelectAdapter(device) => select_adapter(state, device),
+        TrayAction::SelectTab(index) => {
+            update_settings(state, |s| {
+                if let Some(tab) = s.chat.tabs.get(index) {
+                    s.chat.last_selected_tab_id = tab.id;
+                }
+            });
+            overlay::refresh(state.overlay);
+        }
+        TrayAction::ToggleQueue => handle_command(hwnd, state, CMD_QUEUE, 0),
+        TrayAction::ToggleReady => handle_command(hwnd, state, CMD_READY, 0),
+        TrayAction::ToggleInvite => handle_command(hwnd, state, CMD_INVITE, 0),
+        TrayAction::ToggleRequest => handle_command(hwnd, state, CMD_REQUEST, 0),
+        TrayAction::ToggleDesktop => handle_command(hwnd, state, CMD_DESKTOP, 0),
+        TrayAction::ToggleChat => handle_command(hwnd, state, CMD_CHAT, 0),
+        TrayAction::ToggleTts => handle_command(hwnd, state, CMD_TTS_TOGGLE, 0),
     }
-    AppendMenuW(menu, MF_SEPARATOR, 0, null());
-    append_string(menu, CMD_OPEN_SETTINGS, "Settings…");
-    append_string(menu, CMD_OPEN_LOGS, "Open chat logs");
-    AppendMenuW(menu, MF_SEPARATOR, 0, null());
-    append_string(menu, CMD_EXIT, "Exit");
-
-    let mut p: POINT = std::mem::zeroed();
-    GetCursorPos(&mut p);
-    SetForegroundWindow(hwnd);
-    let command = TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, p.x, p.y, 0, hwnd, null());
-    DestroyMenu(menu);
-    if command != 0 { PostMessageW(hwnd, WM_COMMAND, command as usize, 0); }
 }
 
-unsafe fn append_check(menu: HMENU, id: u32, text: &str, checked: bool) {
-    AppendMenuW(menu, MF_STRING | if checked { MF_CHECKED } else { 0 }, id as usize, wide(text).as_ptr());
+fn update_settings<F>(state: &UiState, update: F)
+where
+    F: FnOnce(&mut AppSettings),
+{
+    let snapshot = if let Ok(mut s) = state.settings.write() {
+        update(&mut s);
+        s.normalize();
+        s.clone()
+    } else {
+        return;
+    };
+    if let Err(err) = settings::save(&state.paths, &snapshot) {
+        logging::write(format!("settings: save failed: {err}"));
+    }
 }
-unsafe fn append_string(menu: HMENU, id: u32, text: &str) { AppendMenuW(menu, MF_STRING, id as usize, wide(text).as_ptr()); }
+
+fn select_adapter(state: &UiState, device: Option<String>) {
+    let next = device.unwrap_or_default();
+    let current = state.settings.read().map(|s| s.npcap_device_name.clone()).unwrap_or_default();
+    if current.eq_ignore_ascii_case(&next) {
+        return;
+    }
+
+    if !next.is_empty() {
+        match CaptureHandle::open(state.api.clone(), &next) {
+            Ok(handle) => {
+                logging::write(format!("capture: adapter preflight ok datalink={} device={}", handle.datalink, next));
+                drop(handle);
+            }
+            Err(err) => {
+                logging::write(format!("capture: adapter preflight rejected device={next}: {err}"));
+                message_box(
+                    "BPSR Ready Alert - Network Adapter",
+                    &format!("Could not activate that Npcap adapter. ReadyAlert kept the current adapter.\n\n{err}"),
+                    true,
+                );
+                return;
+            }
+        }
+    }
+
+    update_settings(state, |s| s.npcap_device_name = next.clone());
+    logging::write(format!(
+        "capture: adapter preference updated to {}",
+        if next.is_empty() { "Auto / Resonance Logs CN" } else { next.as_str() }
+    ));
+}
 
 unsafe fn handle_command(hwnd: HWND, state: &mut UiState, command: u32, lparam: LPARAM) {
     if command == CMD_EXIT { DestroyWindow(hwnd); return; }
@@ -468,15 +536,31 @@ pub fn message_box(title: &str, text: &str, error: bool) {
 }
 
 pub fn auto_launch_resonance_logs(settings: &AppSettings) {
-    if !settings.auto_launch_resonance_logs { return; }
-    let mut candidates: Vec<PathBuf> = Vec::new();
-    if !settings.resonance_logs_path.trim().is_empty() { candidates.push(PathBuf::from(settings.resonance_logs_path.trim())); }
+    if settings.auto_launch_resonance_logs {
+        let _ = launch_resonance_logs(settings);
+    }
+}
+
+fn launch_resonance_logs(settings: &AppSettings) -> bool {
+    if let Some(path) = resonance_logs_candidates(settings).into_iter().find(|p| p.is_file()) {
+        unsafe { open_path(&path); }
+        true
+    } else {
+        false
+    }
+}
+
+fn resonance_logs_candidates(settings: &AppSettings) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if !settings.resonance_logs_path.trim().is_empty() {
+        candidates.push(PathBuf::from(settings.resonance_logs_path.trim()));
+    }
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         let local = PathBuf::from(local);
         candidates.push(local.join("Programs").join("resonance-logs-cn").join("Resonance Logs CN.exe"));
         candidates.push(local.join("resonance-logs-cn").join("Resonance Logs CN.exe"));
     }
-    if let Some(path) = candidates.into_iter().find(|p| p.is_file()) { unsafe { open_path(&path); } }
+    candidates
 }
 
 unsafe fn open_path(path: &Path) {
