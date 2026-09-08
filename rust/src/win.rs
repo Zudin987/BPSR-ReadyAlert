@@ -280,7 +280,7 @@ fn maybe_chat_sound(settings: &AppSettings, message: &ChatMessage) {
 unsafe fn handle_tray_action(hwnd: HWND, state: &mut UiState, action: TrayAction) {
     match action {
         TrayAction::None => {}
-        TrayAction::Exit => DestroyWindow(hwnd),
+        TrayAction::Exit => { DestroyWindow(hwnd); }
         TrayAction::ShowHideChat => toggle_overlay(state),
         TrayAction::OpenSettings => handle_command(hwnd, state, CMD_OPEN_SETTINGS, 0),
         TrayAction::OpenChatLogs => handle_command(hwnd, state, CMD_OPEN_LOGS, 0),
