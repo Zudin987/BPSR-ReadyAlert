@@ -133,14 +133,15 @@ fn build_catalog(cache: &Path) -> (Vec<ImagineEntry>, Vec<(i32, i32)>) {
 fn prepare_icons(cache: &Path, out: &Path, catalog: &[ImagineEntry]) {
     if !cfg!(windows) { return; }
     let icons: BTreeSet<String> = catalog.iter().map(|entry| entry.icon.clone()).collect();
-    let mut items = String::new();
+    let mut item_rows = Vec::with_capacity(icons.len());
     for icon in &icons {
         let png = cache.join(icon);
         let bmp_name = format!("{}.bmp", icon.trim_end_matches(".png"));
         let bmp = cache.join(&bmp_name);
         let url = format!("https://raw.githubusercontent.com/fudiyangjin/resonance-logs-cn/{CN_COMMIT}/static/images/resonance_skill/{icon}");
-        items.push_str(&format!("[pscustomobject]@{{Url='{}';Png='{}';Bmp='{}'}},\n", url, ps_quote(&png), ps_quote(&bmp)));
+        item_rows.push(format!("[pscustomobject]@{{Url='{}';Png='{}';Bmp='{}'}}", url, ps_quote(&png), ps_quote(&bmp)));
     }
+    let items = item_rows.join(",\n");
 
     let script = format!(r#"
 $ErrorActionPreference='Stop'
