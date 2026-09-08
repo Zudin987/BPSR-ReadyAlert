@@ -21,7 +21,7 @@ use windows_sys::Win32::{
     },
     UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, GetClientRect, GetWindowLongPtrW, GetWindowRect,
-        IsWindow, LoadCursorW, PostMessageW, RegisterClassW, ReleaseCapture, SendMessageW,
+        IsWindow, LoadCursorW, PostMessageW, RegisterClassW, SendMessageW,
         SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow, CREATESTRUCTW,
         CW_USEDEFAULT, GWL_EXSTYLE, GWLP_USERDATA, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW,
         LWA_ALPHA, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
@@ -94,6 +94,7 @@ extern "system" {
     fn GetMonitorInfoW(monitor: *mut c_void, info: *mut MonitorInfo) -> i32;
     fn RegisterHotKey(hwnd: HWND, id: i32, modifiers: u32, vk: u32) -> i32;
     fn UnregisterHotKey(hwnd: HWND, id: i32) -> i32;
+    fn ReleaseCapture() -> i32;
 }
 
 #[derive(Clone)]
@@ -403,7 +404,7 @@ fn parse_hotkey(value: &str) -> Option<(u32, u32)> {
             }
         }
     }
-    key.map(|vk| (mods | 0x4000, vk)) // MOD_NOREPEAT
+    key.map(|vk| (mods | 0x4000, vk))
 }
 
 unsafe fn collapse_to_edge(hwnd: HWND, state: &mut OverlayState) {
