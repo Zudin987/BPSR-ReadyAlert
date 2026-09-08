@@ -2,12 +2,88 @@ use crate::{logging, paths::AppPaths};
 use serde::{Deserialize, Serialize};
 use std::{fs, io};
 
-pub const ATTR_HEALING_MASTERY: i32 = 11442;
-pub const ATTR_LUCK: i32 = 11446;
-pub const ATTR_ACCURACY: i32 = 11447;
-pub const ATTR_HASTE: i32 = 11463;
-pub const ATTR_MASTERY: i32 = 11464;
-pub const ATTR_VERSATILITY: i32 = 11465;
+// Current protocol ids mirrored from CN Resonance Logs `live/protocol/attrs.rs`.
+pub const ATTR_DEFENSE_POWER: i32 = 0x0033;
+pub const ATTR_BASE_STRENGTH: i32 = 0x0046;
+pub const ATTR_ENDURANCE: i32 = 0x0067;
+pub const ATTR_MOVEMENT_SPEED: i32 = 0x0074;
+pub const ATTR_TOTAL_POWER: i32 = 0x0105;
+pub const ATTR_PHYSICAL_ATTACK: i32 = 0x0106;
+pub const ATTR_MAGIC_ATTACK: i32 = 0x0107;
+pub const ATTR_LEVEL: i32 = 0x2710;
+pub const ATTR_FIGHT_POINT: i32 = 0x272e;
+pub const ATTR_RANK_LEVEL: i32 = 0x274c;
+pub const ATTR_CRIT: i32 = 0x2b66;
+pub const ATTR_LUCKY: i32 = 0x2b7a;
+pub const ATTR_HASTE: i32 = 0x2b84;
+pub const ATTR_MASTERY: i32 = 0x2b8e;
+pub const ATTR_CURRENT_HP: i32 = 0x2c2e;
+pub const ATTR_MAX_HP: i32 = 0x2c38;
+pub const ATTR_MAX_MP: i32 = 0x2c39;
+pub const ATTR_STAMINA: i32 = 0x2c3c;
+pub const ATTR_CURRENT_SHIELD: i32 = 0x2c3d;
+pub const ATTR_MIN_ENERGY: i32 = 0x2c42;
+pub const ATTR_MAX_ENERGY: i32 = 0x2c43;
+pub const ATTR_ENERGY_REGEN: i32 = 0x2c46;
+pub const ATTR_SEASON_STRENGTH: i32 = 0x2cb0;
+pub const ATTR_PHYSICAL_PENETRATION: i32 = 0x2dc8;
+pub const ATTR_MAGIC_PENETRATION: i32 = 0x2dd2;
+pub const ATTR_SKILL_CD: i32 = 0x2de6;
+pub const ATTR_SKILL_CD_PCT: i32 = 0x2df0;
+pub const ATTR_CD_ACCELERATE_PCT: i32 = 0x2eb8;
+pub const ATTR_ELEMENTAL_RES_1: i32 = 0x3372;
+pub const ATTR_ELEMENTAL_RES_2: i32 = 0x3373;
+pub const ATTR_ELEMENTAL_RES_3: i32 = 0x3374;
+
+// Compatibility aliases for v1.7 settings and old internal names.
+pub const ATTR_LUCK: i32 = ATTR_LUCKY;
+pub const ATTR_ILLUSION_BREAK: i32 = ATTR_SEASON_STRENGTH;
+pub const ATTR_HEALING_MASTERY: i32 = 11_442;
+pub const ATTR_ACCURACY: i32 = 11_447;
+pub const ATTR_VERSATILITY: i32 = 11_465;
+
+/// Full compact catalog exposed by Dungeon Mechanics. Users may select at most six.
+pub const ATTRIBUTE_CATALOG: &[(i32, &str)] = &[
+    (ATTR_FIGHT_POINT, "Ability Score"),
+    (ATTR_SEASON_STRENGTH, "Illusion Break"),
+    (ATTR_LEVEL, "Level"),
+    (ATTR_RANK_LEVEL, "Rank"),
+    (ATTR_TOTAL_POWER, "Total Power"),
+    (ATTR_PHYSICAL_ATTACK, "Physical ATK"),
+    (ATTR_MAGIC_ATTACK, "Magic ATK"),
+    (ATTR_DEFENSE_POWER, "Defense"),
+    (ATTR_BASE_STRENGTH, "Base Strength"),
+    (ATTR_ENDURANCE, "Endurance"),
+    (ATTR_CRIT, "Crit"),
+    (ATTR_LUCKY, "Lucky"),
+    (ATTR_HASTE, "Haste"),
+    (ATTR_MASTERY, "Mastery"),
+    (ATTR_CURRENT_HP, "HP"),
+    (ATTR_MAX_HP, "Max HP"),
+    (ATTR_MAX_MP, "Max MP"),
+    (ATTR_STAMINA, "Stamina"),
+    (ATTR_CURRENT_SHIELD, "Shield"),
+    (ATTR_MIN_ENERGY, "Min Energy"),
+    (ATTR_MAX_ENERGY, "Max Energy"),
+    (ATTR_ENERGY_REGEN, "Energy Regen"),
+    (ATTR_PHYSICAL_PENETRATION, "Physical Pen"),
+    (ATTR_MAGIC_PENETRATION, "Magic Pen"),
+    (ATTR_SKILL_CD, "Skill CD"),
+    (ATTR_SKILL_CD_PCT, "Skill CD %"),
+    (ATTR_CD_ACCELERATE_PCT, "CD Accel %"),
+    (ATTR_MOVEMENT_SPEED, "Move Speed"),
+    (ATTR_ELEMENTAL_RES_1, "Element Res 1"),
+    (ATTR_ELEMENTAL_RES_2, "Element Res 2"),
+    (ATTR_ELEMENTAL_RES_3, "Element Res 3"),
+];
+
+pub fn tracked_attr_ids() -> impl Iterator<Item = i32> {
+    ATTRIBUTE_CATALOG.iter().map(|(id, _)| *id)
+}
+
+pub fn is_trackable_attr(id: i32) -> bool {
+    ATTRIBUTE_CATALOG.iter().any(|(candidate, _)| *candidate == id)
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -26,7 +102,7 @@ impl Default for FeatureSettings {
             dps_overlay_enabled: true,
             mechanics_overlay_enabled: true,
             dps: OverlayLayout { width: 650, height: 420, collapse_side: "Right".into(), ..OverlayLayout::default() },
-            mechanics: OverlayLayout { width: 540, height: 330, collapse_side: "Right".into(), ..OverlayLayout::default() },
+            mechanics: OverlayLayout { width: 600, height: 410, collapse_side: "Right".into(), ..OverlayLayout::default() },
             meter: MeterSettings::default(),
             mechanic_attributes: MechanicAttributeSettings::default(),
         }
@@ -70,22 +146,36 @@ impl Default for MeterSettings {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MechanicAttributeSettings {
-    /// Attr ids displayed in the mechanics header strip. Kept as ids so new
-    /// attributes can be added without a settings-format migration.
+    /// Protocol attr ids shown in the header strip. Maximum six.
     pub tracked: Vec<i32>,
 }
 impl Default for MechanicAttributeSettings {
-    fn default() -> Self { Self { tracked: vec![ATTR_LUCK, ATTR_HASTE, ATTR_MASTERY] } }
+    fn default() -> Self { Self { tracked: vec![ATTR_LUCKY, ATTR_HASTE, ATTR_MASTERY] } }
 }
 
 impl FeatureSettings {
     pub fn normalize(&mut self) {
         self.dps.normalize(420, 220);
-        self.mechanics.normalize(400, 190);
-        const ALLOWED: [i32; 6] = [ATTR_HEALING_MASTERY, ATTR_LUCK, ATTR_ACCURACY, ATTR_HASTE, ATTR_MASTERY, ATTR_VERSATILITY];
-        self.mechanic_attributes.tracked.retain(|x| ALLOWED.contains(x));
-        self.mechanic_attributes.tracked.dedup();
-        self.mechanic_attributes.tracked.truncate(6);
+        self.mechanics.normalize(400, 220);
+        // Migrate v1.7's three defaults to their current protocol ids.
+        const OLD_LUCK: i32 = 11_446;
+        const OLD_HASTE: i32 = 11_463;
+        const OLD_MASTERY: i32 = 11_464;
+        for id in &mut self.mechanic_attributes.tracked {
+            *id = match *id {
+                OLD_LUCK => ATTR_LUCKY,
+                OLD_HASTE => ATTR_HASTE,
+                OLD_MASTERY => ATTR_MASTERY,
+                other => other,
+            };
+        }
+        self.mechanic_attributes.tracked.retain(|id| is_trackable_attr(*id));
+        let mut dedup = Vec::with_capacity(6);
+        for id in self.mechanic_attributes.tracked.drain(..) {
+            if !dedup.contains(&id) { dedup.push(id); }
+            if dedup.len() == 6 { break; }
+        }
+        self.mechanic_attributes.tracked = dedup;
     }
 }
 
@@ -99,15 +189,10 @@ impl OverlayLayout {
 }
 
 pub fn attr_label(id: i32) -> &'static str {
-    match id {
-        ATTR_HEALING_MASTERY => "Healing",
-        ATTR_LUCK => "Luck",
-        ATTR_ACCURACY => "Accuracy",
-        ATTR_HASTE => "Haste",
-        ATTR_MASTERY => "Mastery",
-        ATTR_VERSATILITY => "Versatility",
-        _ => "Attr",
-    }
+    ATTRIBUTE_CATALOG
+        .iter()
+        .find_map(|(candidate, label)| (*candidate == id).then_some(*label))
+        .unwrap_or("Attr")
 }
 
 fn path(paths: &AppPaths) -> std::path::PathBuf { paths.root.join("features.json") }
