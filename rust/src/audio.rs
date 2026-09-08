@@ -54,6 +54,6 @@ fn play_bytes(bytes: &[u8], extension: &str, volume: i32) -> Result<(), String> 
 
 fn mci(command: &str) -> Result<(), String> {
     let wide: Vec<u16> = command.encode_utf16().chain(std::iter::once(0)).collect();
-    let code = unsafe { mciSendStringW(wide.as_ptr(), std::ptr::null_mut(), 0, 0) };
+    let code = unsafe { mciSendStringW(wide.as_ptr(), std::ptr::null_mut(), 0, std::ptr::null_mut()) };
     if code == 0 { Ok(()) } else { Err(format!("MCI error {code} for {command}")) }
 }

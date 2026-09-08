@@ -67,11 +67,12 @@ pub fn spawn(
             let mut reopen = false;
 
             while !stop.load(Ordering::Relaxed) {
+                let datalink = handle.datalink;
                 match handle.next_packet() {
                     Ok(Some(packet)) => {
-                        if filter.is_game_packet(packet, handle.datalink) {
+                        if filter.is_game_packet(packet, datalink) {
                             last_packet = Some(Instant::now());
-                            processor.process_packet(packet, handle.datalink);
+                            processor.process_packet(packet, datalink);
                         }
                     }
                     Ok(None) => {}
