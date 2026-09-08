@@ -2,9 +2,8 @@ use crate::{logging, paths::AppPaths};
 use serde::{Deserialize, Serialize};
 use std::{fs, io};
 
-// Current protocol ids mirrored from CN Resonance Logs `live/protocol/attrs.rs`.
-// These are the wire EntityAttr identifiers, not the similarly-numbered
-// character-panel/loadout ids used by some UI data tables.
+// EntityAttr identifiers. The character sheet exposes separate rating and
+// percentage attributes; do not format the raw ratings as percentages.
 pub const ATTR_DEFENSE_POWER: i32 = 0x0033;
 pub const ATTR_BASE_STRENGTH: i32 = 0x0046;
 pub const ATTR_ENDURANCE: i32 = 0x0067;
@@ -15,10 +14,14 @@ pub const ATTR_MAGIC_ATTACK: i32 = 0x0107;
 pub const ATTR_LEVEL: i32 = 0x2710;
 pub const ATTR_FIGHT_POINT: i32 = 0x272e;
 pub const ATTR_RANK_LEVEL: i32 = 0x274c;
-pub const ATTR_CRIT: i32 = 0x2b66;
-pub const ATTR_LUCKY: i32 = 0x2b7a;
-pub const ATTR_HASTE: i32 = 0x2b84;
-pub const ATTR_MASTERY: i32 = 0x2b8e;
+
+// Raw character-sheet ratings (ZDPS EnumEAttrType: 11110..11150).
+pub const ATTR_CRIT_RATING: i32 = 0x2b66;
+pub const ATTR_HASTE_RATING: i32 = 0x2b70;
+pub const ATTR_LUCK_RATING: i32 = 0x2b7a;
+pub const ATTR_MASTERY_RATING: i32 = 0x2b84;
+pub const ATTR_VERSATILITY_RATING: i32 = 0x2b8e;
+
 pub const ATTR_CURRENT_HP: i32 = 0x2c2e;
 pub const ATTR_MAX_HP: i32 = 0x2c38;
 pub const ATTR_MAX_MP: i32 = 0x2c39;
@@ -28,11 +31,20 @@ pub const ATTR_MIN_ENERGY: i32 = 0x2c42;
 pub const ATTR_MAX_ENERGY: i32 = 0x2c43;
 pub const ATTR_ENERGY_REGEN: i32 = 0x2c46;
 pub const ATTR_SEASON_STRENGTH: i32 = 0x2cb0;
+
+// Actual character-panel percentages. ZDPS reads these values and displays
+// value / 100, e.g. 4816 => 48.16%.
+pub const ATTR_CRIT: i32 = 0x2dbe;                 // AttrCrit = 11710
+pub const ATTR_SKILL_CD: i32 = 0x2de6;
+pub const ATTR_SKILL_CD_PCT: i32 = 0x2df0;         // AttrSkillCDPCT = 11760
+pub const ATTR_LUCKY: i32 = 0x2e04;                // AttrLuckyStrikeProb = 11780
+pub const ATTR_HASTE: i32 = 0x2e9a;                // AttrHastePct = 11930
+pub const ATTR_MASTERY: i32 = 0x2ea4;              // AttrMasteryPct = 11940
+pub const ATTR_VERSATILITY: i32 = 0x2eae;           // AttrVersatilityPct = 11950
+pub const ATTR_CD_ACCELERATE_PCT: i32 = 0x2eb8;     // AttrCdAcceleratePct = 11960
+
 pub const ATTR_PHYSICAL_PENETRATION: i32 = 0x2dc8;
 pub const ATTR_MAGIC_PENETRATION: i32 = 0x2dd2;
-pub const ATTR_SKILL_CD: i32 = 0x2de6;
-pub const ATTR_SKILL_CD_PCT: i32 = 0x2df0;
-pub const ATTR_CD_ACCELERATE_PCT: i32 = 0x2eb8;
 pub const ATTR_ELEMENTAL_RES_1: i32 = 0x3372;
 pub const ATTR_ELEMENTAL_RES_2: i32 = 0x3373;
 pub const ATTR_ELEMENTAL_RES_3: i32 = 0x3374;
@@ -42,14 +54,19 @@ pub const ATTR_LUCK: i32 = ATTR_LUCKY;
 pub const ATTR_ILLUSION_BREAK: i32 = ATTR_SEASON_STRENGTH;
 pub const ATTR_HEALING_MASTERY: i32 = 11_442;
 pub const ATTR_ACCURACY: i32 = 11_447;
-pub const ATTR_VERSATILITY: i32 = 11_465;
 
 /// Full compact catalog exposed by Dungeon Mechanics. Users may select at most six.
 pub const ATTRIBUTE_CATALOG: &[(i32, &str)] = &[
-    (ATTR_CRIT, "Crit"),
-    (ATTR_LUCKY, "Lucky"),
-    (ATTR_HASTE, "Haste"),
-    (ATTR_MASTERY, "Mastery"),
+    (ATTR_CRIT, "Crit %"),
+    (ATTR_LUCKY, "Lucky %"),
+    (ATTR_HASTE, "Haste %"),
+    (ATTR_MASTERY, "Mastery %"),
+    (ATTR_VERSATILITY, "Versatility %"),
+    (ATTR_CRIT_RATING, "Crit Rating"),
+    (ATTR_LUCK_RATING, "Luck Rating"),
+    (ATTR_HASTE_RATING, "Haste Rating"),
+    (ATTR_MASTERY_RATING, "Mastery Rating"),
+    (ATTR_VERSATILITY_RATING, "Versatility Rating"),
     (ATTR_FIGHT_POINT, "Ability Score"),
     (ATTR_SEASON_STRENGTH, "Illusion Break"),
     (ATTR_CURRENT_HP, "HP"),
@@ -87,10 +104,6 @@ pub fn is_trackable_attr(id: i32) -> bool {
     ATTRIBUTE_CATALOG.iter().any(|(candidate, _)| *candidate == id)
 }
 
-/// BPSR sends the core rate attributes as fixed-point thousandths of a
-/// percentage point: 48_160 means 48.160%. CN Resonance tracks the same wire
-/// ids above; format the rate family as rates instead of exposing the raw
-/// fixed-point integers.
 pub const fn attr_is_percent(id: i32) -> bool {
     matches!(
         id,
@@ -98,6 +111,7 @@ pub const fn attr_is_percent(id: i32) -> bool {
             | ATTR_LUCKY
             | ATTR_HASTE
             | ATTR_MASTERY
+            | ATTR_VERSATILITY
             | ATTR_SKILL_CD_PCT
             | ATTR_CD_ACCELERATE_PCT
     )
@@ -105,16 +119,10 @@ pub const fn attr_is_percent(id: i32) -> bool {
 
 pub fn format_attr_value(id: i32, value: i64) -> String {
     if attr_is_percent(id) {
-        let percent = value as f64 / 1000.0;
-        // Keep useful precision for small Mastery/CD values without filling the
-        // compact header with insignificant trailing zeroes.
-        let mut text = format!("{percent:.3}");
-        while text.contains('.') && text.ends_with('0') {
-            text.pop();
-        }
-        if text.ends_with('.') {
-            text.pop();
-        }
+        let percent = value as f64 / 100.0;
+        let mut text = format!("{percent:.2}");
+        while text.contains('.') && text.ends_with('0') { text.pop(); }
+        if text.ends_with('.') { text.pop(); }
         return format!("{text}%");
     }
     let abs = value.unsigned_abs();
@@ -199,15 +207,24 @@ impl FeatureSettings {
     pub fn normalize(&mut self) {
         self.dps.normalize(420, 220);
         self.mechanics.normalize(400, 220);
-        // Migrate v1.7's three defaults to their current protocol ids.
-        const OLD_LUCK: i32 = 11_446;
-        const OLD_HASTE: i32 = 11_463;
-        const OLD_MASTERY: i32 = 11_464;
+
+        // Migrate v1.7 and v1.8.0/1.8.1 selections by their UI meaning. Those
+        // releases used raw rating ids (and two shifted ids) but labelled them as
+        // percentages. Preserve the user's chosen labels while moving to the
+        // real character-panel percentage attributes.
+        const OLD_V17_LUCK: i32 = 11_446;
+        const OLD_V17_HASTE: i32 = 11_463;
+        const OLD_V17_MASTERY: i32 = 11_464;
+        const OLD_V18_CRIT: i32 = 11_110;
+        const OLD_V18_LUCK: i32 = 11_130;
+        const OLD_V18_HASTE: i32 = 11_140;
+        const OLD_V18_MASTERY: i32 = 11_150;
         for id in &mut self.mechanic_attributes.tracked {
             *id = match *id {
-                OLD_LUCK => ATTR_LUCKY,
-                OLD_HASTE => ATTR_HASTE,
-                OLD_MASTERY => ATTR_MASTERY,
+                OLD_V17_LUCK | OLD_V18_LUCK => ATTR_LUCKY,
+                OLD_V17_HASTE | OLD_V18_HASTE => ATTR_HASTE,
+                OLD_V17_MASTERY | OLD_V18_MASTERY => ATTR_MASTERY,
+                OLD_V18_CRIT => ATTR_CRIT,
                 other => other,
             };
         }
@@ -231,10 +248,7 @@ impl OverlayLayout {
 }
 
 pub fn attr_label(id: i32) -> &'static str {
-    ATTRIBUTE_CATALOG
-        .iter()
-        .find_map(|(candidate, label)| (*candidate == id).then_some(*label))
-        .unwrap_or("Attr")
+    ATTRIBUTE_CATALOG.iter().find_map(|(candidate, label)| (*candidate == id).then_some(*label)).unwrap_or("Attr")
 }
 
 fn path(paths: &AppPaths) -> std::path::PathBuf { paths.root.join("features.json") }
@@ -262,10 +276,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn core_rate_attributes_are_fixed_point_percentages() {
-        assert_eq!(format_attr_value(ATTR_LUCKY, 48_160), "48.16%");
-        assert_eq!(format_attr_value(ATTR_HASTE, 41_672), "41.672%");
-        assert_eq!(format_attr_value(ATTR_MASTERY, 5_640), "5.64%");
+    fn panel_rate_attributes_use_hundredths_of_a_percent() {
+        assert_eq!(format_attr_value(ATTR_LUCKY, 4_816), "48.16%");
+        assert_eq!(format_attr_value(ATTR_HASTE, 4_167), "41.67%");
+        assert_eq!(format_attr_value(ATTR_MASTERY, 564), "5.64%");
+    }
+
+    #[test]
+    fn raw_ratings_are_not_mislabelled_as_percentages() {
+        assert_eq!(format_attr_value(ATTR_CRIT_RATING, 4_816), "4816");
+        assert_eq!(format_attr_value(ATTR_HASTE_RATING, 3_250), "3250");
+    }
+
+    #[test]
+    fn v181_tracked_ids_migrate_by_ui_meaning() {
+        let mut value = FeatureSettings::default();
+        value.mechanic_attributes.tracked = vec![11_110, 11_130, 11_140, 11_150];
+        value.normalize();
+        assert_eq!(value.mechanic_attributes.tracked, vec![ATTR_CRIT, ATTR_LUCKY, ATTR_HASTE, ATTR_MASTERY]);
     }
 
     #[test]
