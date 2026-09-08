@@ -49,7 +49,7 @@ unsafe extern "system" fn main_wnd_proc(hwnd:HWND,msg:u32,wparam:WPARAM,lparam:L
     }
 }
 
-unsafe fn drain_events(hwnd:HWND,state:&mut UiState){loop{match state.rx.try_recv(){Ok(event)=>handle_event(hwnd,state,event),Err(TryRecvError::Empty)|Err(TryRecvError::Disconnected)=>break;}}}
+unsafe fn drain_events(hwnd:HWND,state:&mut UiState){loop{match state.rx.try_recv(){Ok(event)=>handle_event(hwnd,state,event),Err(TryRecvError::Empty)|Err(TryRecvError::Disconnected)=>break,}}}
 unsafe fn handle_event(hwnd:HWND,state:&mut UiState,event:AppEvent){match event{
     AppEvent::Alert(alert)=>{let snapshot=state.settings.read().map(|s|s.clone()).unwrap_or_default();let enabled=alert.kind==AlertKind::Error||alert_enabled(&snapshot,alert.kind);if enabled{if alert.kind!=AlertKind::Error{let volume=snapshot.alert_volume;thread::spawn(move||audio::play_alert(alert.kind,volume));}if snapshot.desktop_notification||alert.kind==AlertKind::Error{balloon(hwnd,&alert.title,&alert.message,alert.kind==AlertKind::Error);}}}
     AppEvent::Chat(message)=>{let snapshot=state.settings.read().map(|s|s.clone()).unwrap_or_default();if snapshot.chat_overlay_enabled&&!chat::should_hide_globally(&snapshot,&message){let mut display=message.clone();if display.sender_level>0{display.sender_level=-display.sender_level;}overlay::push_chat(state.chat_overlay,display);maybe_chat_sound(&snapshot,&message);}}
