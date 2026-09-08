@@ -125,8 +125,8 @@ fn main() {
 
     patch_once(
         &mut overlay,
-        "match msg{WM_ERASEBKGND=>1,WM_PAINT=>",
-        "match msg{WM_NCCALCSIZE=>0,WM_NCHITTEST=>{if ptr.is_null(){DefWindowProcW(hwnd,msg,wparam,lparam)}else{resize_hit_test(hwnd,lparam)}},WM_ERASEBKGND=>1,WM_MOUSEMOVE=>{if !ptr.is_null(){on_mouse_move(hwnd,&mut*ptr,lparam);}0},WM_MOUSELEAVE=>{if !ptr.is_null(){(*ptr).hover_text=None;InvalidateRect(hwnd,null(),0);}0},WM_PAINT=>",
+        "let ptr=GetWindowLongPtrW(hwnd,GWLP_USERDATA)as *mut State;match msg{WM_ERASEBKGND=>1,WM_PAINT=>",
+        "let ptr=GetWindowLongPtrW(hwnd,GWLP_USERDATA)as *mut State;match msg{WM_NCCALCSIZE=>0,WM_NCHITTEST=>{if ptr.is_null(){DefWindowProcW(hwnd,msg,wparam,lparam)}else{resize_hit_test(hwnd,lparam)}},WM_ERASEBKGND=>1,WM_MOUSEMOVE=>{if !ptr.is_null(){on_mouse_move(hwnd,&mut*ptr,lparam);}0},WM_MOUSELEAVE=>{if !ptr.is_null(){(*ptr).hover_text=None;InvalidateRect(hwnd,null(),0);}0},WM_PAINT=>",
         "custom non-client frame and hover messages",
     );
 
