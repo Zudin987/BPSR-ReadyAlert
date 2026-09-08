@@ -39,13 +39,15 @@ mod logging;
 #[path = "model_v170.rs"]
 mod model;
 mod npcap;
-#[path = "overlay_v150.rs"]
+#[path = "overlay_v181.rs"]
 mod overlay;
 mod paths;
 mod proto;
+#[path = "settings_v181.rs"]
 mod settings;
 mod settings_cleanup_v160;
 mod settings_repaint_hotfix;
+#[path = "settings_ui_v181.rs"]
 mod settings_ui;
 #[path = "telemetry_v181.rs"]
 mod telemetry;
