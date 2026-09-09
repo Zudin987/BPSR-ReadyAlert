@@ -104,6 +104,11 @@ impl TelemetryRuntime {
     fn update_team(&mut self, method: u32, body: &[u8]) {
         match method {
             0x02 => {
+                // TEAM_MEMBER_INFO is a full/authoritative roster snapshot. The
+                // previous additive behavior left stale members behind when a
+                // leave packet was missed, which made Party-only meter filters
+                // include people from an older roster.
+                self.begin_full_team_snapshot();
                 if let Some(req) = proto::get_len_field(body, 1) {
                     for field in [5_u32, 6_u32] {
                         for member in proto::len_fields(req, field) {
@@ -135,6 +140,10 @@ impl TelemetryRuntime {
             0x0d => self.team_uids.clear(),
             _ => {}
         }
+    }
+
+    fn begin_full_team_snapshot(&mut self) {
+        self.team_uids.clear();
     }
 
     fn add_char_id(&mut self, value: Option<u64>) {
@@ -232,5 +241,19 @@ mod tests {
     fn encounter_regression_resets_activity_generation() {
         assert!(encounter_changed((12_000, 5_000, 2_000, 1_000), (500, 50, 0, 0)));
         assert!(!encounter_changed((12_000, 5_000, 2_000, 1_000), (13_000, 6_000, 2_500, 1_200)));
+    }
+
+    #[test]
+    fn full_team_snapshot_discards_stale_members() {
+        let (tx, _rx) = mpsc::channel();
+        let mut runtime = TelemetryRuntime::new(tx);
+        runtime.team_uids.extend([111, 222, 333]);
+        runtime.begin_full_team_snapshot();
+        runtime.team_uids.extend([222, 444]);
+        assert_eq!(runtime.team_uids.len(), 2);
+        assert!(runtime.team_uids.contains(&222));
+        assert!(runtime.team_uids.contains(&444));
+        assert!(!runtime.team_uids.contains(&111));
+        assert!(!runtime.team_uids.contains(&333));
     }
 }
