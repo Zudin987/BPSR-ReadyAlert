@@ -151,6 +151,18 @@ pub struct TakenSourceBreakdown {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
+pub struct ConsumableStatus {
+    pub buff_id: i32,
+    pub name: String,
+    /// Wall-clock expiry; 0 means the protocol did not expose a finite timer.
+    pub expires_unix_ms: i64,
+    /// Authoritative BuffInfo duration when available. Used only for the
+    /// circular countdown ring; 0 means keep a full ring until removal.
+    pub duration_ms: i64,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DpsRow {
     pub actor_uuid: i64,
     pub uid: i64,
@@ -198,6 +210,10 @@ pub struct DpsRow {
     pub is_party: bool,
     /// Current-scene attributes that can be safely shown by the inspector.
     pub attributes: Vec<TrackedAttribute>,
+    /// Currently observed Food/Serum for this player. These are populated only
+    /// when the game has synchronized the corresponding buff to this client.
+    pub food: Option<ConsumableStatus>,
+    pub serum: Option<ConsumableStatus>,
     pub imagines: Vec<ImagineBadge>,
     /// Outgoing damage/healing skill distribution.
     pub skills: Vec<SkillBreakdown>,
@@ -244,14 +260,6 @@ pub struct TrackedAttribute {
     pub attr_id: i32,
     pub label: String,
     pub value: i64,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ConsumableStatus {
-    pub buff_id: i32,
-    pub name: String,
-    /// Wall-clock expiry; 0 means the protocol did not expose a finite timer.
-    pub expires_unix_ms: i64,
 }
 
 #[derive(Clone, Debug, Default)]
