@@ -1,3 +1,63 @@
-# BPSR Ready Alert â€” native Rust implementation
+# Native Rust implementation
 
-The production application is now the native Rust implementation in this directory. The previous C#/.NET WinForlÈ[\[Y[][ÛˆØ\È™[[İ™YY\ˆHZYÜ˜][Û‹‚‚ˆÈÈ\˜Ú]Xİ\™B‚‹H˜]]™HœØ\ØY\ˆ[™XÚÙ]Ø\\™HÚ]H›Üœ›İÙYXÚÙ]Y™™\ˆÛˆ[ZÙK‚‹HÚ[™İÜÈÔ[İÛ™\ˆ›ØÙ\ÜÈš[\š[™È›Üˆ”Ôˆ^Xİ]X›\Ë‚‹H›İ[™YÔ›İÈ™X\ÜÙ[X›HÚ]ÛÛ\Xİ[™È]Hİ™X[\È[™Ü\œÙHİ][Ù‹[Ü™\ˆİÜ˜YÙK‚‹H›İØÛÛ\œÚ[™È›Üˆ]Y]YKÜ™XYHÚXÚÜË\HXİ]š]KÚ[š]\ËÜ™\]Y\İË^Y\ˆY[]H[™Ú]‚‹H˜]]™HÚ[ŒÌˆ˜^HÚ[™İË\ÚİÜ›İYšXØ][ÛœÈ[™YÚÙZYÚÚ]İ™\›^K‚‹H˜XÚÙÜ›İ[™ØØ[ÙÙÚ[™Ë˜[œÛ][Ûˆ[™ÈÛÜšÙ\œÈÛÈ™]ÛÜšËØ]Y[ÈÛÜšÈÙ\È›İ›ØÚÈØ\\™K‚‹H^\İ[™È	SĞĞSTUIW”Ô‹T™XYP[\Ù][™ÜËšœÛÛ˜Ù][™ÜÈ™[XZ[ˆÛÛ\]X›HÚ\™Hİ\ÜY‚‚ˆÈÈZ[‚‘œ›ÛHH™\ÜÚ]ÜH›ÛİÛˆÚ[™İÜÎ‚‚˜İÙ\œÚ[‹‹ÜØÜš\ËÜ™\\™KXZ[X\ÜÙ]ËœÌB˜Ø\™ÛÈZ[K[X[šY™\İ\]\İĞØ\™ÛËÛ[K\™[X\ÙB˜‚“İ]]‚‚˜^œ\İİ\™Ù]Ü™[X\ÙKĞ”Ô‹T™XYP[\™^B˜‚“œØ\™[XZ[œÈ[ˆ^\›˜[[[YH\[™[˜ŞH[™\È›İ™Y\İšX]Y‚‚ˆÈÈ\ÜÙ]Â‚˜™\\™KXZ[X\ÜÙ]ËœÌX™XÛÛœİXİÈH[™Y[\ĞUœÈ[™XÛÛˆ[™\ˆÜ˜ËĞ”Ô‹”™XYP[\Ğ\ÜÙ]ËØœ›ÛHHÚXÚÙYZ[ˆÛİ\˜ÙHÚ[šÜÈ[™\ˆ\ÜÙ]Ë\Ü˜ËØˆ]ÛX[Ú\™Y\ÜÙ]\™XİÜH\È™]Z[™Y\ÈHZ[Z[œ]ØØ][ÛÈH™]š[İ\ÈÈÈÛİ\˜ÙH]Ù[ˆ\È™Y[ˆ™[[İ™Y‚‚ˆÈÈÒHÈ™[X\ÙB‚‹H\İÒXÛÛ\[\Ë\İÈ[™Û[ÚÙK]\İÈHÚ[™İÜÈ^Xİ]X›HÛˆ[™\]Y\İÈ[™H™]Üš]Hœ˜[˜Ú‚‹H™[X\ÙH\İZ[ÈHY\™ÙYXZ[˜œ˜[˜Ú[™X›\Ú\ÈHØ\™ÛÈ™\œÚ[Ûˆ\ÈHÚ]Xˆ™[X\ÙK‚
+`rust/` contains the production ReadyAlert application.
+
+The project intentionally stays native and small: Win32 UI, Npcap packet capture, Rust protocol parsing and no Electron/Tauri/.NET runtime dependency.
+
+## Runtime structure
+
+- `src/main.rs` â€” application startup, shared state and module wiring.
+- `src/capture_v160.rs` â€” Npcap worker, TCP reassembly and frame processing. The active build generates a small v1.8.5 wrapper from this source to add capture-health reporting without duplicating the parser.
+- `src/telemetry_v170.rs` â€” compact combat/mechanics telemetry core used by the generated compatibility layer.
+- `src/telemetry_adapter_v170.rs` â€” team/spec/skill/Imagine enrichment.
+- `src/telemetry_v181.rs` â€” scene-freshness and stable-primary-target guard around telemetry events.
+- `src/feature_overlays_v170.rs` â€” native DPS/mechanics overlay base.
+- `src/feature_settings_v181.rs` â€” feature settings persistence, recovery and monitor-bound correction.
+- `src/settings_v181.rs` â€” application settings persistence and crash recovery.
+- `src/capture_supervisor.rs` â€” restarts only the Npcap worker when adapter preference changes.
+
+## Generated compatibility layers
+
+The current production build still has a historical `build_v18x.rs` compatibility chain. Each layer applies assertion-guarded source transformations and fails CI if its expected source anchors drift.
+
+This is intentionally temporary technical debt. Future refactoring should fold the validated generated code back into normal source files so releases no longer depend on a long string-patch chain.
+
+The current entry point is configured in `Cargo.toml` (`build_v185.rs`).
+
+## Combat behavior
+
+ReadyAlert starts an encounter from eligible player damage and is deliberately conservative about automatic resets. One player dying, ordinary add death/despawn and idle time are not sufficient boundaries. Scene changes, validated full-party wipes and the manual Reset button are the trusted boundaries.
+
+The public target shown in the DPS toolbar is stabilized outside the compact parser: a known stronger boss/objective remains selected when smaller adds are hit, while phase transitions can promote a new target after the old target disappears.
+
+## Capture health
+
+The capture worker periodically reports whether:
+
+- the game process is detected,
+- recent game packets are arriving,
+- valid protocol frames are being reconstructed.
+
+The status is surfaced in the tray and Dungeon Mechanics toolbar. This does not change combat calculations; it is a diagnostic signal that helps users notice a wrong adapter, VPN-route problem or protocol-frame stall before trusting incomplete numbers.
+
+## Build
+
+From the repository root on Windows:
+
+```powershell
+scripts\prepare-build-assets.ps1
+cargo test --manifest-path rust/Cargo.toml
+cargo build --manifest-path rust/Cargo.toml --release
+```
+
+The release binary is:
+
+```text
+rust\target\release\BPSR-ReadyAlert.exe
+```
+
+CI additionally launches the release EXE with `--build-smoke-test`, enforces the native size budget and packages the Windows ZIP.
+
+## Third-party data
+
+See the repository-level `THIRD_PARTY_NOTICES.md`. Upstream game-data/community-derived tables are pinned during builds where practical so a changing remote repository cannot silently alter a released binary.
