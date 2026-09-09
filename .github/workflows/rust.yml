@@ -40,6 +40,9 @@ jobs:
       - name: Focused tracker tests
         run: cargo test --manifest-path rust/Cargo.toml event_tracker
 
+      - name: Focused Imagine tier tests
+        run: cargo test --manifest-path rust/Cargo.toml imagine_tier
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
