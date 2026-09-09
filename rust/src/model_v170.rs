@@ -85,6 +85,55 @@ pub struct SkillBreakdown {
     pub max_value: i64,
 }
 
+/// Encounter uptime for a named player buff. Only game-observed apply/remove
+/// events are counted; unknown buff ids are intentionally not guessed.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BuffUptime {
+    pub buff_id: i32,
+    pub name: String,
+    pub uptime_ms: u64,
+    pub activations: u32,
+}
+
+/// One event shown in the pre-death timeline. `is_heal` differentiates incoming
+/// healing from incoming damage without introducing another serialized enum.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DeathRecapEvent {
+    pub at_ms: u64,
+    pub is_heal: bool,
+    pub source_name: String,
+    pub skill_id: i32,
+    pub skill_name: String,
+    pub value: i64,
+    pub crit: bool,
+    pub lucky: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DeathRecap {
+    pub death_no: u32,
+    pub at_ms: u64,
+    pub events: Vec<DeathRecapEvent>,
+}
+
+/// Incoming damage split by attacker and skill for Tank analysis.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TakenSourceBreakdown {
+    pub source_uuid: i64,
+    pub source_name: String,
+    pub skill_id: i32,
+    pub skill_name: String,
+    pub damage: i64,
+    pub hits: u64,
+    pub crits: u64,
+    pub lucky_hits: u64,
+    pub max_value: i64,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DpsRow {
@@ -101,6 +150,14 @@ pub struct DpsRow {
     pub damage: i64,
     pub healing: i64,
     pub damage_taken: i64,
+    /// Damage dealt to the stable boss/objective target set for this encounter.
+    pub boss_damage: i64,
+    /// Healing that actually modified HP according to the packet HpLessen value.
+    pub effective_healing: i64,
+    /// Requested healing that did not modify HP.
+    pub overhealing: i64,
+    /// Direct character-sheet Block percentage in hundredths of a percent.
+    pub block_pct: i64,
     /// Encounter DPS: total damage divided by the whole encounter duration.
     pub dps: f64,
     /// Active rates exclude long per-entity downtime and late starts.
@@ -129,6 +186,12 @@ pub struct DpsRow {
     pub skills: Vec<SkillBreakdown>,
     /// Incoming damage grouped by the attack skill id.
     pub taken_skills: Vec<SkillBreakdown>,
+    /// Named player buffs with current-encounter uptime.
+    pub buff_uptimes: Vec<BuffUptime>,
+    /// Up to the most recent deaths, each with the preceding combat timeline.
+    pub death_recaps: Vec<DeathRecap>,
+    /// Incoming damage split by source monster/entity and skill.
+    pub taken_sources: Vec<TakenSourceBreakdown>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -149,6 +212,7 @@ pub struct DpsSnapshot {
     pub total_damage: i64,
     pub total_healing: i64,
     pub total_damage_taken: i64,
+    pub total_boss_damage: i64,
     pub target: Option<TargetSnapshot>,
     pub rows: Vec<DpsRow>,
 }
