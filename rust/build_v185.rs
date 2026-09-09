@@ -41,8 +41,8 @@ fn main() {
     );
     replace_once(
         &mut overlay,
-        "fn toolbar_title(state:&State)->String{if state.kind==Kind::Mechanics{return\"Dungeon Mechanics\".into();}",
-        "fn toolbar_title(state:&State)->String{if state.kind==Kind::Mechanics{return format!(\"Dungeon Mechanics  |  {}\",state.capture_status);}",
+        "return \"Dungeon Mechanics\".into();",
+        "return format!(\"Dungeon Mechanics  |  {}\",state.capture_status);",
         "mechanics capture health title",
     );
     fs::write(&overlay_path, overlay).expect("write v1.8.5 overlay");
