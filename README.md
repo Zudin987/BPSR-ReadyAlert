@@ -11,12 +11,13 @@ Lightweight native Windows companion for **Blue Protocol: Star Resonance**, writ
 - Active and Encounter DPS/HPS/DTPS, plus contributor/party filters and configurable row limits.
 - Per-player Entity Inspector with skill damage/healing/taken breakdowns.
 - Combat Analysis: boss/objective damage split, effective healing/overheal, buff uptime, source-to-skill Tank analysis and 10-second death recaps.
-- Skill Analysis: per-skill boss/objective damage, per-skill effective healing/overheal, and direct shield/absorbed events kept separate from HP damage taken.
+- Skill Analysis: per-skill boss/objective damage, per-skill effective healing/overheal, Crit/Lucky rates, average/minimum/maximum event values, and direct shield/absorbed events kept separate from HP damage taken.
 - Direct character-sheet Block % in Tank analysis; ReadyAlert does not invent unsupported Lucky Block statistics.
 - Battle Imagine detection with game icons and tiers.
 - Dungeon Mechanics overlay with food/serum timers, tracked buffs and character attributes.
 - ActorState-based death tracking and conservative party-wipe detection.
-- Capture-health status so stale/wrong-adapter capture is visible while playing.
+- Capture-health status with Npcap kernel/interface drop counters so silent capture loss is visible.
+- Lag-tolerant TCP reassembly with reorder grace, bounded decompression and larger bounded frame/reorder buffers.
 - Queue Pop, Ready Check, party invite and party request sounds.
 - Optional desktop notifications.
 - View-only BPSR chat overlay with filters and keyword alerts.
@@ -33,7 +34,7 @@ ReadyAlert uses one shared Npcap capture path. It does **not** inject into BPSR,
 4. Select the correct network adapter if automatic selection misses the game connection.
 5. Leave ReadyAlert running in the system tray and enable only the overlays/alerts you want.
 
-The Dungeon Mechanics title shows capture health. If it reports stale frames or no recent game packets while you are actively playing, re-check the selected Npcap adapter before trusting combat totals.
+The Dungeon Mechanics title shows capture health. If it reports stale frames, no recent game packets, or new Npcap packet drops while you are actively playing, re-check the selected adapter/network path before trusting combat totals.
 
 ## Combat history and analysis
 
@@ -43,20 +44,20 @@ Use the DPS meter's `<`, `LIVE`, and `>` controls to move between older fights, 
 
 The Entity Inspector provides five analysis tabs:
 
-- **Damage:** total damage, stable boss/objective damage, add/other damage, boss share and per-skill boss/objective contribution.
+- **Damage:** total damage, stable boss/objective damage, add/other damage, boss share and per-skill boss/objective contribution. Skill rows also show Hits, Crit %, Lucky %, Avg, Min and Max.
 - **Healing:** total/effective healing, overheal, healing efficiency and per-skill effective/overheal breakdown. Effective healing uses the game's observed HP modification when available rather than estimating from an arbitrary snapshot.
 - **Taken:** incoming HP damage and direct shield/absorbed events grouped by source and skill, with DTPS, absorb rate, biggest hits and direct Block %. Direct `Absorbed` events are tracked separately; mixed shield+HP hits are not guessed without sufficient shield-state data.
 - **Buffs:** named player-buff uptime and activation counts from observed apply/remove/expiry events.
 - **Deaths:** up to the latest eight deaths with the preceding 10 seconds of incoming damage and effective healing, a last-5-second summary, and the final recorded damage before ActorState death marked as `LAST HIT`.
 
-Older v1.9/v1.10 history remains readable; new analysis fields are additive and default safely when absent.
+Older v1.9-v1.11 history remains readable; new analysis fields are additive and default safely when absent. The Entity Inspector is also clamped to the visible screen instead of blindly opening to the right of the meter.
 
 When **Active + encounter rates** is enabled, rows show both values:
 
 - **Active rate (A)** reduces the effect of a player's late start and long per-player downtime.
 - **Encounter rate (E)** divides the total by the full encounter duration.
 
-DPS Meter Settings also provides contributor-only filtering, party-only filtering, always-show-self behavior, and Auto / 5 / 10 / 20 / 30 / 50 row caps.
+DPS Meter Settings also provides contributor-only filtering, party-only filtering, always-show-self behavior, and Auto / 5 / 10 / 20 / 30 / 50 row caps. Full party roster snapshots replace stale cached membership so the Party-only filter does not retain players from an older roster.
 
 ## Combat segmentation
 
