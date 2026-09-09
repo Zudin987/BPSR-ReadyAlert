@@ -2,8 +2,7 @@ use crate::{logging, paths::AppPaths};
 use serde::{Deserialize, Serialize};
 use std::{fs, io};
 
-// EntityAttr identifiers. The character sheet exposes separate rating and
-// percentage attributes; do not format the raw ratings as percentages.
+// Legacy/internal attributes still used outside the Mechanics stat picker.
 pub const ATTR_DEFENSE_POWER: i32 = 0x0033;
 pub const ATTR_BASE_STRENGTH: i32 = 0x0046;
 pub const ATTR_ENDURANCE: i32 = 0x0067;
@@ -15,7 +14,7 @@ pub const ATTR_LEVEL: i32 = 0x2710;
 pub const ATTR_FIGHT_POINT: i32 = 0x272e;
 pub const ATTR_RANK_LEVEL: i32 = 0x274c;
 
-// Raw character-sheet ratings (ZDPS EnumEAttrType: 11110..11150).
+// Legacy raw ratings kept for compatibility with old history/settings data.
 pub const ATTR_CRIT_RATING: i32 = 0x2b66;
 pub const ATTR_HASTE_RATING: i32 = 0x2b70;
 pub const ATTR_LUCK_RATING: i32 = 0x2b7a;
@@ -32,68 +31,67 @@ pub const ATTR_MAX_ENERGY: i32 = 0x2c43;
 pub const ATTR_ENERGY_REGEN: i32 = 0x2c46;
 pub const ATTR_SEASON_STRENGTH: i32 = 0x2cb0;
 
-// Actual character-panel percentages. ZDPS reads these values and displays
-// value / 100, e.g. 4816 => 48.16%.
-pub const ATTR_CRIT: i32 = 0x2dbe;
-pub const ATTR_SKILL_CD: i32 = 0x2de6;
-pub const ATTR_SKILL_CD_PCT: i32 = 0x2df0;
-pub const ATTR_LUCKY: i32 = 0x2e04;
-pub const ATTR_HASTE: i32 = 0x2e9a;
-pub const ATTR_MASTERY: i32 = 0x2ea4;
-pub const ATTR_VERSATILITY: i32 = 0x2eae;
-pub const ATTR_CD_ACCELERATE_PCT: i32 = 0x2eb8;
+// CN Resonance Logs panel attributes. Percent values are hundredths of one
+// percent on the wire (e.g. 4_130 => 41.30%). Keep these ids aligned with
+// `game.panelAttr.*` / DEFAULT_ATTRIBUTE_DISPLAYS in resonance-logs-cn.
+pub const ATTR_PANEL_STRENGTH: i32 = 11_010;
+pub const ATTR_PANEL_INTELLIGENCE: i32 = 11_020;
+pub const ATTR_PANEL_AGILITY: i32 = 11_030;
+pub const ATTR_PANEL_PHYSICAL_ATTACK: i32 = 11_330;
+pub const ATTR_PANEL_MAGIC_ATTACK: i32 = 11_340;
+pub const ATTR_PANEL_PHYSICAL_DEFENSE: i32 = 11_350;
+pub const ATTR_CRIT: i32 = 11_710;
+pub const ATTR_ATTACK_SPEED: i32 = 11_720;
+pub const ATTR_CAST_SPEED: i32 = 11_730;
+pub const ATTR_COOLDOWN_REDUCTION: i32 = 11_760;
+pub const ATTR_LUCKY: i32 = 11_780;
+pub const ATTR_SHIELD_STRENGTH: i32 = 11_810;
+pub const ATTR_HASTE: i32 = 11_930;
+pub const ATTR_MASTERY: i32 = 11_940;
+pub const ATTR_VERSATILITY: i32 = 11_950;
+pub const ATTR_CD_ACCELERATE_PCT: i32 = 11_960;
+pub const ATTR_BLOCK: i32 = 11_970;
+pub const ATTR_CRITICAL_DAMAGE: i32 = 12_510;
+pub const ATTR_LUCKY_DAMAGE_MULTIPLIER: i32 = 12_530;
+pub const ATTR_BLOCK_DAMAGE_REDUCTION: i32 = 12_540;
 
-pub const ATTR_PHYSICAL_PENETRATION: i32 = 0x2dc8;
-pub const ATTR_MAGIC_PENETRATION: i32 = 0x2dd2;
+// Compatibility aliases for older internal names/settings. These ids were
+// previously labelled as penetration/CD fields but are the CN panel attrs above.
+pub const ATTR_SKILL_CD: i32 = 0x2de6;
+pub const ATTR_SKILL_CD_PCT: i32 = ATTR_COOLDOWN_REDUCTION;
+pub const ATTR_PHYSICAL_PENETRATION: i32 = ATTR_ATTACK_SPEED;
+pub const ATTR_MAGIC_PENETRATION: i32 = ATTR_CAST_SPEED;
 pub const ATTR_ELEMENTAL_RES_1: i32 = 0x3372;
 pub const ATTR_ELEMENTAL_RES_2: i32 = 0x3373;
 pub const ATTR_ELEMENTAL_RES_3: i32 = 0x3374;
-
-// Compatibility aliases for v1.7 settings and old internal names.
 pub const ATTR_LUCK: i32 = ATTR_LUCKY;
 pub const ATTR_ILLUSION_BREAK: i32 = ATTR_SEASON_STRENGTH;
 pub const ATTR_HEALING_MASTERY: i32 = 11_442;
 pub const ATTR_ACCURACY: i32 = 11_447;
 
-/// Full compact catalog exposed by Dungeon Mechanics. Users may select at most six.
+/// Exact Dungeon Mechanics stat picker requested for v1.16.4. Users may select
+/// at most six for the compact overlay header.
 pub const ATTRIBUTE_CATALOG: &[(i32, &str)] = &[
-    (ATTR_CRIT, "Crit %"),
-    (ATTR_LUCKY, "Lucky %"),
-    (ATTR_HASTE, "Haste %"),
-    (ATTR_MASTERY, "Mastery %"),
-    (ATTR_VERSATILITY, "Versatility %"),
-    (ATTR_CRIT_RATING, "Crit Rating"),
-    (ATTR_LUCK_RATING, "Luck Rating"),
-    (ATTR_HASTE_RATING, "Haste Rating"),
-    (ATTR_MASTERY_RATING, "Mastery Rating"),
-    (ATTR_VERSATILITY_RATING, "Versatility Rating"),
-    (ATTR_FIGHT_POINT, "Ability Score"),
-    (ATTR_SEASON_STRENGTH, "Illusion Break"),
-    (ATTR_CURRENT_HP, "HP"),
-    (ATTR_MAX_HP, "Max HP"),
-    (ATTR_LEVEL, "Level"),
-    (ATTR_RANK_LEVEL, "Rank"),
-    (ATTR_TOTAL_POWER, "Total Power"),
-    (ATTR_PHYSICAL_ATTACK, "Physical ATK"),
-    (ATTR_MAGIC_ATTACK, "Magic ATK"),
-    (ATTR_DEFENSE_POWER, "Defense"),
-    (ATTR_BASE_STRENGTH, "Base Strength"),
-    (ATTR_ENDURANCE, "Endurance"),
-    (ATTR_MAX_MP, "Max MP"),
-    (ATTR_STAMINA, "Stamina"),
-    (ATTR_CURRENT_SHIELD, "Shield"),
-    (ATTR_MIN_ENERGY, "Min Energy"),
-    (ATTR_MAX_ENERGY, "Max Energy"),
-    (ATTR_ENERGY_REGEN, "Energy Regen"),
-    (ATTR_PHYSICAL_PENETRATION, "Physical Pen"),
-    (ATTR_MAGIC_PENETRATION, "Magic Pen"),
-    (ATTR_SKILL_CD, "Skill CD"),
-    (ATTR_SKILL_CD_PCT, "Skill CD %"),
-    (ATTR_CD_ACCELERATE_PCT, "CD Accel %"),
-    (ATTR_MOVEMENT_SPEED, "Move Speed"),
-    (ATTR_ELEMENTAL_RES_1, "Element Res 1"),
-    (ATTR_ELEMENTAL_RES_2, "Element Res 2"),
-    (ATTR_ELEMENTAL_RES_3, "Element Res 3"),
+    (ATTR_VERSATILITY, "Versatility"),
+    (ATTR_CAST_SPEED, "Cast Speed"),
+    (ATTR_LUCKY, "Luck"),
+    (ATTR_LUCKY_DAMAGE_MULTIPLIER, "Lucky Damage Multiplier"),
+    (ATTR_CRITICAL_DAMAGE, "Critical Damage"),
+    (ATTR_CRIT, "Crit Rate"),
+    (ATTR_ATTACK_SPEED, "Attack Speed"),
+    (ATTR_HASTE, "Haste"),
+    (ATTR_MASTERY, "Mastery"),
+    (ATTR_PANEL_STRENGTH, "Strength"),
+    (ATTR_PANEL_INTELLIGENCE, "Intelligence"),
+    (ATTR_PANEL_AGILITY, "Agility"),
+    (ATTR_PANEL_PHYSICAL_ATTACK, "Physical Attack"),
+    (ATTR_PANEL_MAGIC_ATTACK, "Magic Attack"),
+    (ATTR_BLOCK, "Block"),
+    (ATTR_PANEL_PHYSICAL_DEFENSE, "Physical Defense"),
+    (ATTR_SHIELD_STRENGTH, "Shield Strength"),
+    (ATTR_BLOCK_DAMAGE_REDUCTION, "Block Damage Reduction"),
+    (ATTR_COOLDOWN_REDUCTION, "Cooldown Reduction"),
+    (ATTR_CD_ACCELERATE_PCT, "Cooldown Acceleration"),
 ];
 
 pub fn tracked_attr_ids() -> impl Iterator<Item = i32> {
@@ -107,24 +105,61 @@ pub fn is_trackable_attr(id: i32) -> bool {
 pub const fn attr_is_percent(id: i32) -> bool {
     matches!(
         id,
-        ATTR_CRIT
+        ATTR_VERSATILITY
+            | ATTR_CAST_SPEED
             | ATTR_LUCKY
+            | ATTR_LUCKY_DAMAGE_MULTIPLIER
+            | ATTR_CRITICAL_DAMAGE
+            | ATTR_CRIT
+            | ATTR_ATTACK_SPEED
             | ATTR_HASTE
             | ATTR_MASTERY
-            | ATTR_VERSATILITY
-            | ATTR_SKILL_CD_PCT
+            | ATTR_BLOCK
+            | ATTR_SHIELD_STRENGTH
+            | ATTR_BLOCK_DAMAGE_REDUCTION
+            | ATTR_COOLDOWN_REDUCTION
             | ATTR_CD_ACCELERATE_PCT
     )
 }
 
+pub const fn attr_is_panel_integer(id: i32) -> bool {
+    matches!(
+        id,
+        ATTR_PANEL_STRENGTH
+            | ATTR_PANEL_INTELLIGENCE
+            | ATTR_PANEL_AGILITY
+            | ATTR_PANEL_PHYSICAL_ATTACK
+            | ATTR_PANEL_MAGIC_ATTACK
+            | ATTR_PANEL_PHYSICAL_DEFENSE
+    )
+}
+
+fn integer_with_commas(value: i64) -> String {
+    let negative = value < 0;
+    let digits = value.unsigned_abs().to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3 + (if negative { 1 } else { 0 }));
+    if negative { out.push('-'); }
+    let first = digits.len() % 3;
+    if first != 0 {
+        out.push_str(&digits[..first]);
+        if digits.len() > first { out.push(','); }
+    }
+    for (index, chunk) in digits[first..].as_bytes().chunks(3).enumerate() {
+        if index > 0 { out.push(','); }
+        out.push_str(std::str::from_utf8(chunk).unwrap_or(""));
+    }
+    out
+}
+
 pub fn format_attr_value(id: i32, value: i64) -> String {
     if attr_is_percent(id) {
-        let percent = value as f64 / 100.0;
-        let mut text = format!("{percent:.2}");
-        while text.contains('.') && text.ends_with('0') { text.pop(); }
-        if text.ends_with('.') { text.pop(); }
-        return format!("{text}%");
+        return format!("{:.2}%", value as f64 / 100.0);
     }
+    if attr_is_panel_integer(id) {
+        return integer_with_commas(value);
+    }
+    // Preserve compact legacy formatting for non-picker attributes used by the
+    // entity inspector/history paths.
     let abs = value.unsigned_abs();
     if abs >= 1_000_000 {
         format!("{:.2}M", value as f64 / 1_000_000.0)
@@ -308,16 +343,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn panel_rate_attributes_use_hundredths_of_a_percent() {
-        assert_eq!(format_attr_value(ATTR_LUCKY, 4_816), "48.16%");
-        assert_eq!(format_attr_value(ATTR_HASTE, 4_167), "41.67%");
-        assert_eq!(format_attr_value(ATTR_MASTERY, 564), "5.64%");
+    fn cn_panel_catalog_matches_requested_v1164_stats() {
+        let ids: Vec<i32> = ATTRIBUTE_CATALOG.iter().map(|(id, _)| *id).collect();
+        assert_eq!(ids, vec![
+            11_950, 11_730, 11_780, 12_530, 12_510, 11_710, 11_720, 11_930, 11_940,
+            11_010, 11_020, 11_030, 11_330, 11_340, 11_970, 11_350, 11_810, 12_540,
+            11_760, 11_960,
+        ]);
     }
 
     #[test]
-    fn raw_ratings_are_not_mislabelled_as_percentages() {
-        assert_eq!(format_attr_value(ATTR_CRIT_RATING, 4_816), "4816");
-        assert_eq!(format_attr_value(ATTR_HASTE_RATING, 3_250), "3250");
+    fn panel_percent_attributes_use_hundredths_and_keep_two_decimals() {
+        assert_eq!(format_attr_value(ATTR_VERSATILITY, 2_226), "22.26%");
+        assert_eq!(format_attr_value(ATTR_CAST_SPEED, 4_130), "41.30%");
+        assert_eq!(format_attr_value(ATTR_CRITICAL_DAMAGE, 5_000), "50.00%");
+        assert_eq!(format_attr_value(ATTR_LUCKY_DAMAGE_MULTIPLIER, 17_243), "172.43%");
+        assert_eq!(format_attr_value(ATTR_BLOCK, 0), "0.00%");
+    }
+
+    #[test]
+    fn panel_integer_attributes_are_raw_with_grouping() {
+        assert_eq!(format_attr_value(ATTR_PANEL_STRENGTH, 622), "622");
+        assert_eq!(format_attr_value(ATTR_PANEL_INTELLIGENCE, 5_804), "5,804");
+        assert_eq!(format_attr_value(ATTR_PANEL_MAGIC_ATTACK, 4_102), "4,102");
+        assert_eq!(format_attr_value(ATTR_PANEL_PHYSICAL_DEFENSE, 2_866), "2,866");
     }
 
     #[test]
@@ -347,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn non_rate_attributes_keep_compact_numeric_format() {
+    fn legacy_non_picker_attributes_keep_compact_numeric_format() {
         assert_eq!(format_attr_value(ATTR_CURRENT_HP, 247_900), "247.9K");
         assert_eq!(format_attr_value(ATTR_FIGHT_POINT, 58_404), "58404");
     }
