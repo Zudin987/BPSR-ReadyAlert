@@ -36,6 +36,7 @@ mod feature_overlays {
     }
 }
 mod game_filter;
+mod history;
 mod logging;
 #[path = "model_v170.rs"]
 mod model;
@@ -50,7 +51,7 @@ mod settings_cleanup_v160;
 mod settings_repaint_hotfix;
 #[path = "settings_ui_v181.rs"]
 mod settings_ui;
-#[path = "telemetry_v181.rs"]
+#[path = "telemetry_v190.rs"]
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
@@ -144,6 +145,7 @@ fn smoke_test() -> Result<(), String> {
     if features.mechanic_attributes.tracked != vec![feature_settings::ATTR_CRIT, feature_settings::ATTR_LUCK, feature_settings::ATTR_HASTE, feature_settings::ATTR_MASTERY] { return Err("mechanic tracked-attribute defaults failed".into()); }
     if feature_settings::format_attr_value(feature_settings::ATTR_LUCK, 4_816) != "48.16%" { return Err("mechanic percentage formatting failed".into()); }
     if features.dps.opacity < 25 || features.mechanics.opacity < 25 { return Err("feature opacity normalization failed".into()); }
+    if !features.meter.show_active_rates || !features.meter.always_show_self || features.meter.history_limit < 10 { return Err("v1.9 meter defaults failed".into()); }
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
     Ok(())
