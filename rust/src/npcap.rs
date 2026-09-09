@@ -46,6 +46,25 @@ struct BpfProgram {
     bf_insns: *mut c_void,
 }
 
+/// libpcap/Npcap pcap_stat. Windows exposes ps_capt as a fourth field; keeping
+/// it in the layout makes the structure safe for both Npcap and libpcap builds.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+struct PcapStat {
+    ps_recv: u32,
+    ps_drop: u32,
+    ps_ifdrop: u32,
+    ps_capt: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CaptureStats {
+    pub received: u32,
+    pub dropped: u32,
+    pub interface_dropped: u32,
+    pub captured: u32,
+}
+
 type PcapCreate = unsafe extern "C" fn(*const c_char, *mut c_char) -> *mut c_void;
 type PcapActivate = unsafe extern "C" fn(*mut c_void) -> c_int;
 type PcapSetInt = unsafe extern "C" fn(*mut c_void, c_int) -> c_int;
@@ -60,6 +79,7 @@ type PcapFreeCode = unsafe extern "C" fn(*mut BpfProgram);
 type PcapFindAllDevs = unsafe extern "C" fn(*mut *mut PcapIf, *mut c_char) -> c_int;
 type PcapFreeAllDevs = unsafe extern "C" fn(*mut PcapIf);
 type PcapLibVersion = unsafe extern "C" fn() -> *const c_char;
+type PcapStats = unsafe extern "C" fn(*mut c_void, *mut PcapStat) -> c_int;
 
 pub struct PcapApi {
     _lib: Library,
@@ -80,6 +100,7 @@ pub struct PcapApi {
     findalldevs: PcapFindAllDevs,
     freealldevs: PcapFreeAllDevs,
     lib_version: Option<PcapLibVersion>,
+    stats: Option<PcapStats>,
 }
 
 unsafe impl Send for PcapApi {}
@@ -133,12 +154,13 @@ impl PcapApi {
                 let freealldevs = req!("pcap_freealldevs", PcapFreeAllDevs);
                 let set_immediate = lib.get::<PcapSetImmediate>(b"pcap_set_immediate_mode\0").ok().map(|x| *x);
                 let lib_version = lib.get::<PcapLibVersion>(b"pcap_lib_version\0").ok().map(|x| *x);
+                let stats = lib.get::<PcapStats>(b"pcap_stats\0").ok().map(|x| *x);
                 logging::write(format!("npcap: loaded {}", path.display()));
                 return Ok(Arc::new(Self {
                     _lib: lib,
                     create, activate, set_snaplen, set_promisc, set_timeout, set_buffer_size,
                     set_immediate, datalink, next_ex, close, geterr, compile, setfilter,
-                    freecode, findalldevs, freealldevs, lib_version,
+                    freecode, findalldevs, freealldevs, lib_version, stats,
                 }));
             }
         }
@@ -205,7 +227,9 @@ impl CaptureHandle {
             check(&api, handle, unsafe { (api.set_snaplen)(handle, 65_536) }, "pcap_set_snaplen")?;
             check(&api, handle, unsafe { (api.set_promisc)(handle, 1) }, "pcap_set_promisc")?;
             check(&api, handle, unsafe { (api.set_timeout)(handle, 1) }, "pcap_set_timeout")?;
-            check(&api, handle, unsafe { (api.set_buffer_size)(handle, 16 * 1024 * 1024) }, "pcap_set_buffer_size")?;
+            // Give bursty Master Dungeon traffic more kernel-side headroom. This
+            // is memory reserved for Npcap, not a per-packet allocation.
+            check(&api, handle, unsafe { (api.set_buffer_size)(handle, 32 * 1024 * 1024) }, "pcap_set_buffer_size")?;
             if let Some(set_immediate) = api.set_immediate {
                 let code = unsafe { set_immediate(handle, 1) };
                 if code != 0 { logging::write(format!("npcap: immediate mode unavailable code={code}; using 1ms timeout")); }
@@ -249,6 +273,23 @@ impl CaptureHandle {
             -1 => Err(format!("pcap_next_ex failed: {}", self.api.error(self.handle))),
             other => Err(format!("unexpected pcap_next_ex result {other}")),
         }
+    }
+
+    /// Returns kernel/interface capture counters when the installed Npcap build
+    /// exports pcap_stats. Older/alternate libpcap builds simply return None.
+    pub fn stats(&self) -> Option<CaptureStats> {
+        let stats = self.api.stats?;
+        let mut raw = PcapStat::default();
+        let code = unsafe { stats(self.handle, &mut raw) };
+        if code != 0 {
+            return None;
+        }
+        Some(CaptureStats {
+            received: raw.ps_recv,
+            dropped: raw.ps_drop,
+            interface_dropped: raw.ps_ifdrop,
+            captured: raw.ps_capt,
+        })
     }
 }
 
