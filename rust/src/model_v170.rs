@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AlertKind {
     Queue,
@@ -59,7 +61,8 @@ pub struct PlayerIdentity {
     pub uid: i64,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ImagineBadge {
     /// Resonance/Battle Imagine skill id resolved from the summon registry.
     pub skill_id: i32,
@@ -69,7 +72,8 @@ pub struct ImagineBadge {
     pub icon_key: String,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SkillBreakdown {
     pub skill_id: i32,
     pub name: String,
@@ -81,7 +85,8 @@ pub struct SkillBreakdown {
     pub max_value: i64,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DpsRow {
     pub actor_uuid: i64,
     pub uid: i64,
@@ -96,7 +101,12 @@ pub struct DpsRow {
     pub damage: i64,
     pub healing: i64,
     pub damage_taken: i64,
+    /// Encounter DPS: total damage divided by the whole encounter duration.
     pub dps: f64,
+    /// Active rates exclude long per-entity downtime and late starts.
+    pub active_dps: f64,
+    pub active_hps: f64,
+    pub active_dtps: f64,
     pub damage_share: f64,
     pub healing_share: f64,
     pub tank_share: f64,
@@ -110,6 +120,8 @@ pub struct DpsRow {
     pub revive_blocked_until_ms: i64,
     /// True only for the character owned by this ReadyAlert process.
     pub is_local: bool,
+    /// True when the player is known to belong to the current local party.
+    pub is_party: bool,
     /// Current-scene attributes that can be safely shown by the inspector.
     pub attributes: Vec<TrackedAttribute>,
     pub imagines: Vec<ImagineBadge>,
@@ -119,7 +131,8 @@ pub struct DpsRow {
     pub taken_skills: Vec<SkillBreakdown>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TargetSnapshot {
     pub entity_uuid: i64,
     pub name: String,
@@ -129,7 +142,8 @@ pub struct TargetSnapshot {
     pub enrage_remaining_ms: Option<i64>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DpsSnapshot {
     pub encounter_ms: u64,
     pub total_damage: i64,
@@ -139,7 +153,8 @@ pub struct DpsSnapshot {
     pub rows: Vec<DpsRow>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TrackedAttribute {
     pub attr_id: i32,
     pub label: String,
