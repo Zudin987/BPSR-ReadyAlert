@@ -1,0 +1,9 @@
+fn active_consumable(status:Option<&ConsumableStatus>,now:i64)->Option<&ConsumableStatus>{status.filter(|s|s.expires_unix_ms<=0||s.expires_unix_ms>now)}
+fn consumable_remaining_text(status:&ConsumableStatus,now:i64)->String{if status.expires_unix_ms<=0{"ACTIVE".into()}else{format!("{} left",format_countdown(status.expires_unix_ms.saturating_sub(now).max(0)as u64))}}
+unsafe fn paint_consumable_ring(hdc:HDC,x:i32,y:i32,label:&str,status:&ConsumableStatus,now:i64){
+    let d=DPS_CONSUMABLE_ICON;let right=x+d;let bottom=y+d;let cx=x+d/2;let cy=y+d/2;
+    let bg=CreateSolidBrush(rgb(24,29,35));let track=CreatePen(PS_SOLID,2,rgb(92,99,108));let old_brush=SelectObject(hdc,bg);let old_pen=SelectObject(hdc,track);Ellipse(hdc,x,y,right,bottom);SelectObject(hdc,old_pen);SelectObject(hdc,old_brush);DeleteObject(track);DeleteObject(bg);
+    let fraction=if status.expires_unix_ms<=0||status.duration_ms<=0{1.0}else{(status.expires_unix_ms.saturating_sub(now).max(0)as f64/status.duration_ms.max(1)as f64).clamp(0.0,1.0)};
+    if fraction>0.002{let pen=CreatePen(PS_SOLID,2,rgb(255,0,0));let old=SelectObject(hdc,pen);if fraction>=0.995{let brush=SelectObject(hdc,GetStockObject(NULL_BRUSH));Ellipse(hdc,x,y,right,bottom);SelectObject(hdc,brush);}else{let old_dir=SetArcDirection(hdc,AD_CLOCKWISE);let radius=(d/2-1).max(1)as f64;let angle=-std::f64::consts::FRAC_PI_2+fraction*std::f64::consts::TAU;let sx=cx;let sy=y+1;let ex=cx+(angle.cos()*radius).round()as i32;let ey=cy+(angle.sin()*radius).round()as i32;GdiArc(hdc,x,y,right,bottom,sx,sy,ex,ey);SetArcDirection(hdc,old_dir);}SelectObject(hdc,old);DeleteObject(pen);}
+    SelectObject(hdc,GetStockObject(DEFAULT_GUI_FONT));SetTextColor(hdc,rgb(248,248,248));draw(hdc,label,RECT{left:x,top:y,right,bottom},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+}
