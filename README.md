@@ -10,6 +10,8 @@ Lightweight native Windows companion for **Blue Protocol: Star Resonance**, writ
 - Local combat history with previous-fight browsing and historical Entity Inspector data.
 - Active and Encounter DPS/HPS/DTPS, plus contributor/party filters and configurable row limits.
 - Per-player Entity Inspector with skill damage/healing/taken breakdowns.
+- Combat Analysis: boss/objective damage split, effective healing/overheal, buff uptime, source-to-skill Tank analysis and 10-second death recaps.
+- Direct character-sheet Block % in Tank analysis; ReadyAlert does not invent unsupported Lucky Block statistics.
 - Battle Imagine detection with game icons and tiers.
 - Dungeon Mechanics overlay with food/serum timers, tracked buffs and character attributes.
 - ActorState-based death tracking and conservative party-wipe detection.
@@ -32,11 +34,21 @@ ReadyAlert uses one shared Npcap capture path. It does **not** inject into BPSR,
 
 The Dungeon Mechanics title shows capture health. If it reports stale frames or no recent game packets while you are actively playing, re-check the selected Npcap adapter before trusting combat totals.
 
-## Combat history and meter rates
+## Combat history and analysis
 
 Completed/reset encounters are stored **locally** under ReadyAlert's app-data `History` folder as compressed, schema-versioned files. History is never uploaded or synchronized to a web service. The number of retained encounters can be configured in DPS Meter Settings.
 
 Use the DPS meter's `<`, `LIVE`, and `>` controls to move between older fights, the current live encounter, and newer saved fights. Clicking a player name while viewing history opens the Entity Inspector using that saved encounter state.
+
+The Entity Inspector provides five analysis tabs:
+
+- **Damage:** total damage, stable boss/objective damage, add/other damage, boss share and skill distribution.
+- **Healing:** total/effective healing, overheal, healing efficiency and per-skill breakdown. Effective healing uses the game's observed HP modification when available rather than estimating from an arbitrary snapshot.
+- **Taken:** incoming damage grouped by source and skill, DTPS, biggest hit and direct Block %.
+- **Buffs:** named player-buff uptime and activation counts from observed apply/remove/expiry events.
+- **Deaths:** up to the latest eight deaths with the preceding 10 seconds of incoming damage and effective healing.
+
+Older v1.9 history remains readable; new analysis fields are additive and default safely when absent.
 
 When **Active + encounter rates** is enabled, rows show both values:
 
@@ -53,7 +65,7 @@ The displayed target is also stabilized so a low-HP add does not constantly repl
 
 ## Data and attribution
 
-Some protocol identifiers, English skill names and game-asset mappings are derived from community projects and/or game data. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution and pinned upstream sources.
+Some protocol identifiers, English skill/buff names and game-asset mappings are derived from community projects and/or game data. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution and pinned upstream sources.
 
 ## Build
 
