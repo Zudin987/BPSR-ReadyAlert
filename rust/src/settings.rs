@@ -104,7 +104,7 @@ impl Default for ChatOverlaySettings {
             show_zebra_stripes: true,
             show_color_band: true,
             click_through: false,
-            click_through_hotkey: "Ctrl+Shift+F10".into(),
+            click_through_hotkey: crate::hotkeys::CHAT_RECOVERY.into(),
             collapse_hotkey: String::new(),
             collapse_side: "Left".into(),
             highlight_if_matches: String::new(),
@@ -143,7 +143,8 @@ impl ChatOverlaySettings {
         self.font_family = clamp_text(&self.font_family, "Segoe UI", 100);
         if !self.font_size.is_finite() { self.font_size = 12.0; }
         self.font_size = self.font_size.clamp(8.0, 24.0);
-        self.click_through_hotkey = clamp_text(&self.click_through_hotkey, "Ctrl+Shift+F10", 80);
+        self.click_through_hotkey = clamp_text(&self.click_through_hotkey, crate::hotkeys::CHAT_RECOVERY, 80);
+        if crate::hotkeys::is_combat(&self.click_through_hotkey) || crate::hotkeys::parse(&self.click_through_hotkey).is_none() { self.click_through_hotkey = crate::hotkeys::CHAT_RECOVERY.into(); }
         self.collapse_hotkey.clear();
         if !matches!(self.collapse_side.to_ascii_lowercase().as_str(), "left" | "right" | "top" | "bottom") {
             self.collapse_side = "Left".into();
