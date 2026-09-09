@@ -10,6 +10,20 @@ pub use legacy::{
     SpeechSettings,
 };
 
+const RESERVED_COMBAT_HOTKEY: &str = "Ctrl+Shift+F10";
+const CHAT_RECOVERY_HOTKEY_V114: &str = "Ctrl+Shift+F9";
+
+fn normalize_v1140(settings: &mut AppSettings) {
+    settings.normalize();
+    // v1.13 reserved Ctrl+Shift+F10 for the global DPS + Mechanics toggle.
+    // Older Chat defaults used the same chord for click-through recovery, which
+    // makes RegisterHotKey nondeterministic. Migrate that exact old/default chord
+    // and keep it reserved on future saves.
+    if settings.chat.click_through_hotkey.trim().eq_ignore_ascii_case(RESERVED_COMBAT_HOTKEY) {
+        settings.chat.click_through_hotkey = CHAT_RECOVERY_HOTKEY_V114.into();
+    }
+}
+
 pub fn load(paths: &AppPaths) -> AppSettings {
     let primary = &paths.settings;
     let backup = paths.settings.with_extension("json.bak");
@@ -23,7 +37,7 @@ pub fn load(paths: &AppPaths) -> AppSettings {
         let Ok(text) = fs::read_to_string(candidate) else { continue; };
         match serde_json::from_str::<AppSettings>(&text) {
             Ok(mut settings) => {
-                settings.normalize();
+                normalize_v1140(&mut settings);
                 if label != "primary" {
                     logging::write(format!("settings: recovered from {label}"));
                     if let Err(err) = save(paths, &settings) {
@@ -40,7 +54,7 @@ pub fn load(paths: &AppPaths) -> AppSettings {
     }
 
     let mut settings = AppSettings::default();
-    settings.normalize();
+    normalize_v1140(&mut settings);
     if let Err(err) = save(paths, &settings) {
         logging::write(format!("settings: default save failed: {err}"));
     }
@@ -49,7 +63,7 @@ pub fn load(paths: &AppPaths) -> AppSettings {
 
 pub fn save(paths: &AppPaths, settings: &AppSettings) -> io::Result<()> {
     let mut normalized = settings.clone();
-    normalized.normalize();
+    normalize_v1140(&mut normalized);
 
     let primary = &paths.settings;
     let backup = paths.settings.with_extension("json.bak");
@@ -107,10 +121,19 @@ mod tests {
     #[test]
     fn defaults_remain_compatible() {
         let mut settings = AppSettings::default();
-        settings.normalize();
+        normalize_v1140(&mut settings);
         assert!(settings.chat_overlay_enabled);
         assert_eq!(settings.chat.tabs.len(), 4);
         assert_eq!(settings.chat.local_chat_log_retention_hours, 168);
+        assert_eq!(settings.chat.click_through_hotkey, CHAT_RECOVERY_HOTKEY_V114);
+    }
+
+    #[test]
+    fn old_chat_recovery_hotkey_is_migrated_away_from_combat_toggle() {
+        let mut settings = AppSettings::default();
+        settings.chat.click_through_hotkey = "ctrl+shift+f10".into();
+        normalize_v1140(&mut settings);
+        assert_eq!(settings.chat.click_through_hotkey, "Ctrl+Shift+F9");
     }
 
     #[test]
@@ -120,7 +143,7 @@ mod tests {
 
         let mut known_good = AppSettings::default();
         known_good.alert_volume = 37;
-        known_good.normalize();
+        normalize_v1140(&mut known_good);
         fs::write(
             &backup,
             serde_json::to_vec_pretty(&known_good).expect("serialize known-good backup"),
