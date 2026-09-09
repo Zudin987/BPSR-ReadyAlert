@@ -45,6 +45,7 @@ unsafe fn paint_detail_skills(hdc:HDC,rc:RECT,state:&DetailState){
             let crit=if skill.hits>0{skill.crits as f64*100.0/skill.hits as f64}else{0.0};
             let lucky=if skill.hits>0{skill.lucky_hits as f64*100.0/skill.hits as f64}else{0.0};
             let avg=if skill.hits>0{amount as f64/skill.hits as f64}else{0.0};
+            let min_text=if skill.min_value>0{compact(skill.min_value as f64)}else{"-".into()};
             let(aux,pct)=match state.mode{
                 DetailMode::Damage=>{let boss=skill.boss_damage.min(skill.damage.max(0));(boss,if skill.damage>0{boss as f64*100.0/skill.damage as f64}else{0.0})},
                 DetailMode::Heal=>{let effective=skill.effective_healing.min(skill.healing.max(0));let oh=skill.overhealing.min(skill.healing.saturating_sub(effective).max(0));(effective,if skill.healing>0{oh as f64*100.0/skill.healing as f64}else{0.0})},
@@ -61,7 +62,7 @@ unsafe fn paint_detail_skills(hdc:HDC,rc:RECT,state:&DetailState){
             draw(hdc,&format!("{crit:.1}%"),RECT{left:crit_l,top:y,right:lucky_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             draw(hdc,&format!("{lucky:.1}%"),RECT{left:lucky_l,top:y,right:avg_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             draw(hdc,&compact(avg),RECT{left:avg_l,top:y,right:min_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-            draw(hdc,if skill.min_value>0{&compact(skill.min_value as f64)}else{"-"},RECT{left:min_l,top:y,right:max_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&min_text,RECT{left:min_l,top:y,right:max_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             draw(hdc,&compact(skill.max_value as f64),RECT{left:max_l,top:y,right:share_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             draw(hdc,&format!("{share:.1}%"),RECT{left:share_l,top:y,right,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
         }
