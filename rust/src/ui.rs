@@ -1,14 +1,14 @@
 //! Small native-window helpers shared by forms and custom-drawn overlays.
 //! Coordinates use the application's existing Windows DPI virtualization.
-use std::{ffi::c_void, ptr::{null, null_mut}};
+use std::ptr::{null, null_mut};
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, POINT, RECT, WPARAM},
     Graphics::Gdi::{GetMonitorInfoW, InvalidateRect, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST},
     UI::WindowsAndMessaging::{
         EnumChildWindows, GetAncestor, GetClassNameW, GetClientRect, GetParent, GetScrollInfo,
         GetWindowRect, IsDialogMessageW, IsWindowVisible, MoveWindow, SendMessageW,
-        SetScrollInfo, SetWindowPos, GA_ROOT, MSG, SCROLLINFO, SB_HORZ, SB_VERT,
-        SIF_ALL, SWP_NOACTIVATE, SWP_NOZORDER, WM_CLOSE, WM_HSCROLL, WM_KEYDOWN,
+        SetWindowPos, GA_ROOT, MSG, SCROLLINFO, SB_HORZ, SB_VERT,
+        SIF_ALL, SWP_NOACTIVATE, SWP_NOZORDER, WM_CLOSE, WM_KEYDOWN,
         WM_MOUSEWHEEL, WM_VSCROLL,
     },
 };
@@ -20,6 +20,10 @@ extern "system" {
     pub fn GetKeyState(key: i32) -> i16;
     fn ScreenToClient(hwnd: HWND, point: *mut POINT) -> i32;
     pub fn EnableWindow(hwnd: HWND, enable: i32) -> i32;
+    // windows-sys 0.59 exposes SCROLLINFO/GetScrollInfo but not this user32
+    // declaration. Keep the crate pinned and bind this one stable Win32 call
+    // directly instead of growing the dependency surface.
+    fn SetScrollInfo(hwnd: HWND, bar: i32, info: *const SCROLLINFO, redraw: i32) -> i32;
 }
 
 pub fn fit_rect(request: RECT, work: RECT) -> RECT {
