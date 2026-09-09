@@ -1,0 +1,27 @@
+unsafe fn build_feature_form(hwnd:HWND,state:&mut SettingsState) {
+    feature_label(hwnd,0,if state.kind==Kind::Dps{"READYALERT // METER"}else{"READYALERT // MECHANICS"},18,15,300,24);
+    feature_label(hwnd,7000,"",18,47,155,24);feature_button(hwnd,7001,"−",174,42,40);feature_button(hwnd,7002,"+",220,42,40);
+    feature_label(hwnd,0,"Collapse edge",300,47,110,24);feature_combo(hwnd,7003,414,42,&["Right","Bottom","Left","Top"]);
+    if state.kind==Kind::Dps {
+        feature_label(hwnd,0,"DISPLAY",18,88,180,22);
+        let display=["Damage share %","Healing share %","Tank share %","Death count","Battle Imagine badges","Target / HP summary","Active + encounter rates"];
+        for(i,label)in display.iter().enumerate(){let col=(i/4)as i32;let row=(i%4)as i32;feature_check(hwnd,7100+i as i32,label,18+col*270,114+row*29,255);}
+        feature_label(hwnd,0,"ROSTER & HISTORY",18,244,230,22);
+        let roster=["Only contributors","Party only","Always show self","Remember scroll between encounters"];
+        for(i,label)in roster.iter().enumerate(){let col=(i/2)as i32;let row=(i%2)as i32;feature_check(hwnd,7107+i as i32,label,18+col*270,270+row*29,255);}
+        feature_label(hwnd,0,"Visible rows",18,348,130,24);feature_combo(hwnd,7010,150,343,&["Auto","5","10","20","30","50"]);
+        feature_label(hwnd,7011,"",330,348,160,24);feature_button(hwnd,7012,"−",490,342,40);feature_button(hwnd,7013,"+",536,342,40);
+        feature_label(hwnd,0,"Meter actions live in the top toolbar: history, Reset, Copy, CSV, JSON, Settings, collapse and hide. Core row metrics stay visible before optional badges on narrow layouts.",18,404,548,58);
+        feature_label(hwnd,0,"Changes save immediately.",18,482,260,24);feature_button(hwnd,2,"&Close",460,505,106);
+        state.form.capture(hwnd,580,560);
+    }else{
+        feature_label(hwnd,7020,"",18,92,300,24);feature_button(hwnd,7021,"Event Tracker...",548,84,170);
+        feature_label(hwnd,0,"TRACKED COMBAT ATTRIBUTES",18,128,300,22);
+        let rows=(ATTRIBUTE_CATALOG.len()+2)/3;
+        for(i,(_,label))in ATTRIBUTE_CATALOG.iter().enumerate(){feature_check(hwnd,7200+i as i32,label,18+(i/rows)as i32*240,154+(i%rows)as i32*28,234);}
+        let bottom=154+rows as i32*28;
+        feature_label(hwnd,0,"Select up to 6 attributes. Food, Serum, native mechanics and Custom Event Tracker rows share the same ReadyAlert tactical panel.",18,bottom+12,700,46);
+        feature_button(hwnd,2,"&Close",618,bottom+64,100);state.form.capture(hwnd,740,bottom+108);
+    }
+    refresh_feature_form(hwnd,state);
+}
