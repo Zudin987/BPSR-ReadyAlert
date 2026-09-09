@@ -23,6 +23,8 @@ mod chat {
         false
     }
 }
+mod event_tracker;
+mod event_tracker_ui;
 #[path = "feature_settings_v181.rs"]
 mod feature_settings;
 mod feature_overlays_impl {
@@ -52,7 +54,7 @@ mod settings_repaint_hotfix;
 #[path = "settings_ui_v181.rs"]
 mod settings_ui;
 mod sharing;
-#[path = "telemetry_v1110.rs"]
+#[path = "telemetry_v1140.rs"]
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
@@ -77,6 +79,7 @@ fn main() {
     };
     logging::init(paths.log.clone());
     logging::write(format!("startup: native-rust version={}", env!("CARGO_PKG_VERSION")));
+    event_tracker::init(&paths.root);
 
     let guard = match win::SingleInstance::acquire() {
         Ok(g) => g,
@@ -152,6 +155,10 @@ fn smoke_test() -> Result<(), String> {
     if skill.min_value != 0 { return Err("v1.12 skill min default failed".into()); }
     let share_preview = sharing::encounter_summary(&model::DpsSnapshot::default(), sharing::ViewMode::Damage);
     if !share_preview.contains("No contribution data recorded") { return Err("v1.13 sharing smoke test failed".into()); }
+    let mut tracker = event_tracker::TrackerSettings::default();
+    tracker.max_visible = 99;
+    tracker.normalize();
+    if tracker.max_visible != 12 || !tracker.rules.is_empty() { return Err("v1.14 tracker defaults failed".into()); }
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
     Ok(())
