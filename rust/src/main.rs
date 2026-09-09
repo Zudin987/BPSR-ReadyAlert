@@ -51,6 +51,7 @@ mod settings_cleanup_v160;
 mod settings_repaint_hotfix;
 #[path = "settings_ui_v181.rs"]
 mod settings_ui;
+mod sharing;
 #[path = "telemetry_v1110.rs"]
 mod telemetry;
 #[path = "tray_v160.rs"]
@@ -148,6 +149,9 @@ fn smoke_test() -> Result<(), String> {
     if analysis.boss_damage != 0 || analysis.effective_healing != 0 || analysis.overhealing != 0 || !analysis.death_recaps.is_empty() || !analysis.buff_uptimes.is_empty() { return Err("v1.10 analysis defaults failed".into()); }
     let skill = model::SkillBreakdown::default();
     if analysis.absorbed_damage != 0 || !analysis.absorbed_sources.is_empty() || skill.boss_damage != 0 || skill.effective_healing != 0 || skill.overhealing != 0 { return Err("v1.11 skill-analysis defaults failed".into()); }
+    if skill.min_value != 0 { return Err("v1.12 skill min default failed".into()); }
+    let share_preview = sharing::encounter_summary(&model::DpsSnapshot::default(), sharing::ViewMode::Damage);
+    if !share_preview.contains("No contribution data recorded") { return Err("v1.13 sharing smoke test failed".into()); }
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
     Ok(())
