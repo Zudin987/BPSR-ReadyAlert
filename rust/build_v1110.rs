@@ -31,7 +31,13 @@ fn main(){
         &mut telemetry,
         "                    damage: value.damage,\n                    healing: value.healing,",
         "                    damage: value.damage,\n                    boss_damage: 0,\n                    healing: value.healing,\n                    effective_healing: 0,\n                    overhealing: 0,",
-        "skill analysis defaults",
+        "outgoing skill analysis defaults",
+    );
+    replace_once(
+        &mut telemetry,
+        "                    damage: value.damage,\n                    healing: 0,\n                    hits: value.hits,",
+        "                    damage: value.damage,\n                    boss_damage: 0,\n                    healing: 0,\n                    effective_healing: 0,\n                    overhealing: 0,\n                    hits: value.hits,",
+        "taken skill analysis defaults",
     );
     replace_once(
         &mut telemetry,
