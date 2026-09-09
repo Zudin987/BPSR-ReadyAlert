@@ -45,7 +45,9 @@ pub unsafe fn create(
         }
     }
 
-    legacy::create(instance, settings_arc, main_hwnd, paths)
+    let hwnd=legacy::create(instance, settings_arc, main_hwnd, paths)?;
+    crate::ui::fit_window(hwnd,hwnd,false);
+    Ok(hwnd)
 }
 
 fn recover_chat_bounds(settings: &mut AppSettings) -> bool {

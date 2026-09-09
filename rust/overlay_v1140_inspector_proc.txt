@@ -1,0 +1,37 @@
+unsafe fn sync_detail_scroll(hwnd:HWND,state:&mut DetailState){
+    let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);
+    let page=((rc.bottom-308)/DETAIL_ROW_H).max(1) as usize;
+    state.scroll=state.scroll.min(detail_item_count(state).saturating_sub(page));
+    state.hscroll=state.hscroll.clamp(0,(1100-rc.right).max(0));
+    crate::ui::scrollbar(hwnd,true,detail_item_count(state)as i32,page as i32,state.scroll as i32);
+    crate::ui::scrollbar(hwnd,false,1100.max(rc.right),rc.right,state.hscroll);
+}
+unsafe extern "system" fn detail_wnd_proc(hwnd:HWND,msg:u32,wparam:WPARAM,lparam:LPARAM)->LRESULT{
+    if msg==WM_NCCREATE{let create=lparam as *const CREATESTRUCTW;if !create.is_null(){SetWindowLongPtrW(hwnd,GWLP_USERDATA,(*create).lpCreateParams as isize);}}
+    let ptr=GetWindowLongPtrW(hwnd,GWLP_USERDATA)as *mut DetailState;
+    if ptr.is_null(){return DefWindowProcW(hwnd,msg,wparam,lparam);}
+    let state=&mut *ptr;
+    match msg{
+        WM_ERASEBKGND=>1,
+        0x0024=>{crate::ui::min_window(hwnd,lparam,540,380);0}
+        WM_SIZE=>{sync_detail_scroll(hwnd,state);InvalidateRect(hwnd,null(),0);0}
+        WM_PAINT=>{paint_detail(hwnd,state);0}
+        WM_LBUTTONDOWN=>{
+            crate::ui::SetFocus(hwnd);let x=lo_signed(lparam);let y=hi_signed(lparam);let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);
+            if y<TOOLBAR_H{if x>=rc.right-BUTTON_W{DestroyWindow(hwnd);}else{drag_window(hwnd);}return 0;}
+            if y>=detail_tab_top()&&y<detail_tab_top()+23{state.mode=match x{4..=71=>DetailMode::Damage,76..=146=>DetailMode::Heal,151..=221=>DetailMode::Tank,226..=296=>DetailMode::Buffs,301..=371=>DetailMode::Deaths,_=>state.mode};state.scroll=0;state.hscroll=0;}
+            sync_detail_scroll(hwnd,state);InvalidateRect(hwnd,null(),0);0
+        }
+        WM_MOUSEWHEEL|0x0114|0x0115|0x0100=>{
+            let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);let page=((rc.bottom-308)/DETAIL_ROW_H).max(1);
+            let mut scroll=state.scroll as i32;
+            if msg==WM_MOUSEWHEEL{let delta=(wparam>>16)as u16 as i16;if crate::ui::GetKeyState(0x10)<0{state.hscroll-=i32::from(delta.signum())*80;}else{scroll-=i32::from(delta.signum())*3;}}
+            else if msg==0x0114{state.hscroll=crate::ui::scroll_command(hwnd,false,wparam,state.hscroll,rc.right);}
+            else if msg==0x0115{scroll=crate::ui::scroll_command(hwnd,true,wparam,scroll,page);}
+            else{match wparam{0x1b=>{DestroyWindow(hwnd);return 0;},0x26=>scroll-=1,0x28=>scroll+=1,0x21=>scroll-=page,0x22=>scroll+=page,0x24=>scroll=0,0x23=>scroll=detail_item_count(state)as i32,0x25=>state.hscroll-=80,0x27=>state.hscroll+=80,0x31..=0x35=>{state.mode=[DetailMode::Damage,DetailMode::Heal,DetailMode::Tank,DetailMode::Buffs,DetailMode::Deaths][wparam-0x31];scroll=0;state.hscroll=0;},_=>return DefWindowProcW(hwnd,msg,wparam,lparam)}}
+            state.scroll=scroll.max(0)as usize;sync_detail_scroll(hwnd,state);InvalidateRect(hwnd,null(),0);0
+        }
+        WM_NCDESTROY=>{SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);if !state.font.is_null(){DeleteObject(state.font);}drop(Box::from_raw(ptr));DefWindowProcW(hwnd,msg,wparam,lparam)}
+        _=>DefWindowProcW(hwnd,msg,wparam,lparam)
+    }
+}

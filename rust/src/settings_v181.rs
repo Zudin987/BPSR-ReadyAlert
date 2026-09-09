@@ -19,7 +19,7 @@ fn normalize_v1140(settings: &mut AppSettings) {
     // Older Chat defaults used the same chord for click-through recovery, which
     // makes RegisterHotKey nondeterministic. Migrate that exact old/default chord
     // and keep it reserved on future saves.
-    if settings.chat.click_through_hotkey.trim().eq_ignore_ascii_case(RESERVED_COMBAT_HOTKEY) {
+    if crate::hotkeys::is_combat(&settings.chat.click_through_hotkey) {
         settings.chat.click_through_hotkey = CHAT_RECOVERY_HOTKEY_V114.into();
     }
 }

@@ -97,6 +97,7 @@ impl TelemetryRuntime {
         if service == proto::TEAM_SERVICE {
             self.update_team(method, body);
         }
+        crate::event_tracker::set_party(&self.team_uids);
         self.inner.handle_notify(service, method, body);
         self.forward_inner_events();
     }

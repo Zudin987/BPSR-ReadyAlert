@@ -1,0 +1,50 @@
+
+fn refresh_view_detail(state:&mut State) {
+    unsafe {
+        if state.detail_hwnd.is_null()||IsWindow(state.detail_hwnd)==0{return;}
+        let snapshot=view_snapshot(state);
+        if let Some(row)=snapshot.rows.iter().find(|r|r.uid==state.detail_uid).cloned(){update_detail(state.detail_hwnd,row,snapshot.encounter_ms);}
+        else{DestroyWindow(state.detail_hwnd);state.detail_hwnd=null_mut();state.detail_uid=0;}
+    }
+}
+unsafe fn overlay_key(hwnd:HWND,state:&mut State,key:WPARAM){
+    if state.collapsed {if key==13||key==32{expand_state(hwnd,state);}return;}
+    let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);
+    let(total,page)=if state.kind==Kind::Dps{(meter_rows(state).len(),visible_dps_rows(rc.bottom))}else{let(n,p,_)=mechanics_scroll_metrics(state,rc.bottom);(n,p)};
+    match key {
+        0x26=>state.scroll=state.scroll.saturating_sub(1),0x28=>state.scroll=state.scroll.saturating_add(1),
+        0x21=>state.scroll=state.scroll.saturating_sub(page.max(1)),0x22=>state.scroll=state.scroll.saturating_add(page.max(1)),
+        0x24=>state.scroll=0,0x23=>state.scroll=total,
+        0x31..=0x33 if state.kind==Kind::Dps=>{state.sort_mode=[SortMode::Damage,SortMode::Heal,SortMode::Tank][key-0x31];state.scroll=0;},
+        0x25 if state.kind==Kind::Dps=>history_older(state),0x27 if state.kind==Kind::Dps=>history_newer(state),
+        0x53=>open_feature_settings(hwnd,state),
+        0x1b=>{PostMessageW(state.main_hwnd,0x0111,if state.kind==Kind::Dps{CMD_HIDE_DPS as usize}else{CMD_HIDE_MECHANICS as usize},0);},
+        _=>{}
+    }
+    clamp_scroll(hwnd,state);refresh_view_detail(state);InvalidateRect(hwnd,null(),0);
+}
+unsafe fn overlay_help(hwnd:HWND,state:&State,x:i32,y:i32)->Option<String>{
+    if state.collapsed{return Some("Click, Enter or Space to expand".into());}
+    let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);
+    if y<TOOLBAR_H{
+        return Some(if x>=rc.right-BUTTON_W{"Hide overlay • restore from the tray or Ctrl+Shift+F10".into()}
+            else if x>=rc.right-BUTTON_W*2{"Collapse to screen edge • click the handle to expand".into()}
+            else if x>=rc.right-BUTTON_W*3{"Open overlay settings (S)".into()}
+            else{toolbar_title(state)});
+    }
+    if state.kind==Kind::Dps && y<dps_rows_top(){
+        return Some(match x{8..=218=>"Damage / Heal / Tank • keyboard 1 / 2 / 3",225..=298=>"Reset live encounter; the previous fight is saved in history",304..=432=>"Older / LIVE / Newer encounter • Left / Right arrow keys",438..=491=>"Copy the selected encounter summary to the clipboard",496..=593=>"Save the selected encounter in the ReadyAlert exports folder",_=>"Click a player row for the Entity Inspector"}.into());
+    }
+    if state.kind==Kind::Dps {
+        if hover_badge_at(hwnd,state,x,y).is_some(){return None;}
+        if let Some(row)=dps_row_at(hwnd,state,y){return Some(format!("{} • UID {} • Click row to inspect",dps_identity(&row),row.uid));}
+    } else {
+        let (_,_,top)=mechanics_scroll_metrics(state,rc.bottom);
+        if y>=top {
+            let index=state.scroll+((y-top)/MECH_ROW_H)as usize;let tracker=crate::event_tracker::rows();
+            if let Some(row)=tracker.get(index){return Some(format!("{} • {}",row.label,row.detail));}
+            let now=now_ms();if let Some(row)=state.mechanics.rows.iter().filter(|r|r.persistent||r.expires_unix_ms<=0||r.expires_unix_ms>now).nth(index.saturating_sub(tracker.len())){return Some(format!("{} {}",row.label,row.target.as_deref().unwrap_or("")));}
+        }
+    }
+    None
+}

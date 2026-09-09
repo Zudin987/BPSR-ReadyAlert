@@ -302,6 +302,17 @@ unsafe extern "system" fn overlay_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM,
             else { let mut ps: PAINTSTRUCT = std::mem::zeroed(); BeginPaint(hwnd, &mut ps); EndPaint(hwnd, &ps); }
             0
         }
+        0x0024 => { if let Some(state)=state_mut(hwnd) {if !state.collapsed {crate::ui::min_window(hwnd,lparam,420,220);}} 0 }
+        0x0100 => {
+            if let Some(state)=state_mut(hwnd) {
+                let snapshot=state.settings.read().map(|s|s.clone()).unwrap_or_default();
+                if wparam==9 && crate::ui::GetKeyState(0x11)<0 {
+                    let len=snapshot.chat.tabs.len().min(MAX_MENU_TABS);if len>0 {let i=snapshot.chat.tabs.iter().position(|t|t.id==snapshot.chat.last_selected_tab_id).unwrap_or(0);let next=if crate::ui::GetKeyState(0x10)<0{(i+len-1)%len}else{(i+1)%len};PostMessageW(state.main_hwnd,WM_COMMAND,(CMD_TAB_BASE+next as u32) as usize,0);}return 0;
+                }
+                if wparam==0x23 {state.scroll_from_bottom=0;InvalidateRect(hwnd,null(),0);return 0;}
+            }
+            DefWindowProcW(hwnd,msg,wparam,lparam)
+        }
         WM_ERASEBKGND => 1,
         WM_SIZE => { InvalidateRect(hwnd, null(), 0); 0 }
         WM_EXITSIZEMOVE => {
@@ -322,6 +333,7 @@ unsafe extern "system" fn overlay_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM,
             0
         }
         WM_LBUTTONDOWN => {
+            crate::ui::SetFocus(hwnd);
             if let Some(state) = state_mut(hwnd) {
                 if state.collapsed { expand_from_edge(hwnd, state); return 0; }
                 let x = (lparam & 0xffff) as u16 as i16 as i32;
@@ -331,9 +343,9 @@ unsafe extern "system" fn overlay_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM,
                     let mut client: RECT = std::mem::zeroed();
                     GetClientRect(hwnd, &mut client);
                     let actions = action_rects(client.right);
-                    if hit(actions.hide, x, y) { ShowWindow(hwnd, SW_HIDE); return 0; }
+                    if hit(actions.hide, x, y) { PostMessageW(state.main_hwnd,WM_COMMAND,1024,0);return 0; }
                     if hit(actions.collapse, x, y) { collapse_to_edge(hwnd, state); return 0; }
-                    if hit(actions.gear, x, y) { PostMessageW(state.main_hwnd, WM_COMMAND, CMD_OPEN_SETTINGS as usize, 0); return 0; }
+                    if hit(actions.gear, x, y) { PostMessageW(state.main_hwnd, WM_COMMAND, CMD_OPEN_SETTINGS as usize, 1); return 0; }
                     if hit(actions.tts, x, y) { PostMessageW(state.main_hwnd, WM_COMMAND, CMD_TTS_TOGGLE as usize, 0); return 0; }
                     if hit(actions.add, x, y) { PostMessageW(state.main_hwnd, WM_COMMAND, CMD_ADD_TAB as usize, 0); return 0; }
                     if x < DRAG_WIDTH {
@@ -357,6 +369,7 @@ unsafe extern "system" fn overlay_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM,
                 if state.collapsed { return 0; }
                 let x = (lparam & 0xffff) as u16 as i16 as i32;
                 let y = ((lparam >> 16) & 0xffff) as u16 as i16 as i32;
+                if y < TOOLBAR_HEIGHT { show_tab_menu(hwnd,state);return 0; }
                 if y >= TOOLBAR_HEIGHT {
                     if let Some(row) = state.visible_rows.iter().find(|row| hit(row.rect, x, y)).cloned() {
                         show_message_menu(hwnd, state, &row);
@@ -533,28 +546,7 @@ unsafe fn sync_hotkey(hwnd: HWND, state: &mut OverlayState, snapshot: &AppSettin
     }
 }
 
-fn parse_hotkey(value: &str) -> Option<(u32, u32)> {
-    let mut mods = 0u32;
-    let mut key = None;
-    for token in value.split('+').map(str::trim).filter(|x| !x.is_empty()) {
-        match token.to_ascii_lowercase().as_str() {
-            "ctrl" | "control" => mods |= 0x0002,
-            "shift" => mods |= 0x0004,
-            "alt" => mods |= 0x0001,
-            "win" | "windows" => mods |= 0x0008,
-            other => {
-                let upper = other.to_ascii_uppercase();
-                let parsed = if let Some(rest) = upper.strip_prefix('F') {
-                    rest.parse::<u32>().ok().filter(|n| (1..=24).contains(n)).map(|n| 0x70 + n - 1)
-                } else if upper.len() == 1 {
-                    upper.bytes().next().map(u32::from).filter(|v| (*v >= b'A' as u32 && *v <= b'Z' as u32) || (*v >= b'0' as u32 && *v <= b'9' as u32))
-                } else { None };
-                key = parsed.or(key);
-            }
-        }
-    }
-    key.map(|vk| (mods | 0x4000, vk))
-}
+fn parse_hotkey(value: &str) -> Option<(u32, u32)> { crate::hotkeys::parse(value) }
 
 unsafe fn collapse_to_edge(hwnd: HWND, state: &mut OverlayState) {
     if state.collapsed { return; }
@@ -588,7 +580,7 @@ unsafe fn collapse_to_edge(hwnd: HWND, state: &mut OverlayState) {
 unsafe fn expand_from_edge(hwnd: HWND, state: &mut OverlayState) {
     if !state.collapsed { return; }
     state.collapsed = false;
-    let r = state.expanded_bounds;
+    let r = crate::ui::fit_rect(state.expanded_bounds,crate::ui::work_area(hwnd));
     SetWindowPos(hwnd, null_mut(), r.left, r.top, (r.right-r.left).max(420), (r.bottom-r.top).max(220), SWP_NOACTIVATE | SWP_NOZORDER);
     let snapshot = state.settings.read().map(|s| s.clone()).unwrap_or_default();
     apply_style(hwnd, &snapshot);
@@ -1016,3 +1008,11 @@ fn blend_color(fg:u32,bg:u32,percent:i32)->u32{ let f=((fg&0xff)as u8,((fg>>8)&0
 fn parse_hex(value:&str)->Option<(u8,u8,u8)>{ let s=value.trim().strip_prefix('#')?; if s.len()!=6{return None;} let n=u32::from_str_radix(s,16).ok()?; Some(((n>>16)as u8,(n>>8)as u8,n as u8)) }
 const fn rgb(r:u8,g:u8,b:u8)->u32{r as u32|((g as u32)<<8)|((b as u32)<<16)}
 fn wide(text:&str)->Vec<u16>{text.encode_utf16().chain(std::iter::once(0)).collect()}
+
+unsafe fn show_tab_menu(hwnd:HWND,state:&OverlayState){
+    let snapshot=state.settings.read().map(|s|s.clone()).unwrap_or_default();let menu=CreatePopupMenu();if menu.is_null(){return;}
+    for (i,tab) in snapshot.chat.tabs.iter().take(MAX_MENU_TABS).enumerate(){let label=tab.name.replace('&',"&&");AppendMenuW(menu,MF_STRING|if tab.id==snapshot.chat.last_selected_tab_id{0x8}else{0},(CMD_TAB_BASE+i as u32)as usize,wide(&label).as_ptr());}
+    let mut point:POINT=std::mem::zeroed();GetCursorPos(&mut point);SetForegroundWindow(hwnd);
+    let command=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_RIGHTBUTTON,point.x,point.y,0,hwnd,null());DestroyMenu(menu);
+    if command>0{PostMessageW(state.main_hwnd,WM_COMMAND,command as usize,0);}
+}

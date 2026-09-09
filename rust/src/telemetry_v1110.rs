@@ -90,6 +90,7 @@ pub struct TelemetryRuntime {
 
 impl TelemetryRuntime {
     pub fn new(tx: Sender<AppEvent>) -> Self {
+        crate::event_tracker::clear_session();
         let (inner_tx, inner_rx) = mpsc::channel();
         Self {
             inner: previous::TelemetryRuntime::new(inner_tx),

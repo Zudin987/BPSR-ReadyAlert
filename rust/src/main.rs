@@ -49,12 +49,11 @@ mod paths;
 mod proto;
 #[path = "settings_v181.rs"]
 mod settings;
-mod settings_cleanup_v160;
-mod settings_repaint_hotfix;
-#[path = "settings_ui_v181.rs"]
 mod settings_ui;
 mod sharing;
-#[path = "telemetry_v1140.rs"]
+mod ui;
+mod hotkeys;
+#[path = "telemetry_v1110.rs"]
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
@@ -116,16 +115,12 @@ fn main() {
     let capture_thread = capture_supervisor::spawn(
         api.clone(), settings.clone(), identity, chat_runtime, tx, stop.clone(),
     );
-    let settings_repaint_thread = settings_repaint_hotfix::start(stop.clone());
-    let settings_cleanup_thread = settings_cleanup_v160::start(stop.clone());
 
     if let Err(err) = win::run_ui(settings, paths, rx, stop.clone(), api) {
         logging::write(format!("startup/ui: {err}"));
         win::message_box("BPSR Ready Alert - Error", &err, true);
     }
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
-    let _ = settings_cleanup_thread.join();
-    let _ = settings_repaint_thread.join();
     let _ = capture_thread.join();
     drop(guard);
     logging::write("shutdown: complete");

@@ -1,3 +1,115 @@
-fn visible_rows_label(value:usize)->String{if value==0{"Auto".into()}else{value.to_string()}}
-unsafe fn paint_feature_settings(hwnd:HWND,state:&SettingsState){let mut ps:PAINTSTRUCT=std::mem::zeroed();let hdc=BeginPaint(hwnd,&mut ps);if hdc.is_null(){return;}let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);fill(hdc,&rc,rgb(18,22,27));SelectObject(hdc,GetStockObject(DEFAULT_GUI_FONT));SetBkMode(hdc,TRANSPARENT as i32);paint_popup_toolbar(hdc,rc,if state.kind==Kind::Dps{"DPS Meter Settings"}else{"Dungeon Mechanics Settings"});let features=state.features.read().map(|x|x.clone()).unwrap_or_default();let layout=if state.kind==Kind::Dps{&features.dps}else{&features.mechanics};SetTextColor(hdc,rgb(205,215,227));draw(hdc,&format!("Opacity: {}%",layout.opacity),RECT{left:16,top:TOOLBAR_H+10,right:225,bottom:TOOLBAR_H+38},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);paint_tab(hdc,245,TOOLBAR_H+12,34,"-",false);paint_tab(hdc,286,TOOLBAR_H+12,34,"+",false);draw(hdc,&format!("Collapse side: {} (click to cycle)",layout.collapse_side),RECT{left:16,top:TOOLBAR_H+44,right:rc.right-16,bottom:TOOLBAR_H+72},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);if state.kind==Kind::Dps{SetTextColor(hdc,rgb(238,242,247));draw(hdc,"Meter fields",RECT{left:16,top:TOOLBAR_H+82,right:rc.right-16,bottom:TOOLBAR_H+108},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);let values=[("Damage %",features.meter.show_damage_share),("Healing %",features.meter.show_healing_share),("Tank %",features.meter.show_tank_share),("Death count",features.meter.show_deaths),("Battle Imagine badges",features.meter.show_imagines),("Target / HP header",features.meter.show_target)];for(i,(label,checked))in values.iter().enumerate(){paint_check(hdc,16,TOOLBAR_H+114+i as i32*28,label,*checked,rc.right);}let section=TOOLBAR_H+292;SetTextColor(hdc,rgb(238,242,247));draw(hdc,"History & row behavior",RECT{left:16,top:section,right:rc.right-16,bottom:section+26},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);let advanced=[("Active + encounter rates",features.meter.show_active_rates),("Only contributors",features.meter.only_contributors),("Party only",features.meter.party_only),("Always show self",features.meter.always_show_self)];for(i,(label,checked))in advanced.iter().enumerate(){paint_check(hdc,16,section+30+i as i32*28,label,*checked,rc.right);}let rows_y=section+148;SetTextColor(hdc,rgb(205,215,227));draw(hdc,"Visible rows",RECT{left:16,top:rows_y,right:220,bottom:rows_y+28},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);paint_tab(hdc,250,rows_y+2,92,&visible_rows_label(features.meter.visible_rows),false);let history_y=rows_y+38;draw(hdc,&format!("Saved encounters: {}",features.meter.history_limit),RECT{left:16,top:history_y,right:245,bottom:history_y+28},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);paint_tab(hdc,260,history_y+2,34,"-",false);paint_tab(hdc,301,history_y+2,34,"+",false);SetTextColor(hdc,rgb(132,145,162));draw(hdc,"History is local. < / LIVE / > navigates fights; Copy / CSV / JSON share the current view.",RECT{left:16,top:history_y+39,right:rc.right-16,bottom:history_y+68},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);}else{let selected=features.mechanic_attributes.tracked.len();let tracker=crate::event_tracker::current_settings();SetTextColor(hdc,rgb(238,242,247));draw(hdc,&format!("Track attributes ({selected}/6)"),RECT{left:16,top:TOOLBAR_H+82,right:rc.right-205,bottom:TOOLBAR_H+108},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);paint_tab(hdc,rc.right-190,TOOLBAR_H+80,174,&format!("Event Tracker… ({})",tracker.rules.len()),false);let per_col=(ATTRIBUTE_CATALOG.len()+2)/3;let col_w=(rc.right-32)/3;for(i,(id,label))in ATTRIBUTE_CATALOG.iter().enumerate(){let col=i/per_col;let row=i%per_col;let x=16+col as i32*col_w;let y=TOOLBAR_H+112+row as i32*25;paint_check(hdc,x,y,label,features.mechanic_attributes.tracked.contains(id),(x+col_w).min(rc.right));}let info_y=TOOLBAR_H+112+per_col as i32*25+8;SetTextColor(hdc,rgb(132,145,162));draw(hdc,"Custom Event Tracker observes Buff/Skill IDs only; no automation. Buff timers use game-provided duration.",RECT{left:16,top:info_y,right:rc.right-16,bottom:info_y+28},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);}EndPaint(hwnd,&ps);}
-unsafe fn settings_click(hwnd:HWND,state:&SettingsState,x:i32,y:i32){let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);if y<TOOLBAR_H{if x>=rc.right-BUTTON_W{DestroyWindow(hwnd);}else{drag_window(hwnd);}return;}if(TOOLBAR_H+8..=TOOLBAR_H+42).contains(&y)&&(235..=330).contains(&x){let delta=if x<283{-5}else{5};mutate_features(state,|features|{let layout=if state.kind==Kind::Dps{&mut features.dps}else{&mut features.mechanics};layout.opacity=(layout.opacity+delta).clamp(25,100);});}else if(TOOLBAR_H+42..=TOOLBAR_H+76).contains(&y){mutate_features(state,|features|{let layout=if state.kind==Kind::Dps{&mut features.dps}else{&mut features.mechanics};layout.collapse_side=match layout.collapse_side.to_ascii_lowercase().as_str(){"right"=>"Bottom".into(),"bottom"=>"Left".into(),"left"=>"Top".into(),_=>"Right".into()};});}else if state.kind==Kind::Dps{let basic=TOOLBAR_H+114;if y>=basic&&y<basic+6*28{let idx=((y-basic)/28)as usize;mutate_features(state,|features|match idx{0=>features.meter.show_damage_share=!features.meter.show_damage_share,1=>features.meter.show_healing_share=!features.meter.show_healing_share,2=>features.meter.show_tank_share=!features.meter.show_tank_share,3=>features.meter.show_deaths=!features.meter.show_deaths,4=>features.meter.show_imagines=!features.meter.show_imagines,5=>features.meter.show_target=!features.meter.show_target,_=>{}});}else{let section=TOOLBAR_H+292;let advanced=section+30;if y>=advanced&&y<advanced+4*28{let idx=((y-advanced)/28)as usize;mutate_features(state,|features|match idx{0=>features.meter.show_active_rates=!features.meter.show_active_rates,1=>features.meter.only_contributors=!features.meter.only_contributors,2=>features.meter.party_only=!features.meter.party_only,3=>features.meter.always_show_self=!features.meter.always_show_self,_=>{}});}else{let rows_y=section+148;if y>=rows_y&&y<rows_y+32{mutate_features(state,|features|{features.meter.visible_rows=match features.meter.visible_rows{0=>5,5=>10,10=>20,20=>30,30=>50,_=>0};});}else{let history_y=rows_y+38;if y>=history_y&&y<history_y+32&&(250..=345).contains(&x){let delta=if x<300{-10}else{10};mutate_features(state,|features|{features.meter.history_limit=((features.meter.history_limit as i32)+delta).clamp(10,200)as usize;});}}}}}else{if(TOOLBAR_H+78..=TOOLBAR_H+112).contains(&y)&&x>=rc.right-200{crate::event_tracker_ui::show(hwnd);return;}let per_col=(ATTRIBUTE_CATALOG.len()+2)/3;let col_w=(rc.right-32)/3;let start=TOOLBAR_H+112;if y>=start{let col=((x-16).max(0)/col_w).clamp(0,2)as usize;let row=((y-start)/25)as usize;let idx=col*per_col+row;if let Some((id,_))=ATTRIBUTE_CATALOG.get(idx).copied(){mutate_features(state,|features|{if let Some(pos)=features.mechanic_attributes.tracked.iter().position(|value|*value==id){features.mechanic_attributes.tracked.remove(pos);}else if features.mechanic_attributes.tracked.len()<6{features.mechanic_attributes.tracked.push(id);}});}}}InvalidateRect(hwnd,null(),0);InvalidateRect(state.parent,null(),0);}
+pub unsafe fn show_settings(mechanics: bool) {
+    let class=wide(if mechanics {MECH_CLASS}else{DPS_CLASS});
+    let parent=windows_sys::Win32::UI::WindowsAndMessaging::FindWindowW(class.as_ptr(),null());
+    if !parent.is_null() { with_state(parent,|s|open_feature_settings(parent,s)); }
+}
+unsafe fn open_feature_settings(parent:HWND,state:&mut State) {
+    if !state.settings_hwnd.is_null() && IsWindow(state.settings_hwnd)!=0 {
+        ShowWindow(state.settings_hwnd,SW_SHOW); SetForegroundWindow(state.settings_hwnd); return;
+    }
+    let instance=GetModuleHandleW(null());let class=wide(SETTINGS_CLASS);
+    let wc=WNDCLASSW{lpfnWndProc:Some(settings_wnd_proc),hInstance:instance,hCursor:LoadCursorW(null_mut(),IDC_ARROW),lpszClassName:class.as_ptr(),..std::mem::zeroed()};
+    if RegisterClassW(&wc)==0 && GetLastError()!=1410 {return;}
+    let ptr=Box::into_raw(Box::new(SettingsState{kind:state.kind,parent,paths:state.paths.clone(),features:state.features.clone(),form:Default::default(),background:CreateSolidBrush(rgb(22,25,30))}));
+    let title=wide(if state.kind==Kind::Dps{"ReadyAlert - DPS Meter Settings"}else{"ReadyAlert - Dungeon Mechanics Settings"});
+    let (w,h)=if state.kind==Kind::Dps{(600,625)}else{(770,580)};
+    let hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,class.as_ptr(),title.as_ptr(),WS_POPUP|WS_THICKFRAME|0x00c00000|0x00080000|0x00200000|0x00100000,0,0,w,h,parent,null_mut(),instance,ptr.cast::<c_void>());
+    if hwnd.is_null(){let s=Box::from_raw(ptr);DeleteObject(s.background);return;}
+    state.settings_hwnd=hwnd;crate::ui::fit_window(hwnd,parent,true);ShowWindow(hwnd,SW_SHOW);SetForegroundWindow(hwnd);
+}
+unsafe fn feature_control(hwnd:HWND,class:&str,id:i32,text:&str,x:i32,y:i32,w:i32,h:i32,style:u32)->HWND {
+    let c=CreateWindowExW(0,wide(class).as_ptr(),wide(text).as_ptr(),0x50000000|style,x,y,w,h,hwnd,id as usize as windows_sys::Win32::UI::WindowsAndMessaging::HMENU,GetModuleHandleW(null()),null());
+    SendMessageW(c,0x0030,GetStockObject(DEFAULT_GUI_FONT) as usize,1);c
+}
+unsafe fn feature_label(hwnd:HWND,id:i32,text:&str,x:i32,y:i32,w:i32,h:i32) {feature_control(hwnd,"STATIC",id,text,x,y,w,h,0x80);}
+unsafe fn feature_button(hwnd:HWND,id:i32,text:&str,x:i32,y:i32,w:i32) {feature_control(hwnd,"BUTTON",id,text,x,y,w,30,0x00010000);}
+unsafe fn feature_check(hwnd:HWND,id:i32,text:&str,x:i32,y:i32,w:i32) {feature_control(hwnd,"BUTTON",id,text,x,y,w,26,0x00010003);}
+unsafe fn feature_combo(hwnd:HWND,id:i32,x:i32,y:i32,items:&[&str]) {
+    let c=feature_control(hwnd,"COMBOBOX",id,"",x,y,155,180,0x00210003);
+    for text in items {SendMessageW(c,0x0143,0,wide(text).as_ptr() as isize);}
+}
+unsafe fn fc(hwnd:HWND,id:i32)->HWND {windows_sys::Win32::UI::WindowsAndMessaging::GetDlgItem(hwnd,id)}
+unsafe fn build_feature_form(hwnd:HWND,state:&mut SettingsState) {
+    feature_label(hwnd,7000,"",18,20,170,24);
+    feature_button(hwnd,7001,"−",190,14,40); feature_button(hwnd,7002,"+",238,14,40);
+    feature_label(hwnd,0,"Collapse edge",18,63,150,24);
+    feature_combo(hwnd,7003,190,58,&["Right","Bottom","Left","Top"]);
+    if state.kind==Kind::Dps {
+        let labels=["Damage contribution %","Healing contribution %","Tank contribution %","Death count","Battle Imagine badges","Target / HP header","Active + encounter rates","Only contributors","Party only","Always show self","Remember scroll between encounters"];
+        for (i,label) in labels.iter().enumerate(){feature_check(hwnd,7100+i as i32,label,18,104+i as i32*28,530);}
+        feature_label(hwnd,0,"Visible rows",18,424,150,24);
+        feature_combo(hwnd,7010,190,420,&["Auto","5","10","20","30","50"]);
+        feature_label(hwnd,7011,"",18,463,210,24);
+        feature_button(hwnd,7012,"−",240,457,40);feature_button(hwnd,7013,"+",288,457,40);
+        feature_label(hwnd,0,"Changes save immediately. Use < / LIVE / > for history. Copy / CSV / JSON share the selected encounter.",18,505,530,46);
+        feature_button(hwnd,2,"&Close",450,554,100);
+        state.form.capture(hwnd,570,598);
+    }else{
+        feature_label(hwnd,7020,"",18,106,370,24);
+        feature_button(hwnd,7021,"Event Tracker...",548,100,170);
+        let rows=(ATTRIBUTE_CATALOG.len()+2)/3;
+        for(i,(_,label))in ATTRIBUTE_CATALOG.iter().enumerate(){feature_check(hwnd,7200+i as i32,label,18+(i/rows)as i32*240,144+(i%rows)as i32*28,234);}
+        let bottom=144+rows as i32*28;
+        feature_label(hwnd,0,"Select up to 6 attributes. Food, Serum and tracked buffs remain visible in the Mechanics overlay. Changes save immediately.",18,bottom+12,700,46);
+        feature_button(hwnd,2,"&Close",618,bottom+64,100);
+        state.form.capture(hwnd,740,bottom+108);
+    }
+    refresh_feature_form(hwnd,state);
+}
+unsafe fn refresh_feature_form(hwnd:HWND,state:&SettingsState){
+    let f=state.features.read().map(|f|f.clone()).unwrap_or_default();
+    let layout=if state.kind==Kind::Dps{&f.dps}else{&f.mechanics};
+    windows_sys::Win32::UI::WindowsAndMessaging::SetWindowTextW(fc(hwnd,7000),wide(&format!("Opacity: {}%",layout.opacity)).as_ptr());
+    let side=match layout.collapse_side.to_ascii_lowercase().as_str(){"bottom"=>1,"left"=>2,"top"=>3,_=>0};SendMessageW(fc(hwnd,7003),0x014e,side,0);
+    if state.kind==Kind::Dps{
+        for(i,on)in [f.meter.show_damage_share,f.meter.show_healing_share,f.meter.show_tank_share,f.meter.show_deaths,f.meter.show_imagines,f.meter.show_target,f.meter.show_active_rates,f.meter.only_contributors,f.meter.party_only,f.meter.always_show_self,f.meter.remember_scroll].into_iter().enumerate(){SendMessageW(fc(hwnd,7100+i as i32),0x00f1,on as usize,0);}
+        let rows=match f.meter.visible_rows{5=>1,10=>2,20=>3,30=>4,50=>5,_=>0};SendMessageW(fc(hwnd,7010),0x014e,rows,0);
+        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowTextW(fc(hwnd,7011),wide(&format!("Saved encounters: {}",f.meter.history_limit)).as_ptr());
+    }else{
+        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowTextW(fc(hwnd,7020),wide(&format!("Track attributes ({}/6)",f.mechanic_attributes.tracked.len())).as_ptr());
+        for(i,(id,_))in ATTRIBUTE_CATALOG.iter().enumerate(){let c=fc(hwnd,7200+i as i32);let selected=f.mechanic_attributes.tracked.contains(id);SendMessageW(c,0x00f1,selected as usize,0);crate::ui::EnableWindow(c,(selected||f.mechanic_attributes.tracked.len()<6) as i32);}
+    }
+}
+unsafe extern "system" fn settings_wnd_proc(hwnd:HWND,msg:u32,wparam:WPARAM,lparam:LPARAM)->LRESULT {
+    if msg==WM_NCCREATE{let cs=lparam as *const CREATESTRUCTW;if !cs.is_null(){SetWindowLongPtrW(hwnd,GWLP_USERDATA,(*cs).lpCreateParams as isize);}}
+    let ptr=GetWindowLongPtrW(hwnd,GWLP_USERDATA) as *mut SettingsState;
+    if ptr.is_null(){return DefWindowProcW(hwnd,msg,wparam,lparam);}
+    let state=&mut *ptr;
+    match msg {
+        0x0001=>{build_feature_form(hwnd,state);0}
+        WM_SIZE=>{state.form.layout(hwnd);0}
+        WM_MOUSEWHEEL|0x0114|0x0115=>{state.form.scroll(hwnd,msg,wparam);0}
+        crate::ui::WM_REVEAL_FOCUS=>{state.form.reveal_focus(hwnd);0}
+        0x0111=>{
+            let id=wparam as u16 as i32;let code=(wparam>>16) as u16;
+            if id==2{DestroyWindow(hwnd);return 0;}
+            if id==7021{crate::event_tracker_ui::show(hwnd);return 0;}
+            if matches!(id,7003|7010)&&code!=1{return 0;}
+            let checked=SendMessageW(fc(hwnd,id),0x00f0,0,0)==1;
+            let selected=SendMessageW(fc(hwnd,id),0x0147,0,0);
+            mutate_features(state,|f|{
+                let layout=if state.kind==Kind::Dps{&mut f.dps}else{&mut f.mechanics};
+                match id {
+                    7001=>layout.opacity=(layout.opacity-5).max(25),7002=>layout.opacity=(layout.opacity+5).min(100),
+                    7003=>layout.collapse_side=match selected{1=>"Bottom",2=>"Left",3=>"Top",_=>"Right"}.into(),
+                    7010=>f.meter.visible_rows=match selected{1=>5,2=>10,3=>20,4=>30,5=>50,_=>0},
+                    7012=>f.meter.history_limit=f.meter.history_limit.saturating_sub(10).max(10),
+                    7013=>f.meter.history_limit=(f.meter.history_limit+10).min(200),
+                    7100=>f.meter.show_damage_share=checked,7101=>f.meter.show_healing_share=checked,
+                    7102=>f.meter.show_tank_share=checked,7103=>f.meter.show_deaths=checked,
+                    7104=>f.meter.show_imagines=checked,7105=>f.meter.show_target=checked,
+                    7106=>f.meter.show_active_rates=checked,7107=>f.meter.only_contributors=checked,
+                    7108=>f.meter.party_only=checked,7109=>f.meter.always_show_self=checked,
+                    7110=>f.meter.remember_scroll=checked,
+                    id if id>=7200=>{if let Some((attr,_))=ATTRIBUTE_CATALOG.get((id-7200)as usize){if checked{if f.mechanic_attributes.tracked.len()<6 && !f.mechanic_attributes.tracked.contains(attr){f.mechanic_attributes.tracked.push(*attr);}}else{f.mechanic_attributes.tracked.retain(|a|a!=attr);}}},
+                    _=>{}
+                }
+            });
+            refresh_feature_form(hwnd,state);InvalidateRect(state.parent,null(),0);0
+        }
+        WM_ERASEBKGND=>{let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);FillRect(wparam as HDC,&rc,state.background);1}
+        0x0135|0x0138=>{let hdc=wparam as HDC;windows_sys::Win32::Graphics::Gdi::SetBkColor(hdc,rgb(22,25,30));SetTextColor(hdc,rgb(230,236,244));state.background as isize}
+        WM_NCDESTROY=>{SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);DeleteObject(state.background);drop(Box::from_raw(ptr));DefWindowProcW(hwnd,msg,wparam,lparam)}
+        _=>DefWindowProcW(hwnd,msg,wparam,lparam)
+    }
+}
