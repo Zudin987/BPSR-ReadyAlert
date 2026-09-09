@@ -7,6 +7,8 @@ Lightweight native Windows companion for **Blue Protocol: Star Resonance**, writ
 ## Features
 
 - Native DPS meter with Damage, Heal and Tank views.
+- Local combat history with previous-fight browsing and historical Entity Inspector data.
+- Active and Encounter DPS/HPS/DTPS, plus contributor/party filters and configurable row limits.
 - Per-player Entity Inspector with skill damage/healing/taken breakdowns.
 - Battle Imagine detection with game icons and tiers.
 - Dungeon Mechanics overlay with food/serum timers, tracked buffs and character attributes.
@@ -29,6 +31,19 @@ ReadyAlert uses one shared Npcap capture path. It does **not** inject into BPSR,
 5. Leave ReadyAlert running in the system tray and enable only the overlays/alerts you want.
 
 The Dungeon Mechanics title shows capture health. If it reports stale frames or no recent game packets while you are actively playing, re-check the selected Npcap adapter before trusting combat totals.
+
+## Combat history and meter rates
+
+Completed/reset encounters are stored **locally** under ReadyAlert's app-data `History` folder as compressed, schema-versioned files. History is never uploaded or synchronized to a web service. The number of retained encounters can be configured in DPS Meter Settings.
+
+Use the DPS meter's `<`, `LIVE`, and `>` controls to move between older fights, the current live encounter, and newer saved fights. Clicking a player name while viewing history opens the Entity Inspector using that saved encounter state.
+
+When **Active + encounter rates** is enabled, rows show both values:
+
+- **Active rate (A)** reduces the effect of a player's late start and long per-player downtime.
+- **Encounter rate (E)** divides the total by the full encounter duration.
+
+DPS Meter Settings also provides contributor-only filtering, party-only filtering, always-show-self behavior, and Auto / 5 / 10 / 20 / 30 / 50 row caps.
 
 ## Combat segmentation
 
