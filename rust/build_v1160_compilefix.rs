@@ -70,6 +70,18 @@ fn patch_overlay(out: &Path) {
         "target HP preference",
     );
 
+    // v1.8 locked the original saturated class colors as exact regression
+    // expectations. v1.16 deliberately mutes those same semantic colors, so keep
+    // the exact-color test but move its expected values to the new palette.
+    for (old, new) in [
+        ("hex_color(0x9b6cf0)", "hex_color(0x7655a8)"),
+        ("hex_color(0xff6d3a)", "hex_color(0xb85c3e)"),
+        ("hex_color(0xc41e00)", "hex_color(0x7f3325)"),
+        ("hex_color(0x9f1322)", "hex_color(0x6f3138)"),
+    ] {
+        replace_once(&mut source, old, new, "muted spec-color regression expectation");
+    }
+
     assert_eq!(source.matches("unsafe fn dps_row_at(").count(), 1, "v1.16 compile fix must leave one dps_row_at");
     fs::write(path, source).expect("write compile-fixed v1.16 overlay");
 }
