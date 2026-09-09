@@ -91,6 +91,8 @@ pub struct DpsRow {
     pub subprofession_name: String,
     pub ability_score: i64,
     pub illusion_break: i64,
+    pub hp: i64,
+    pub max_hp: i64,
     pub damage: i64,
     pub healing: i64,
     pub damage_taken: i64,
@@ -105,8 +107,13 @@ pub struct DpsRow {
     pub is_dead: bool,
     /// True only for the character owned by this ReadyAlert process.
     pub is_local: bool,
+    /// Current-scene attributes that can be safely shown by the inspector.
+    pub attributes: Vec<TrackedAttribute>,
     pub imagines: Vec<ImagineBadge>,
+    /// Outgoing damage/healing skill distribution.
     pub skills: Vec<SkillBreakdown>,
+    /// Incoming damage grouped by the attack skill id.
+    pub taken_skills: Vec<SkillBreakdown>,
 }
 
 #[derive(Clone, Debug, Default)]
