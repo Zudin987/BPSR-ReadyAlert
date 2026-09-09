@@ -75,16 +75,10 @@ fn personal_best_text(state:&State)->Option<String>{let mode=share_view_mode(sta
     fs::write(&overlay_path, overlay).expect("write v1.13 generated overlay");
 
     // ---- Global combat-overlay hotkey -------------------------------------------
-    // Ctrl+Shift+F10 hides/shows DPS + Mechanics together. Chat deliberately
-    // remains independent so the shortcut is useful during gameplay/screenshots.
+    // Keep the two User32 functions as direct bindings rather than expanding the
+    // windows-sys feature surface solely for global hotkeys.
     let win_path = out.join("win_v182_fixed.rs");
     let mut win = fs::read_to_string(&win_path).expect("read generated v1.12 win source");
-    replace_once(
-        &mut win,
-        "PostQuitMessage,RegisterClassW,SetForegroundWindow,SetTimer,SetWindowLongPtrW,ShowWindow,TranslateMessage,",
-        "PostQuitMessage,RegisterClassW,RegisterHotKey,SetForegroundWindow,SetTimer,SetWindowLongPtrW,ShowWindow,TranslateMessage,UnregisterHotKey,",
-        "hotkey function imports",
-    );
     replace_once(
         &mut win,
         "WM_COMMAND,WM_DESTROY,WM_LBUTTONDBLCLK,WM_NCCREATE,WM_RBUTTONUP,WM_TIMER,",
@@ -94,8 +88,8 @@ fn personal_best_text(state:&State)->Option<String>{let mode=share_view_mode(sta
     replace_once(
         &mut win,
         "const WM_TRAY:u32=WM_APP+17;const TRAY_ID:u32=1;const TIMER_ID:usize=1;",
-        "const WM_TRAY:u32=WM_APP+17;const TRAY_ID:u32=1;const TIMER_ID:usize=1;const HOTKEY_COMBAT_ID:i32=1130;const MOD_CONTROL_:u32=0x0002;const MOD_SHIFT_:u32=0x0004;const VK_F10_:u32=0x79;",
-        "combat hotkey constants",
+        "const WM_TRAY:u32=WM_APP+17;const TRAY_ID:u32=1;const TIMER_ID:usize=1;const HOTKEY_COMBAT_ID:i32=1130;const MOD_CONTROL_:u32=0x0002;const MOD_SHIFT_:u32=0x0004;const VK_F10_:u32=0x79;#[link(name=\"user32\")]extern \"system\"{fn RegisterHotKey(hwnd:HWND,id:i32,modifiers:u32,vk:u32)->i32;fn UnregisterHotKey(hwnd:HWND,id:i32)->i32;}",
+        "combat hotkey constants and bindings",
     );
     replace_once(
         &mut win,
