@@ -1,11 +1,11 @@
-use crate::{history::HistoryEncounter, model::{DpsRow, DpsSnapshot}};
+use crate::{
+    history::HistoryEncounter,
+    model::{DpsRow, DpsSnapshot},
+};
 use serde::Serialize;
 use std::{
-    ffi::c_void,
-    fs,
-    io,
+    fs, io,
     path::{Path, PathBuf},
-    ptr::{copy_nonoverlapping, null_mut},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -27,10 +27,7 @@ pub enum ExportFormat {
 
 #[derive(Clone, Copy, Debug)]
 pub struct PersonalBest {
-    /// Rate of the currently viewed live/history encounter.
     pub current_rate: f64,
-    /// Best matching *previous* encounter rate. The current history item is
-    /// excluded when `exclude_history_id` is supplied.
     pub previous_best_rate: f64,
     pub delta_percent: f64,
     pub samples: usize,
@@ -64,15 +61,14 @@ impl ExportFormat {
     }
 }
 
+/// Compare the local player's current encounter rate against matching saved
+/// encounters. Tank is intentionally excluded: a higher DTPS is not a "best".
 pub fn personal_best(
     records: &[HistoryEncounter],
     current: &DpsSnapshot,
     exclude_history_id: Option<u64>,
     mode: ViewMode,
 ) -> Option<PersonalBest> {
-    // Higher DTPS is not a meaningful "personal best". Tank improvement needs a
-    // more contextual survivability metric, so do not imply that taking more
-    // damage is better.
     if mode == ViewMode::Tank || current.encounter_ms < MIN_PB_ENCOUNTER_MS {
         return None;
     }
@@ -84,15 +80,13 @@ pub fn personal_best(
         return None;
     }
 
-    let mut best = 0.0_f64;
+    let mut previous_best_rate = 0.0_f64;
     let mut samples = 0usize;
     for record in records {
         if exclude_history_id.is_some_and(|id| id == record.id)
             || record.snapshot.encounter_ms < MIN_PB_ENCOUNTER_MS
+            || normalized_target(&record.snapshot).as_deref() != Some(target.as_str())
         {
-            continue;
-        }
-        if normalized_target(&record.snapshot).as_deref() != Some(target.as_str()) {
             continue;
         }
         let Some(row) = record.snapshot.rows.iter().find(|row| row.is_local) else {
@@ -103,24 +97,25 @@ pub fn personal_best(
         }
         let rate = row_rate(row, record.snapshot.encounter_ms, mode);
         if rate.is_finite() && rate > 0.0 {
-            best = best.max(rate);
+            previous_best_rate = previous_best_rate.max(rate);
             samples = samples.saturating_add(1);
         }
     }
 
-    if samples == 0 || best <= 0.0 {
+    if samples == 0 || previous_best_rate <= 0.0 {
         return None;
     }
-    let delta_percent = (current_rate - best) * 100.0 / best;
+    let delta_percent = (current_rate - previous_best_rate) * 100.0 / previous_best_rate;
     Some(PersonalBest {
         current_rate,
-        previous_best_rate: best,
+        previous_best_rate,
         delta_percent,
         samples,
-        is_new_record: current_rate > best,
+        is_new_record: current_rate > previous_best_rate,
     })
 }
 
+/// Compact, chat-friendly summary of the currently viewed meter tab.
 pub fn encounter_summary(snapshot: &DpsSnapshot, mode: ViewMode) -> String {
     let target = snapshot
         .target
@@ -143,7 +138,6 @@ pub fn encounter_summary(snapshot: &DpsSnapshot, mode: ViewMode) -> String {
         format_duration(snapshot.encounter_ms),
         mode.label(),
     );
-
     if rows.is_empty() {
         out.push_str("No contribution data recorded.\n");
         return out;
@@ -156,16 +150,20 @@ pub fn encounter_summary(snapshot: &DpsSnapshot, mode: ViewMode) -> String {
         } else {
             0.0
         };
-        let rate = row_rate(row, snapshot.encounter_ms, mode);
+        let death = if row.deaths > 0 {
+            format!(" | D{}", row.deaths)
+        } else {
+            String::new()
+        };
         out.push_str(&format!(
-            "{}. {} — {} {} | {} | {:.1}%{}\n",
+            "{}. {} - {} {} | {} | {:.1}%{}\n",
             index + 1,
             row_identity(row),
-            compact(rate),
+            compact(row_rate(row, snapshot.encounter_ms, mode)),
             mode.rate_label(),
             compact(metric as f64),
             share,
-            if row.deaths > 0 { format!(" | D{}", row.deaths) } else { String::new() },
+            death,
         ));
     }
     out
@@ -183,11 +181,9 @@ pub fn export_encounter(
         .as_ref()
         .map(|target| target.name.as_str())
         .unwrap_or("Encounter");
-    let stem = sanitize_filename(target);
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    let base = format!("ReadyAlert-{stem}-{}", now.as_millis());
+    let base = format!("ReadyAlert-{}-{}", sanitize_filename(target), now.as_millis());
     let path = unique_export_path(&dir, &base, format.extension());
-
     let bytes = match format {
         ExportFormat::Csv => encounter_csv(snapshot).into_bytes(),
         ExportFormat::Json => encounter_json(snapshot)?.into_bytes(),
@@ -257,7 +253,14 @@ pub fn encounter_json(snapshot: &DpsSnapshot) -> io::Result<String> {
 }
 
 #[cfg(windows)]
-pub fn copy_text(text: &str) -> Result<(), String> {
+mod clipboard {
+    use std::{
+        ffi::c_void,
+        ptr::{copy_nonoverlapping, null_mut},
+        thread,
+        time::Duration,
+    };
+
     const CF_UNICODETEXT: u32 = 13;
     const GMEM_MOVEABLE: u32 = 0x0002;
 
@@ -283,37 +286,52 @@ pub fn copy_text(text: &str) -> Result<(), String> {
         }
     }
 
-    unsafe {
-        if OpenClipboard(null_mut()) == 0 {
+    pub fn copy_text(text: &str) -> Result<(), String> {
+        // Clipboard ownership is occasionally held for a few milliseconds by
+        // another desktop app. A short bounded retry avoids making Copy flaky.
+        let mut opened = false;
+        for _ in 0..5 {
+            if unsafe { OpenClipboard(null_mut()) } != 0 {
+                opened = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        if !opened {
             return Err("OpenClipboard failed".into());
         }
         let _guard = ClipboardGuard;
-        if EmptyClipboard() == 0 {
-            return Err("EmptyClipboard failed".into());
-        }
 
-        let mut wide: Vec<u16> = text.encode_utf16().collect();
-        wide.push(0);
-        let bytes = wide.len().saturating_mul(std::mem::size_of::<u16>());
-        let memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
-        if memory.is_null() {
-            return Err("GlobalAlloc failed".into());
+        unsafe {
+            if EmptyClipboard() == 0 {
+                return Err("EmptyClipboard failed".into());
+            }
+            let mut wide: Vec<u16> = text.encode_utf16().collect();
+            wide.push(0);
+            let bytes = wide.len().saturating_mul(std::mem::size_of::<u16>());
+            let memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
+            if memory.is_null() {
+                return Err("GlobalAlloc failed".into());
+            }
+            let locked = GlobalLock(memory);
+            if locked.is_null() {
+                GlobalFree(memory);
+                return Err("GlobalLock failed".into());
+            }
+            copy_nonoverlapping(wide.as_ptr().cast::<u8>(), locked.cast::<u8>(), bytes);
+            let _ = GlobalUnlock(memory);
+            if SetClipboardData(CF_UNICODETEXT, memory).is_null() {
+                GlobalFree(memory);
+                return Err("SetClipboardData failed".into());
+            }
+            // Ownership transfers to the clipboard after SetClipboardData.
+            Ok(())
         }
-        let locked = GlobalLock(memory);
-        if locked.is_null() {
-            GlobalFree(memory);
-            return Err("GlobalLock failed".into());
-        }
-        copy_nonoverlapping(wide.as_ptr().cast::<u8>(), locked.cast::<u8>(), bytes);
-        GlobalUnlock(memory);
-        if SetClipboardData(CF_UNICODETEXT, memory).is_null() {
-            GlobalFree(memory);
-            return Err("SetClipboardData failed".into());
-        }
-        // Clipboard now owns `memory`.
-        Ok(())
     }
 }
+
+#[cfg(windows)]
+pub use clipboard::copy_text;
 
 #[cfg(not(windows))]
 pub fn copy_text(_text: &str) -> Result<(), String> {
@@ -340,7 +358,9 @@ fn row_rate(row: &DpsRow, encounter_ms: u64, mode: ViewMode) -> f64 {
 
 fn same_spec(a: &DpsRow, b: &DpsRow) -> bool {
     a.profession_id == b.profession_id
-        && (a.subprofession_id <= 0 || b.subprofession_id <= 0 || a.subprofession_id == b.subprofession_id)
+        && (a.subprofession_id <= 0
+            || b.subprofession_id <= 0
+            || a.subprofession_id == b.subprofession_id)
 }
 
 fn normalized_target(snapshot: &DpsSnapshot) -> Option<String> {
@@ -348,7 +368,12 @@ fn normalized_target(snapshot: &DpsSnapshot) -> Option<String> {
     if name.is_empty() {
         return None;
     }
-    Some(name.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase())
+    Some(
+        name.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase(),
+    )
 }
 
 fn row_identity(row: &DpsRow) -> String {
@@ -379,7 +404,10 @@ fn format_duration(ms: u64) -> String {
 }
 
 fn csv_escape(value: &str) -> String {
-    if value.contains([',', '"', '\r', '\n']) {
+    if value
+        .chars()
+        .any(|ch| matches!(ch, ',' | '"' | '\r' | '\n'))
+    {
         format!("\"{}\"", value.replace('"', "\"\""))
     } else {
         value.to_string()
@@ -389,22 +417,32 @@ fn csv_escape(value: &str) -> String {
 fn sanitize_filename(value: &str) -> String {
     let mut out = String::with_capacity(value.len().min(48));
     let mut last_sep = false;
+    let mut count = 0usize;
     for ch in value.chars() {
-        if out.chars().count() >= 48 {
+        if count >= 48 {
             break;
         }
         if ch.is_ascii_alphanumeric() {
             out.push(ch);
+            count += 1;
             last_sep = false;
-        } else if (ch.is_whitespace() || matches!(ch, '-' | '_')) && !out.is_empty() && !last_sep {
+        } else if (ch.is_whitespace() || matches!(ch, '-' | '_'))
+            && !out.is_empty()
+            && !last_sep
+        {
             out.push('_');
+            count += 1;
             last_sep = true;
         }
     }
     while out.ends_with('_') {
         out.pop();
     }
-    if out.is_empty() { "Encounter".into() } else { out }
+    if out.is_empty() {
+        "Encounter".into()
+    } else {
+        out
+    }
 }
 
 fn unique_export_path(dir: &Path, base: &str, extension: &str) -> PathBuf {
@@ -430,7 +468,13 @@ mod tests {
         DpsSnapshot {
             encounter_ms: ms,
             total_damage: damage,
-            target: Some(TargetSnapshot { entity_uuid: 1, name: target.into(), hp: 1, max_hp: 1, enrage_remaining_ms: None }),
+            target: Some(TargetSnapshot {
+                entity_uuid: 1,
+                name: target.into(),
+                hp: 1,
+                max_hp: 1,
+                enrage_remaining_ms: None,
+            }),
             rows: vec![DpsRow {
                 uid: 42,
                 name: "Tester".into(),
@@ -447,7 +491,13 @@ mod tests {
     }
 
     fn record(id: u64, snap: DpsSnapshot) -> HistoryEncounter {
-        HistoryEncounter { schema: 1, id, ended_unix_ms: id as i64, target_name: "Dummy".into(), snapshot: snap }
+        HistoryEncounter {
+            schema: 1,
+            id,
+            ended_unix_ms: id as i64,
+            target_name: "Dummy".into(),
+            snapshot: snap,
+        }
     }
 
     #[test]
@@ -469,8 +519,20 @@ mod tests {
     #[test]
     fn pb_rejects_short_or_tank_runs() {
         let records = vec![record(1, snapshot("Dummy", 20_000, 2_000_000, 4, 41))];
-        assert!(personal_best(&records, &snapshot("Dummy", 5_000, 1_000_000, 4, 41), None, ViewMode::Damage).is_none());
-        assert!(personal_best(&records, &snapshot("Dummy", 20_000, 3_000_000, 4, 41), None, ViewMode::Tank).is_none());
+        assert!(personal_best(
+            &records,
+            &snapshot("Dummy", 5_000, 1_000_000, 4, 41),
+            None,
+            ViewMode::Damage
+        )
+        .is_none());
+        assert!(personal_best(
+            &records,
+            &snapshot("Dummy", 20_000, 3_000_000, 4, 41),
+            None,
+            ViewMode::Tank
+        )
+        .is_none());
     }
 
     #[test]
@@ -486,7 +548,7 @@ mod tests {
     #[test]
     fn filename_sanitizer_is_safe_and_bounded() {
         assert_eq!(sanitize_filename("  Boss: Prime / S4  "), "Boss_Prime_S4");
-        assert!(sanitize_filename("***").starts_with("Encounter"));
+        assert_eq!(sanitize_filename("***"), "Encounter");
         assert!(sanitize_filename(&"A".repeat(100)).len() <= 48);
     }
 }
