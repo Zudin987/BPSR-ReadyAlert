@@ -1,5 +1,5 @@
 use crate::{
-    feature_settings::{ATTR_FIGHT_POINT, ATTR_SEASON_STRENGTH},
+    feature_settings::{ATTR_CURRENT_HP, ATTR_FIGHT_POINT, ATTR_MAX_HP, ATTR_SEASON_STRENGTH},
     model::{AppEvent, DpsSnapshot, MechanicSnapshot},
     proto,
 };
@@ -161,6 +161,17 @@ fn sanitize_dps(snapshot: &mut DpsSnapshot, fresh_attrs: &HashMap<i64, HashSet<i
         if !fresh.is_some_and(|set| set.contains(&ATTR_SEASON_STRENGTH)) {
             row.illusion_break = 0;
         }
+        if !fresh.is_some_and(|set| set.contains(&ATTR_CURRENT_HP)) {
+            row.hp = 0;
+        }
+        if !fresh.is_some_and(|set| set.contains(&ATTR_MAX_HP)) {
+            row.max_hp = 0;
+        }
+        for attr in &mut row.attributes {
+            if !fresh.is_some_and(|set| set.contains(&attr.attr_id)) {
+                attr.value = 0;
+            }
+        }
         // Current-scene combat skills are themselves fresh evidence of a spec,
         // so keep adapter inference when available. Otherwise do not show a
         // profession cached from the previous map.
@@ -212,6 +223,9 @@ mod tests {
                 subprofession_name: "Smite".into(),
                 ability_score: 58_404,
                 illusion_break: 7_200,
+                hp: 242_288,
+                max_hp: 242_288,
+                attributes: vec![TrackedAttribute { attr_id: ATTR_CURRENT_HP, label: "HP".into(), value: 242_288 }],
                 ..Default::default()
             }],
             ..Default::default()
@@ -221,6 +235,9 @@ mod tests {
         assert_eq!(row.profession_id, 0);
         assert_eq!(row.ability_score, 0);
         assert_eq!(row.illusion_break, 0);
+        assert_eq!(row.hp, 0);
+        assert_eq!(row.max_hp, 0);
+        assert_eq!(row.attributes[0].value, 0);
         assert!(row.subprofession_name.is_empty());
     }
 
