@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
-#[path = "capture_v160.rs"]
-mod capture;
+mod capture {
+    include!(concat!(env!("OUT_DIR"), "/capture_v185.rs"));
+}
 mod capture_supervisor;
 #[path = "chat.rs"]
 mod chat_legacy;
@@ -85,14 +86,10 @@ fn main() {
         return;
     }
 
+    // Load and normalize persisted settings without silently rewriting user UI
+    // choices. Validation/migration belongs in AppSettings::normalize().
     let mut loaded = settings::load(&paths);
-    loaded.auto_launch_resonance_logs = false;
-    loaded.resonance_logs_path.clear();
-    loaded.chat.bold_message_text = false;
-    loaded.chat.text_shadow = true;
-    loaded.chat.show_separators = false;
     loaded.normalize();
-    let _ = settings::save(&paths, &loaded);
     let settings = Arc::new(RwLock::new(loaded));
 
     let api = match npcap::PcapApi::load() {

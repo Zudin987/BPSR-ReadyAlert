@@ -1,6 +1,6 @@
 use crate::{
     feature_settings::{ATTR_CURRENT_HP, ATTR_FIGHT_POINT, ATTR_MAX_HP, ATTR_SEASON_STRENGTH},
-    model::{AppEvent, DpsSnapshot, MechanicSnapshot},
+    model::{AppEvent, DpsSnapshot, MechanicSnapshot, TargetSnapshot},
     proto,
 };
 use std::{
@@ -8,10 +8,9 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
-// Keep the audited v1.8.1 adapter intact and add a small scene-freshness guard
-// around it. This avoids duplicating the packet/DPS implementation while
-// preventing attributes omitted by a new scene's full-sync from leaking values
-// cached in the previous map.
+// Keep the audited v1.8.1 adapter intact and add scene-freshness and target
+// stability guards around it. This avoids duplicating the packet/DPS core while
+// preventing stale metadata and add-target churn from reaching the UI.
 mod legacy {
     include!("telemetry_adapter_v170.rs");
 }
@@ -33,6 +32,8 @@ pub struct TelemetryRuntime {
     tx: Sender<AppEvent>,
     fresh_attrs: HashMap<i64, HashSet<i32>>,
     local_uid: i64,
+    primary_target: Option<TargetSnapshot>,
+    primary_target_missing: bool,
 }
 
 impl TelemetryRuntime {
@@ -44,6 +45,8 @@ impl TelemetryRuntime {
             tx,
             fresh_attrs: HashMap::new(),
             local_uid: 0,
+            primary_target: None,
+            primary_target_missing: false,
         }
     }
 
@@ -58,6 +61,11 @@ impl TelemetryRuntime {
             let event = match event {
                 AppEvent::Dps(mut snapshot) => {
                     sanitize_dps(&mut snapshot, &self.fresh_attrs);
+                    stabilize_primary_target(
+                        &mut snapshot,
+                        &mut self.primary_target,
+                        &mut self.primary_target_missing,
+                    );
                     AppEvent::Dps(snapshot)
                 }
                 AppEvent::Mechanics(mut snapshot) => {
@@ -81,6 +89,8 @@ impl TelemetryRuntime {
                 // did not change. Never let omitted fields inherit the prior map.
                 self.fresh_attrs.clear();
                 self.local_uid = 0;
+                self.primary_target = None;
+                self.primary_target_missing = false;
                 if let Some(info) = proto::get_len_field(body, 1) {
                     if let Some(player) = proto::get_len_field(info, 2) {
                         let uuid = signed(proto::get_varint_field(player, 1).unwrap_or(0));
@@ -152,6 +162,53 @@ impl TelemetryRuntime {
     }
 }
 
+fn stabilize_primary_target(
+    snapshot: &mut DpsSnapshot,
+    primary: &mut Option<TargetSnapshot>,
+    primary_missing: &mut bool,
+) {
+    // A real encounter reset from scene/wipe/manual reset clears all totals. Do
+    // not let a target from the previous pull survive into an empty meter.
+    let encounter_empty = snapshot.encounter_ms == 0
+        && snapshot.total_damage == 0
+        && snapshot.total_healing == 0
+        && snapshot.total_damage_taken == 0;
+    if encounter_empty {
+        *primary = None;
+        *primary_missing = false;
+        snapshot.target = None;
+        return;
+    }
+
+    let Some(candidate) = snapshot.target.clone() else {
+        if primary.is_some() {
+            // The compact telemetry core returns None when its current target
+            // despawns. Remember that gap so the next phase/objective can take
+            // over even when it has equal or lower max HP.
+            *primary_missing = true;
+            snapshot.target = primary.clone();
+        }
+        return;
+    };
+
+    match primary {
+        None => *primary = Some(candidate),
+        Some(current) if current.entity_uuid == candidate.entity_uuid => {
+            *current = candidate;
+        }
+        Some(current) => {
+            let current_dead = current.max_hp > 0 && current.hp <= 0;
+            let current_unknown = current.max_hp <= 0 && candidate.max_hp > 0;
+            let candidate_is_stronger = candidate.max_hp > current.max_hp;
+            if *primary_missing || current_dead || current_unknown || candidate_is_stronger {
+                *current = candidate;
+            }
+        }
+    }
+    *primary_missing = false;
+    snapshot.target = primary.clone();
+}
+
 fn sanitize_dps(snapshot: &mut DpsSnapshot, fresh_attrs: &HashMap<i64, HashSet<i32>>) {
     for row in &mut snapshot.rows {
         let fresh = fresh_attrs.get(&row.uid);
@@ -213,6 +270,16 @@ mod tests {
     use super::*;
     use crate::model::{DpsRow, SkillBreakdown, TrackedAttribute};
 
+    fn target(id: i64, hp: i64, max_hp: i64) -> TargetSnapshot {
+        TargetSnapshot {
+            entity_uuid: id,
+            name: format!("Target {id}"),
+            hp,
+            max_hp,
+            enrage_remaining_ms: None,
+        }
+    }
+
     #[test]
     fn stale_scene_metadata_is_hidden() {
         let mut snapshot = DpsSnapshot {
@@ -271,5 +338,50 @@ mod tests {
         };
         sanitize_mechanics(&mut snapshot, 123, &HashMap::new());
         assert_eq!(snapshot.tracked_attributes[0].value, 0);
+    }
+
+    #[test]
+    fn add_does_not_replace_stronger_primary_target() {
+        let mut primary = None;
+        let mut missing = false;
+        let mut boss = DpsSnapshot { encounter_ms: 1_000, total_damage: 100, target: Some(target(10, 9_000_000, 10_000_000)), ..Default::default() };
+        stabilize_primary_target(&mut boss, &mut primary, &mut missing);
+        let mut add = DpsSnapshot { encounter_ms: 2_000, total_damage: 200, target: Some(target(20, 500_000, 500_000)), ..Default::default() };
+        stabilize_primary_target(&mut add, &mut primary, &mut missing);
+        assert_eq!(add.target.as_ref().map(|x| x.entity_uuid), Some(10));
+    }
+
+    #[test]
+    fn stronger_boss_can_promote_over_initial_trash() {
+        let mut primary = None;
+        let mut missing = false;
+        let mut trash = DpsSnapshot { encounter_ms: 1_000, total_damage: 100, target: Some(target(20, 500_000, 500_000)), ..Default::default() };
+        stabilize_primary_target(&mut trash, &mut primary, &mut missing);
+        let mut boss = DpsSnapshot { encounter_ms: 2_000, total_damage: 200, target: Some(target(10, 10_000_000, 10_000_000)), ..Default::default() };
+        stabilize_primary_target(&mut boss, &mut primary, &mut missing);
+        assert_eq!(boss.target.as_ref().map(|x| x.entity_uuid), Some(10));
+    }
+
+    #[test]
+    fn phase_target_replaces_primary_after_despawn_gap() {
+        let mut primary = Some(target(10, 5_000_000, 10_000_000));
+        let mut missing = false;
+        let mut gap = DpsSnapshot { encounter_ms: 5_000, total_damage: 1_000, target: None, ..Default::default() };
+        stabilize_primary_target(&mut gap, &mut primary, &mut missing);
+        assert!(missing);
+        let mut phase_two = DpsSnapshot { encounter_ms: 6_000, total_damage: 1_200, target: Some(target(30, 4_000_000, 8_000_000)), ..Default::default() };
+        stabilize_primary_target(&mut phase_two, &mut primary, &mut missing);
+        assert_eq!(phase_two.target.as_ref().map(|x| x.entity_uuid), Some(30));
+    }
+
+    #[test]
+    fn empty_encounter_clears_primary_target() {
+        let mut primary = Some(target(10, 0, 10_000_000));
+        let mut missing = true;
+        let mut empty = DpsSnapshot::default();
+        stabilize_primary_target(&mut empty, &mut primary, &mut missing);
+        assert!(primary.is_none());
+        assert!(!missing);
+        assert!(empty.target.is_none());
     }
 }
