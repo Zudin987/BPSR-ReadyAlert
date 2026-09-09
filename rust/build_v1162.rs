@@ -159,7 +159,7 @@ fn patch_settings(out: &Path) {
     replace_once(&mut source,"create_button(hwnd, ID_CLOSE, \"&Close\", 782, 630, 86, 34);","create_button(hwnd, ID_CLOSE, \"&Close\", 782, 600, 86, 34);","main Close position");
     replace_once(&mut source,"(*state_ptr).form.capture(hwnd, 878, 680);","(*state_ptr).form.capture(hwnd, 878, 640);","main settings virtual fit");
     replace_once(&mut source,
-        "        WM_MOUSEWHEEL | WM_VSCROLL | WM_HSCROLL => { if !state_ptr.is_null() { (*state_ptr).form.scroll(hwnd,msg,wparam); } 0 }\n",
+        "        WM_MOUSEWHEEL | WM_VSCROLL | WM_HSCROLL => { if !state_ptr.is_null() { (*state_ptr).form.scroll(hwnd,msg,wparam); } 0 }",
         "",
         "disable main settings outer scrolling");
     fs::write(path,source).expect("write main settings");
@@ -171,7 +171,7 @@ fn patch_settings(out: &Path) {
         "WS_POPUP|WS_THICKFRAME|0x00c00000|0x00080000|0x02000000",
         "feature settings outer scrollbars");
     replace_once(&mut source,
-        "        WM_MOUSEWHEEL|0x0114|0x0115=>{state.form.scroll(hwnd,msg,wparam);0}\n",
+        "        WM_MOUSEWHEEL|0x0114|0x0115=>{state.form.scroll(hwnd,msg,wparam);0}",
         "",
         "disable feature settings outer scrolling");
     fs::write(path,source).expect("write feature settings");
@@ -183,7 +183,7 @@ fn patch_settings(out: &Path) {
         "WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | 0x00040000,",
         "Event Tracker outer scrollbars");
     replace_once(&mut source,
-        "        0x020a | 0x0115 | 0x0114 => { if !ptr.is_null() { (*ptr).form.scroll(hwnd,msg,wparam); } 0 }\n",
+        "        0x020a | 0x0115 | 0x0114 => { if !ptr.is_null() { (*ptr).form.scroll(hwnd,msg,wparam); } 0 }",
         "",
         "disable Event Tracker outer scrolling");
     fs::write(path,source).expect("write Event Tracker settings");
