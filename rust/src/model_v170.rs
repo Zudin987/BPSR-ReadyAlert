@@ -105,6 +105,9 @@ pub struct DpsRow {
     pub lucky_hits: u64,
     pub deaths: u32,
     pub is_dead: bool,
+    /// Expiry of buff 2110057 (Weakened: Wish Sealed) observed on this player.
+    /// 0 means there is no active revive-blocking debuff.
+    pub revive_blocked_until_ms: i64,
     /// True only for the character owned by this ReadyAlert process.
     pub is_local: bool,
     /// Current-scene attributes that can be safely shown by the inspector.
