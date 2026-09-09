@@ -186,16 +186,17 @@ pub fn observe_skill(skill_id: i32, source_uid: i64, target_uid: i64) {
     let Ok(mut state) = runtime.state.lock() else { return; };
     for rule in settings.rules.iter().filter(|rule| rule.enabled && rule.kind == TrackerKind::Skill && rule.event_id == skill_id) {
         if !scope_matches(rule.scope, source_uid, target_uid, &state) { continue; }
-        let item = state.rule_states.entry(rule.rule_id).or_default();
-        item.count = item.count.saturating_add(1);
-        item.last_seen_unix_ms = now;
-        item.expires_unix_ms = now.saturating_add(i64::from(rule.hold_seconds) * 1000);
-        item.detail = match (source_uid > 0, target_uid > 0) {
+        let detail = match (source_uid > 0, target_uid > 0) {
             (true, true) => format!("{} → {}", scope_uid_label(source_uid, &state), scope_uid_label(target_uid, &state)),
             (true, false) => format!("from {}", scope_uid_label(source_uid, &state)),
             (false, true) => format!("on {}", scope_uid_label(target_uid, &state)),
             _ => "observed".into(),
         };
+        let item = state.rule_states.entry(rule.rule_id).or_default();
+        item.count = item.count.saturating_add(1);
+        item.last_seen_unix_ms = now;
+        item.expires_unix_ms = now.saturating_add(i64::from(rule.hold_seconds) * 1000);
+        item.detail = detail;
     }
 }
 
@@ -223,7 +224,8 @@ pub fn observe_buff(target_uid: i64, buff_uuid: i32, base_id: i32, removed: bool
         if is_new { item.count = item.count.saturating_add(1); }
         item.last_seen_unix_ms = now;
         item.expires_unix_ms = expires_unix_ms;
-        item.detail = format!("on {}", scope_uid_label(target_uid, &state));
+        let detail = format!("on {}", scope_uid_label(target_uid, &state));
+        state.rule_states.get_mut(&rule.rule_id).unwrap().detail = detail;
     }
 }
 

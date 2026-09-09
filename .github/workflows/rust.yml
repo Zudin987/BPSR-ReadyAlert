@@ -37,6 +37,9 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
 
+      - name: Focused tracker tests
+        run: cargo test --manifest-path rust/Cargo.toml event_tracker
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
@@ -71,3 +74,11 @@ jobs:
           name: BPSR-ReadyAlert-rust-win-x64
           path: dist-rust/
           if-no-files-found: error
+
+      - name: Generated source diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-source
+          path: rust/target/debug/build/bpsr-readyalert-*/out/*.rs
+          retention-days: 3

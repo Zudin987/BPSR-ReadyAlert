@@ -2,14 +2,14 @@ use crate::event_tracker::{self, TrackerKind, TrackerRule, TrackerScope, Tracker
 use std::{ffi::c_void, ptr::{null, null_mut}};
 use windows_sys::Win32::{
     Foundation::{GetLastError, HWND, LPARAM, LRESULT, RECT, WPARAM},
-    Graphics::Gdi::{CreateSolidBrush, DeleteObject, GetStockObject, SetBkColor, SetTextColor, DEFAULT_GUI_FONT, HBRUSH, HDC},
+    Graphics::Gdi::{CreateSolidBrush, DeleteObject, GetStockObject, SetBkColor, SetTextColor, DEFAULT_GUI_FONT, HBRUSH, HDC, GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST},
     System::LibraryLoader::GetModuleHandleW,
     UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, EnableWindow, FindWindowW, GetClientRect,
-        GetDlgItem, GetMonitorInfoW, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
-        LoadCursorW, MessageBoxW, MonitorFromWindow, MoveWindow, RegisterClassW, SendMessageW,
+        GetDlgItem, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
+        LoadCursorW, MessageBoxW, MoveWindow, RegisterClassW, SendMessageW,
         SetForegroundWindow, SetWindowLongPtrW, SetWindowTextW, ShowWindow, CREATESTRUCTW,
-        GWLP_USERDATA, IDC_ARROW, MB_ICONERROR, MB_OK, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+        GWLP_USERDATA, IDC_ARROW, MB_ICONERROR, MB_OK,
         SW_SHOW, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_CTLCOLORBTN, WM_CTLCOLOREDIT,
         WM_CTLCOLORLISTBOX, WM_CTLCOLORSTATIC, WM_NCCREATE, WM_NCDESTROY, WM_SETFONT,
         WNDCLASSW, WS_BORDER, WS_CAPTION, WS_CHILD, WS_EX_CLIENTEDGE, WS_MINIMIZEBOX,
@@ -291,9 +291,7 @@ unsafe fn save_editor(hwnd: HWND, state: &mut UiState) {
     rule.label = get_text(hwnd, ID_LABEL);
     rule.hold_seconds = read_i32(hwnd, ID_HOLD, i32::from(rule.hold_seconds)).clamp(1, 30) as u8;
     state.working.normalize();
-    set_text(hwnd, ID_EVENT_ID, &rule.event_id.to_string());
-    set_text(hwnd, ID_LABEL, &rule.label);
-    set_text(hwnd, ID_HOLD, &rule.hold_seconds.to_string());
+    load_selected(hwnd, state);
 }
 
 unsafe fn set_editor_enabled(hwnd: HWND, enabled: bool) {
