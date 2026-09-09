@@ -15,6 +15,10 @@ mod previous {
     include!("telemetry_v1100.rs");
 }
 
+mod names {
+    include!(concat!(env!("OUT_DIR"), "/analysis_names_v1100.rs"));
+}
+
 const SYNC_NEAR_ENTITIES: u32 = 0x06;
 const SYNC_NEAR_DELTA_INFO: u32 = 0x2d;
 const SYNC_TO_ME_DELTA_INFO: u32 = 0x2e;
@@ -77,6 +81,7 @@ pub struct TelemetryRuntime {
     tx: Sender<AppEvent>,
     entities: HashMap<i64, EntityMeta>,
     actors: HashMap<i64, AnalysisActor>,
+    local_uuid: i64,
     analysis_started: Option<Instant>,
     last_totals: Option<(u64, i64, i64, i64)>,
     boss_targets: HashSet<i64>,
@@ -92,6 +97,7 @@ impl TelemetryRuntime {
             tx,
             entities: HashMap::new(),
             actors: HashMap::new(),
+            local_uuid: 0,
             analysis_started: None,
             last_totals: None,
             boss_targets: HashSet::new(),
@@ -157,6 +163,7 @@ impl TelemetryRuntime {
                     if let Some(player) = proto::get_len_field(info, 2) {
                         let uuid = signed(proto::get_varint_field(player, 1).unwrap_or(0));
                         if uuid != 0 {
+                            self.local_uuid = uuid;
                             self.observe_attrs(uuid, proto::get_len_field(player, 3));
                         }
                     }
@@ -184,7 +191,7 @@ impl TelemetryRuntime {
             SYNC_TO_ME_DELTA_INFO => {
                 if let Some(wrapper) = proto::get_len_field(body, 1) {
                     if let Some(delta) = proto::get_len_field(wrapper, 1) {
-                        self.observe_delta(delta, None);
+                        self.observe_delta(delta, (self.local_uuid != 0).then_some(self.local_uuid));
                     }
                 }
             }
@@ -278,7 +285,7 @@ impl TelemetryRuntime {
                 let uid = target_uuid >> 16;
                 let source_uuid = if raw_attacker != 0 { raw_attacker } else { attacker_uuid };
                 let source_name = self.entity_name(source_uuid);
-                let skill_name = skill_display_name(skill);
+                let skill_name = names::skill_name(skill);
                 let stat = self.actors.entry(uid).or_default().absorbed.entry((source_uuid, skill)).or_default();
                 if stat.source_name.is_empty() {
                     stat.source_name = source_name;
@@ -443,6 +450,7 @@ impl TelemetryRuntime {
     fn reset_scene_analysis(&mut self) {
         self.entities.clear();
         self.actors.clear();
+        self.local_uuid = 0;
         self.analysis_started = None;
         self.last_totals = None;
         self.boss_targets.clear();
@@ -479,17 +487,6 @@ fn split_healing(requested: i64, hp_lessen: Option<i64>) -> (i64, i64) {
     };
     let effective = actual.unsigned_abs().min(requested as u64) as i64;
     (effective, requested.saturating_sub(effective))
-}
-
-fn skill_display_name(id: i32) -> String {
-    // The v1.10 inner layer already has the complete pinned ZDPS name table for
-    // outgoing/taken UI. Absorbed events can still be useful when an id is new,
-    // so never hide an unknown id.
-    if id == 0 {
-        "Unknown".into()
-    } else {
-        format!("Skill {id}")
-    }
 }
 
 fn encounter_changed(previous: (u64, i64, i64, i64), next: (u64, i64, i64, i64)) -> bool {
