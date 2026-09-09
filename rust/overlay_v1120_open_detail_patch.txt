@@ -1,0 +1,26 @@
+unsafe fn open_detail(parent:HWND,state:&mut State,row:DpsRow){
+    if !state.detail_hwnd.is_null()&&IsWindow(state.detail_hwnd)!=0{DestroyWindow(state.detail_hwnd);}
+    let instance=GetModuleHandleW(null());
+    let class=wide(DETAIL_CLASS);
+    let wc=WNDCLASSW{lpfnWndProc:Some(detail_wnd_proc),hInstance:instance,hCursor:LoadCursorW(null_mut(),IDC_ARROW),lpszClassName:class.as_ptr(),..std::mem::zeroed()};
+    if RegisterClassW(&wc)==0&&GetLastError()!=1410{return;}
+    let mut pr:RECT=std::mem::zeroed();
+    GetWindowRect(parent,&mut pr);
+    let screen_w=windows_sys::Win32::UI::WindowsAndMessaging::GetSystemMetrics(0).max(800);
+    let screen_h=windows_sys::Win32::UI::WindowsAndMessaging::GetSystemMetrics(1).max(600);
+    let width=(screen_w-20).min(1120).max(760);
+    let height=(screen_h-30).min(680).max(540);
+    let right_x=pr.right+8;
+    let left_x=pr.left-width-8;
+    let x=if right_x+width<=screen_w-10{right_x}else if left_x>=10{left_x}else{((screen_w-width)/2).max(10)};
+    let max_y=(screen_h-height-10).max(10);
+    let y=(pr.top+20).clamp(10,max_y);
+    let ptr=Box::into_raw(Box::new(DetailState{row:row.clone(),scroll:0,font:create_overlay_font(true),mode:DetailMode::Damage,encounter_ms:view_snapshot(state).encounter_ms}));
+    let title=wide("ReadyAlert Entity Inspector");
+    let hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,class.as_ptr(),title.as_ptr(),WS_POPUP|WS_THICKFRAME,x,y,width,height,parent,null_mut(),instance,ptr.cast::<c_void>());
+    if hwnd.is_null(){let boxed=Box::from_raw(ptr);if !boxed.font.is_null(){DeleteObject(boxed.font);}drop(boxed);return;}
+    state.detail_hwnd=hwnd;
+    state.detail_uid=row.uid;
+    ShowWindow(hwnd,SW_SHOW);
+    SetForegroundWindow(hwnd);
+}

@@ -88,6 +88,9 @@ pub struct SkillBreakdown {
     pub hits: u64,
     pub crits: u64,
     pub lucky_hits: u64,
+    /// Smallest positive event observed for this skill during the encounter.
+    /// Zero means the value was unavailable in an older saved encounter.
+    pub min_value: i64,
     pub max_value: i64,
 }
 
