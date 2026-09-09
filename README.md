@@ -11,6 +11,7 @@ Lightweight native Windows companion for **Blue Protocol: Star Resonance**, writ
 - Active and Encounter DPS/HPS/DTPS, plus contributor/party filters and configurable row limits.
 - Per-player Entity Inspector with skill damage/healing/taken breakdowns.
 - Combat Analysis: boss/objective damage split, effective healing/overheal, buff uptime, source-to-skill Tank analysis and 10-second death recaps.
+- Skill Analysis: per-skill boss/objective damage, per-skill effective healing/overheal, and direct shield/absorbed events kept separate from HP damage taken.
 - Direct character-sheet Block % in Tank analysis; ReadyAlert does not invent unsupported Lucky Block statistics.
 - Battle Imagine detection with game icons and tiers.
 - Dungeon Mechanics overlay with food/serum timers, tracked buffs and character attributes.
@@ -42,13 +43,13 @@ Use the DPS meter's `<`, `LIVE`, and `>` controls to move between older fights, 
 
 The Entity Inspector provides five analysis tabs:
 
-- **Damage:** total damage, stable boss/objective damage, add/other damage, boss share and skill distribution.
-- **Healing:** total/effective healing, overheal, healing efficiency and per-skill breakdown. Effective healing uses the game's observed HP modification when available rather than estimating from an arbitrary snapshot.
-- **Taken:** incoming damage grouped by source and skill, DTPS, biggest hit and direct Block %.
+- **Damage:** total damage, stable boss/objective damage, add/other damage, boss share and per-skill boss/objective contribution.
+- **Healing:** total/effective healing, overheal, healing efficiency and per-skill effective/overheal breakdown. Effective healing uses the game's observed HP modification when available rather than estimating from an arbitrary snapshot.
+- **Taken:** incoming HP damage and direct shield/absorbed events grouped by source and skill, with DTPS, absorb rate, biggest hits and direct Block %. Direct `Absorbed` events are tracked separately; mixed shield+HP hits are not guessed without sufficient shield-state data.
 - **Buffs:** named player-buff uptime and activation counts from observed apply/remove/expiry events.
-- **Deaths:** up to the latest eight deaths with the preceding 10 seconds of incoming damage and effective healing.
+- **Deaths:** up to the latest eight deaths with the preceding 10 seconds of incoming damage and effective healing, a last-5-second summary, and the final recorded damage before ActorState death marked as `LAST HIT`.
 
-Older v1.9 history remains readable; new analysis fields are additive and default safely when absent.
+Older v1.9/v1.10 history remains readable; new analysis fields are additive and default safely when absent.
 
 When **Active + encounter rates** is enabled, rows show both values:
 
