@@ -8,6 +8,9 @@ Lightweight native Windows companion for **Blue Protocol: Star Resonance**, writ
 
 - Native DPS meter with Damage, Heal and Tank views.
 - Local combat history with previous-fight browsing and historical Entity Inspector data.
+- Same-target/same-spec local-player personal-best comparison for Damage and Healing encounters.
+- Copy the currently viewed encounter summary, or export it locally as CSV / JSON.
+- **Ctrl+Shift+F10** global hotkey to hide/show the DPS + Dungeon Mechanics overlays together.
 - Active and Encounter DPS/HPS/DTPS, plus contributor/party filters and configurable row limits.
 - Per-player Entity Inspector with skill damage/healing/taken breakdowns.
 - Combat Analysis: boss/objective damage split, effective healing/overheal, buff uptime, source-to-skill Tank analysis and 10-second death recaps.
@@ -36,11 +39,17 @@ ReadyAlert uses one shared Npcap capture path. It does **not** inject into BPSR,
 
 The Dungeon Mechanics title shows capture health. If it reports stale frames, no recent game packets, or new Npcap packet drops while you are actively playing, re-check the selected adapter/network path before trusting combat totals.
 
-## Combat history and analysis
+Press **Ctrl+Shift+F10** to hide or restore both combat overlays at once. The chat overlay is intentionally left unchanged by this shortcut.
+
+## Combat history, training and sharing
 
 Completed/reset encounters are stored **locally** under ReadyAlert's app-data `History` folder as compressed, schema-versioned files. History is never uploaded or synchronized to a web service. The number of retained encounters can be configured in DPS Meter Settings.
 
 Use the DPS meter's `<`, `LIVE`, and `>` controls to move between older fights, the current live encounter, and newer saved fights. Clicking a player name while viewing history opens the Entity Inspector using that saved encounter state.
+
+The DPS toolbar also provides **Copy**, **CSV**, and **JSON** actions. They operate on the encounter currently being viewed, including historical encounters, and respect the current Damage / Heal / Tank tab. Copy places a compact top-10 summary on the Windows clipboard. CSV and JSON files are written under ReadyAlert's local app-data `Exports` folder; they are never uploaded automatically.
+
+For Damage and Healing, ReadyAlert compares your local player's encounter rate against matching saved runs from the **same target and same profession/spec**. Pulls shorter than 10 seconds are ignored to avoid noisy startup/burst records. A historical encounter never compares against itself. Tank does not display a “personal best” because taking more damage/DTPS is not treated as an improvement.
 
 The Entity Inspector provides five analysis tabs:
 
@@ -50,7 +59,7 @@ The Entity Inspector provides five analysis tabs:
 - **Buffs:** named player-buff uptime and activation counts from observed apply/remove/expiry events.
 - **Deaths:** up to the latest eight deaths with the preceding 10 seconds of incoming damage and effective healing, a last-5-second summary, and the final recorded damage before ActorState death marked as `LAST HIT`.
 
-Older v1.9-v1.11 history remains readable; new analysis fields are additive and default safely when absent. The Entity Inspector is also clamped to the visible screen instead of blindly opening to the right of the meter.
+Older v1.9-v1.12 history remains readable; new analysis fields are additive and default safely when absent. The Entity Inspector is also clamped to the visible screen instead of blindly opening to the right of the meter.
 
 When **Active + encounter rates** is enabled, rows show both values:
 
