@@ -24,7 +24,9 @@ mod chat {
     }
 }
 mod event_tracker;
-mod event_tracker_ui;
+mod event_tracker_ui {
+    include!(concat!(env!("OUT_DIR"), "/event_tracker_ui_v1160_fixed.rs"));
+}
 #[path = "feature_settings_v181.rs"]
 mod feature_settings;
 mod feature_overlays_impl {
@@ -68,7 +70,9 @@ mod paths;
 mod proto;
 #[path = "settings_v181.rs"]
 mod settings;
-mod settings_ui;
+mod settings_ui {
+    include!(concat!(env!("OUT_DIR"), "/settings_ui_v1160_fixed.rs"));
+}
 mod sharing;
 mod ui;
 mod hotkeys;
