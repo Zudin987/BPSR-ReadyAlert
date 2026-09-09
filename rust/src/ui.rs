@@ -98,11 +98,14 @@ impl ScrollForm {
                 nMin: 0, nMax: extent-1, nPage: page.max(1) as u32, nPos: pos, nTrackPos: pos };
             SetScrollInfo(hwnd, bar, &info, 1);
         }
+        // Reposition first, then repaint once. The old path repainted every child
+        // while moving it and erased the full parent afterwards, which visibly
+        // flashed native controls during resize/scroll operations.
         for &(child, r) in &self.children {
-            // Retain native control size and font; scrolling moves controls only.
-            MoveWindow(child, r.left-self.x, r.top-self.y, r.right-r.left, r.bottom-r.top, 1);
+            MoveWindow(child, r.left-self.x, r.top-self.y, r.right-r.left, r.bottom-r.top, 0);
         }
-        InvalidateRect(hwnd, null(), 1);
+        for &(child, _) in &self.children { InvalidateRect(child, null(), 0); }
+        InvalidateRect(hwnd, null(), 0);
         self.busy=false;
     }
     pub unsafe fn scroll(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM) {

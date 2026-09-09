@@ -68,9 +68,15 @@ pub struct ImagineBadge {
     pub skill_id: i32,
     pub name: String,
     /// Fantasy remodel level / tier observed on the summoned monster.
+    /// This protocol value is already zero-based: 0 is T0 and 5 is T5.
     pub tier: i32,
     pub icon_key: String,
 }
+
+/// Convert a protocol Imagine remodel level to the user-facing tier. The game
+/// already sends the displayed tier; there is no one-based-to-zero-based offset.
+pub fn imagine_tier_display(raw: i32) -> i32 { raw.max(0) }
+pub fn imagine_tier_label(raw: i32) -> String { format!("T{}", imagine_tier_display(raw)) }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -291,5 +297,23 @@ pub fn channel_name(channel: i32) -> &'static str {
         9 => "Newbie",
         99 => "System",
         _ => "Chat",
+    }
+}
+
+#[cfg(test)]
+mod imagine_tier_tests {
+    use super::*;
+
+    #[test]
+    fn imagine_tier_keeps_protocol_t0_and_t5() {
+        assert_eq!(imagine_tier_display(0), 0);
+        assert_eq!(imagine_tier_label(0), "T0");
+        assert_eq!(imagine_tier_display(5), 5);
+        assert_eq!(imagine_tier_label(5), "T5");
+    }
+
+    #[test]
+    fn imagine_tier_never_exposes_negative_protocol_noise() {
+        assert_eq!(imagine_tier_label(-1), "T0");
     }
 }

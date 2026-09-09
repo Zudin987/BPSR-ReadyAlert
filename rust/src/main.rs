@@ -32,9 +32,28 @@ mod feature_overlays_impl {
 }
 mod feature_overlays {
     pub use crate::feature_overlays_impl::*;
-    use windows_sys::Win32::{Foundation::HWND, Graphics::Gdi::InvalidateRect};
+    use std::{cell::RefCell, collections::HashMap, time::{Duration, Instant}};
+    use windows_sys::Win32::{Foundation::HWND, Graphics::Gdi::InvalidateRect, UI::WindowsAndMessaging::IsWindowVisible};
+
+    thread_local! {
+        static LAST_TICK_PAINT: RefCell<HashMap<isize, Instant>> = RefCell::new(HashMap::new());
+    }
+
+    /// Time-based overlay labels still need periodic refresh, but the native UI
+    /// should not invalidate hidden windows or repaint on every host timer pulse.
     pub unsafe fn tick(hwnd: HWND) {
-        if !hwnd.is_null() { InvalidateRect(hwnd, std::ptr::null(), 0); }
+        if hwnd.is_null() || IsWindowVisible(hwnd) == 0 { return; }
+        let now = Instant::now();
+        let should_paint = LAST_TICK_PAINT.with(|last| {
+            let mut last = last.borrow_mut();
+            let key = hwnd as isize;
+            match last.get_mut(&key) {
+                Some(previous) if now.duration_since(*previous) < Duration::from_millis(125) => false,
+                Some(previous) => { *previous = now; true }
+                None => { last.insert(key, now); true }
+            }
+        });
+        if should_paint { InvalidateRect(hwnd, std::ptr::null(), 0); }
     }
 }
 mod game_filter;
@@ -154,6 +173,7 @@ fn smoke_test() -> Result<(), String> {
     tracker.max_visible = 99;
     tracker.normalize();
     if tracker.max_visible != 12 || !tracker.rules.is_empty() { return Err("v1.14 tracker defaults failed".into()); }
+    if model::imagine_tier_label(0) != "T0" || model::imagine_tier_label(5) != "T5" { return Err("v1.15 Imagine tier display failed".into()); }
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
     Ok(())
