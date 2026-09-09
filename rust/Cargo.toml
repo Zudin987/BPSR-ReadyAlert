@@ -1,8 +1,8 @@
 [package]
 name = "bpsr-readyalert"
-version = "1.16.3"
+version = "1.16.4"
 edition = "2021"
-build = "build_v1163_ui.rs"
+build = "build_v1164.rs"
 description = "Native Rust Ready Check, queue, party, chat, DPS and dungeon mechanics companion for Blue Protocol: Star Resonance"
 license = "MIT"
 
