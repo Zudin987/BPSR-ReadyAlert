@@ -91,6 +91,8 @@ pub struct DpsRow {
     pub subprofession_name: String,
     pub ability_score: i64,
     pub illusion_break: i64,
+    pub hp: i64,
+    pub max_hp: i64,
     pub damage: i64,
     pub healing: i64,
     pub damage_taken: i64,
@@ -103,10 +105,18 @@ pub struct DpsRow {
     pub lucky_hits: u64,
     pub deaths: u32,
     pub is_dead: bool,
+    /// Expiry of buff 2110057 (Weakened: Wish Sealed) observed on this player.
+    /// 0 means there is no active revive-blocking debuff.
+    pub revive_blocked_until_ms: i64,
     /// True only for the character owned by this ReadyAlert process.
     pub is_local: bool,
+    /// Current-scene attributes that can be safely shown by the inspector.
+    pub attributes: Vec<TrackedAttribute>,
     pub imagines: Vec<ImagineBadge>,
+    /// Outgoing damage/healing skill distribution.
     pub skills: Vec<SkillBreakdown>,
+    /// Incoming damage grouped by the attack skill id.
+    pub taken_skills: Vec<SkillBreakdown>,
 }
 
 #[derive(Clone, Debug, Default)]
