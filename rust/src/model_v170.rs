@@ -78,7 +78,13 @@ pub struct SkillBreakdown {
     pub skill_id: i32,
     pub name: String,
     pub damage: i64,
+    /// Portion of this skill's damage assigned to the stable boss/objective set.
+    pub boss_damage: i64,
     pub healing: i64,
+    /// Healing from this skill that actually modified HP when HpLessen was present.
+    pub effective_healing: i64,
+    /// Requested healing from this skill that did not modify HP.
+    pub overhealing: i64,
     pub hits: u64,
     pub crits: u64,
     pub lucky_hits: u64,
@@ -150,6 +156,8 @@ pub struct DpsRow {
     pub damage: i64,
     pub healing: i64,
     pub damage_taken: i64,
+    /// Direct type-5 Absorbed events kept separate from HP damage taken.
+    pub absorbed_damage: i64,
     /// Damage dealt to the stable boss/objective target set for this encounter.
     pub boss_damage: i64,
     /// Healing that actually modified HP according to the packet HpLessen value.
@@ -190,8 +198,11 @@ pub struct DpsRow {
     pub buff_uptimes: Vec<BuffUptime>,
     /// Up to the most recent deaths, each with the preceding combat timeline.
     pub death_recaps: Vec<DeathRecap>,
-    /// Incoming damage split by source monster/entity and skill.
+    /// Incoming HP damage split by source monster/entity and skill.
     pub taken_sources: Vec<TakenSourceBreakdown>,
+    /// Direct shield/absorbed events split by source and skill. `damage` stores
+    /// the absorbed amount; this does not include inferred mixed shield+HP hits.
+    pub absorbed_sources: Vec<TakenSourceBreakdown>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -212,6 +223,7 @@ pub struct DpsSnapshot {
     pub total_damage: i64,
     pub total_healing: i64,
     pub total_damage_taken: i64,
+    pub total_absorbed_damage: i64,
     pub total_boss_damage: i64,
     pub target: Option<TargetSnapshot>,
     pub rows: Vec<DpsRow>,
