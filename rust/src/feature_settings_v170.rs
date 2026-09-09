@@ -34,14 +34,14 @@ pub const ATTR_SEASON_STRENGTH: i32 = 0x2cb0;
 
 // Actual character-panel percentages. ZDPS reads these values and displays
 // value / 100, e.g. 4816 => 48.16%.
-pub const ATTR_CRIT: i32 = 0x2dbe;                 // AttrCrit = 11710
+pub const ATTR_CRIT: i32 = 0x2dbe;
 pub const ATTR_SKILL_CD: i32 = 0x2de6;
-pub const ATTR_SKILL_CD_PCT: i32 = 0x2df0;         // AttrSkillCDPCT = 11760
-pub const ATTR_LUCKY: i32 = 0x2e04;                // AttrLuckyStrikeProb = 11780
-pub const ATTR_HASTE: i32 = 0x2e9a;                // AttrHastePct = 11930
-pub const ATTR_MASTERY: i32 = 0x2ea4;              // AttrMasteryPct = 11940
-pub const ATTR_VERSATILITY: i32 = 0x2eae;           // AttrVersatilityPct = 11950
-pub const ATTR_CD_ACCELERATE_PCT: i32 = 0x2eb8;     // AttrCdAcceleratePct = 11960
+pub const ATTR_SKILL_CD_PCT: i32 = 0x2df0;
+pub const ATTR_LUCKY: i32 = 0x2e04;
+pub const ATTR_HASTE: i32 = 0x2e9a;
+pub const ATTR_MASTERY: i32 = 0x2ea4;
+pub const ATTR_VERSATILITY: i32 = 0x2eae;
+pub const ATTR_CD_ACCELERATE_PCT: i32 = 0x2eb8;
 
 pub const ATTR_PHYSICAL_PENETRATION: i32 = 0x2dc8;
 pub const ATTR_MAGIC_PENETRATION: i32 = 0x2dd2;
@@ -186,10 +186,36 @@ pub struct MeterSettings {
     pub show_imagines: bool,
     pub show_target: bool,
     pub remember_scroll: bool,
+    /// Show active rate first and encounter rate second (A/E) in live/history rows.
+    pub show_active_rates: bool,
+    /// Hide zero-contribution rows for the active Damage/Heal/Tank tab.
+    pub only_contributors: bool,
+    /// Limit rows to known members of the local party.
+    pub party_only: bool,
+    /// Keep the local player visible even when outside a configured row limit.
+    pub always_show_self: bool,
+    /// 0 = fit the window; otherwise cap rows to this count.
+    pub visible_rows: usize,
+    /// Maximum compressed encounter files retained locally.
+    pub history_limit: usize,
 }
 impl Default for MeterSettings {
     fn default() -> Self {
-        Self { show_damage_share: true, show_healing_share: true, show_tank_share: true, show_deaths: true, show_imagines: true, show_target: true, remember_scroll: false }
+        Self {
+            show_damage_share: true,
+            show_healing_share: true,
+            show_tank_share: true,
+            show_deaths: true,
+            show_imagines: true,
+            show_target: true,
+            remember_scroll: false,
+            show_active_rates: true,
+            only_contributors: false,
+            party_only: false,
+            always_show_self: true,
+            visible_rows: 0,
+            history_limit: 50,
+        }
     }
 }
 
@@ -205,16 +231,19 @@ impl Default for MechanicAttributeSettings {
 
 impl FeatureSettings {
     pub fn normalize(&mut self) {
-        // The v1.8.3 grouped row reserves independent left identity, middle
-        // throughput and right share regions. Below 600 px those regions can
-        // physically overlap, so prevent resizing into an unreadable state.
         self.dps.normalize(600, 220);
         self.mechanics.normalize(400, 220);
+        self.meter.visible_rows = match self.meter.visible_rows {
+            0 | 5 | 10 | 20 | 30 | 50 => self.meter.visible_rows,
+            value if value < 8 => 5,
+            value if value < 15 => 10,
+            value if value < 25 => 20,
+            value if value < 40 => 30,
+            _ => 50,
+        };
+        self.meter.history_limit = self.meter.history_limit.clamp(10, 200);
 
-        // Migrate v1.7 and v1.8.0/1.8.1 selections by their UI meaning. Those
-        // releases used raw rating ids (and two shifted ids) but labelled them as
-        // percentages. Preserve the user's chosen labels while moving to the
-        // real character-panel percentage attributes.
+        // Migrate v1.7 and v1.8.0/1.8.1 selections by their UI meaning.
         const OLD_V17_LUCK: i32 = 11_446;
         const OLD_V17_HASTE: i32 = 11_463;
         const OLD_V17_MASTERY: i32 = 11_464;
@@ -305,6 +334,16 @@ mod tests {
         value.dps.width = 420;
         value.normalize();
         assert_eq!(value.dps.width, 600);
+    }
+
+    #[test]
+    fn history_and_row_settings_are_bounded() {
+        let mut value = FeatureSettings::default();
+        value.meter.visible_rows = 13;
+        value.meter.history_limit = 999;
+        value.normalize();
+        assert_eq!(value.meter.visible_rows, 10);
+        assert_eq!(value.meter.history_limit, 200);
     }
 
     #[test]
