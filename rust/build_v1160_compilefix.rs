@@ -31,6 +31,12 @@ fn remove_second_function(source: &mut String, marker: &str, label: &str) {
     source.replace_range(start..end, "");
 }
 
+fn replace_once(source: &mut String, from: &str, to: &str, label: &str) {
+    let count = source.matches(from).count();
+    assert_eq!(count, 1, "v1.16 compile fix {label} expected one match, found {count}");
+    *source = source.replacen(from, to, 1);
+}
+
 fn patch_overlay(out: &Path) {
     let path = out.join("feature_overlays_v170_fixed.rs");
     let mut source = fs::read_to_string(&path).expect("read generated v1.16 overlay");
@@ -47,6 +53,22 @@ fn patch_overlay(out: &Path) {
         let pos = source.find(marker).expect("primary_metric anchor for rate helper");
         source.insert_str(pos, "fn rate(value:i64,ms:u64)->f64{if ms==0{0.0}else{value as f64/(ms as f64/1000.0)}}\n");
     }
+
+    // Keep the existing Target / HP summary preference meaningful. The compact
+    // encounter strip stays visible for time/context, but target identity and HP
+    // disappear when the user disables that setting.
+    replace_once(
+        &mut source,
+        "draw(hdc,&target_title(snapshot),RECT{",
+        "draw(hdc,&if settings.meter.show_target{target_title(snapshot)}else{\"Encounter\".into()},RECT{",
+        "target title preference",
+    );
+    replace_once(
+        &mut source,
+        "let status=format!(\"{}   TIME {}\",target_hp(snapshot),format_time(snapshot.encounter_ms));",
+        "let status=if settings.meter.show_target{format!(\"{}   TIME {}\",target_hp(snapshot),format_time(snapshot.encounter_ms))}else{format!(\"TIME {}\",format_time(snapshot.encounter_ms))};",
+        "target HP preference",
+    );
 
     assert_eq!(source.matches("unsafe fn dps_row_at(").count(), 1, "v1.16 compile fix must leave one dps_row_at");
     fs::write(path, source).expect("write compile-fixed v1.16 overlay");
