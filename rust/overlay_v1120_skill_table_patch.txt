@@ -1,0 +1,69 @@
+unsafe fn paint_detail_skills(hdc:HDC,rc:RECT,state:&DetailState){
+    let skills=detail_skills(state);
+    let total=match state.mode{DetailMode::Damage=>state.row.damage,DetailMode::Heal=>state.row.healing,_=>0};
+    let head=281;
+    fill(hdc,&RECT{left:3,top:head,right:rc.right-3,bottom:head+24},rgb(49,49,49));
+    SetTextColor(hdc,rgb(225,225,225));
+    let id_r=58;
+    let right=rc.right-6;
+    let share_l=right-56;
+    let max_l=share_l-68;
+    let min_l=max_l-68;
+    let avg_l=min_l-68;
+    let lucky_l=avg_l-58;
+    let crit_l=lucky_l-58;
+    let hits_l=crit_l-46;
+    let rate_l=hits_l-72;
+    let aux_pct_l=rate_l-58;
+    let aux_l=aux_pct_l-82;
+    let amount_l=aux_l-88;
+    draw(hdc,"ID",RECT{left:4,top:head,right:id_r,bottom:head+24},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Skill Name",RECT{left:id_r+2,top:head,right:amount_l-5,bottom:head+24},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);
+    let(amount_head,aux_head,pct_head,rate_head)=match state.mode{DetailMode::Damage=>("Damage","Boss","Boss %","DPS"),DetailMode::Heal=>("Healing","Effective","OH %","HPS"),_=>("Value","Aux","%","/s")};
+    draw(hdc,amount_head,RECT{left:amount_l,top:head,right:aux_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,aux_head,RECT{left:aux_l,top:head,right:aux_pct_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,pct_head,RECT{left:aux_pct_l,top:head,right:rate_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,rate_head,RECT{left:rate_l,top:head,right:hits_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Hits",RECT{left:hits_l,top:head,right:crit_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Crit %",RECT{left:crit_l,top:head,right:lucky_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Luck %",RECT{left:lucky_l,top:head,right:avg_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Avg",RECT{left:avg_l,top:head,right:min_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Min",RECT{left:min_l,top:head,right:max_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Max",RECT{left:max_l,top:head,right:share_l-4,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    draw(hdc,"Share",RECT{left:share_l,top:head,right,bottom:head+24},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    let top=head+27;
+    let visible=((rc.bottom-top)/DETAIL_ROW_H).max(0)as usize;
+    if skills.is_empty(){
+        SetTextColor(hdc,rgb(150,150,150));
+        draw(hdc,"No events recorded for this tab yet.",RECT{left:10,top:top+20,right:rc.right-10,bottom:top+55},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    }else{
+        for(i,skill)in skills.iter().skip(state.scroll).take(visible).enumerate(){
+            let y=top+i as i32*DETAIL_ROW_H;
+            fill(hdc,&RECT{left:3,top:y,right:rc.right-3,bottom:y+DETAIL_ROW_H-2},if i%2==0{rgb(38,38,38)}else{rgb(34,34,34)});
+            let amount=detail_skill_amount(skill,state.mode);
+            let share=if total>0{amount as f64*100.0/total as f64}else{0.0};
+            let crit=if skill.hits>0{skill.crits as f64*100.0/skill.hits as f64}else{0.0};
+            let lucky=if skill.hits>0{skill.lucky_hits as f64*100.0/skill.hits as f64}else{0.0};
+            let avg=if skill.hits>0{amount as f64/skill.hits as f64}else{0.0};
+            let(aux,pct)=match state.mode{
+                DetailMode::Damage=>{let boss=skill.boss_damage.min(skill.damage.max(0));(boss,if skill.damage>0{boss as f64*100.0/skill.damage as f64}else{0.0})},
+                DetailMode::Heal=>{let effective=skill.effective_healing.min(skill.healing.max(0));let oh=skill.overhealing.min(skill.healing.saturating_sub(effective).max(0));(effective,if skill.healing>0{oh as f64*100.0/skill.healing as f64}else{0.0})},
+                _=>(0,0.0)
+            };
+            SetTextColor(hdc,rgb(235,235,235));
+            draw(hdc,&skill.skill_id.to_string(),RECT{left:4,top:y,right:id_r,bottom:y+DETAIL_ROW_H},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&skill.name,RECT{left:id_r+2,top:y,right:amount_l-5,bottom:y+DETAIL_ROW_H},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);
+            draw(hdc,&compact(amount as f64),RECT{left:amount_l,top:y,right:aux_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&compact(aux as f64),RECT{left:aux_l,top:y,right:aux_pct_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&format!("{pct:.1}%"),RECT{left:aux_pct_l,top:y,right:rate_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&compact(rate(amount,state.encounter_ms)),RECT{left:rate_l,top:y,right:hits_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&skill.hits.to_string(),RECT{left:hits_l,top:y,right:crit_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&format!("{crit:.1}%"),RECT{left:crit_l,top:y,right:lucky_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&format!("{lucky:.1}%"),RECT{left:lucky_l,top:y,right:avg_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&compact(avg),RECT{left:avg_l,top:y,right:min_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,if skill.min_value>0{&compact(skill.min_value as f64)}else{"-"},RECT{left:min_l,top:y,right:max_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&compact(skill.max_value as f64),RECT{left:max_l,top:y,right:share_l-4,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            draw(hdc,&format!("{share:.1}%"),RECT{left:share_l,top:y,right,bottom:y+DETAIL_ROW_H},DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+        }
+    }
+}
