@@ -3,7 +3,7 @@ use std::{ffi::c_void, sync::{Arc, RwLock}};
 use windows_sys::Win32::Foundation::{HINSTANCE, HWND, RECT};
 
 mod legacy {
-    include!(concat!(env!("OUT_DIR"), "/overlay_v150_v1180.rs"));
+    include!(concat!(env!("OUT_DIR"), "/overlay_v150_v1181.rs"));
 }
 
 pub use legacy::{apply_style, expand_if_collapsed, push_chat, refresh, set_translation};
