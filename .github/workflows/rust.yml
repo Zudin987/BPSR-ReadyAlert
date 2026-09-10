@@ -91,6 +91,9 @@ jobs:
       - name: Focused v1.18.8 scale UX tests
         run: cargo test --manifest-path rust/Cargo.toml v1188_
 
+      - name: Focused v1.18.9 maintenance tests
+        run: cargo test --manifest-path rust/Cargo.toml v1189_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
