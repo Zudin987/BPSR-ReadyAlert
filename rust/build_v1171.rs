@@ -5,6 +5,14 @@ mod prior {
     pub fn run() { main(); }
 }
 
+const TARGET_MAP_SHARDS: [&str; 5] = [
+    "data/target_entities_v1171_01.csv",
+    "data/target_entities_v1171_02.csv",
+    "data/target_entities_v1171_03.csv",
+    "data/target_entities_v1171_04.csv",
+    "data/target_entities_v1171_05.csv",
+];
+
 fn replace_once(source: &mut String, from: &str, to: &str, label: &str) {
     let count = source.matches(from).count();
     assert_eq!(count, 1, "v1.17.1 patch {label} expected one match, found {count}");
@@ -17,30 +25,33 @@ fn rust_string(value: &str) -> String {
 
 fn exact_monster_catalog() -> String {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
-    let path = manifest.join("data/target_entities_v1171.csv");
-    let csv = fs::read_to_string(&path).expect("read data/target_entities_v1171.csv");
     let mut arms = String::new();
     let mut seen = std::collections::HashSet::new();
     let mut count = 0usize;
 
-    for (line_no, raw) in csv.lines().enumerate().skip(1) {
-        let raw = raw.trim_end_matches('\r');
-        if raw.trim().is_empty() { continue; }
-        let (raw_name, raw_id) = raw
-            .rsplit_once(',')
-            .unwrap_or_else(|| panic!("invalid target entity CSV line {}", line_no + 1));
-        let id: i32 = raw_id
-            .trim()
-            .parse()
-            .unwrap_or_else(|_| panic!("invalid monster/entity id on line {}", line_no + 1));
-        assert!(seen.insert(id), "duplicate monster/entity id {id}");
-        let mut name = raw_name.trim().to_string();
-        if name.starts_with('"') && name.ends_with('"') && name.len() >= 2 {
-            name = name[1..name.len() - 1].replace("\"\"", "\"");
+    for relative in TARGET_MAP_SHARDS {
+        let path = manifest.join(relative);
+        let csv = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("read {relative}: {err}"));
+        for (line_no, raw) in csv.lines().enumerate().skip(1) {
+            let raw = raw.trim_end_matches('\r');
+            if raw.trim().is_empty() { continue; }
+            let (raw_name, raw_id) = raw
+                .rsplit_once(',')
+                .unwrap_or_else(|| panic!("invalid target entity CSV {relative}:{}", line_no + 1));
+            let id: i32 = raw_id
+                .trim()
+                .parse()
+                .unwrap_or_else(|_| panic!("invalid monster/entity id in {relative}:{}", line_no + 1));
+            assert!(seen.insert(id), "duplicate monster/entity id {id}");
+            let mut name = raw_name.trim().to_string();
+            if name.starts_with('"') && name.ends_with('"') && name.len() >= 2 {
+                name = name[1..name.len() - 1].replace("\"\"", "\"");
+            }
+            assert!(!name.trim().is_empty(), "empty monster/entity name in {relative}:{}", line_no + 1);
+            arms.push_str(&format!("        {id} => \"{}\",\n", rust_string(&name)));
+            count += 1;
         }
-        assert!(!name.trim().is_empty(), "empty monster/entity name on line {}", line_no + 1);
-        arms.push_str(&format!("        {id} => \"{}\",\n", rust_string(&name)));
-        count += 1;
     }
 
     assert_eq!(count, 3_479, "uploaded monster/boss/targetable entity count changed");
@@ -142,6 +153,8 @@ fn main() {
     patch_telemetry(&out);
 
     println!("cargo:rerun-if-changed=build_v1171.rs");
-    println!("cargo:rerun-if-changed=data/target_entities_v1171.csv");
+    for relative in TARGET_MAP_SHARDS {
+        println!("cargo:rerun-if-changed={relative}");
+    }
     println!("cargo:rerun-if-changed=data/consumables_v1166.csv");
 }
