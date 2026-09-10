@@ -43,6 +43,9 @@ jobs:
       - name: Focused Imagine tier tests
         run: cargo test --manifest-path rust/Cargo.toml imagine_tier
 
+      - name: Focused exact data-map tests
+        run: cargo test --manifest-path rust/Cargo.toml v1171_exact_mapping_tests
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 

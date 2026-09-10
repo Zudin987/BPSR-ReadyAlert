@@ -1,0 +1,701 @@
+monster/boss/targetableentity name,id
+Cabbage Killer,71028
+Cabbage Hunter,71029
+Cabbage Tough Guy,71030
+Cabbage Blaster,71031
+Foxen,71032
+Wasteland Foxen,71033
+Nether Caprahorn,71034
+Glimmer Caprahorn,71035
+Boss: Golden Juggernaut,71036
+Boss: Phantom Arachnocrab,71037
+Boss: Inferno Ogre,71038
+Boss: Muku Chief,71039
+Boss: Muku King,71040
+Boss: Goblin King,71041
+Boss: Predator Arachnocrab,72001
+Boss: Rebel King,72002
+Boss: Ridge Fang,72003
+Boss: Bloodthirsty Furball,72004
+Boss: Void Watcher,72005
+Boss: Golden Juggernaut,72006
+Boss: Phantom Arachnocrab,72007
+Boss: Inferno Ogre,72008
+Boss: Cabbage Kingpin,72009
+Boss: Flamehorn,72010
+Boss: Basilisk,72011
+Boss: Muku Chief,72012
+Boss: Muku King,72013
+Boss: Goblin King,72014
+Elite: Killer Arachnocrab,72015
+Elite: Dogorman,72016
+Elite: Verdant Fang,72017
+Elite: Man-Eating Furball,72018
+Elite: Sanctuary Eye,72019
+Elite: Bluespine Lizard,72020
+Elite: Blackstone Commander,72021
+Elite: Blackstone Vanguard,72022
+Elite: Goblin Trickster,72023
+Elite: Goblin Shaman,72024
+Elite: Blackfire Foxen,72025
+Elite: Gloomy Cabbage,72026
+Elite: Ruthless Cabbage,72027
+Elite: Emerald Caprahorn,72028
+Infernal Arachnocrab,72029
+Wasteland Arachnocrab,72030
+Sandstone Yeti,72031
+Ashen Yeti,72032
+Wild Mountain Boar,72033
+Hunter Mountain Boar,72034
+Gnashing Furball,72035
+Spiky Furball,72036
+Patrolling Oculoid,72037
+Mechcore Oculoid,72038
+Frost Lizard,72039
+Magma Lizard,72040
+Gale Lizard,72041
+Lightning Lizard,72042
+Blackstone Legion Marksman,72043
+Blackstone Legion Guard,72044
+Blackstone Legion Warrior,72045
+Blackstone Legion Assaulter,72046
+Goblin Warrior,72047
+Goblin Axeman,72048
+Goblin Priest,72049
+Goblin Guard,72050
+Cabbage Killer,72051
+Cabbage Hunter,72052
+Cabbage Tough Guy,72053
+Cabbage Blaster,72054
+Foxen,72055
+Wasteland Foxen,72056
+Nether Caprahorn,72057
+Glimmer Caprahorn,72058
+Boss: Predator Arachnocrab,73001
+Boss: Valley Vanguard,73002
+Boss: Ridge Fang,73003
+Boss: Bloodthirsty Furball,73004
+Boss: Dream Manifestor,73005
+Boss: Golden Juggernaut,73006
+Boss: Shell-Gathering Cultist,73007
+Boss: Wandering Traveler,73008
+Boss: Cabbage Kingpin,73009
+Boss: Flamehorn,73010
+Boss: Stream Aberration,73011
+Boss: Muku Chief,73012
+Boss: Muku King,73013
+Boss: Goblin King,73014
+Elite: Killer Arachnocrab,73015
+Elite: Dogorman,73016
+Elite: Verdant Fang,73017
+Elite: Man-Eating Furball,73018
+Elite: Sanctuary Eye,73019
+Elite: Bluespine Lizard,73020
+Elite: Blackstone Commander,73021
+Elite: Blackstone Vanguard,73022
+Elite: Goblin Trickster,73023
+Elite: Goblin Shaman,73024
+Elite: Blackfire Foxen,73025
+Elite: Gloomy Cabbage,73026
+Elite: Ruthless Cabbage,73027
+Elite: Emerald Caprahorn,73028
+Infernal Arachnocrab,73029
+Wasteland Arachnocrab,73030
+Sandstone Yeti,73031
+Ashen Yeti,73032
+Wild Mountain Boar,73033
+Hunter Mountain Boar,73034
+Gnashing Furball,73035
+Spiky Furball,73036
+Patrolling Oculoid,73037
+Mechcore Oculoid,73038
+Frost Lizard,73039
+Magma Lizard,73040
+Gale Lizard,73041
+Lightning Lizard,73042
+Blackstone Legion Marksman,73043
+Blackstone Legion Guard,73044
+Blackstone Legion Warrior,73045
+Blackstone Legion Assaulter,73046
+Goblin Warrior,73047
+Goblin Axeman,73048
+Goblin Priest,73049
+Goblin Guard,73050
+Cabbage Killer,73051
+Cabbage Hunter,73052
+Cabbage Tough Guy,73053
+Cabbage Blaster,73054
+Foxen,73055
+Wasteland Foxen,73056
+Nether Caprahorn,73057
+Glimmer Caprahorn,73058
+Elite: Paralyzing Shrimpshroom,73059
+Elite: Valley Brawler,73060
+Elite: Goblin Sage,73061
+Elite: Valley Ranger,73062
+Elite: Darkriver Fin,73063
+Shrimp Mushroom,73064
+Venomous Shrimpshroom,73065
+Valley Warrior,73066
+Valley Vanguard,73067
+Green Foam Goblin,73068
+Purplefoam Goblin,73069
+Valley Scout,73070
+Valley Crossbowman,73071
+Deep Valley Murloc,73072
+Riverside Murloc,73073
+Storm Goblin King,80001
+Frost Ogre,80002
+Tempest Ogre,80003
+Inferno Ogre,80004
+Muku King,80005
+Golden Juggernaut,80006
+Muku Chief,80007
+Phantom Arachnocrab,80008
+Venobzzar Incubator,80009
+Iron Fang,80010
+Goblin Chief,80011
+Crimson Foxen,80012
+Flamehorn,80013
+Basilisk,80014
+Boss: Predator Arachnocrab,80015
+Boss: Rebel King,80016
+Boss: Ridge Fang,80017
+Boss: Bloodthirsty Furball,80018
+Boss: Void Watcher,80019
+Boss: Dream Manifestor,80020
+Boss: Valley Vanguard,80021
+Boss: Shell-Gathering Cultist,80022
+Boss: Wandering Traveler,80023
+Boss: Stream Aberration,80024
+Muku King,81000
+Charging Boarrier (Summon),81001
+Charging Boarrier (Transform),81002
+The Light Devourer,81003
+Void Ambusher,81004
+Illuminator,81005
+Opening Illuminator,81006
+Void - Goblin Cudgel,81007
+Void - Goblin Dagger,81008
+Void - Goblin Crossbow,81009
+Void - Goblin Sword,81010
+Void - Goblin Axe,81011
+Void - Goblin Mage,81012
+Void - Goblin Mage,81013
+Void Ambusher,81014
+Void Corruption: Goblin,81020
+Illuminator,81021
+Void Corruption: Goblin,81022
+Void Corruption: Goblin Crossbow,81023
+Void Corruption: Goblin Swords,81024
+Void Goblin Lich,81025
+Void Corruption: Goblin Wizard,81026
+Huge Goblin Swords,81027
+Crystal of Light,81028
+Light Eater Lich,81029
+Phantom Goblin,81030
+Rift,81031
+Void Corruption: Dimensional Apostle,81032
+Dark Crystal,81033
+Void Ambusher,81034
+Rift-Hidden Yeti,81035
+Rift-Hidden Eagle,81036
+Rift-Hidden Lizard,81037
+Ee-chan,81100
+Boarlet (Transformed),81101
+Ee-chan (Random Collision),81102
+Ee-chan (Formation Collision),81103
+Ee-chan,81104
+Ee-chan (Line Connection),81105
+Ground Bubble,81106
+Pac-Man,81107
+Bean,81108
+Masked Nappo,81109
+Living Hoard,90001
+Manned Mech - Ranged,101101
+Manned Mech - Melee,101102
+Byrnhald Shield Bearer,101103
+Byrnhald Rifleman,101104
+Byrnhald Swordsman,101105
+Byrnhald Spearman,101106
+Kanamia Undead Warrior,101107
+Kanamia Undead Hunter,101108
+Kanamia Undead Archer,101109
+Mysterious Doppelganger,101110
+Tina,101111
+Kanamia Undead Warrior,101112
+Kanamia Undead Hunter,101113
+Kanamia Undead Archer,101114
+Kanamia Villager's Vengeful Spirit,101115
+Kanamia Villager's Vengeful Spirit,101116
+Kanamia Undead Warrior,101117
+Kanamia Undead Hunter,101118
+Kanamia Undead Archer,101119
+Manned Mech - Ranged,101120
+Manned Mech - Melee,101121
+Byrnhald Shield Bearer,101122
+Byrnhald Rifleman,101123
+Byrnhald Swordsman,101124
+Byrnhald Spearman,101125
+Byrnhald Shield Bearer,101126
+Byrnhald Rifleman,101127
+Byrnhald Swordsman,101128
+Byrnhald Spearman,101129
+Kanamia Undead Archer,101130
+Byrnhald Machine,101150
+Asterleeds Trooper,101151
+Kanamia Undead Warrior,101212
+Kanamia Undead Hunter,101213
+Kanamia Undead Archer,101214
+Kanamia Male Villager's Spirit,101215
+Kanamia Female Villager's Spirit,101216
+Kanamia Undead Warrior,101217
+Kanamia Undead Hunter,101218
+Kanamia Undead Archer,101219
+Manned Mech - Ranged,101220
+Manned Mech - Melee,101221
+Byrnhald Shield Bearer,101222
+Byrnhald Rifleman,101223
+Byrnhald Swordsman,101224
+Byrnhald Spearman,101225
+Byrnhald Shield Bearer,101226
+Byrnhald Rifleman,101227
+Byrnhald Swordsman,101228
+Byrnhald Spearman,101229
+Kanamia Undead Archer,101230
+Boss - Manned Mech,101231
+Byrnhald Swordsman,101232
+Byrnhald Defender,101233
+Byrnhald Shield Bearer,101234
+Byrnhald Rifleman,101235
+Byrnhald Spearman,101236
+Kanamia Voodoo Warrior,101237
+Kanamia Assassin,101238
+Kanamia Assassin,101239
+Kanamia Warrior,101240
+Kanamia Scout,101241
+Kanamia Hunter,101242
+Kanamia Wraith,101243
+Kanamia Wraith,101244
+Byrnhald Light Striker,101245
+Kanamia High Hunter,101246
+Boss - Elite Manned Mech,101247
+Boss - Kanamian Undead Warlord,101248
+[Boss] Kanamia Elder Wraith,101249
+Byrnhald War Machine,101250
+Wounded Asterleeds Soldier,101251
+Manned Mech,101252
+Byrnhald Swordsman,101253
+Byrnhald Defender,101254
+Byrnhald Shield Bearer,101255
+Byrnhald Rifleman,101256
+Byrnhald Spearman,101257
+Kanamia Voodoo Warrior,101258
+Kanamia Assassin,101259
+Kanamia Assassin,101260
+Kanamia Warrior,101261
+Kanamia Scout,101262
+Kanamia Hunter,101263
+Kanamia Wraith,101264
+Kanamia Wraith,101265
+Byrnhald Light Striker,101266
+Kanamia High Hunter,101267
+Phantom Manned Mech,101268
+Charging Device,101269
+Scorching Battle Axe,101270
+Wounded Asterleeds Soldier,101271
+Annihilation Mech Soldier,101272
+rank test,101273
+Byrnhald Rifleman,101274
+Rin·Izcorgiky,102101
+Ice Mirage,102102
+Rin·Izcorgiky,102104
+Rin·Izcorgiky,102105
+Little Dragon 1,102111
+Little Dragon 2,102112
+Little Fire Dragon 1,102113
+Little Fire Dragon 2,102114
+Windbreaking Ice Wall 1,102131
+Gunpowder Bucket 1,102141
+Human Ice Block,102151
+Cannon Ice Block,102152
+Ice Pillar (L),102153
+Ice Pillar (S),102154
+Bone·Xiolotl,102401
+Divine Defense Tower,102402
+Battle Mech 03,102403
+Battle Mech 03,102404
+Battle Mech 03,102405
+Battle Mech 03,102406
+Elite Defensive Type 06,102407
+Battle Mech 03,102408
+Beta-Type Combat Golem,102409
+Bone·Xiolotl,102450
+Bone·Xiolotl,102451
+Light·Tonatiuh,102701
+Radiant Crystal,102702
+Dark Crystal,102703
+Light Spirit,102704
+Edge Blade,102705
+Light·Tonatiuh,102720
+Light·Tonatiuh,102721
+Sunfire,102800
+Moonstrike,102801
+Solarshine Domain 1,102802
+Solarshine Domain 2,102803
+Solarshine Domain 3,102804
+Solarshine Domain 4,102805
+Lunalusion Domain 1,102806
+Lunalusion Domain 2,102807
+Lunalusion Domain 3,102808
+Lunalusion Domain 4,102809
+Solarshine Fruit,102810
+Lunalusion Fruit,102811
+Dragonfly Captain,102812
+Solarshine Fruit,102813
+Lunalusion Fruit,102814
+Sunfire,102821
+Moonstrike,102822
+Dragonfly Captain,102823
+Sunfire,102831
+Moonstrike,102832
+Dragonfly Captain,102833
+Light–Dark Entwined Entity,102834
+Withered Bloomshard,102901
+Defense Device of the Ruin,102902
+Defense Device of the Ruin,102903
+Rock Wall Embedded with Crimson Crystal,102904
+Rock Wall of the Ruin,102905
+Illusory Bloom,102906
+Large Illusory Bloom,102907
+Withered Bloomshard,102911
+Withered Bloomshard,102921
+Breath of the Dead Soil,102922
+Erosion Bloom Afterimage,103001
+Erosion Bloom Afterimage,103002
+Scarlet Abyss,103003
+Scarlet Abyss - P1 Afterimage,103004
+Scarlet Abyss - P2 Afterimage,103005
+Erosion Bloom Afterimage (Huge),103006
+Edge Blade,103007
+Hallucination Crystal Cluster,103008
+Virtual Hallucination Crystal Cluster,103009
+Erosion Bloom Afterimage,103011
+Erosion Bloom Afterimage,103012
+Scarlet Abyss,103013
+Erosion Bloom Afterimage,103021
+Erosion Bloom Afterimage,103022
+Scarlet Abyss,103023
+Erosion Bloom Afterimage,103024
+Erosion Bloom Afterimage,103025
+Paradox-Calamity Remnant - Origin,103100
+Annihilation Cannon,103101
+Annihilation Cannon,103102
+Mech Illusion I,103103
+Mech Illusion V,103104
+Tripod Oculopod,103105
+Dragonbane Golem Illusion,103106
+Paradox-Calamity Remnant - Origin,103107
+Paradox-Calamity Remnant - Origin,103108
+Mech Illusion V,103109
+Dragonbane Golem - Right Cannon,103110
+Dragonbane Golem - Left Cannon,103111
+Paradox-Calamity Remnant - Continuation,103200
+Invisible Monster (Blink Target Point - Long Edge),103201
+Invisible Monster (Arena Center Point),103202
+Dragonbane Golem Illusion (Phase 2),103203
+Invisible Monster (Blink Target Point - Short Edge),103204
+Mech Sentinel,103205
+Mechanical Oculopod,103206
+Paradox-Calamity Remnant - Continuation,103207
+Paradox-Calamity Remnant - Continuation,103208
+Invisible Monster (End-Cinematic Charge),103209
+Patrol Sentinel,103210
+Patrol Oculopod,103211
+Patrol Oculopod,103212
+Patrol Oculopod,103213
+Paradox-Calamity Remnant - Final,103300
+Dragonbane Golem - Right Cannon,103301
+Dragonbane Golem - Left Cannon,103302
+Zone A Marker,103303
+Zone A Marker,103304
+Zone A Marker,103305
+Zone A Marker,103306
+Annihilation Cannon - Morph,103307
+Paradox-Calamity Remnant - Final,103308
+Paradox-Calamity Remnant - Final,103309
+Paradox-Calamity Remnant - Final Phantom,103310
+Paradox-Calamity Remnant - Final Phantom,103311
+Lapsis,103400
+Rotating Platform Inner Ring,103401
+Rotating Platform Middle Ring,103402
+Rotating Platform Outer Ring,103403
+Light Spear (Invisible Monster),103404
+Lapsis,103410
+Lapsis,103420
+Lightformed Minion,103421
+Lightformed Minion,103422
+Lightformed Minion,103423
+Unnamed Targetable Entity 103424,103424
+Lapsis - Polar Day,103500
+Light Shaping,103501
+Light Shaping,103502
+Light Shaping,103503
+Light Shaping,103504
+Light Shaping,103505
+Ascension (Invisible Monster),103506
+Arena Center Placeholder (Invisible Monster),103507
+Light Shaping,103508
+Vortex,103509
+Lapsis - Polar Day,103510
+Light Shaping,103511
+Lapsis 02 Light Humanoid - Guardblade,103512
+Lapsis 02 Light Humanoid - Sword & Shield,103513
+Lapsis - Polar Day,103520
+Lapsis - Polar Night,103600
+Lapsis - Polar Night,103601
+Lapsis Control - Light Orb,103602
+Lapsis Control - Dark Orb,103603
+Owlbeast,103604
+Lapsis - Polar Night,103610
+Lapsis - Polar Night,103620
+Byrnhald Swordsman Phantom,110001
+Byrnhald Spearman Phantom,110002
+Byrnhald Shield Bearer Phantom,110003
+Tina,130101
+Tatta,130102
+Airona,130103
+Denvel,130110
+Berserk - Dark Mist Sergeant,130111
+Elite: Shadow Blade,130112
+Patrolling Dark Mist Sergeant,130113
+Fleeing Dark Mist Sergeant,130114
+Dark Mist Swordsman,130115
+Corrupted Dark Mist Soldier,130116
+Dark Mist Swordsman,130117
+Dark Mist Legion Rifleman,130118
+Dark Mist Swordsman,130119
+Dark Mist Legion Rifleman,130120
+Dark Mist Swordsman,130121
+Corrupted Dark Mist Soldier,130122
+Berserk - Dark Mist Sergeant,130123
+Berserk - Dark Mist Sergeant,130124
+Dark Mist Swordsman,130190
+Dark Mist Legion Rifleman,130191
+Dark Mist Legion Shield Bearer,130192
+Dark Mist Legion Officer Swordsman,130193
+Dark Mist Lancer,133101
+Dark Mist Guard,133102
+Dark Mist Gunner,133103
+Dark Mist Swordsman,133104
+Dark Mist Scout,133111
+Dark Mist Shield Bearer,133112
+Boss - Dark Mist Swordsman,133115
+Dark Mist Gunner,133116
+Corrupted Dark Mist Soldier,133117
+Corrupted Dark Mist Soldier,133118
+Boss - Dark Mist Mage,133119
+Corrupted Dark Mist Soldier,133120
+Corrupted Source,133121
+The Cunning Dark Mist Mage,133122
+Boss - Dark Mist Mage,133123
+Bonded Foxen,170081
+Kartgriff - Guardian of the Realm,190101
+Gamma-Type Support Mech,190102
+Quadruped Mech Soldier,190103
+Patrolling Oculoid,190104
+Airona,190105
+Silaite's Phantom,190106
+Rotaru's Phantom,190107
+Beta-Type Combat Golem,190108
+Wedge Pillar,210101
+Style Skill - Dummy,210102
+Ultimate Sound Effect Left,210105
+Ultimate Sound Effect Right,210106
+Basic Sound System,210107
+Void Prism,501901
+Void Prism,501902
+Void Prism,501903
+Elite Illusory Plague Goblin,511031
+Goblin Warrior,512011
+Goblin Priest,512012
+Goblin Shaman,512013
+Airona,512014
+Fafala,512015
+Boarrier Tyrant,512021
+Boarrier Storm,512022
+Airona,512023
+Foxen,512031
+Wasteland Foxen,512032
+Airona,512033
+Dark Mist Swordsman,530101
+Dark Mist Legion Rifleman,530102
+Dark Mist Legion Shield Bearer,530103
+Priest Stanley,530104
+Airona,530105
+Asterleeds Trooper,530106
+Narulu,530301
+Olvera,530302
+Jerrad,530303
+Weak Dark Mist Sergeant,530304
+Olvera,530305
+Void Goblin Cudgel,530321
+Void Goblin Dagger,530322
+Void Goblin Cudgel,530331
+Void Goblin Dagger,530332
+Void Goblin Wind Mage,530334
+Void Goblin Crossbow,530341
+Void Goblin Fire Mage,530343
+Void Goblin Axe,530351
+Void Goblin Dagger,530352
+Void Goblin Crossbow,530353
+Void Tempest Ogre,530354
+Void Goblin Cudgel,530391
+Void Goblin Dagger,530392
+Void Goblin Crossbow,530393
+Void Goblin Sword,530394
+Void Goblin Axe,530395
+Void Goblin Mage,530396
+Void Goblin Fire Mage,530397
+Void Goblin Forest Mage,530398
+Void Goblin Wind Mage,530399
+Undead Kanamia Warrior,540101
+Undead Kanamia Archer,540102
+Undead Kanamia Warrior,540103
+Undead Kanamia Archer,540104
+Undead Byrnhald Swordsman,540105
+Undead Asterleeds Soldier,540106
+Undead Asterleeds Officer,540107
+Undead Asterleeds Soldier,540108
+Undead Asterleeds Soldier,540109
+Support Spirit Binder,540110
+Maximo,540111
+Undead Kanamia Warrior,540112
+Undead Kanamia Archer,540113
+Undead Byrnhald Swordsman,540114
+Undead Asterleeds Soldier,540115
+Undead Kanamia Warrior,540116
+Undead Kanamia Archer,540117
+Undead Byrnhald Swordsman,540118
+Undead Asterleeds Soldier,540119
+Undead Kanamia Warrior,540120
+Undead Kanamia Archer,540121
+Undead Kanamia Warrior,540122
+Undead Kanamia Archer,540123
+Undead Byrnhald Swordsman,540124
+Undead Asterleeds Soldier,540125
+Support Spirit Binder,540126
+Support Spirit Binder,540127
+Support Spirit Binder,540128
+Undead Kanamia Warrior,540129
+Undead Kanamia Archer,540130
+Tina,540131
+Male Kanamia Soldier,540201
+Female Kanamia Soldier,540202
+Lynx Claw,540301
+Green Warbler,540302
+Roaring Lion,540303
+Quinin,540304
+Male Kanamia Soldier,540305
+Female Kanamia Soldier,540306
+Necalli,540401
+Necalli's Minion,540402
+Kanamia Guard,540603
+Kanamia Guard - Attract,540604
+Jerrad,551001
+Asterleeds Trooper,552001
+Airona,552002
+Dorothy,552003
+Wooden Dummy,552004
+Void - Goblin Cudgel 1 - For Defense Gameplay,552005
+Void - Dark Mist Trooper 1 - For Defense Gameplay,552006
+Five-Stage Escape Target - Young Man,552007
+Five-Stage Escape Target - Young Woman,552008
+Five-Stage Escape Target - Elderly Man,552009
+Five-Stage Escape Target - Middle-Aged Woman,552010
+Five-Stage Escape Target - Young Boy,552011
+Five-Stage Escape Target - Young Girl,552012
+Void - Goblin Cudgel 2 - For Defense Gameplay,552013
+Void - Dark Mist Trooper 2 - For Defense Gameplay,552014
+Void - Goblin Cudgel 3 - For Defense Gameplay,552015
+Void - Dark Mist Trooper 3 - For Defense Gameplay,552016
+Void Goblin Fire Mage,552017
+Void Goblin Forest Mage,552018
+Void Goblin Wind Mage,552019
+Void - Goblin King,552020
+Void - Goblin Cudgel,552021
+Void - Legion Soldier,552022
+Void - Goblin Mage,553501
+Void - Goblin Dagger,553502
+Void - Goblin Cudgel,553503
+Void - Goblin Dagger,553504
+Mysterious Girl,560301
+Mysterious Girl,560302
+Airona,560303
+Arachnocrab,560401
+Arachnocrab,560402
+Darya,560403
+Airona,560404
+Blackstone Legion Soldier,560701
+Blackstone Legion Soldier,560702
+Nevelle,570301
+Blackstone Legion Soldier,570302
+Darya,570303
+Airona,570304
+Blackstone Legion Soldier,570305
+Blackstone Legion Soldier,570306
+Grieg,570401
+Rock Lizard,570402
+Naldi,570403
+Miner - Dead,570404
+Caprahorn,570501
+Blackstone Legion Soldier,570601
+Blackstone Legion Soldier,570602
+Engram Monitor,580401
+Engram Monitor,580402
+Engram Monitor,580403
+Nappo,580405
+Nappo,580406
+Nappo,581101
+Arachnocrab,581102
+Arachnocrab,581103
+Swift Arachnocrab,581104
+Swift Arachnocrab,581105
+Lizardman Soldier,590001
+Abyssal Gazer,590002
+Golden Juggernaut,590101
+Phantom Arachnocrab,590102
+Mist-Piercing Fang,590103
+Klausze,590104
+General Yageer,590105
+Tripod Heavy Oculopod,591001
+Tripod Oculopod,591002
+Tomb Guardian,591003
+Divine Punisher,591004
+Cabbage Warrior,604001
+Cabbage Flee Test,604002
+Timid Mushroom,604003
+Timid Mushroom - Dead,604004
+Cabbage Patrol 1,604005
+Cabbage Patrol 2,604006
+Cabbage Patrol 3,604007
+Cabbage Patrol 4,604008
+Cabbage Warrior,604009
+Grappling Hook 1,612101
+Blazing Boar,612111
+Hurricane Boar,612112
+Brutal Boarrier,612113
+Kanamia Wraith,612114
+Fiery Axe,612115
+Kanamia Crossbow,612117
+[Boss] Kanamia Axelord,612118
+Hatchet Warrior,612119
+Nocturne Foxen,612120
+Foxen,612121
+Shadow Foxen,612122
+Piggy Hero,612123
+Goblin King - Void,612401
+Caprahorn,643101
+Caprahorn,643301
+Caprahorn,643401
+Cabbage Mission Member,643801

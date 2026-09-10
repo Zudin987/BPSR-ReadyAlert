@@ -1,0 +1,701 @@
+monster/boss/targetableentity name,id
+Muku - Heavy Suppressor,33510
+Muku - Flame Axe Reaper Type Zero,33511
+Muku - Hammer Siegebreaker Type Zero,33512
+Muku - Halo Sniper,33513
+Assembly Point,33514
+Electrical Energy,33515
+Part 2,33516
+Part 3,33517
+Turret,33518
+Phase Transition Fire Tornado,33519
+Phase Transition Bullet Absorption Point,33520
+Muku - Cyborg Hound,33521
+Muku - Mecha Enforcer,33522
+Muku - Heavy Suppressor,33523
+Muku - Flame Axe Reaper Type Zero,33524
+Muku - Hammer Siegebreaker Type Zero,33525
+Muku - Halo Sniper,33526
+Blackstone Legion Gunner,33527
+Blackstone Legion Shield,33528
+Blackstone Legion Warrior,33529
+Blackstone Legion Trooper,33530
+Blackstone Commander,33531
+Blackstone Vanguard,33532
+Turret Base,33533
+Ruby,33534
+Explosion Point,33535
+Blocked Steam,33536
+Turret,33537
+Explosion,33538
+Mid-Path Diffusing Steam,33539
+Mid-Path Rectangular Steam Trap,33540
+Door Opening Crystal Interactable Object,33541
+Factory Ruins,33542
+Ruby,33543
+Fire Tornado Fake Bullet,33544
+Dungeon Route Guide,33545
+Team Wipe Damage Below Normal Difficulty,33546
+Factory Ruins,33547
+Factory Ruins,33548
+Prismatic Explosion,33549
+Slumbering Scholar,33601
+Tina - Void Reverie,33701
+Tina - Void Reverie (Clone),33702
+Byrnhald Rifleman,33703
+Byrnhald Tank,33704
+Byrnhald Swordsman,33705
+Kanamia Triber Spirit,33706
+Tina - Void Reverie,33707
+Tina - Void Reverie,33708
+Tina - Void Reverie,33709
+Tina Standing Position,33799
+Mist-Piercing Fang,33801
+Rending Gale Orb,33802
+Great Warhog,33803
+Void Bzzar,33804
+Rock Lizard,33805
+Swift Eagle,33806
+Foxen,33807
+Mountain Boar,33808
+Explosive Bee,33809
+Magma Lizard,33810
+Plains Eagle,33811
+Foxen,33812
+Halo Hunter,33813
+Divine Punisher,33901
+Divine Punisher Recolor 1,33902
+Divine Punisher Recolor 2,33903
+Engram Tower,33904
+Engram Tower,33905
+Hovering Cannon,33906
+Hovering Cannon,33907
+Charging Clone (Left Light Sword),33908
+Charging Clone (Right Light Sword),33909
+Tripod Heavy Oculopod,33910
+Tripod Oculopod,33911
+Tomb Guardian,33912
+Mournful Retrospection,33913
+Terminal Scanner,33914
+Photonic Eye,33915
+[Boss] Tomb Golem 9,33916
+Hovering Cannon,33920
+Charging Clone (Instant Left Light Sword),33921
+Charging Clone (Instant Right Light Sword),33922
+Test Dummy,33923
+Lapsis,33951
+Lightformed Minion,33952
+Lightformed Minion (Healer),33953
+Lightformed Minion,33954
+Lapsis,33960
+Lightformed Minion,33961
+Lightformed Minion,33962
+Anti-Illusion: Boyce,34000
+Anti-Illusion: Boyce,34001
+Anti-Illusion: Boyce,34002
+Anti-Illusion: Boyce,34003
+Anti-Illusion: Boyce,34004
+Boyce DD Arena-Edge Large Circle,34005
+Arena Marker,34006
+Boyce DD Mirror,34007
+Boyce Normal Mirror,34008
+Anti-Illusion: Boyce,34009
+Triple Knockback 1,34010
+Triple Knockback 2,34011
+Triple Knockback 3,34012
+Anti-Illusion: Boyce,34013
+Ground-Fire Marker,34014
+Ice Spike,34015
+Anti-Illusion: Boyce,34016
+Recollection: Guilt,34017
+Recollection: Blame,34018
+Recollection: Qualification,34019
+Manifestation: Forest Whisperer,34020
+Manifestation: Berserker,34021
+Manifestation: Azure Wind Knight,34022
+Manifestation: Sharpshooter,34023
+Manifestation: Guardian,34024
+Manifestation: Archmage,34025
+Manifestation: Priest,34026
+Manifestation: Priest,34027
+Manifestation: Priest,34028
+Manifestation: Mercenary,34029
+Boyce DD Master Repeat Mirror,34030
+Anti-Illusion: Boyce,34031
+Manifestation: Priest,34032
+Manifestation: Priest,34033
+Manifestation: Priest,34034
+Boyce Nine-Chain Arena-Center Large Circle,34035
+Vertical Direction Marker,34036
+Master Route Teleporter,34037
+Main Fighter Type 99,35000
+Sub Fighter Type 03,35002
+Main Battle Mech 99,35004
+Sub Fighter Type 03,35006
+Suicidal Soldier 02,35007
+Defensive Type 04,35008
+Sentinel Type 01,35009
+Suicidal Soldier 02,35010
+Main Battle Mech 99,35011
+Sub Fighter Type 03,35012
+Suicidal Soldier 02,35013
+Suicidal Soldier 02,35014
+Main Fighter Type 99,35050
+Sub Fighter Type 03,35051
+Defensive Type 04,35052
+Sentinel Type 01,35053
+Suicidal Soldier 02,35054
+Main Battle Mech 99,35055
+Sub Fighter Type 03,35056
+Suicidal Soldier 02,35057
+Suicidal Soldier 02,35058
+Artisan,35100
+Artisan,35101
+Artisan,35102
+Artisan,35103
+Artisan,35104
+Meeting Scope,35105
+Spotlight,35106
+Dune Rock,35107
+Dune Rock Destination,35108
+Game Scope,35200
+Nappo,35201
+Airona the Volleyball Ace,35202
+Clockwise 3-Rotation Eyeball,35203
+Counter-Clockwise 3-Rotation Eyeball,35204
+5m/s Panning Eyeball,35205
+10m/s Panning Eyeball,35206
+Ee-chan,35207
+Minnie,35208
+Miya,35209
+Midori,35210
+Dai,35211
+Rectangular 20m Invisible Wall,35212
+Ring 15m Invisible Wall,35213
+Ring 30m Invisible Wall,35214
+Wheel Eye,35215
+Wheel Eye (Stationary),35216
+Goblin Cudgel,40000
+Goblin Dagger,40001
+Goblin Crossbow,40002
+Goblin Sword,40003
+Goblin Mage,40004
+Goblin Mage (Forest),40005
+Goblin Mage (Wind),40006
+Goblin Mage (Fire),40007
+Goblin Axe,40008
+Goblin Crossbow Captain,40009
+Shuro Barot,40010
+Goblin Cudgel,40011
+Goblin Dagger,40012
+Goblin Crossbow,40013
+Goblin Sword,40014
+Goblin Mage,40015
+Goblin Mage (Forest),40016
+Goblin Mage (Wind),40017
+Goblin Mage (Fire),40018
+Goblin Axe,40019
+Goblin Crossbow Captain,40020
+Goblin Crossbow Captain,40021
+Goblin Sword,40022
+Goblin Mage (Wind),40023
+Goblin Crossbow,40024
+Goblin Sword,40025
+Boss - Goblin Chief,40026
+Thunder Crystal,40027
+Boss - Flame Orc,40050
+Goblin Axe,40051
+Wind Goblin Mage,40052
+Forest Goblin Mage,40053
+Fire Goblin Mage,40054
+Goblin Crossbow,40055
+Goblin Sword,40056
+Crazy Goblin Dagger,40057
+Goblin Cudgel,40058
+Broodmother Arachnocrab,40059
+Small Arachnocrab Baby,40060
+Venomous Arachnocrab,40061
+Arachnocrab,40062
+Venomous Arachnocrab,40063
+Rolling Stone Mechanism 1,40064
+Phantom Caster,40065
+Goblin Cudgel,40066
+Wooden Dummy,40067
+Goblin Crossbow Captain,40068
+Goblin Sword Captain,40069
+Goblin Sword,40070
+Goblin Crossbow,40071
+Aggressive Goblin Axe,40072
+Ambitious Goblin Cudgel,40073
+Wind Goblin Mage,40074
+Forest Goblin Mage,40075
+Fire Goblin Mage,40076
+Goblin Crossbow,40077
+Goblin Cudgel,40078
+Phantom Caster,40079
+Rolling Stone Mechanism 2,40080
+Rolling Stone Mechanism 3,40081
+Rolling Stone Mechanism 4,40082
+Rolling Stone Mechanism 5,40083
+Large Arachnocrab Baby,40084
+Ordinary Arachnocrab Baby,40085
+Hard Shell Arachnocrab Baby,40086
+Venom Arachnocrab Baby,40087
+Juicy Arachnocrab Baby,40088
+Fast-footed Arachnocrab Baby,40089
+Fire Goblin Mage - Spirit,40090
+Wind Goblin Mage - Spirit,40091
+Forest Goblin Mage - Spirit,40092
+Fire Goblin Mage,40093
+Common Arachnocrab Baby - Ecology,40094
+Hard Shell Arachnocrab Baby - Ecology,40095
+Venom Arachnocrab Baby - Ecology,40096
+Goblin Sword Captain,40097
+Boss - Quinin,40300
+Boss - Mercenary Graves,40301
+Radiant Amy,40302
+Silvermoon Orlando,40303
+Eagle Eye Vina,40304
+Kanamia Mage,40305
+Kanamia Mage,40306
+Kanamia Mage,40307
+Kanamia Warrior,40308
+Kanamia Hunter,40309
+Kanamia Archer,40310
+Necalli,40311
+Necalli's Star Binding,40312
+Kanamia Giant,40313
+Kanamia Undead Suicide Monster,40314
+Boss - Muku Warrior,40315
+Kanamia Suicide- Axe,40316
+Kanamia Suicide- Hunter,40317
+Kanamia Suicide- Archer,40318
+Boarrier,40319
+Rolling Stone,40320
+Rolling Stone - Self-directed Version,40321
+Kanamia Archer,40322
+Running Boarlet,40323
+Quinin,40324
+Invisible Monster,40325
+Quinin,40326
+Quinine Doppelganger,40327
+Kanamia Wraith,40328
+Kanamia Mage,40329
+Suspect,40335
+Middle-aged Woman,40336
+Suspect,40337
+Trash Can,40338
+Suspect,40339
+Maximo the Warrior,40394
+Soul Spear,40395
+Soul Pool,40396
+Soul Split,40397
+Kanamia Tribe Soul Binder,40398
+Kanamia Tribe Soul Hunter,40399
+Maximo the Warrior,40400
+Soul Pool <Soul Split>,40401
+Scene Soul Reaper,40402
+Kanamia Tribe Soul Binder,40403
+Kanamia Tribe Soul Hunter,40404
+Soul Pool,40405
+Kanamia Tribe Soul Binder,40406
+Kanamia Tribe Soul Hunter,40407
+Maximo the Warrior,40408
+Maximo the Warrior,40409
+Soul Spear,40410
+Soul Spear,40411
+Shadow Bladedancer,40500
+Kanamia Revenant,40509
+Kanamia Wraith,40510
+Totem,40511
+Totem,40512
+Kanamia Revenant,40513
+Airona Spirit Deer_Left,50000
+Airona Spirit Deer_Right,50001
+Goblin Cudgel,60000
+Goblin Dagger,60001
+Goblin Mage,60002
+Goblin Mage,60003
+Goblin Mage,60004
+Goblin Crossbow,60005
+Goblin Sword,60006
+Goblin Axe,60008
+Asterleeds Trooper,60010
+Lightning Storm Core,60012
+Goblin Dagger,60013
+Goblin Crossbow,60017
+Goblin Sword,60018
+Goblin Axe,60020
+Rathalos,60021
+Invader Type 04,60100
+Hunter Type 02,60101
+Annihilation Fortress Type 01,60102
+Invader Type 04,60103
+Invader Type 04,60104
+Annihilation Fortress Type 01,60105
+Invader Type 04,60106
+Hunter Type 02,60107
+Annihilation Fortress Type 01,60108
+Hunter Type 02,60109
+Invader Type 04,60110
+Hunter Type 02,60111
+Hunter Type 02,60112
+Annihilation Fortress Type 01,60113
+Apocalypse Destroyer,60114
+Invader Type 04,60120
+Hunter Type 02,60121
+Hunter Type 02,60122
+Annihilation Fortress Type 01,60123
+Annihilation Fortress Type 01,60124
+Invader Type 04,60125
+Invader Type 04,60126
+Hunter Type 02,60127
+Invader Type 04,60128
+Annihilation Fortress Type 01,60129
+Annihilation Fortress Type 01,60130
+Invader Type 04,60131
+Hunter Type 02,60132
+Invader Type 04,60133
+Annihilation Fortress Type 01,60134
+Hunter Type 02,60135
+Annihilation Fortress Type 01,60136
+Manned Mech,60140
+Apocalypse Destroyer,60141
+Melee Golem,60150
+Ranged Mech,60151
+Tank Golem,60152
+Ranged Golem T-2,60153
+Support Mech,60154
+Flame Golem,60155
+Barrage Golem,60156
+Skyfire Golem,60157
+Slow Device,60158
+Gravity Device,60159
+Goblin Cudgel,60200
+Goblin Dagger,60201
+Goblin Crossbow,60202
+Goblin Sword,60203
+Goblin Axe,60204
+Goblin Mage,60205
+Goblin Fire Mage,60206
+Goblin Forest Mage,60207
+Goblin Wind Mage,60208
+Elite: Goblin Crossbow,60209
+Elite: Goblin Sword,60210
+Elite: Goblin Axe,60211
+Elite: Goblin Fire Mage,60213
+Elite: Goblin Wind Mage,60215
+Boss - Goblin King,60216
+Goblin Cudgel,60220
+Goblin Dagger,60221
+Goblin Crossbow,60222
+Goblin Swords,60223
+Goblin Axe,60224
+Goblin Mage,60225
+Goblin Fire Mage,60226
+Goblin Forest Mage,60227
+Goblin Wind Mage,60228
+Elite: Goblin Cudgel,60229
+Elite: Goblin Crossbow Captain,60230
+Elite: Goblin Swords,60231
+Elite: Goblin Axe,60232
+Elite: Goblin Mage,60233
+Elite: Goblin Fire Mage,60234
+Elite: Goblin Forest Mage,60235
+Elite: Goblin Wind Mage,60236
+Boss - Void Goblin King,60237
+Goblin Cudgel,60400
+Goblin Dagger,60401
+Goblin Crossbow,60402
+Goblin Swords,60403
+Goblin Axe,60404
+Goblin Mage,60405
+Goblin Fire Mage,60406
+Goblin Forest Mage,60407
+Elite: Goblin Cudgel,60408
+Elite: Goblin Crossbow Captain,60409
+Elite: Goblin Swords,60410
+Elite: Goblin Axe,60411
+Elite: Goblin Mage,60412
+Elite: Goblin Fire Mage,60413
+Elite: Goblin Forest Mage,60414
+Elite: Goblin Wind Mage,60415
+Void - Goblin King,60416
+Mischief Goblin Crossbow,60500
+Mischief Goblin Mage,60502
+Elite: Mischief Goblin,60508
+Elite: Mischief Goblin,60509
+Elite: Mischief Goblin,60510
+Goblin Cudgel,60600
+Goblin Dagger,60601
+Goblin Crossbow,60602
+Goblin Swords,60603
+Goblin Axe,60604
+Goblin Mage,60605
+Goblin Fire Mage,60606
+Goblin Forest Mage,60607
+Goblin Wind Mage,60608
+Elite: Goblin Mage,60613
+Elite: Goblin Mage,60614
+Goblin,60700
+Goblin,60701
+Goblin,60702
+Goblin,60703
+Goblin,60704
+Goblin,60705
+Goblin,60706
+Goblin,60707
+Goblin,60708
+Goblin,60710
+Goblin,60711
+Goblin,60712
+Goblin,60713
+Lead Dancer,60714
+Lead Dancer,60715
+Lead Dancer,60716
+Lead Dancer,60717
+Red Goblin,60720
+Yellow Goblin,60721
+Grey Goblin,60722
+Red Goblin,60723
+Yellow Goblin,60724
+Grey Goblin,60725
+Goblin Crossbow,60740
+Elite: Goblin Sword,60741
+Boss - Goblin King,60742
+Goblin Crossbow,60743
+Elite: Goblin Sword,60744
+Boss - Goblin King,60745
+Red Goblin,60750
+Yellow Goblin,60751
+Grey Goblin,60752
+Grey Goblin,60753
+Red Goblin,60754
+Yellow Goblin,60755
+Grey Goblin,60756
+Grey Goblin,60757
+Red Goblin,60758
+Yellow Goblin,60759
+Grey Goblin,60760
+Red Goblin,60761
+Yellow Goblin,60762
+Grey Goblin,60763
+Red Goblin,60764
+Yellow Goblin,60765
+Grey Goblin,60766
+Boarlet,60800
+Boarrier,60801
+Rare Boarlet,60802
+Self-Destruct Spider Mine,60900
+Self-Destruct Spider Mine,60901
+Self-Destruct Spider Mine,60902
+Frozen Spider Mine,60903
+Frozen Spider Mine,60904
+Slow Spider Mine,60905
+Self-Destruct Spider Mine,60906
+Frozen Spider Mine,60907
+Void Robot,61000
+Goblin Cudgel,61001
+Goblin Mage,61002
+Goblin Dagger,61003
+Goblin Crossbow,61004
+Elite: Goblin Sword,61005
+Elite: Goblin Fire Mage,61006
+Elite: Goblin Axe,61007
+Elite: Goblin Wind Mage,61008
+Ice Arrow Mech,61100
+Ice Arrow Mech,61101
+Spinning Flame Mech,61102
+Straight Line Flame Mech,61103
+Self-Destructing Spider Mine (Return),61200
+Rolling Stone,61201
+Cabbage Mission Vanguard,61202
+Traffic Light Wooden Dummy,61203
+Self-Destructing Spider Mine (Triangle),61204
+Self-Destructing Spider Mine (Square),61205
+Self-Destructing Spider Mine (20 Degrees),61206
+Goblin Warrior,61207
+Goblin Axeman,61208
+Goblin Priest,61209
+Goblin Guard,61210
+Goblin Trickster,61211
+Goblin Shaman,61212
+Goblin Chief,61213
+Muku Cudgel,61214
+Muku Hammerer,61215
+Muku Axemaster,61216
+Muku Cleaver,61217
+Muku Warrior,61218
+Muku Vanguard,61219
+Storm Goblin King,61220
+Storm Goblin King,61221
+Self-Destruct Spider Mine,61900
+Self-Destruct Spider Mine,61901
+Self-Destruct Spider Mine,61902
+Frozen Spider Mine,61903
+Frozen Spider Mine,61904
+Slow Spider Mine,61905
+Self-Destruct Spider Mine,61906
+Frozen Spider Mine,61907
+Homing Spider Mine,61908
+Rolling Boulder Trap,62000
+Boss of Kanamia Warriors,62001
+Kanamia Warrior,62002
+Squad Leader of Asterleeds Troopers,62003
+Asterleeds Trooper,62004
+Squad Leader of Asterleeds Troopers,62005
+Asterleeds Trooper,62006
+Floating Bombs,62100
+Goblin Crossbow - Parkour Crossbow Trap,69001
+Goblin Mage - Parkour Water Balloon Trap,69002
+Goblin Crossbow - Parkour Crazy Crossbow Trap,69003
+Goblin Crossbow - Parkour Arrow Rain Trap,69004
+Goblin Crossbow - Parkour Arrow Rain Trap 2,69005
+Homing Spider Mine,69006
+Ice Arrow Mech,69007
+Rebound Spider Mine (Allied - Test),69010
+Rebound Spider Mine (Neutral - Test),69011
+Rebound Spider Mine (Enemy - Test),69012
+Snow Nappo,69100
+Snowman,69101
+Year Demon,69102
+Year Imp,69103
+Ritual Team Nappo (Test),69104
+Malice Scales,69200
+Malice Blackstone Commander,69201
+Malice Blackstone Vanguard,69202
+Malice Goblin Trickster,69203
+Malice Goblin Shaman,69204
+Malice Bluespine Lizard,69205
+Malice Gloomy Cabbage,69206
+Malice Ruthless Cabbage,69207
+Malice Emerald Caprahorn,69208
+Malice Frost Lizard,69210
+Malice Goblin Warrior,69211
+Malice Cabbage Killer,69212
+Malice Blackstone Assaulter,69213
+Seed of Malice - Phase 1 (Large),69214
+Seed of Malice - Phase 2 (Large),69215
+Seed of Malice - Phase 2 (Small),69216
+Toxic mist,69217
+Poison Pool Barrier,69220
+Toxic mist,69230
+Poison Orb,69231
+Falling Rocks,69232
+Poison Blade,69233
+Malice Scales,69250
+Goblin Dagger,70003
+Goblin Sword,70004
+Goblin Crossbow,70005
+Arachnocrab,70006
+Goblin Axe,70008
+Goblin Cudgel,70009
+Storm Goblin Elder,70010
+Storm Goblin Dagger,70011
+Blazing Goblin Elder,70012
+Princess Arachnocrab,70013
+Brigand Scout,70014
+Brigand Axeman,70015
+Brigand Archer,70016
+Brigand Thug,70017
+Muku Cudgel,70019
+Muku Axemaster,70020
+Crossbow Muku,70021
+Muku Hammerer,70022
+Muku Cleaver,70023
+Red Foam Goblin,70024
+Shadow Scout,70025
+Shadow Gunner,70026
+Shadow Warden,70027
+Shadow Blade,70028
+Boarrier Tyrant,70029
+Scorching Yeti,70032
+Mutant Yeti,70034
+Murloc 1,70036
+Murloc,70037
+Sentinel Type 01,70038
+Defensive Type 04,70039
+Edge Blade,70041
+Soul Essence,70042
+Elite: Boarrier Tyrant,70043
+Elite: Mighty Colossus,70045
+Elite: Goblin Guard,70047
+Elite: Goblin Warrior,70048
+Elite: Jungle Goblin Warrior,70049
+Elite: Inferno Goblin Mage,70051
+Elite: Void Arachnocrab,70052
+Elite: Brigand Scout Leader,70053
+Elite: Brigand Guard Captain,70054
+Elite: Muku Warrior,70057
+Elite: Shadow Captain,70058
+Elite: Shadow Commander,70059
+Elite: Great Warhog,70060
+Elite: Storm Goblin Warrior,70061
+Elite: Lizardman Hunter,70062
+Boss - Golden Juggernaut,70063
+Boss - Frost Ogre,70064
+Boss - Inferno Ogre,70065
+Boss - The Bear,70066
+Boss - Muku Chief,70067
+Boss - Tempest Ogre,70068
+Boss - Iron Fang,70070
+Boss - Phantom Arachnocrab,70071
+Boss - Storm Goblin King,70072
+Boss - Muku King,70073
+Elite: Lizardman Mage,70163
+Elite: Muku Scout,70164
+Boarrier Storm,70165
+Skyfish,70166
+Deadly Bzzar,70167
+Nitro Bzzar,70168
+Jade Skyfish,70169
+Lizardman Warrior,70170
+Lizardman Shaman,70171
+Elite: Void Bzzar,70172
+Boss - Celestial Flier,70173
+Boss - Goblin King,70174
+Boss - Lizardman King,70175
+Boss: Golden Juggernaut,70263
+Boss: Frost Ogre,70264
+Boss: Inferno Ogre,70265
+Boss: The Bear,70266
+Boss: Muku Chief,70267
+Boss: Tempest Ogre,70268
+Boss: Iron Fang,70270
+Boss: Phantom Arachnocrab,70271
+Boss: Storm Goblin King,70272
+Boss: Muku King,70273
+Boss: Celestial Flier,70274
+Boss: Goblin King,70275
+Boss: Lizardman King,70276
+Defensive Type 04,70500
+Sentinel Type 01,70501
+Suicidal Soldier 02,70502
+Watcher,70503
+Boss: Blackstone Captain,71001
+Boss: Goblin Chief,71002
+Boss: Crimson Foxen,71003
+Boss: Cabbage Kingpin,71004
+Boss: Flamehorn,71005
+Boss: Basilisk,71006
+Elite: Bluespine Lizard,71007
+Elite: Blackstone Commander,71008
+Elite: Blackstone Vanguard,71009
+Elite: Goblin Trickster,71010
+Elite: Goblin Shaman,71011
+Elite: Blackfire Foxen,71012
+Elite: Gloomy Cabbage,71013
+Elite: Ruthless Cabbage,71014
+Elite: Emerald Caprahorn,71015
+Frost Lizard,71016
+Magma Lizard,71017
+Gale Lizard,71018
+Lightning Lizard,71019
+Blackstone Legion Marksman,71020
+Blackstone Legion Guard,71021
+Blackstone Legion Warrior,71022
+Blackstone Legion Assaulter,71023
+Goblin Warrior,71024
+Goblin Axeman,71025
+Goblin Priest,71026
+Goblin Guard,71027

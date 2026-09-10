@@ -1,0 +1,680 @@
+monster/boss/targetableentity name,id
+Cabbage Mission Captain,643802
+Friedrich,643810
+Dietrich,643811
+Gaufred,644301
+Adventurer,644601
+Adventurer,644602
+Adventurer,644603
+Adventurer,644604
+Adventurer,644605
+Adventurer,644606
+Blackstone Legion Soldier,644701
+Blackstone Legion Soldier,644702
+Frost Lizard,644901
+Magma Lizard,644902
+Gale Lizard,644903
+Lightning Lizard,644904
+Bluespine Lizard,644905
+Blackstone Legion Soldier,645001
+Blackstone Legion Soldier,645002
+Frost Lizard,645003
+Magma Lizard,645004
+Gale Lizard,645005
+Lightning Lizard,645006
+Bluespine Lizard,645007
+Blackstone Legion Soldier,645008
+Blackstone Legion Soldier,645009
+Konrad,645010
+Crimson Foxen,655001
+Creed Guard,660301
+Creed Guard Captain,660302
+Darya,660303
+Airona,660304
+Sleht,660305
+Triban,660306
+Lerahha,660307
+Asterleeds Trooper,660308
+Green Foam Goblin,660309
+Thunder Foam Goblin,660310
+Goblin Sage,660311
+Illusory Bloom,660312
+Illusory Plague Goblin,660401
+Mad Illusory Plague Goblin,660402
+Elite Illusory Plague Goblin,660403
+Estevao,661101
+Demarion,661201
+Timothy,661301
+Masked Man,661401
+Flamehorn,661501
+Jacob,661502
+Lynn,661503
+Locke,661504
+Davi,661601
+Hagen,661701
+Sigurd,661702
+Konrad,661703
+Recollection: Joshua,663001
+Boyce,663002
+Rotaru,663201
+Boyce,663202
+Boyce,663203
+Gareth,663204
+Boyce,663401
+Wooden Dummy,663402
+Boyce,663403
+Gareth,663404
+Gareth,663405
+Boyce,663406
+Recollection: Klaus,663407
+Afterimage,663408
+Boyce Epilogue - Armed Boyce (Mirrorlight Spear),663409
+Recollection: Joshua,663410
+Recollection: Rotaru,663411
+Recollection: Klaus,663412
+Anti-Illusion: Boyce,663413
+Recollection: Joshua,663414
+Recollection: Rotaru,663415
+Recollection: Klaus,663416
+Muku Crossbowman,663601
+Muku Crossbowman,663701
+Muku Crossbowman,663801
+Valley Brawler,663802
+Muku Crossbowman,663901
+Valley Vanguard,663902
+Red Goblin?,664001
+Brigand,664101
+Muku Crossbowman,665201
+Unknown Individual,665202
+Muku Crossbowman,665203
+Virginia,665204
+Deep Valley Murloc,665301
+Riverside Murloc,665302
+Darkriver Fin,665303
+Stream Aberration,665304
+Void Corruption Soulshard,700001
+Void Corruption Afterimage,700002
+Void Phantom,700003
+[Abandoned] Dissipative Energy,700004
+Void Corruption Afterimage,700005
+Void Phantom,700006
+[Abandoned] Dissipative Energy,700007
+Dispersed Energy,700008
+Dispersed Energy,700009
+Bane Lord,700010
+Mischievous Nappo,700051
+Dreamflood Manifestation: Rage,700052
+Dreamflood Manifestation: Rupture,700053
+Dreamflood Manifestation: Titan,700054
+Dreamflood Manifestation: Hunt,700055
+Dreamflood Manifestation: Salvation,700056
+Wandering Nappo,700061
+Wandering Nappo,700062
+Wandering Nappo,700063
+Wandering Nappo,700064
+Wandering Nappo,700065
+Wandering Nappo,700066
+Wandering Nappo,700067
+Wandering Nappo,700068
+Acoustic No.1,700071
+Acoustic No.2,700072
+Acoustic No.3,700073
+Acoustic No.4,700074
+Acoustic No.5,700075
+Acoustic No.6,700076
+Acoustic No.7,700077
+Acoustic No.8,700078
+Acoustic No.9,700079
+Acoustic No.10,700080
+Acoustic No.11,700081
+Acoustic No.12,700082
+Mysterious Nappo,700090
+Squeaky Boarlet,700101
+Light-Trace Spirit,700111
+Bane Lord,760001
+Goblin Cudgel,920001
+Muku Cudgel,920002
+Crazy Muku Crossbowman,920003
+Shadow Gunner,920004
+Elite: Shadow Commander,920005
+Elite: Muku Vanguard,920006
+Elite: Storm Goblin Warrior,920007
+Elite: Muku Scout,920008
+Elite: Red Foam Goblin,920009
+Elite: Gold Foam Goblin,920010
+Boss - Muku Chief,920011
+Boss - Tempest Ogre,920012
+Boss - Muku King,920013
+Drone Gunner,920021
+Drone Gunner,920022
+Drone Gunner,920023
+Drone Gunner,920024
+Drone Gunner,920025
+Princess Arachnocrab,920101
+Arachnocrab,920102
+Deadly Bzzar,920103
+Nitro Bzzar,920104
+Caprahorn,920105
+Brutal Boarrier,920106
+Elite: Void Bzzar,920107
+Elite: Boarrier Storm,920108
+Elite: Land Eagle,920109
+Elite: Nightbeast,920110
+Elite: Nether Caprahorn,920111
+Dominator: Nightbeast,920112
+Dominator: Golden Rampager,920113
+Dominator: Emerald Ram,920114
+Caprahorn,920115
+Foxen,920116
+Kanamia Archer,920121
+Kanamia Archer,920122
+Kanamia Archer,920123
+Kanamia Archer,920124
+Kanamia Archer,920125
+Bane Lord,920130
+Boss: Void Bzzar,920131
+Boss: Boarrier Storm,920132
+Boss: Land Eagle,920133
+Boss: Nightbeast,920134
+Boss: Nether Caprahorn,920135
+Slumbering Scholar,920201
+Slumbering Scholar,920202
+Slumbering Scholar,920203
+Slumbering Scholar,920204
+Slumbering Scholar,920205
+Boss: Flamehorn,920206
+Boss: Goblin Trickster,920207
+Boss: Dogorman,920208
+Boss: Muku Chief,920209
+Boss: Blackstone Captain,920210
+Mutant Yeti,920211
+Glimmer Caprahorn,920212
+Muku Hammerer,920213
+Blackstone Legion Marksman,920214
+Goblin Mage,920215
+Scorching Yeti,920220
+Nether Caprahorn,920221
+Muku Cudgel,920222
+Blackstone Legion Guard,920223
+Goblin Cudgel,920224
+Mist Summoner,920225
+Nether Caprahorn,920226
+Goblin Cudgel,920227
+Scorching Yeti,920228
+Muku Cudgel,920229
+Berserk Slumberdreamer,920230
+Berserk Slumberdreamer,920231
+Berserk Slumberdreamer,920232
+Mysterious Researcher,920233
+Slumberdreamer,920234
+Nappo,920235
+Arachnocrab,920236
+Slumberdream Arachnocrab,920237
+Man in Black,920238
+Henry,920239
+Cloaked Blue Orb,920241
+Revealed Blue Orb,920242
+Blue Orb Node,920243
+Slumbering Scholar,920251
+Slumbering Scholar,920252
+Slumbering Scholar,920253
+Slumbering Scholar,920254
+Slumbering Scholar,920255
+Slumbering Scholar,920256
+Slumbering Scholar,920257
+Slumbering Scholar,920258
+Slumbering Scholar,920259
+Slumbering Scholar,920260
+Slumbering Scholar,920500
+Illusion-Shroud Adjudicator - Final Form,920501
+Illusion-Shroud Adjudicator - Final Form,920502
+Illusion-Shroud Adjudicator - Final Form,920503
+Illusion-Shroud Adjudicator - Final Form,920504
+Illusion-Shroud Adjudicator - Final Form,920505
+Boss: Rebel King,920506
+Boss: Bloodthirsty Furball,920507
+Boss: Void Watcher,920508
+Boss: Predator Arachnocrab,920509
+Boss: Ridge Fang,920510
+Dogorman,920511
+Man-Eating Furball,920512
+Sanctuary Eye,920513
+Killer Arachnocrab,920514
+Verdant Fang,920515
+Sandstone Yeti,920520
+Ashen Yeti,920521
+Gnashing Furball,920522
+Spiky Furball,920523
+Patrolling Oculoid,920524
+Mechcore Oculoid,920525
+Infernal Arachnocrab,920526
+Wasteland Arachnocrab,920527
+Wild Mountain Boar,920528
+Hunter Mountain Boar,920529
+Researcher Jim,920530
+Researcher Giddy,920531
+Researcher Jimmy,920532
+Lost - Roamer,920533
+Researcher Jim,920534
+Researcher Giddy,920535
+Lost - Researcher,920536
+Illusion-Shroud Colossus,920550
+Goblin Mage,920551
+Henry,920552
+Henry,920553
+Illusory Bloom,920554
+Illusion-Shroud Adjudicator - Final Form,920561
+Illusion-Shroud Adjudicator - Final Form,920562
+Illusion-Shroud Adjudicator - Final Form,920563
+Illusion-Shroud Adjudicator - Final Form,920564
+Illusion-Shroud Adjudicator - Final Form,920565
+Illusion-Shroud Adjudicator - Final Form,920566
+Illusion-Shroud Adjudicator - Final Form,920567
+Illusion-Shroud Adjudicator - Final Form,920568
+Illusion-Shroud Adjudicator - Final Form,920569
+Illusion-Shroud Adjudicator - Final Form,920570
+Muku Cudgel,1002901
+Muku Axe,1002902
+Shadow Hunter,1100101
+Shadow Hunter,1100102
+Shadow Hunter,1100103
+Shadow Hunter,1100104
+Shadow Hunter,1100105
+Nappo Supervisor,1100150
+Boarlet,1100151
+Airona,1100152
+Tina,1100153
+Boyce,1100154
+Olvera,1100155
+Olvera,1100156
+Giant Golem,1100157
+Celestial Flier,1100158
+Byrnhald Golem,1205001
+Spear Leader Arcado,1205002
+Byrnhald Rifleman,1205003
+Twin Mech Statue Kaki,1205004
+Twin Mech Statue Kelly,1205005
+Byrnhald Swordsman,1205006
+Byrnhald Swordsman,1205007
+Byrnhald Shield Bearer,1205008
+Byrnhald Tank,1205009
+Byrnhald Spearman,1205010
+Mech Core,1205011
+Self-Destruct Leader Deidara,1205012
+Self-Destruct Unit,1205013
+Arcado's Thunder Orb,1205014
+Arcado's Thunder Orb,1205015
+Byrnhald Rifleman,1205016
+Asterleeds Trooper,1205017
+Asterleeds Trooper,1205018
+Asterleeds Trooper,1205019
+Gunner,1205020
+Gunner,1205021
+Proceed to Right Hand Strategy Area,1205050
+Proceed to Legs Strategy Area,1205051
+Proceed to Head Strategy Area,1205052
+Proceed to the Core Assault Zone,1205053
+Goblin Dagger,2000101
+Muku Cudgel,2000102
+Goblin Sword,2000103
+Goblin Mage,2000104
+Goblin Mage,2000105
+Goblin Mage,2000106
+Goblin Cudgel,2000107
+Goblin Crossbow,2000108
+Goblin Axe,2000109
+Flame Orc,2000110
+Goblin Crossbow,2000111
+Crossbow Muku,2000112
+Flame Orc,2000113
+Goblin Mage,2000114
+Flame Orc,2000115
+Goblin Mage,2000116
+Wooden Dummy,2000117
+Suicidal Soldier 02,2000119
+Goblin Mage,2000120
+Goblin Mage,2000121
+Goblin Sword,2000122
+Goblin Axe,2000123
+Goblin Axe,2000124
+Goblin Dagger,2000126
+Flame Orc,2000127
+Goblin Mage,2000128
+Frost Ogre,2000129
+Wooden Dummy,2000130
+Tempest Ogre,2000131
+Dogorman,2000132
+Sentinel Type 01,2000133
+Goblin King,2000134
+Elite Captain Muku,2000135
+Wooden Dummy,2000136
+Tempest Ogre,2000137
+Goblin King,2000138
+Battle Mech 03,2000139
+Frost Ogre,2000140
+Battle Mech 03,2000141
+Goblin Mage,2000199
+Goblin Dagger,2004101
+Goblin Cudgel,2004102
+Shafir,2004103
+Goblin Mage (Wind),2004104
+Shafir,2004105
+Flame Orc,2004106
+Shafir,2004107
+Huey,2004108
+Boss - Tempest Ogre,2004109
+Shafir,2004110
+Huey,2004111
+Void Arachnocrab,2004112
+Shafir,2004113
+Huey,2004114
+Goblin Mage (Wind),2004115
+Void Arachnocrab,2004116
+Shafir,2004117
+Branny,2004118
+Mutant Yeti,2004119
+Flame Orc,2004120
+Shafir,2004121
+Huey,2004122
+Goblin Mage (Fire),2004123
+Shafir,2004124
+Branny,2004125
+Boss - Tempest Ogre,2004126
+Goblin Mage (Fire),2004127
+Shafir,2004128
+Huey,2004129
+Branny,2004130
+Boss - Tempest Ogre,2004131
+Goblin Mage,2004132
+Goblin Mage (Fire),2004133
+Flame Orc,2004134
+Shafir,2004135
+Huey,2004136
+Branny,2004137
+Shafir,2004138
+Huey,2004139
+Branny,2004140
+Shafir,2004141
+Huey,2004142
+Branny,2004143
+Flame Orc,2004144
+Goblin Mage (Wind),2004145
+Shafir,2004146
+Huey,2004147
+Flame Orc,2004148
+Void Arachnocrab,2004149
+Shafir,2004150
+Branny,2004151
+Boss - Tempest Ogre,2004152
+Goblin Mage (Wind),2004153
+Shafir,2004154
+Branny,2004155
+Goblin Mage (Fire),2004156
+Goblin Mage (Wind),2004157
+Shafir,2004158
+Branny,2004159
+Super Battle Mech 99,2004160
+Kanamia Voodoo Warrior,2004161
+Crimson Foxen,2004162
+Manned Mech,2004163
+Goblin King,2004164
+Super Battle Mech 99,2004165
+Kanamia Voodoo Warrior,2004166
+Manned Mech,2004167
+Dogorman,2004168
+Goblin King,2004169
+Goblin Mage,2004170
+Goblin Axe,2004171
+Frost Ogre,2004172
+Battle Mech 03,2004173
+Flame Orc - Resonance,3000000
+Tempest Ogre - Resonance,3000001
+Brigand Chief - Resonance,3000002
+Resonance Muku,3000003
+Resonating Boarrier King,3000004
+Frost Ogre - Resonance,3000006
+Goblin Chieftain - Resonance,3000007
+Muku King - Resonance,3000008
+Brigand Leader - Battle Axe - Resonance,3000009
+Goblin Sword - Resonance,3000010
+Goblin Crossbow - Resonance,3000011
+Brigand Archer - Resonance,3000012
+Shadow Blade - Resonance,3000013
+Goblin Axe - Resonance,3000014
+Great Muku Axe - Resonance,3000015
+Eye King - Resonating,3000016
+Boss: Muku Chief,3000017
+Boss: Dogorman,3000018
+Frost Ogre - Resonance,3000019
+Tempest Ogre - Resonance,3000020
+Wind Goblin King - Resonance,3000021
+Muku Chief - Resonance,3000022
+Arachnocrab King - Resonance,3000023
+Iron Fang - Resonance,3000024
+Venobzzar Incubator - Resonance,3000025
+Great Warhog - Resonance,3000026
+Boarrier Tyrant - Resonance,3000027
+Muku Warrior - Resonance,3000028
+Lizardman Hunter - Resonance,3000029
+Muku Scout - Resonance,3000030
+Brigand Scout - Resonance,3000031
+Olvera - Resonance,3000032
+Tina - Resonance,3000033
+Airona - Resonance,3000034
+Void Orc - Resonance,3000035
+Lizardman King - Resonance,3000036
+Muku Vanguard - Resonance,3000037
+Celestial Flier - Resonance,3000038
+Goblin Fire Mage - Resonance,3000039
+storm Goblin Axe - Resonance,3000040
+Tatta-Resonance,3000041
+Lizardman Mage - Resonance,3000042
+Rorola - Resonance,3000043
+Dorothy - Resonance,3000044
+Boyce - Resonance,3000045
+Fafala - Resonance,3000046
+Blackstone Sergeant - Resonance,3000047
+Goblin Chief - Resonance,3000048
+Crimson Foxen - Resonance,3000049
+Blackstone Sergeant - Resonance,3000050
+Cabbage Mission Leader - Resonance,3000051
+Flamehorn - Resonance,3000052
+Basilisk - Resonance,3000053
+Bluespine Lizard - Resonance,3000054
+Blackstone Mage Captain - Resonance,3000055
+Blackstone Warrior Captain - Resonance,3000056
+Goblin Shaman - Resonance,3000057
+Goblin Trickster - Resonance,3000058
+Mutant Foxen - Resonance,3000059
+Cabbage Mission Swordsman - Resonance,3000060
+Cabbage Mission Scholar - Resonance,3000061
+Emerald Caprahorn,3000062
+Denvel,3000063
+Wind Dragon,3000064
+Katana Plague Nappo,3000065
+Bow Plague Nappo,3000066
+Lance Plague Nappo,3000067
+Guitar Plague Nappo,3000068
+Great Tower Boss,3000069
+Predator Arachnocrab,3000070
+Rebel King,3000071
+Void Watcher,3000072
+Ridge Fang,3000073
+Bloodthirsty Furball,3000074
+Killer Arachnocrab,3000075
+Verdant Fang,3000076
+Man-Eating Furball,3000077
+Dogorman,3000078
+Sanctuary Eye,3000079
+Lucy - Resonance,3000080
+Natsu - Resonance,3000081
+Light·Tonatiuh,3000082
+Sunfire,3000083
+Moonstrike,3000084
+Withered Bloomshard,3000085
+Erosion Bloom Afterimage,3000086
+Shell-Gathering Cultist,3000087
+Valley Vanguard,3000088
+Wandering Traveler,3000089
+Stream Aberration,3000090
+Dream Manifestor,3000091
+Paralyzing Shrimpshroom,3000092
+Darkriver Fin,3000093
+Valley Ranger,3000094
+Valley Brawler,3000095
+Goblin Sage,3000096
+Companion-Bow-Legendary Boar,3100000
+Companion-Bow-Legendary Eagle,3100001
+Companion-Bow-Celestial Eagle,3100002
+Tempest Ogre - Role,3110001
+Flame Orc - Role,3110002
+Muku King - Role,3110003
+Iron Fang - Role,3110004
+Golden Juggernaut - Role,3110005
+Lizardman King - Role,3110006
+Airona - Role,3110007
+Fafala - Role,3110008
+Deadly Bzzar,4000001
+Poison Feather Bzzar,4000002
+Venomous Arachnocrab,4000003
+Muku Chief,5000000
+Inferno Ogre,5000001
+Golden Juggernaut,5000002
+Arachnocrab King,5000003
+Celestial Flier,5000004
+Tempest Ogre,5000005
+Frost Ogre,5000006
+Muku King,5000007
+Goblin King,5000008
+Storm Goblin King,5000009
+Brigand Leader,5000010
+Iron Fang,5000011
+Lizardman King,5000012
+Venobzzar Incubator,5000013
+Airona,5000014
+Tatta,5000015
+Olvera,5000016
+Tina,5000017
+Bane Lord,5000018
+Celestial Flier Summon,5000019
+Summoned Melee Muku,5000020
+Summoned Crossbow Muku,5000021
+Summoned Muku Chief,5000022
+Skyfish,5001000
+Jade Skyfish,5001001
+Lizardman Soldier,5001002
+Lizardman Shaman,5001003
+Hard-Shell Arachnocrab,5001004
+Mana-Devouring Arachnocrab,5001005
+Burrowing Arachnocrab,5001006
+Cabbage Deep-Water Enthusiast,5001007
+Lizardman Guardian,5002000
+Lizardman Mage,5002001
+Lizardman Priest,5002002
+Undying Arachnocrab,5002003
+Swift Arachnocrab,5002004
+King Diver Cabbage,5002005
+Celestial Flier,5003000
+Lizardman King,5003001
+Phantom Arachnocrab,5003002
+Predator Arachnocrab,5003003
+Cabbage Assault Captain - Toliver,5003004
+Cabbage Ultimate Ace - Hood,5003005
+Monster 5004001,5004001
+Monster 5004002,5004002
+Monster 5004003,5004003
+Monster 5004020,5004020
+Monster 5004021,5004021
+Johnny,5026001
+Fafala,5100301
+Boyce,5100302
+Corroded Great Eagle,5100303
+Fafala,5100304
+Lost Villager,5100501
+Lost Villager,5100502
+Lost Villager,5100503
+Green Foam Goblin,5100601
+Thunder Foam Goblin,5100602
+Green Foam Goblin,5100603
+Purplefoam Goblin,5100604
+Celestial Flier,6000001
+Brigand Leader,6000101
+Bloodthirsty Furball,6000102
+Tempest Ogre,6000103
+Inferno Ogre,6000104
+Rebel King,6000105
+Ridge Fang,6000201
+Iron Fang,6000202
+Crimson Foxen,6000203
+Flamehorn,6000204
+Brigand Leader,6000205
+Tempest Ogre,6000206
+Ridge Fang,6000207
+Golden Juggernaut,6000208
+Iron Fang,6000209
+Tempest Ogre,6000301
+Tempest Ogre,6000302
+Venobzzar Incubator,6000303
+Brigand Leader,6000304
+Goblin Chief,6000305
+Bloodthirsty Furball,6000306
+Muku Chief,6000307
+Muku Chief,6000308
+Inferno Ogre,6000309
+Lizardman King,6000401
+Rebel King,6000402
+Goblin Chief,6000403
+Predator Arachnocrab,6000404
+Storm Goblin King,6000405
+Frost Ogre,6000406
+Golden Juggernaut,6000407
+Golden Juggernaut,6000408
+Suicidal Soldier 02,6000901
+Toxic mist,6000902
+Ryan,6116001
+Swindler's Henchman,6117001
+Swindler's Henchman,6117002
+Echo,6611001
+Unheard Prayer,6611002
+Phantom,6611003
+Phantom,6611004
+Phantom,6611005
+Call,6611006
+Unheard Belief,6611007
+Unheard Belief,6611008
+Unheard Courage,6611009
+Trial,6611010
+Unheard Justice,6611011
+Unheard Obsession (Deprecated),6611012
+Unheard Obsession (Deprecated),6611013
+Unheard Obsession,6611014
+Trial,6611015
+Malice (Temporarily Deprecated),6611016
+Vilda,6611017
+Dreambound Goblin,6611018
+Fodder Mob (Deprecated),6611019
+Immature Illusory Bloom,6611020
+Illusory Bloom,6611021
+Vilda,6611022
+Trial,6611023
+Trial - Elite,6611024
+Dreambound Deep Valley Murloc,6611025
+Dreambound Riverside Murloc,6611026
+Dreambound Darkriver Fin,6611027
+Echo,6611028
+Echo,6611029
+Echo - Elite,6611030
+Unheard Prayer,6611031
+Unheard Obsession,6611032
+Vilda Mid-Route Elite Arena Marker,6611033
+Immature Illusory Bloom,6611034
+Dreambound Goblin Sage,6611035
+Unheard Belief,6611036
+Unheard Justice,6611037
+Unheard Courage,6611038
+Immature Illusory Bloom,6611039
+Unheard Prayer,6611040
+Valley Crossbowman,6620001
+Valley Crossbowman,6621001
+Goblin King,7700001
+Battle Mech 03,7700002
