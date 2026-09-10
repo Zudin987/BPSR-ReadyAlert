@@ -1,0 +1,701 @@
+monster/boss/targetableentity name,id
+Dummy (Flame Orc),101
+Test Dummy (Enemy),102
+Rathalos,103
+Ignisor,104
+Test Dummy (Ally),105
+Test Dummy (Neutral),106
+Kartgriff,107
+Frost Ogre,108
+Muku Warrior,109
+Goblin Cudgel,110
+Goblin Cudgel,111
+Boss - Goblin King,112
+Tatta,113
+Enemy Training Dummy,114
+Elite Enemy Training Dummy,115
+Wooden Dummy,116
+Wooden Dummy,117
+Wooden Dummy,118
+Wooden Dummy,119
+Wooden Dummy,120
+Allied Training Dummy,121
+Elite Guardian Dummy,122
+Elite Guardian Dummy,123
+Transformation Exclusive - Void Tina,200
+Transformation Exclusive - Goblin Axe,201
+Transformation Exclusive - Airona,202
+Goblin King - AegisTransformation,203
+Goblin King - Staff Transformation,204
+Void Bzzar,205
+Nitro Bzzar,206
+Flame Orc,1012
+Rathalos,1013
+Defensive Type 04,1100
+Defensive Type 06,1101
+Defensive Type 04,1102
+Defensive Type 06,1103
+Sentinel Type 01,1104
+Suicidal Soldier 02,1105
+Battle Mech 03,1106
+Super Battle Mech 99,1107
+Battle Mech Remains,1108
+Battle Mech Remains,1109
+Kartgriff,1110
+Dark Mist Swordsman,1111
+Soldier,1112
+Jayden,1113
+Soldier,1114
+Defensive Type 04,1115
+Defensive Type 05,1116
+Undead Sword,1117
+Soul Essence,1118
+Sentinel Type 01,1119
+Self-Destruct Type 02,1120
+Battle Mech 03,1121
+Super Battle Mech 99,1122
+Super Battle Mech 99,1123
+Laser Cannon,1124
+Defensive Type 04,1130
+Sentinel Type 01,1134
+Suicidal Soldier 02,1135
+Battle Mech 03,1136
+Sentinel Type 01,1137
+Defensive Type 04,1140
+Defensive Type 06,1141
+Sentinel Type 01,1142
+Suicidal Soldier 02,1143
+Battle Mech 03,1144
+Power Supply Statue,1145
+Battle Mech 03,1146
+Sentinel Type 01,1147
+Mech Core,1148
+Kartgriff,1150
+Kartgriff,1151
+Kartgriff,1152
+Illusory Bloom,1153
+Phantom Illusory Bloom,1154
+Dimensional Ruins,1155
+Battle Mech 03,1156
+Defensive Type 04,1170
+Defensive Type 05,1171
+Sentinel Type 01,1172
+Super Battle Mech 99,1173
+Kartgriff,1174
+Corridor Laser Special Effect,1175
+Defensive Type 04,1200
+Defensive Type 06,1201
+Edge Blade,1202
+Soul Essence,1203
+Sentinel Type 01,1204
+Suicidal Soldier 02,1205
+Battle Mech 03,1206
+Super Battle Mech 99,1207
+Defensive Type 04,1208
+Defensive Type 05,1209
+Edge Blade,1210
+Soul Essence,1211
+Sentinel Type 01,1212
+Suicidal Soldier 02,1213
+Battle Mech 03,1214
+Super Battle Mech 99,1215
+Battle Mech Remains,1216
+Super Battle Mech 99,1218
+Sentinel Type 01,1219
+Defensive Type 04,1220
+Defensive Type 06,1221
+Edge Blade,1222
+Soul Essence,1223
+Sentinel Type 01,1224
+Suicidal Soldier 02,1225
+Battle Mech 03,1226
+Kartgriff,1230
+Defensive Type 06,1231
+Super Battle Mech 99,1232
+Lost Villager,1233
+Sentinel Type 01,1234
+Defensive Type 04,1300
+Defensive Type 06,1301
+Edge Blade,1302
+Soul Essence,1303
+Sentinel Type 01,1304
+Suicidal Soldier 02,1305
+Battle Mech 03,1306
+Super Battle Mech 99,1307
+Battle Mech Remains,1308
+Kartgriff,1309
+Defensive Type 04,1310
+Defensive Type 06,1311
+Edge Blade,1312
+Soul Essence,1313
+Sentinel Type 01,1314
+Suicidal Soldier 02,1315
+Battle Mech 03,1316
+Super Battle Mech 99,1317
+Super Battle Mech 99,1318
+Lost Villager,1319
+Sentinel Type 01,1320
+Sentinel Type 01,1321
+Dimensional Ruins,1322
+Sentinel Type 01,1330
+Defensive Type 04,1331
+Defensive Type 06,1332
+Self-destruct Robot 02,1333
+Laser Cannon,1334
+Edge Blade,1335
+Soul Essence,1336
+Battle Mech 03,1337
+Self-destruct Robot 08,1338
+Elite Defensive Type 06,1341
+Boss - Battle Mech 03,1342
+Boss - Super Mech 07,1343
+Elite Sentinel Type 01,1344
+Elite Defensive Type 06,1345
+Battle Mech 03,1351
+Defensive Type 04,1352
+Sentinel Type 01,1353
+Suicidal Soldier 02,1354
+Sentinel Type 01,1355
+Defensive Type 06,1356
+Self-Destruct Type 02,1357
+Boss - Blazing Mech 05,1358
+Kartgriff,1360
+Defensive Type 04,1361
+[Disruptor] Super Mech 07,1362
+Self-destruct Robot 08 (wide range),1363
+[Repairer] Elite Defensive Type 06,1364
+Link Test Model,1365
+Thunder Core,1397
+Wind Core,1398
+Igoreus,1399
+Goblin King - Void,1400
+Igoreus,1401
+Wind Dragon Falling Rock,1402
+Goblin Crossbow,1403
+Goblin Mage,1404
+Goblin Axe,1405
+Goblin Sword,1406
+Goblin Grand Mage,1407
+Goblin Crossbow,1408
+Goblin Crossbow,1409
+Goblin King - Void,1410
+Dark Mist Swordsman,1411
+Dark Mist Legion Rifleman,1412
+Goblin King - Void,1413
+Goblin Cudgel,1414
+Goblin Dagger,1415
+Goblin Crossbow,1416
+Goblin Crossbow,1417
+Goblin Mage,1418
+Goblin Crossbow,1419
+Jim,1420
+Goblin Crossbow,1421
+Goblin Mage,1422
+Goblin Axe,1423
+Goblin Sword,1424
+Goblin Crossbow,1425
+Goblin Mage,1426
+Goblin Axe,1427
+Goblin Sword,1428
+Soul Essence,1429
+Boss - Goblin King - Void,1430
+Brigand,1431
+Brigand Archer,1432
+Dark Mist Swordsman,1433
+Dark Mist Legion Rifleman,1434
+Dark Mist Legion Shield Bearer,1435
+Dark Mist Legion Officer Swordsman,1436
+Igoreus,1437
+Olvera,1438
+Tina,1439
+Rorola,1440
+Goblin Crossbow,1441
+Dark Mist Legion Rifleman,1442
+Dark Mist Swordsman,1443
+Dark Mist Legion Shield Bearer,1444
+Goblin Sword,1445
+Goblin Dagger,1446
+Goblin Crossbow,1447
+Dark Mist Legion Rifleman,1448
+Dark Mist Legion Officer Swordsman,1449
+Olvera,1450
+Tina,1451
+Rorola,1452
+Goblin Sword,1453
+Kanamia Warrior,1454
+Kanamia Hunter,1455
+Kanamia Archer,1456
+Soldier,1457
+Soldier,1458
+Soldier,1459
+Goblin Mage,1460
+Goblin Axe,1461
+Goblin Sword,1462
+Goblin Crossbow,1463
+Goblin Mage,1464
+Goblin Axe,1465
+Goblin Sword,1466
+Goblin Mage,1467
+Goblin Axe,1468
+Storm Goblin Sword,1469
+Goblin Dagger,1470
+Storm Goblin Crossbow,1471
+Void Goblin Axe,1472
+Goblin Dagger,1473
+Void Goblin Axe,1474
+Storm Goblin Sword,1475
+Void Goblin Axe,1476
+Goblin Crossbow,1477
+Storm Goblin Sword,1478
+Goblin Dagger,1479
+Void Boarrier,1480
+Rolling Stone Mechanism 1,1481
+Common Bee,1482
+Henry,1483
+Small Gold Coin Boar,1484
+Boss - Void Boarrier King,1485
+Henry,1486
+Dark Mist Legion Male Scout Elite,1487
+Dark Mist Legion Male Scout,1488
+Dark Mist Legion Male Scout,1489
+Dark Mist Legion Rifleman,1490
+Dark Mist Legion Shield Bearer,1491
+Explosive Bee,1492
+Goblin Crossbow,1493
+Void Goblin Crossbow,1495
+Void Goblin Mage,1496
+Boss - Void Goblin Axe,1497
+Void Goblin Sword,1498
+Rock Lizard,1499
+Goblin Cudgel,1500
+Goblin Dagger,1501
+Wind Spirit,1502
+Hardshell Spider,1510
+Toxic Spider,1511
+Rock Serpent,1512
+Life Serpent,1513
+White Viper,1514
+[Boss] Bluespine Lizard,1515
+[Boss] Dogorman,1516
+Spider,1517
+Serpent Egg x1 (Normal),1518
+Serpent Egg ×1 (Rock),1519
+Akufis,1520
+Serpent Egg x1 (Life),1521
+Denvel,1701
+Void Denvel,1702
+Denvel,1703
+Golden Ghost,1704
+Void Denvel,1705
+Hruga's Marionettes,1706
+Lingering Soul,1707
+Denvel,1708
+Void Denvel,1709
+Foxen,1901
+Foxen,1902
+Foxen,1903
+Foxen,1904
+Nappo,1905
+Blackstone Legion Shield,1906
+Blackstone Legion Trooper,1907
+Blackstone Legion Gunner,1908
+Lafael,1909
+Ygg,1910
+Suti,1911
+Nappo,1912
+Normal Footprint Display,1913
+Hidden Footprint Display,1914
+Airborne Footprint Display,1915
+Foxen,1950
+Blackstone Legion Warrior,1951
+Blackstone Legion Shield,1952
+Blackstone Legion Warrior,1953
+Blackstone Legion Trooper,1954
+Plague Nappo - Katana Soul,1955
+Plague Nappo - Archer Soul,1956
+Plague Nappo - Guitar Soul,1957
+Silver Nappo,1958
+Illusion Nappo,1959
+Nappo's Bomb,1960
+Silver Nappo,1961
+Foxen,2001
+Life Serpent,2002
+Goblin Sword,2003
+Giant Life Serpent,2004
+Spirit Possession,2101
+Tina - Void Reverie,3000
+Tina - Void Reverie,3002
+Void Corruption Banner,3003
+Asterleeds Trooper,3004
+Asterleeds Trooper,3005
+Asterleeds Trooper,3006
+Byrnhald Swordsman,3007
+Byrnhald Rifleman,3008
+Byrnhald Swordsman,3009
+Byrnhald Shield Bearer,3010
+Byrnhald Spearman,3011
+Byrnhald Shield Bearer,3013
+Byrnhald Rifleman,3014
+Byrnhald Tank,3015
+Byrnhald Rifleman,3016
+Byrnhald Golem,3017
+Byrnhald Shield Bearer,3018
+Byrnhald Rifleman,3019
+Asterleeds Trooper,3020
+Asterleeds Guard,3023
+Asterleeds Guard,3024
+Tina,3025
+Byrnhald Tank,3026
+Byrnhald Shield Bearer,3027
+Byrnhald Spearman,3028
+Byrnhald Tank,3029
+Byrnhald Rifleman,3030
+Byrnhald Shield Bearer,3031
+Byrnhald Shield Bearer,3032
+Byrnhald Rifleman,3033
+Byrnhald Rifleman,3034
+Kanamia Undead Warrior,3036
+Kanamia Undead Hunter,3037
+Kanamia Undead Archer,3038
+Kanamia Undead Warrior,3039
+Kanamia Undead Hunter,3040
+Kanamia Undead Archer,3041
+Kanamia Triber Spirit,3042
+Kanamia Triber Spirit,3043
+Jerrad,3049
+Jerrad,3050
+Tina,3060
+Lost Tina,3061
+Lost Tina,3062
+Tina,3063
+Olvera's Shadow,3991
+Kanamia Youth,3992
+Void Corruption Banner,3993
+Void Corruption Banner,3994
+Tina - Void Reverie Phantom,3995
+Tina - Void Reverie,3996
+Tina - Void Reverie,3997
+Tina - Void Reverie,3998
+Man in Black Clone,4000
+Man in Black Clone,4001
+Man in Black,4002
+Man in Black,4003
+Airona,4004
+Tina (Investigation Copy),4005
+Olvera,4006
+Tina,4007
+Man in Black Clone,4008
+Man in Black Clone,4009
+Airona,4010
+Void - Goblin Cudgel,4011
+Void - Goblin Mage,4012
+Void - Goblin Cudgel,4015
+Void - Goblin Dagger,4016
+Void - Goblin Cudgel,4017
+Airona,4018
+Tina,4019
+Void - Goblin Cudgel,4020
+Void - Goblin Dagger,4021
+Void - Goblin Crossbow,4022
+Void - Goblin Mage,4023
+Void - Goblin Sword,4024
+Void - Goblin Mage,4025
+Void - Goblin Mage,4026
+Void - Goblin Mage,4027
+Void - Goblin Axe,4028
+Void - Goblin Dagger,4029
+Void - Goblin Sword,4030
+Void - Goblin Cudgel,4031
+Void - Goblin Sword,4032
+Void Demi-Human,4033
+Man in Black Clone,4034
+Man in Black Clone,4035
+Man in Black Clone,4036
+Man in Black Clone,4037
+Airona,4100
+Tina,4101
+Void - Goblin Axe,4102
+Void - Goblin Axe,4103
+Goblin Axe,4104
+Escaping Nappo,4105
+Bubble Messenger,4106
+Narulu,4111
+Olvera,4112
+Jerrad,4113
+Dark Mist Soldier,4120
+Olvera,4121
+Airona,4122
+Void Demi-Human,4201
+Airona,4202
+Tina,4204
+Airona,4205
+Goblin Sword,4206
+Goblin Crossbow,4207
+Seabreeze Festival - Chibi Tempest Ogre Standee,4301
+Reckless Asterleeds Defense Corps soldier,4400
+Confident Asterleeds Defense Corps soldier,4401
+Onlooking Asterleeds Defense Corps soldier,4402
+Onlooking Asterleeds Defense Corps soldier,4403
+Strong Asterleeds Defense Corps soldier,4404
+Strong Asterleeds Defense Corps soldier,4405
+Onlooking Asterleeds Defense Corps soldier,4406
+Devon,4407
+Spar Zone,4408
+Forgotten Nightmare,4501
+Dream Spirit,4502
+Inner Demon,4503
+Inner Demon,4504
+[Boss] Goblin King - Calamity,4511
+Armored Lizard,4512
+Light-Prayer Caprahorn,4513
+Goblin Mage - Calamity,4514
+Nether Caprahorn,4515
+Illusory Essence,4516
+Goblin Cudgel - Calamity,4517
+Goblin Dagger,4518
+Stone Lizard,4519
+Goblin Mage - Calamity,4520
+Mutant Yeti,4521
+Mutant Yeti,4522
+Goblin Cudgel - Calamity,4523
+Dream Spirit,4524
+Illusory Bloom Crystal Cluster,4525
+Illusion Inner Demon,4531
+Abyssal Nappo,4601
+Abyssal Sound System,4602
+Invisible Sound System,4603
+Ice Sphere,4604
+Bubble,4605
+Abyssal Sound System,4606
+Abyssal Nappo,4607
+Passionate Revelry Illusion,4608
+Dynamic Revelry Illusion,4609
+Ice Sphere,4610
+Bubble,4611
+Abyssal Nappo,4612
+Abyssal Nappo,4613
+Abyssal Nappo,4614
+Abyssal Nappo,4615
+Abyssal Nappo,4621
+Lizardman Tidecaller,4631
+Lizardman Raider,4632
+Reef Skyfish,4633
+Abyssal Gazer,4634
+Lizardman Mage,4635
+Lizardman Soldier,4636
+Reef Predator,4637
+Small Arachnocrab,4638
+Mystery Matrix,4639
+Tidal Core,4640
+Sound System,4691
+Nappo,4692
+Sound System,4693
+Shining Goblin,4694
+Ee-chan,4695
+Vilda,4701
+Vilda Phantom,4702
+Omen,4703
+Vilda,4711
+Unknown Monster,7001
+Goblin,7002
+Young Girl,7003
+Goblin,7004
+Airona,7005
+Calamity Puppet,7006
+Synster,8001
+Synster's Assistant,8002
+Muku Scout,8003
+Muku Duelblade,8004
+Sanctuary Eye,8005
+Suspicious Vendor,8007
+Suspicious Vendor,8008
+Suspicious Vendor,8009
+Constantine's Underling,8010
+Goblin Dagger,8011
+Charles,8012
+Charles's Companion,8013
+Lucien,8014
+Citizen,8015
+Citizen,8016
+Citizen,8017
+Citizen,8018
+Goblin Dagger,8019
+Goblin Cudgel,8020
+Constantine's Underling,8021
+Arlin,8022
+Nelson,8023
+Constantine's Underling,8024
+Battle Mech 03,8030
+Mysterious Researcher,8031
+Duffy,8040
+Rooney,8041
+Wounded Soldier,8042
+Legion Soldier,8043
+Legion Soldier,8044
+Goblin Dagger,8045
+Goblin Cudgel,8046
+Caprahorn Attacking Air Model,8049
+Goblin Dagger Attracted by Street Lamp,8050
+Boarrier Tyrant,8051
+Brigand Axeman,8052
+Caprahorn Attacking Street Lamp,8053
+Brigand Archer,8054
+Brigand Scout,8055
+Brigand Thug,8056
+Brigand Guard,8057
+Arachnocrab,8058
+Battle Mech 03,8061
+Defensive Type 04,8062
+Sentinel Type 01,8063
+Suicidal Soldier 02,8064
+Heritage Dealer,8066
+Heritage Robot,8067
+Heritage Robot,8068
+Heritage Robot,8069
+Goblin King,8070
+Pirlo,8071
+Naira,8072
+Buddy,8073
+Blaze Gang Member,8074
+Blaze Gang Member,8075
+Blaze Gang Member,8076
+Void Spawner,8077
+Void Spawner,8078
+Void Spawner,8079
+Grace (Void Spawner),8080
+Goblin Chief,8081
+Cabbage Kingpin,8082
+Muku Cudgel,8101
+Muku Axe,8102
+Crossbow Muku,8103
+Muku Warrior,8104
+Foxen,8110
+Crimson Sprayer,8111
+Shadow Scout,8112
+Shadow Warden,8113
+Shadow Gunner,8114
+Shadow Blade,8115
+Lorenzo,8116
+Wrecked Battle Mech,8117
+Gigantic Automaton?,8120
+Goblin,8121
+Thug,8122
+Abeku,8123
+Airona,8124
+Abeku's Underling,8125
+Lizardman Warrior,8126
+Mysterious Machine Statue,8127
+Goblin Wind Mage,8128
+Wind Goblin Cudgel,8129
+???,8130
+Misty,8131
+Heritage Robot,8132
+Scorpion,8133
+Dumb Hammer,8134
+Ansel,8135
+Robber Gang Member,8136
+Robber Gang Member,8137
+Robber Gang Member,8138
+Burly Robber,8139
+Sneering Robber,8140
+Abeku's Underling,8141
+Abeku's Underling,8142
+Irritable Mercenary,8143
+Mean Mercenary,8144
+Irritable Soldier,8301
+Downcast Soldier,8302
+Swift Eagle,8303
+Cochran,8304
+Boyce,8310
+Fighting Boyce,8311
+Defending Boyce,8312
+Contemplative Boyce,8313
+Casting Boyce,8314
+???,8315
+Defeated Boyce,8316
+Klaus Anatole Sterling,8317
+Kanamia Warrior,8401
+Kanamia Resistance,8402
+Kanamia Resistance,8403
+Void - Legion Soldier,8501
+Void - Legion Soldier,8502
+Olvera,8503
+Tina,8504
+Airona,8505
+Dark Mist Legion Swordsman,8506
+Asterleeds Trooper A,8507
+Void - Legion Soldier,8508
+Void - Legion Soldier,8509
+Airona,8510
+Void - Legion Soldier,8511
+Void - Legion Soldier,8512
+Asterleeds Trooper,8513
+Void Goblin,8515
+Olvera,8516
+Tina,8517
+Airona,8518
+Dark Mist Legion Shield Bearer,8519
+Asterleeds Trooper B,8520
+Dark Mist Legion Dual Swordsman,8521
+Asterleeds Trooper C,8522
+Dasha,8601
+Lito Shark,8602
+Terry Shark,8603
+Ferocious Debtor,8604
+Suffering Debtor,8605
+Floating Party Member,8606
+Floating Party Member,8607
+Floating Party Member,8608
+Skarl,8609
+Nemolais,8610
+Iron Fang,8611
+Wilbert,8615
+Goven,8616
+Esmond,8617
+Wilbert,8618
+Pirate Henchman,8619
+Pirate Henchman,8620
+Misty,8625
+???,8626
+Misty,8627
+???,8628
+Grayson,8629
+Storm Goblin Dagger,8630
+Storm Goblin Elder,8631
+Brigand,8632
+Naughty Nappo,8633
+Naughty Nappo,8634
+Cabbage Mission Captain,8635
+Cabbage Mission Member,8636
+Eagle,8637
+Jason,8638
+Todd,8639
+Cabbage Mission Killer,8640
+Cabbage Mission Hunter,8641
+Cabbage Mission Bruiser,8642
+Cabbage Mission Boss - Gloomy Cabbage,8643
+Foxen,8644
+Rough Hunter,8645
+Rough Hunter,8646
+Little Caprahorn,8647
+Wynton,8648
+Little Caprahorn,8649
+Herman,8650
+Verdant Fang,8651
+Muku - Cyborg Hound,8652
+Mysterious Person,8653
+Blackstone Legion Soldier,8654
+Blackstone Legion Soldier,8655
+Lizardman Warrior,8701
+Lizardman Shaman,8702
+Illusion of the Sunflower Worker,8703
+Brazer Member,8711
+Brazer Member,8712
+Brazer Member,8713
+Red Foam Goblin,8720
+Muku Duelblade,8721
+Crazy Muku Crossbowman,8722
+Gold Foam Goblin,8723
+Cabbage Mission Member,8724
+Cabbage Mission Member,8725
+Cabbage Mission Member,8726
