@@ -49,6 +49,9 @@ jobs:
       - name: Focused v1.17.2 mechanics/UI tests
         run: cargo test --manifest-path rust/Cargo.toml v1172_
 
+      - name: Focused v1.17.3 sticky-self tests
+        run: cargo test --manifest-path rust/Cargo.toml v1173_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
