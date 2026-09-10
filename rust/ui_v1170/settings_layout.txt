@@ -1,0 +1,139 @@
+unsafe fn build_ui(hwnd: HWND, state: &mut SettingsState) {
+    let nav = ["General", "Chat overlay", "Chat colors", "Speech", "Tabs & filters", "Sounds & logs", "Network", "Blocked users"];
+    for (i, name) in nav.iter().enumerate() {
+        create_button(hwnd, NAV_BASE + i as i32, name, 10, 14 + i as i32 * 38, 136, 30);
+    }
+    let version=create_static(hwnd,&format!("ReadyAlert  v{}",env!("CARGO_PKG_VERSION")),14,326,130,20);
+    crate::ui_theme::set_font(version,crate::ui_theme::FontRole::Secondary);
+    create_button(hwnd, ID_APPLY, "Apply", 610, 365, 80, 30);
+    create_button(hwnd, ID_CLOSE, "Close", 700, 365, 80, 30);
+    build_general(hwnd, state);
+    build_overlay(hwnd, state);
+    build_colors(hwnd, state);
+    build_speech(hwnd, state);
+    build_tabs(hwnd, state);
+    build_sounds(hwnd, state);
+    build_network(hwnd, state);
+    build_blocked(hwnd, state);
+}
+
+unsafe fn build_general(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_GENERAL,"General","Alerts, notifications and quick access to combat tools.");
+    section(hwnd,state,PAGE_GENERAL,"ALERTS",174,68,580);
+    checkbox_at(hwnd,state,PAGE_GENERAL,ID_QUEUE,"Queue Pop alert",174,88,240);
+    checkbox_at(hwnd,state,PAGE_GENERAL,ID_READY,"Ready Check alert",430,88,240);
+    checkbox_at(hwnd,state,PAGE_GENERAL,ID_INVITE,"Party Invite alert",174,116,240);
+    checkbox_at(hwnd,state,PAGE_GENERAL,ID_REQUEST,"Party Request alert",430,116,240);
+    checkbox_at(hwnd,state,PAGE_GENERAL,ID_DESKTOP,"Desktop notifications",174,144,240);
+    inline_field(hwnd,state,PAGE_GENERAL,"Alert volume",ID_ALERT_VOLUME,430,142,112,76);
+    section(hwnd,state,PAGE_GENERAL,"COMBAT TOOLS",174,196,580);
+    button(hwnd,state,PAGE_GENERAL,3207,"DPS Meter settings",174,218,156,30);
+    button(hwnd,state,PAGE_GENERAL,3208,"Mechanics settings",340,218,156,30);
+    button(hwnd,state,PAGE_GENERAL,3209,"Event Tracker",506,218,146,30);
+    section(hwnd,state,PAGE_GENERAL,"SHORTCUTS",174,270,580);
+    info(hwnd,state,PAGE_GENERAL,"Ctrl+Shift+F10 toggles DPS + Mechanics. Chat click-through recovery defaults to Ctrl+Shift+F9. Hidden overlays can also be restored from the tray.",174,292,580,42);
+}
+
+unsafe fn build_overlay(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_OVERLAY,"Chat overlay","Behavior, readability and recovery controls for the chat overlay.");
+    section(hwnd,state,PAGE_OVERLAY,"BEHAVIOR",174,68,580);
+    let left=[(ID_CHAT_ENABLED,"Enable Chat Overlay"),(ID_TOPMOST,"Always on top"),(ID_COMPACT,"Compact messages"),(ID_CLICKTHROUGH,"Click-through overlay")];
+    for(i,(id,text))in left.iter().enumerate(){checkbox_at(hwnd,state,PAGE_OVERLAY,*id,text,174,88+i as i32*28,250);}
+    let right=[(ID_SHOW_TIME,"Show message time"),(ID_TIME_AGO,"Show relative time"),(ID_ZEBRA,"Zebra rows"),(ID_COLOR_BAND,"Channel color band"),(ID_HIDE_STICKERS,"Hide sticker / picture messages")];
+    for(i,(id,text))in right.iter().enumerate(){checkbox_at(hwnd,state,PAGE_OVERLAY,*id,text,438,88+i as i32*28,300);}
+    section(hwnd,state,PAGE_OVERLAY,"APPEARANCE & RECOVERY",174,224,580);
+    inline_field(hwnd,state,PAGE_OVERLAY,"Opacity",ID_WINDOW_OPACITY,174,246,105,72);
+    inline_field(hwnd,state,PAGE_OVERLAY,"Font size",ID_FONT_SIZE,438,246,105,72);
+    inline_field(hwnd,state,PAGE_OVERLAY,"Font family",ID_FONT_FAMILY,174,278,105,150);
+    inline_field(hwnd,state,PAGE_OVERLAY,"Max history",ID_MAX_HISTORY,438,278,105,72);
+    inline_field(hwnd,state,PAGE_OVERLAY,"Recovery hotkey",ID_CLICK_HOTKEY,174,310,105,150);
+    label(hwnd,state,PAGE_OVERLAY,"Collapse edge",438,314,105,20);combo(hwnd,state,PAGE_OVERLAY,ID_COLLAPSE_SIDE,548,308,120,120);
+}
+
+unsafe fn build_colors(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_COLORS,"Chat colors","Channel colors and message highlighting. Use #RRGGBB values.");
+    section(hwnd,state,PAGE_COLORS,"CHANNEL COLORS",174,64,580);
+    let entries=["World","Local","Team","Guild","Private","Group","Notice","Play","Newbie","System"];
+    for(i,name)in entries.iter().enumerate(){let col=i/5;let row=i%5;inline_field(hwnd,state,PAGE_COLORS,name,ID_COLOR_BASE+i as i32,174+col as i32*286,86+row as i32*32,70,130);}
+    section(hwnd,state,PAGE_COLORS,"HIGHLIGHTS",174,256,580);
+    inline_field(hwnd,state,PAGE_COLORS,"Match rule",ID_HIGHLIGHT_EXPR,174,278,92,410);
+    inline_field(hwnd,state,PAGE_COLORS,"Keyword color",ID_HIGHLIGHT_COLOR,174,310,92,130);
+    inline_field(hwnd,state,PAGE_COLORS,"Private color",ID_PRIVATE_COLOR,460,310,92,130);
+    info(hwnd,state,PAGE_COLORS,"Filters support OR, AND and regular expressions.",174,340,580,20);
+}
+
+unsafe fn build_speech(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_SPEECH,"Speech & translation","Keep translation and text-to-speech focused on the channels you actually use.");
+    section(hwnd,state,PAGE_SPEECH,"TRANSLATION",174,68,270);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TRANSLATE,"Translate non-English chat",174,88,260);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TRANSLATE_WORLD,"World",190,116,70);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TRANSLATE_GUILD,"Guild",264,116,70);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TRANSLATE_PARTY,"Party / Team",338,116,100);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TRANSLATE_OVERLAY,"Show translation under original",190,144,248);
+    section(hwnd,state,PAGE_SPEECH,"TEXT-TO-SPEECH",458,68,296);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TTS,"Enable chat TTS",458,88,260);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TTS_GUILD,"Guild",474,116,80);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TTS_PARTY,"Party / Team",558,116,110);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_TTS_SENDER,"Read sender name",474,144,220);
+    checkbox_at(hwnd,state,PAGE_SPEECH,ID_HIDE_RICH,"Skip emoji / linked-item noise",474,172,250);
+    inline_field(hwnd,state,PAGE_SPEECH,"Own username",ID_TTS_USERNAME,174,228,110,170);
+    inline_field(hwnd,state,PAGE_SPEECH,"TTS volume",ID_TTS_VOLUME,458,228,100,72);
+    button(hwnd,state,PAGE_SPEECH,ID_TEST_TTS,"Test TTS",458,270,112,30);
+    info(hwnd,state,PAGE_SPEECH,"TTS is limited to Guild and Party / Team; World chat is never spoken.",174,316,580,22);
+}
+
+unsafe fn build_tabs(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_TABS,"Tabs & filters","Create focused chat views without hiding messages globally.");
+    section(hwnd,state,PAGE_TABS,"TABS",174,64,180);
+    listbox(hwnd,state,PAGE_TABS,ID_TAB_LIST,174,86,176,200);
+    button(hwnd,state,PAGE_TABS,ID_TAB_ADD,"Add tab",174,294,82,28);
+    button(hwnd,state,PAGE_TABS,ID_TAB_DELETE,"Delete",264,294,82,28);
+    section(hwnd,state,PAGE_TABS,"SELECTED TAB",374,64,380);
+    inline_field(hwnd,state,PAGE_TABS,"Name",ID_TAB_NAME,374,86,84,200);
+    inline_field(hwnd,state,PAGE_TABS,"Min level",ID_TAB_MIN_LEVEL,374,118,84,70);
+    label(hwnd,state,PAGE_TABS,"Show filter",374,154,84,20);edit(hwnd,state,PAGE_TABS,ID_TAB_SHOW,462,150,286,26,false);
+    label(hwnd,state,PAGE_TABS,"Hide filter",374,186,84,20);edit(hwnd,state,PAGE_TABS,ID_TAB_HIDE,462,182,286,26,false);
+    label(hwnd,state,PAGE_TABS,"Channels",374,222,100,20);
+    let channels=["World","Local","Team","Guild","Private","Group","Notice","Play","Newbie","System"];
+    for(i,name)in channels.iter().enumerate(){checkbox_at(hwnd,state,PAGE_TABS,ID_TAB_CHANNEL_BASE+i as i32,name,374+(i%2)as i32*176,244+(i/2)as i32*24,164);}
+}
+
+unsafe fn build_sounds(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_SOUNDS,"Sounds & logs","Private-message alerts, keyword sounds and local chat retention.");
+    section(hwnd,state,PAGE_SOUNDS,"PRIVATE MESSAGES",174,64,270);
+    checkbox_at(hwnd,state,PAGE_SOUNDS,ID_PRIVATE_HIGHLIGHT,"Highlight Private / Talk",174,86,260);
+    checkbox_at(hwnd,state,PAGE_SOUNDS,ID_PRIVATE_SOUND,"Play private-message sound",174,114,260);
+    inline_field(hwnd,state,PAGE_SOUNDS,"Sound path",ID_PRIVATE_SOUND_PATH,174,148,82,178);
+    inline_field(hwnd,state,PAGE_SOUNDS,"Volume",ID_CHAT_SOUND_VOLUME,174,180,82,72);
+    section(hwnd,state,PAGE_SOUNDS,"KEYWORD SOUNDS",458,64,296);
+    checkbox_at(hwnd,state,PAGE_SOUNDS,ID_RULE1_ENABLED,"Rule 1",458,86,90);
+    inline_field(hwnd,state,PAGE_SOUNDS,"Match",ID_RULE1_MATCH,458,116,62,104);
+    inline_field(hwnd,state,PAGE_SOUNDS,"Sound",ID_RULE1_PATH,458,148,62,214);
+    checkbox_at(hwnd,state,PAGE_SOUNDS,ID_RULE2_ENABLED,"Rule 2",458,186,90);
+    inline_field(hwnd,state,PAGE_SOUNDS,"Match",ID_RULE2_MATCH,458,216,62,104);
+    inline_field(hwnd,state,PAGE_SOUNDS,"Sound",ID_RULE2_PATH,458,248,62,214);
+    section(hwnd,state,PAGE_SOUNDS,"LOCAL CHAT LOGS",174,242,260);
+    checkbox_at(hwnd,state,PAGE_SOUNDS,ID_LOGS_ENABLED,"Keep local chat logs",174,264,190);
+    label(hwnd,state,PAGE_SOUNDS,"Retention",174,298,72,20);combo(hwnd,state,PAGE_SOUNDS,ID_LOG_RETENTION,250,292,116,100);
+    button(hwnd,state,PAGE_SOUNDS,ID_OPEN_LOGS,"Open logs",374,292,100,28);
+}
+
+unsafe fn build_network(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_NETWORK,"Network & advanced","Automatic adapter selection is recommended for most users.");
+    section(hwnd,state,PAGE_NETWORK,"CAPTURE",174,72,580);
+    label(hwnd,state,PAGE_NETWORK,"Npcap device",174,98,110,20);edit(hwnd,state,PAGE_NETWORK,ID_NPCAP_DEVICE,288,94,444,26,false);
+    info(hwnd,state,PAGE_NETWORK,"Leave blank to let ReadyAlert select the active adapter automatically.",174,128,580,22);
+    section(hwnd,state,PAGE_NETWORK,"ADVANCED",174,182,580);
+    button(hwnd,state,PAGE_NETWORK,ID_OPEN_JSON,"Open settings.json",174,206,146,30);
+    button(hwnd,state,PAGE_NETWORK,ID_OPEN_FOLDER,"Open app data folder",330,206,156,30);
+    info(hwnd,state,PAGE_NETWORK,"Raw JSON is intended for recovery or advanced troubleshooting; normal changes belong in this window.",174,250,580,38);
+}
+
+unsafe fn build_blocked(hwnd: HWND, state: &mut SettingsState) {
+    page_intro(hwnd,state,PAGE_BLOCKED,"Blocked users","Players blocked from the Chat Overlay context menu appear here.");
+    listbox(hwnd,state,PAGE_BLOCKED,ID_BLOCKED_LIST,174,70,580,230);
+    button(hwnd,state,PAGE_BLOCKED,ID_UNBLOCK,"Unblock selected",174,310,136,30);
+    button(hwnd,state,PAGE_BLOCKED,ID_CLEAR_BLOCKED,"Clear all",320,310,96,30);
+    info(hwnd,state,PAGE_BLOCKED,"Blocked players are excluded from overlay display, chat sounds, translation and TTS.",174,344,580,20);
+}
+
