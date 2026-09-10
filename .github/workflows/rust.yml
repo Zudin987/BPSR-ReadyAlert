@@ -82,6 +82,9 @@ jobs:
       - name: Focused v1.18.5 DPS identity tests
         run: cargo test --manifest-path rust/Cargo.toml v1185_
 
+      - name: Focused v1.18.6 overlay scale tests
+        run: cargo test --manifest-path rust/Cargo.toml v1186_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
