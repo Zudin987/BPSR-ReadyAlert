@@ -34,6 +34,10 @@ fn patch_telemetry(out: &Path) {
         "        }));\n    }\n}\n\n#[derive(Default)]\nstruct TeamCandidate",
         "        }));\n    }\n\n    fn flush_mechanics_dirty(&mut self) {\n        if self.mechanics_dirty { self.emit_mechanics(true); }\n    }\n}\n\n#[derive(Default)]\nstruct TeamCandidate",
         "flush mechanics helper");
+    let legacy_throttle_fixture = "runtime.last_mechanic_emit=Instant::now();";
+    let legacy_fixture_count = source.matches(legacy_throttle_fixture).count();
+    assert_eq!(legacy_fixture_count, 2, "v1.17.2 expected two legacy mechanics throttle fixtures");
+    source = source.replace(legacy_throttle_fixture, "");
 
     source.push_str(r#"
 
