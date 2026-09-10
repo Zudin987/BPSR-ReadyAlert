@@ -125,6 +125,6 @@ mod v1189_logging_tests {
     fn log_line_removes_nul_and_ends_with_newline() {
         let line = format_log_line("a\0b");
         assert!(!line.contains('\0'));
-        assert!(line.ends_with(" a b\n"));
+        assert!(line.ends_with(" ab\n"));
     }
 }
