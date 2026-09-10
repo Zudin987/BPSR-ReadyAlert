@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1181.rs");
+    include!("build/legacy/build_v1182.rs");
     pub fn run() { main(); }
 }
 
