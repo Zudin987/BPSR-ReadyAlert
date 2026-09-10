@@ -1,23 +1,34 @@
 # BPSR ReadyAlert
 
-Lightweight native Windows companion for **Blue Protocol: Star Resonance**. Rust + Win32 + Npcap. No injection or gameplay automation.
+Lightweight Windows companion for **Blue Protocol: Star Resonance** with combat meters, encounter tracking, queue alerts and an optional chat overlay.
 
-**Download:** [BPSR-ReadyAlert.exe](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest/download/BPSR-ReadyAlert.exe)  
-Requires [Npcap](https://npcap.com/#download).
+[Download latest release](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [Project website](https://zudin987.github.io/projects/readyalert/) · [Report an issue](https://github.com/Zudin987/BPSR-ReadyAlert/issues)
+
+## Get running
+
+Requires **64-bit Windows** and [Npcap](https://npcap.com/#download), installed separately.
+
+1. Install Npcap.
+2. Download `BPSR-ReadyAlert.exe` from the latest release and run it.
+3. Open BPSR. If capture is empty, choose the correct network adapter in **Settings**.
+4. Enable the overlays and alerts you want.
+
+**Ctrl+Shift+F10** toggles the DPS and Mechanics overlays. The app can stay in the system tray while you play.
 
 ## Features
 
-- DPS / Heal / Tank meter with history, exports and player inspection.
-- Live target HP + Enrage, Dungeon Mechanics, Food/Serum and Imagine tracking.
-- Ready/queue/party alerts plus a view-only chat overlay with optional translation/TTS.
+- **Combat:** DPS, Heal and Tank meters, encounter history, exports and player inspection.
+- **Tracking:** live target HP and Enrage timer, Dungeon Mechanics, Food/Serum and Imagine tracking.
+- **Alerts and chat:** Ready/queue/party alerts and a view-only chat overlay with optional translation and TTS.
 
-## Run
+## Capture and troubleshooting
 
-1. Install Npcap.
-2. Download the EXE.
-3. Run it. If capture is empty, select the correct network adapter in Settings.
+ReadyAlert reads game network traffic through Npcap. It uses native Rust and Win32, with no injection or gameplay automation.
 
-`Ctrl+Shift+F10` toggles the DPS + Mechanics overlays.
+- **No combat or chat data:** confirm Npcap is installed and the selected adapter carries your game connection.
+- **Hidden overlays:** check their Settings controls and the overlay hotkey.
+- **Translation or speech fails:** these optional features depend on online services. Provider changes or rate limits can affect them independently of packet capture.
+- **A game update breaks parsing:** check Releases for an update. When reporting a problem, include your app version, game region and the steps that reproduce it.
 
 ## Build
 
@@ -26,4 +37,8 @@ scripts\prepare-build-assets.ps1
 cargo build --manifest-path rust/Cargo.toml --release
 ```
 
-[Website](https://zudin987.github.io/projects/readyalert/) · [Releases](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [Development](docs/DEVELOPMENT.md) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+See [Development](docs/DEVELOPMENT.md) for the build workflow and source layout.
+
+Unofficial community tool, not affiliated with BPSR's developers or publishers.
+
+[License](LICENSE) · [Third-party notices and credits](THIRD_PARTY_NOTICES.md)
