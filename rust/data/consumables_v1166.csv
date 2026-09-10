@@ -1,140 +1,140 @@
 TrackerName,TrackedBuffId
 [Food] S1 lvl 1 (ATK +15),2032011
-[Food] S1 lvl 2 (ATK +30),2032012
-[Food] S1 lvl 3 (ATK +45),2032013
-[Food] S1 lvl 4 (ATK +60),2032014
-[Food] S1 lvl 5 (ATK +75),2032015
-[Food] S1 lvl 6 (ATK +105),2032016
-[Food] S1 lvl 7 (ATK +120),2032017
-[Food] S1 lvl 8 (ATK +150),2032018
+[Food] S1 lvl 1 (ATK +30),2032012
+[Food] S1 lvl 1 (ATK +45),2032013
+[Food] S1 lvl 1 (ATK +60),2032014
+[Food] S1 lvl 2 (ATK +75),2032015
+[Food] S1 lvl 2 (ATK +105),2032016
+[Food] S1 lvl 3 (ATK +120),2032017
+[Food] S1 lvl 3 (ATK +150),2032018
 [Food] S1 lvl 1 (MATK +15),2032021
-[Food] S1 lvl 2 (MATK +30),2032022
-[Food] S1 lvl 3 (MATK +45),2032023
-[Food] S1 lvl 4 (MATK +60),2032024
-[Food] S1 lvl 5 (MATK +75),2032025
-[Food] S1 lvl 6 (MATK +105),2032026
-[Food] S1 lvl 7 (MATK +120),2032027
-[Food] S1 lvl 8 (MATK +150),2032028
+[Food] S1 lvl 1 (MATK +30),2032022
+[Food] S1 lvl 1 (MATK +45),2032023
+[Food] S1 lvl 1 (MATK +60),2032024
+[Food] S1 lvl 2 (MATK +75),2032025
+[Food] S1 lvl 2 (MATK +105),2032026
+[Food] S1 lvl 3 (MATK +120),2032027
+[Food] S1 lvl 3 (MATK +150),2032028
 [Food] S1 lvl 1 (Armor +80),2032031
-[Food] S1 lvl 2 (Armor +160),2032032
-[Food] S1 lvl 3 (Armor +240),2032033
-[Food] S1 lvl 4 (Armor +320),2032034
-[Food] S1 lvl 5 (Armor +400),2032035
-[Food] S1 lvl 6 (Armor +560),2032036
-[Food] S1 lvl 7 (Armor +640),2032037
-[Food] S1 lvl 8 (Armor +800),2032038
+[Food] S1 lvl 1 (Armor +160),2032032
+[Food] S1 lvl 1 (Armor +240),2032033
+[Food] S1 lvl 1 (Armor +320),2032034
+[Food] S1 lvl 2 (Armor +400),2032035
+[Food] S1 lvl 2 (Armor +560),2032036
+[Food] S1 lvl 3 (Armor +640),2032037
+[Food] S1 lvl 3 (Armor +800),2032038
 [Food] S1 lvl 1 (Endurance +45),2032041
-[Food] S1 lvl 2 (Endurance +90),2032042
-[Food] S1 lvl 3 (Endurance +135),2032043
-[Food] S1 lvl 4 (Endurance +225),2032044
-[Food] S1 lvl 5 (Endurance +450),2032045
-[Food] S1 lvl 6 (Endurance +825),2032046
-[Food] S1 lvl 7 (Endurance +1050),2032047
-[Food] S1 lvl 8 (Endurance +1500),2032048
+[Food] S1 lvl 1 (Endurance +90),2032042
+[Food] S1 lvl 1 (Endurance +135),2032043
+[Food] S1 lvl 1 (Endurance +225),2032044
+[Food] S1 lvl 2 (Endurance +450),2032045
+[Food] S1 lvl 2 (Endurance +825),2032046
+[Food] S1 lvl 3 (Endurance +1050),2032047
+[Food] S1 lvl 3 (Endurance +1500),2032048
 [Food] S1 lvl 1 (Restores 105 HP /s),2032051
-[Food] S1 lvl 2 (Restores 210 HP /s),2032052
-[Food] S1 lvl 3 (Restores 315 HP /s),2032053
-[Food] S1 lvl 4 (Restores 525 HP /s),2032054
-[Food] S1 lvl 5 (Restores 1050 HP /s),2032055
-[Food] S1 lvl 6 (Restores 1925 HP /s),2032056
-[Food] S1 lvl 7 (Restores 2450 HP /s),2032057
-[Food] S1 lvl 8 (Restores 3500 HP /s),2032058
-"[Food] S1 lvl 1 (ATK +75, +5%)",2032065
-"[Food] S1 lvl 2 (ATK +120, +10%)",2032067
-"[Food] S1 lvl 1 (MATK +75, +5%)",2032075
-"[Food] S1 lvl 2 (MATK +120, +10%)",2032077
-"[Food] S1 lvl 1 (Armor +400, DMG Taken -5%)",2032086
-"[Food] S1 lvl 2 (Armor +640, DMG Taken -10%)",2032088
+[Food] S1 lvl 1 (Restores 210 HP /s),2032052
+[Food] S1 lvl 1 (Restores 315 HP /s),2032053
+[Food] S1 lvl 1 (Restores 525 HP /s),2032054
+[Food] S1 lvl 2 (Restores 1050 HP /s),2032055
+[Food] S1 lvl 2 (Restores 1925 HP /s),2032056
+[Food] S1 lvl 3 (Restores 2450 HP /s),2032057
+[Food] S1 lvl 3 (Restores 3500 HP /s),2032058
+"[Food] S1 lvl 2 (ATK +75, +5%)",2032065
+"[Food] S1 lvl 3 (ATK +120, +10%)",2032067
+"[Food] S1 lvl 2 (MATK +75, +5%)",2032075
+"[Food] S1 lvl 3 (MATK +120, +10%)",2032077
+"[Food] S1 lvl 2 (Armor +400, DMG Taken -5%)",2032086
+"[Food] S1 lvl 3 (Armor +640, DMG Taken -10%)",2032088
 [Food] S2 lvl 1 (ATK +90),2032111
-[Food] S2 lvl 2 (ATK +115),2032112
-[Food] S2 lvl 3 (ATK +140),2032113
-[Food] S2 lvl 4 (ATK +165),2032114
-[Food] S2 lvl 5 (ATK +195),2032115
-[Food] S2 lvl 6 (ATK +225),2032116
+[Food] S2 lvl 1 (ATK +115),2032112
+[Food] S2 lvl 1 (ATK +140),2032113
+[Food] S2 lvl 2 (ATK +165),2032114
+[Food] S2 lvl 2 (ATK +195),2032115
+[Food] S2 lvl 2 (ATK +225),2032116
 [Food] S2 lvl 1 (MATK +90),2032121
-[Food] S2 lvl 2 (MATK +115),2032122
-[Food] S2 lvl 3 (MATK +140),2032123
-[Food] S2 lvl 4 (MATK +165),2032124
-[Food] S2 lvl 5 (MATK +195),2032125
-[Food] S2 lvl 6 (MATK +225),2032126
+[Food] S2 lvl 1 (MATK +115),2032122
+[Food] S2 lvl 1 (MATK +140),2032123
+[Food] S2 lvl 2 (MATK +165),2032124
+[Food] S2 lvl 2 (MATK +195),2032125
+[Food] S2 lvl 2 (MATK +225),2032126
 [Food] S2 lvl 1 (Armor +480),2032131
-[Food] S2 lvl 2 (Armor +615),2032132
-[Food] S2 lvl 3 (Armor +750),2032133
-[Food] S2 lvl 4 (Armor +885),2032134
-[Food] S2 lvl 5 (Armor +1040),2032135
-[Food] S2 lvl 6 (Armor +1200),2032136
+[Food] S2 lvl 1 (Armor +615),2032132
+[Food] S2 lvl 1 (Armor +750),2032133
+[Food] S2 lvl 2 (Armor +885),2032134
+[Food] S2 lvl 2 (Armor +1040),2032135
+[Food] S2 lvl 2 (Armor +1200),2032136
 [Food] S2 lvl 1 (Endurance +1050),2032141
-[Food] S2 lvl 2 (Endurance +1350),2032142
-[Food] S2 lvl 3 (Endurance +1650),2032143
-[Food] S2 lvl 4 (Endurance +1950),2032144
-[Food] S2 lvl 5 (Endurance +2325),2032145
-[Food] S2 lvl 6 (Endurance +2700),2032146
+[Food] S2 lvl 1 (Endurance +1350),2032142
+[Food] S2 lvl 1 (Endurance +1650),2032143
+[Food] S2 lvl 2 (Endurance +1950),2032144
+[Food] S2 lvl 2 (Endurance +2325),2032145
+[Food] S2 lvl 2 (Endurance +2700),2032146
 [Food] S2 lvl 1 (Restores 2500 HP /s),2032151
-[Food] S2 lvl 2 (Restores 3200 HP /s),2032152
-[Food] S2 lvl 3 (Restores 3900 HP /s),2032153
-[Food] S2 lvl 4 (Restores 4600 HP /s),2032154
-[Food] S2 lvl 5 (Restores 5450 HP /s),2032155
-[Food] S2 lvl 6 (Restores 6300 HP /s),2032156
+[Food] S2 lvl 1 (Restores 3200 HP /s),2032152
+[Food] S2 lvl 1 (Restores 3900 HP /s),2032153
+[Food] S2 lvl 2 (Restores 4600 HP /s),2032154
+[Food] S2 lvl 2 (Restores 5450 HP /s),2032155
+[Food] S2 lvl 2 (Restores 6300 HP /s),2032156
 "[Food] S2 lvl 1 (ATK +90, +5%)",2032161
-"[Food] S2 lvl 2 (ATK +115, +5%)",2032162
-"[Food] S2 lvl 3 (ATK +140, +5%)",2032163
-"[Food] S2 lvl 4 (ATK +140, +10%)",2032164
-"[Food] S2 lvl 5 (ATK +195, +10%)",2032165
-"[Food] S2 lvl 6 (ATK +225, +5%)",2032166
+"[Food] S2 lvl 1 (ATK +115, +5%)",2032162
+"[Food] S2 lvl 1 (ATK +140, +5%)",2032163
+"[Food] S2 lvl 2 (ATK +140, +10%)",2032164
+"[Food] S2 lvl 2 (ATK +195, +10%)",2032165
+"[Food] S2 lvl 2 (ATK +225, +5%)",2032166
 "[Food] S2 lvl 1 (MATK +90, +5%)",2032171
-"[Food] S2 lvl 2 (MATK +115, +5%)",2032172
-"[Food] S2 lvl 3 (MATK +140, +5%)",2032173
-"[Food] S2 lvl 4 (MATK +140, +10%)",2032174
-"[Food] S2 lvl 5 (MATK +195, +10%)",2032175
-"[Food] S2 lvl 6 (MATK +225, +5%)",2032176
+"[Food] S2 lvl 1 (MATK +115, +5%)",2032172
+"[Food] S2 lvl 1 (MATK +140, +5%)",2032173
+"[Food] S2 lvl 2 (MATK +140, +10%)",2032174
+"[Food] S2 lvl 2 (MATK +195, +10%)",2032175
+"[Food] S2 lvl 2 (MATK +225, +5%)",2032176
 "[Food] S2 lvl 1 (Armor +480, DMG Taken -5%)",2032181
-"[Food] S2 lvl 2 (Armor +615, DMG Taken -5%)",2032182
-"[Food] S2 lvl 3 (Armor +750, DMG Taken -5%)",2032183
-"[Food] S2 lvl 4 (Armor +750, DMG Taken -10%)",2032184
-"[Food] S2 lvl 5 (Armor +1040, DMG Taken -10%)",2032185
-"[Food] S2 lvl 6 (Armor +1200, DMG Taken -5%)",2032186
+"[Food] S2 lvl 1 (Armor +615, DMG Taken -5%)",2032182
+"[Food] S2 lvl 1 (Armor +750, DMG Taken -5%)",2032183
+"[Food] S2 lvl 2 (Armor +750, DMG Taken -10%)",2032184
+"[Food] S2 lvl 2 (Armor +1040, DMG Taken -10%)",2032185
+"[Food] S2 lvl 2 (Armor +1200, DMG Taken -5%)",2032186
 [Food] S3 lvl 1 (ATK +150),2032211
-[Food] S3 lvl 2 (ATK +180),2032212
-[Food] S3 lvl 3 (ATK +210),2032213
-[Food] S3 lvl 4 (ATK +240),2032214
-[Food] S3 lvl 5 (ATK +270),2032215
-[Food] S3 lvl 6 (ATK +315),2032216
+[Food] S3 lvl 1 (ATK +180),2032212
+[Food] S3 lvl 1 (ATK +210),2032213
+[Food] S3 lvl 2 (ATK +240),2032214
+[Food] S3 lvl 2 (ATK +270),2032215
+[Food] S3 lvl 2 (ATK +315),2032216
 [Food] S3 lvl 1 (MATK +150),2032221
-[Food] S3 lvl 2 (MATK +180),2032222
-[Food] S3 lvl 3 (MATK +210),2032223
-[Food] S3 lvl 4 (MATK +240),2032224
-[Food] S3 lvl 5 (MATK +270),2032225
-[Food] S3 lvl 6 (MATK +315),2032226
+[Food] S3 lvl 1 (MATK +180),2032222
+[Food] S3 lvl 1 (MATK +210),2032223
+[Food] S3 lvl 2 (MATK +240),2032224
+[Food] S3 lvl 2 (MATK +270),2032225
+[Food] S3 lvl 2 (MATK +315),2032226
 [Food] S3 lvl 1 (Armor +900),2032231
-[Food] S3 lvl 2 (Armor +1100),2032232
-[Food] S3 lvl 3 (Armor +1300),2032233
-[Food] S3 lvl 4 (Armor +1500),2032234
-[Food] S3 lvl 5 (Armor +1700),2032235
-[Food] S3 lvl 6 (Armor +2000),2032236
+[Food] S3 lvl 1 (Armor +1100),2032232
+[Food] S3 lvl 1 (Armor +1300),2032233
+[Food] S3 lvl 2 (Armor +1500),2032234
+[Food] S3 lvl 2 (Armor +1700),2032235
+[Food] S3 lvl 2 (Armor +2000),2032236
 [Food] S3 lvl 1 (Endurance +2500),2032241
-[Food] S3 lvl 2 (Endurance +3000),2032242
-[Food] S3 lvl 3 (Endurance +3500),2032243
-[Food] S3 lvl 4 (Endurance +4000),2032244
-[Food] S3 lvl 5 (Endurance +4500),2032245
-[Food] S3 lvl 6 (Endurance +5500),2032246
+[Food] S3 lvl 1 (Endurance +3000),2032242
+[Food] S3 lvl 1 (Endurance +3500),2032243
+[Food] S3 lvl 2 (Endurance +4000),2032244
+[Food] S3 lvl 2 (Endurance +4500),2032245
+[Food] S3 lvl 2 (Endurance +5500),2032246
 "[Food] S3 lvl 1 (Restores 5,000 HP /s)",2032251
-"[Food] S3 lvl 2 (Restores 5,500 HP /s)",2032252
-"[Food] S3 lvl 3 (Restores 6,000 HP /s)",2032253
-"[Food] S3 lvl 4 (Restores 6,500 HP /s)",2032254
-"[Food] S3 lvl 5 (Restores 7,000 HP /s)",2032255
-"[Food] S3 lvl 6 (Restores 8,000 HP /s)",2032256
+"[Food] S3 lvl 1 (Restores 5,500 HP /s)",2032252
+"[Food] S3 lvl 1 (Restores 6,000 HP /s)",2032253
+"[Food] S3 lvl 2 (Restores 6,500 HP /s)",2032254
+"[Food] S3 lvl 2 (Restores 7,000 HP /s)",2032255
+"[Food] S3 lvl 2 (Restores 8,000 HP /s)",2032256
 "[Food] S3 lvl 1 (ATK +150, +5%)",2032261
 "[Food] S3 lvl 2 (ATK +210, +10%)",2032262
-"[Food] S3 lvl 3 (ATK +210, +5%)",2032263
-"[Food] S3 lvl 4 (ATK +270, +10%)",2032264
+"[Food] S3 lvl 1 (ATK +210, +5%)",2032263
+"[Food] S3 lvl 2 (ATK +270, +10%)",2032264
 "[Food] S3 lvl 1 (MATK +150, +5%)",2032271
 "[Food] S3 lvl 2 (MATK +210, +10%)",2032272
-"[Food] S3 lvl 3 (MATK +210, +5%)",2032273
-"[Food] S3 lvl 4 (MATK +270, +10%)",2032274
+"[Food] S3 lvl 1 (MATK +210, +5%)",2032273
+"[Food] S3 lvl 2 (MATK +270, +10%)",2032274
 "[Food] S3 lvl 1 (Armor +900, DMG Taken -5%)",2032281
 "[Food] S3 lvl 2 (Armor +1300, DMG Taken -10%)",2032282
-"[Food] S3 lvl 3 (Armor +1300, DMG Taken -5%)",2032283
-"[Food] S3 lvl 4 (Armor +1700, DMG Taken -10%)",2032284
+"[Food] S3 lvl 1 (Armor +1300, DMG Taken -5%)",2032283
+"[Food] S3 lvl 2 (Armor +1700, DMG Taken -10%)",2032284
 [Food] S4 lvl 1 (ATK),2032311
 [Food] S4 lvl 2 (ATK),2032312
 [Food] S4 lvl 3 (ATK),2032313
