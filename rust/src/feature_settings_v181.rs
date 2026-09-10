@@ -32,6 +32,44 @@ mod legacy {
 // shadow the legacy persistence helpers with crash-recovery aware versions.
 pub use legacy::*;
 
+pub const MAX_TRACKED_ATTRIBUTES: usize = 8;
+
+fn normalize_tracked_v1182(values: &[i32]) -> Vec<i32> {
+    const OLD_V17_LUCK: i32 = 11_446;
+    const OLD_V17_HASTE: i32 = 11_463;
+    const OLD_V17_MASTERY: i32 = 11_464;
+    const OLD_V18_CRIT: i32 = 11_110;
+    const OLD_V18_LUCK: i32 = 11_130;
+    const OLD_V18_HASTE: i32 = 11_140;
+    const OLD_V18_MASTERY: i32 = 11_150;
+
+    let mut out = Vec::with_capacity(MAX_TRACKED_ATTRIBUTES);
+    for value in values.iter().copied() {
+        let id = match value {
+            OLD_V17_LUCK | OLD_V18_LUCK => ATTR_LUCKY,
+            OLD_V17_HASTE | OLD_V18_HASTE => ATTR_HASTE,
+            OLD_V17_MASTERY | OLD_V18_MASTERY => ATTR_MASTERY,
+            OLD_V18_CRIT => ATTR_CRIT,
+            other => other,
+        };
+        if is_trackable_attr(id) && !out.contains(&id) {
+            out.push(id);
+        }
+        if out.len() == MAX_TRACKED_ATTRIBUTES {
+            break;
+        }
+    }
+    out
+}
+
+/// Run the legacy feature normalization while preserving the v1.18.2 eight-stat
+/// Tracker selection. The legacy normalizer still owns all other bounds/migrations.
+pub fn normalize_v1182(settings: &mut FeatureSettings) {
+    let tracked = normalize_tracked_v1182(&settings.mechanic_attributes.tracked);
+    settings.normalize();
+    settings.mechanic_attributes.tracked = tracked;
+}
+
 fn feature_path(paths: &AppPaths) -> PathBuf {
     paths.root.join("features.json")
 }
@@ -45,7 +83,7 @@ pub fn load(paths: &AppPaths) -> FeatureSettings {
         let Ok(text) = fs::read_to_string(candidate) else { continue; };
         match serde_json::from_str::<FeatureSettings>(&text) {
             Ok(mut value) => {
-                value.normalize();
+                normalize_v1182(&mut value);
                 let moved = recover_overlay_bounds(&mut value);
                 if label != "primary" {
                     logging::write(format!("feature settings: recovered from {label}"));
@@ -65,7 +103,7 @@ pub fn load(paths: &AppPaths) -> FeatureSettings {
     }
 
     let mut value = FeatureSettings::default();
-    value.normalize();
+    normalize_v1182(&mut value);
     recover_overlay_bounds(&mut value);
     if let Err(err) = save(paths, &value) {
         logging::write(format!("feature settings: default save failed: {err}"));
@@ -75,7 +113,7 @@ pub fn load(paths: &AppPaths) -> FeatureSettings {
 
 pub fn save(paths: &AppPaths, settings: &FeatureSettings) -> io::Result<()> {
     let mut value = settings.clone();
-    value.normalize();
+    normalize_v1182(&mut value);
     recover_overlay_bounds(&mut value);
 
     let primary = feature_path(paths);
@@ -157,4 +195,29 @@ fn recover_layout(layout: &mut OverlayLayout) -> bool {
 #[cfg(not(windows))]
 fn recover_layout(_layout: &mut OverlayLayout) -> bool {
     false
+}
+
+#[cfg(test)]
+mod v1182_tests {
+    use super::*;
+
+    #[test]
+    fn eight_tracker_attributes_survive_normalization() {
+        let mut settings = FeatureSettings::default();
+        settings.mechanic_attributes.tracked = ATTRIBUTE_CATALOG.iter().take(8).map(|(id, _)| *id).collect();
+        normalize_v1182(&mut settings);
+        assert_eq!(settings.mechanic_attributes.tracked.len(), 8);
+    }
+
+    #[test]
+    fn tracker_attributes_are_deduplicated_and_capped_at_eight() {
+        let mut settings = FeatureSettings::default();
+        settings.mechanic_attributes.tracked = ATTRIBUTE_CATALOG.iter().map(|(id, _)| *id).chain(std::iter::once(ATTRIBUTE_CATALOG[0].0)).collect();
+        normalize_v1182(&mut settings);
+        assert_eq!(settings.mechanic_attributes.tracked.len(), MAX_TRACKED_ATTRIBUTES);
+        let mut dedup = settings.mechanic_attributes.tracked.clone();
+        dedup.sort_unstable();
+        dedup.dedup();
+        assert_eq!(dedup.len(), MAX_TRACKED_ATTRIBUTES);
+    }
 }
