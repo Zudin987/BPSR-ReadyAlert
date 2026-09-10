@@ -55,6 +55,9 @@ jobs:
       - name: Focused v1.17.4 pinned-self/wheel tests
         run: cargo test --manifest-path rust/Cargo.toml v1174_
 
+      - name: Focused v1.17.5 consumable-name tests
+        run: cargo test --manifest-path rust/Cargo.toml v1175_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
