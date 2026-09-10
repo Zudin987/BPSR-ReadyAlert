@@ -142,9 +142,24 @@ mod v1179_toolbar_polish_tests {
     fs::write(path, source).expect("write v1.17.9 toolbar polish overlay");
 }
 
+fn patch_chat_overlay(out:&Path){
+    let manifest=PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+    let source_path=manifest.join("src/overlay_v150.rs");
+    let mut source=fs::read_to_string(&source_path).expect("read chat overlay").replace("\r\n","\n");
+    replace_once(
+        &mut source,
+        "const HIDE_WIDTH: i32 = 38;",
+        "const HIDE_WIDTH: i32 = 42;",
+        "slightly larger Chat Overlay hide button",
+    );
+    fs::write(out.join("overlay_v150_v1179.rs"),source).expect("write v1.17.9 chat overlay");
+}
+
 fn main() {
     prior::run();
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     patch_overlay(&out);
+    patch_chat_overlay(&out);
     println!("cargo:rerun-if-changed=build/legacy/build_v1179.rs");
+    println!("cargo:rerun-if-changed=src/overlay_v150.rs");
 }
