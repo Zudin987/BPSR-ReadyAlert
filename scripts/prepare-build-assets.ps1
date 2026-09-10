@@ -4,7 +4,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 
 # Rebuild the user-supplied LetsDoThis alert from exact, ordered base64 chunks.
 $SoundDestination = Join-Path $Root 'src\BPSR.ReadyAlert\Assets\LetsDoThis.wav'
-$AudioSourceDir = Join-Path $Root 'assets-src'
+$AudioSourceDir = Join-Path $Root 'assets\source'
 $Mp3Temp = Join-Path $env:TEMP 'BPSR-ReadyAlert-LetsDoThis.mp3'
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SoundDestination) | Out-Null
 
