@@ -1,0 +1,701 @@
+monster/boss/targetableentity name,id
+Hawkes,8727
+Brigand Leader,8728
+Giant Sea Monster,8801
+Ryan,8802
+??????,8803
+Random Monster Configuration,8888
+Goblin Warrior,8901
+Goblin Priest,8902
+Blackstone Legion Marksman,8910
+Blackstone Legion Guard,8911
+Blackstone Legion Warrior,8912
+Blackstone Legion Assaulter,8913
+Blackstone Commander,8914
+Blackstone Vanguard,8915
+Frost Lizard,8916
+Magma Lizard,8917
+Lightning Lizard,8918
+Eavesdropping Miner,8919
+Vulture,8920
+Snowy Owl,8921
+Blackbird,8922
+Black Hawk,8923
+Void Goblin Cudgel,9001
+Goblin Dagger,9002
+Goblin Sword,9003
+Goblin Mage,9004
+Void Goblin Mage,9005
+Goblin Crossbow,9006
+Goblin Axe,9007
+Void - Goblin Axe,9008
+Goblin Dagger,9009
+Goblin Dagger,9010
+Goblin Dagger,9011
+Monster Drop Function Test Data,9999
+Goblin Cudgel,10000
+Goblin Dagger,10001
+Staff Forest Goblin,10002
+Storm Goblin Elder,10003
+Blazing Goblin Elder,10004
+Goblin Crossbow,10005
+Goblin Sword,10006
+Storm Goblin King,10007
+Jungle Goblin Warrior,10008
+Frost Ogre,10009
+Tempest Ogre,10010
+Caprahorn,10011
+Inferno Goblin Mage,10012
+Storm Goblin Mage,10013
+Arachnocrab,10014
+Beehive,10015
+Bzzar,10016
+Eagle,10017
+Inferno Ogre,10018
+Goblin Warrior,10019
+Goblin Mage,10020
+Muku Cudgel,10021
+Muku Hammerer,10022
+Muku Axemaster,10023
+Muku Cleaver,10024
+Brutal Boarrier,10025
+Boarlet,10026
+Brigand Axeman,10027
+Brigand Archer,10028
+Muku King,10029
+Boarrier Tyrant,10030
+Boarrier Tyrant,10031
+Golden Juggernaut,10032
+Void Arachnocrab,10033
+Void Arachnocrab,10034
+Goblin Guard,10035
+Goblin Axe,10036
+Brigand Scout,10037
+Brigand Scout Leader,10038
+Brigand Thug,10039
+Brigand Guard,10040
+Boss - Crimson Foxen,10041
+Mighty Colossus,10042
+Elite: Mutant Yeti,10043
+Blackfire Foxen,10044
+Foxen,10045
+Wasteland Foxen,10046
+Scorching Yeti,10047
+Mutant Yeti,10048
+Crazy Muku Crossbowman,10049
+Scout Muku,10050
+Red Foam Goblin,10051
+Muku Scout,10052
+Gold Foam Goblin,10053
+Elite: Brigand Archer,10054
+Brigand Guard Captain,10055
+Brigand Leader,10056
+Muku Warrior,10057
+Muku Vanguard,10058
+Muku Chief,10059
+Shadow Scout,10060
+Shadow Warden,10061
+Shadow Gunner,10062
+Shadow Blade,10063
+Shadow Captain,10064
+Shadow Commander,10065
+Storm Goblin Warrior,10066
+Phantom Arachnocrab,10069
+Brigand Leader - Battle Axe,10070
+Venomous Arachnocrab,10071
+Blazing Goblin Cudgel,10072
+Blazing Goblin Cutlass,10073
+Deadly Bzzar,10074
+Nitro Bzzar,10075
+Void Bzzar,10076
+Venobzzar Incubator,10077
+Storm Goblin Dagger,10078
+Boarrier Storm,10079
+Great Warhog,10080
+Iron Fang,10081
+Skyfish,10082
+Jade Skyfish,10083
+Celestial Flier,10084
+Lizardman King,10085
+Goblin King,10086
+Muku Duelblade,10087
+Princess Arachnocrab,10099
+Lizardman Warrior,10100
+Lizardman Shaman,10101
+Mutant Murloc Warrior,10102
+Mutant Murloc Shaman,10103
+Lizardman Hunter,10104
+Lizardman Mage,10105
+Blackstone Legion Marksman,10106
+Blackstone Legion Guard,10107
+Blackstone Legion Warrior,10108
+Blackstone Legion Assaulter,10109
+Blackstone Commander,10110
+Blackstone Vanguard,10111
+Cabbage Killer,10112
+Cabbage Hunter,10113
+Cabbage Tough Guy,10114
+Cabbage Blaster,10115
+Gloomy Cabbage,10116
+Ruthless Cabbage,10117
+Cabbage Kingpin,10118
+Blackstone Captain,10119
+Blackstone Legion Guard,10150
+Blackstone Legion Warrior,10151
+Eyeball 1,10200
+Eyeball 2,10201
+Eyeball 2,10202
+Invisible Monster (for Mech Sentinel 180-degree turn),10314
+Golden Nappo,10900
+Silver Nappo,10901
+Lovely Boarlet,10902
+Breezy Boarlet,10903
+Loyal Boarlet,10904
+[50]Illusion Blade,10905
+[50]Illusion Staff,10906
+[50]Illusion Banner Spear,10907
+[50]Illusion Bow,10908
+[50]Illusion Edge,10909
+[50]Illusion Aegis,10910
+[50]Illusion Verdant Oracle,10911
+[50]Illusion Guitar,10912
+Illusion Red Foam Goblin,10913
+Illusion Muku Crossbowman,10914
+[10]Illusion Elite: Goblin Guard,10915
+[10]Illusion Elite: Goblin Warrior,10916
+[40]Illusion Boss: Goblin King,10917
+[10]Illusion Elite: Muku Warrior,10918
+[10]Illusion Elite: Muku Vanguard,10919
+[40]Illusion Boss: Muku Chief,10920
+[10]Illusion Elite: Boarrier Tyrant,10921
+[10]Illusion Elite: Great Warhog,10922
+[40]Illusion Boss: Iron Fang,10923
+[10]Illusion Elite: Lizardman Hunter,10924
+[10]Illusion Elite: Lizardman Mage,10925
+[40]Illusion Boss: Lizardman King,10926
+[40]Illusion Boss: Frost Demon,10927
+[40]Illusion Boss: Fire Demon,10928
+[40]Illusion Boss: Thunder Demon,10929
+[20]Illusion Blade,10930
+[20]Illusion Staff,10931
+[20]Illusion Edge,10932
+[50] Illusion Twin Axes,10933
+Frost Lizard,11001
+Magma Lizard,11002
+Gale Lizard,11003
+Lightning Lizard,11004
+Bluespine Lizard,11005
+Elite: Mutant Boarrier,11006
+Boss - Basilisk,11007
+Goblin Warrior,11008
+Goblin Axeman,11009
+Goblin Priest,11010
+Goblin Sentry,11011
+Goblin Trickster,11012
+Goblin Shaman,11013
+Boss - Highland Goblin King,11014
+Little Caprahorn,11015
+ID Placeholder,11016
+ID Placeholder,11017
+ID Placeholder,11018
+Boss - Darkened Python,11019
+Nether Caprahorn,11020
+Glimmer Caprahorn,11021
+Emerald Caprahorn,11022
+Flamehorn,11023
+Boss - Nightmare Caprahorn,11024
+Highland Foxen,11025
+Elite: Highland Foxen,11026
+Glimmering Boar,11027
+Colorful Harrier,11028
+Elite: Snow Boar,11029
+Elite: Void Colorful Harrier,11030
+Boss - Flame Boarrier,11031
+Boss - Queen Harrier,11032
+Frost Yeti,11033
+Giant-beaked Trogon,11034
+Elite: Frozen Yeti,11035
+Elite: Crowned Trogon,11036
+Boss - Tyrant Mountain,11037
+Boss - King Tuo Kong,11038
+Blue Gem Foxen,11039
+Gray Rock Dragonfly,11040
+Elite: Blue Gem Foxen,11041
+Elite: Yellow Rock Dragonfly,11042
+Boss - Howling Foxen,11043
+Boss - Ground Wing,11044
+Swift Eagle,11045
+Shrimp Mushroom,11046
+Illusion Princess Arachnocrab,11047
+Illusion Arachnocrab,11048
+Illusion Void Arachnocrab,11049
+Illusion Gale Lizard,11050
+Illusion Lightning Lizard,11051
+Illusion Bluespine Lizard,11052
+Illusion Boarrier Tyrant,11053
+Illusion Boarrier Storm,11054
+Illusion Great Warhog,11055
+Illusion Muku Axemaster,11056
+Illusion Muku Cleaver,11057
+Illusion Muku Warrior,11058
+Illusion Deadly Bzzar,11059
+Illusion Nitro Bzzar,11060
+Illusion Void Bzzar,11061
+Illusion Muku Cudgel,11062
+Illusion Muku Hammerer,11063
+Illusion Muku Vanguard,11064
+Illusion Lizardman Warrior,11065
+Illusion Lizardman Shaman,11066
+Illusion Lizardman Hunter,11067
+Illusion Lizardman Mage,11068
+Illusion Muku Crossbow,11069
+Illusion Muku Duelblade,11070
+Illusion Muku Scout,11071
+Illusion Scorching Yeti,11072
+Illusion Mutant Yeti,11073
+Illusion Mighty Colossus,11074
+Illusion Brigand Axeman,11075
+Illusion Brigand Thug,11076
+Illusion Brigand Scout Leader,11077
+Illusion Skyfish,11078
+Illusion Jade Skyfish,11079
+Illusion Lizardman Hunter,11080
+Illusion Lizardman Mage,11081
+Illusion Brigand Scout,11082
+Illusion Brigand Archer,11083
+Illusion Brigand Guard Captain,11084
+Illusion Foxen,11085
+Illusion Wasteland Foxen,11086
+Illusion Blackfire Foxen,11087
+Illusion Gold Foam Goblin,11088
+Illusion Red Foam Goblin,11089
+Illusion Jungle Goblin Warrior,11090
+Illusion Nether Caprahorn,11091
+Illusion Glimmer Caprahorn,11092
+Illusion Emerald Caprahorn,11093
+Illusion Goblin Warrior,11094
+Illusion Goblin Priest,11095
+Illusion Goblin Shaman,11096
+Kartgriff,11110
+Infernal Arachnocrab,11200
+Wasteland Arachnocrab,11201
+Killer Arachnocrab,11202
+Predator Arachnocrab,11203
+Sandstone Yeti,11204
+Ashen Yeti,11205
+Dogorman,11206
+Rebel King,11207
+Wild Mountain Boar,11208
+Hunter Mountain Boar,11209
+Verdant Fang,11210
+Ridge Fang,11211
+Gnashing Furball,11212
+Spiky Furball,11213
+Man-Eating Furball,11214
+Bloodthirsty Furball,11215
+Patrolling Oculoid,11216
+Mechcore Oculoid,11217
+Sanctuary Eye,11218
+Void Watcher,11219
+Shrimp Mushroom,11220
+Venomous Shrimpshroom,11221
+Paralyzing Shrimpshroom,11222
+Dream Manifestor,11223
+Valley Muku,11224
+Valley Muku,11225
+Valley Brawler,11226
+Valley Vanguard,11227
+Green Foam Goblin,11228
+Thunder Foam Goblin,11229
+Goblin Sage,11230
+Shell-Gathering Cultist,11231
+Valley Scout,11232
+Valley Crossbowman,11233
+Valley Ranger,11234
+Wandering Traveler,11235
+Sharkman 1,11236
+Sharkman 2,11237
+Sharkman Elite,11238
+Sharkman Boss,11239
+Green Foam Goblin,11240
+Purplefoam Goblin,11241
+Yeti,11242
+Yeti,11243
+Yeti,11244
+Yeti,11245
+Trogon,11246
+Trogon,11247
+Trogon,11248
+Trogon,11249
+Foxen,11250
+Foxen,11251
+Foxen,11252
+Foxen,11253
+Brazer,11254
+Brazer,11255
+Brazer,11256
+Brazer,11257
+Arachnocrab,11258
+Arachnocrab,11259
+Arachnocrab,11260
+Arachnocrab,11261
+Mine Arachnocrab,12000
+Small Arachnocrab,12001
+Small Arachnocrab,12002
+Arachnocrab,12003
+Magma Lizard,12100
+Darya,12101
+Airona,12102
+Mutant Foxen,12110
+Mighty Boarrier,17000
+Boss - Boarrier King,17001
+Arachnocrab,17002
+Void Arachnocrab,17003
+Boss - Muku Chief,17004
+Muku Scout,17005
+Muku Crossbowman,17006
+Foxen,17007
+Boss - Crimson Foxen,17008
+Scorching Yeti,17009
+Boss - Dogorman,17010
+Crimson Sprayer,17011
+Elite: Mighty Boarrier,17012
+Elite: Void Arachnocrab,17013
+Mutant Foxen,17014
+Elite: Mutant Foxen,17015
+Mutant Yeti,17016
+Elite: Mutant Yeti,17017
+Elite: Muku Scout,17018
+Elite: Crimson Sprayer,17019
+Goblin Cudgel,20000
+Goblin Dagger,20001
+Goblin Crossbow,20002
+Goblin Axe,20003
+Rathalos,20004
+Goblin Cudgel,20005
+Void Goblin Cudgel,20006
+Goblin Mage,20007
+Void Goblin Mage,20008
+Goblin Axe,20009
+Void - Goblin Axe,20010
+Murky Memory Residue,20011
+Super Battle Mech 99,20012
+Pure Memory Residue,20013
+Survival Mechanism Tornado,20014
+Brigand,20015
+Brigand Archer,20016
+Brigand Scout,20017
+Rock Lizard,20018
+Bzzar,20019
+Flame Orc,20020
+Super Battle Mech 99,20021
+Goblin Mage,20022
+Goblin Mage,20023
+Tempest Ogre,20024
+Battle Mech 03,20025
+Void - Goblin Axe,20026
+Muku King,20027
+Goblin King,20028
+The Bear,20029
+Murky Memory Residue,20030
+Murky Memory Residue,20031
+Defensive Type 05,20051
+Defensive Type 04,20052
+Sentinel Type 01,20053
+Self-Destruct Type 02,20054
+Battle Mech 03,20055
+Goblin Dagger,20056
+Goblin Sword,20057
+Goblin Mage,20058
+Goblin Mage,20059
+Goblin Mage,20060
+Goblin Cudgel,20061
+Goblin Crossbow,20062
+Goblin Axe,20063
+Void Goblin Cudgel,20064
+Void Goblin Mage,20065
+Void - Goblin Axe,20066
+Brigand,20067
+Brigand Archer,20068
+Brigand Scout,20069
+Goblin King,20070
+Muku King,20071
+Tempest Ogre,20072
+The Bear,20073
+Kanamia Warrior,20074
+Kanamia Hunter,20075
+Kanamia Archer,20076
+Manned Mech,20077
+Manned Mech,20078
+Byrnhald Shield Bearer,20079
+Byrnhald Rifleman,20080
+Byrnhald Swordsman,20081
+Byrnhald Spearman,20082
+Edge Blade,20083
+Soul Essence,20084
+Rock Lizard,20085
+Super Battle Mech 99,20086
+Flame Orc,20087
+Boss - Tempest Ogre,20088
+Kanamia Archer,20089
+Manned Mech,20090
+Manned Mech,20091
+Tempest Ogre,20092
+Wooden Dummy,20093
+Wooden Dummy,20094
+Wooden Dummy,20095
+Wooden Dummy,20096
+Wooden Dummy,20097
+Wooden Dummy,20098
+Suicidal Soldier 03,20099
+Frost Ogre,20100
+Wooden Dummy,20101
+Goblin Axe,20102
+Murky Memory Residue,20103
+Goblin Mage,20104
+Goblin Mage,20105
+Goblin Mage,20106
+Goblin King,20107
+Muku King,20108
+Brigand,20109
+Brigand Archer,20110
+Brigand Scout,20111
+Kanamia Warrior,20112
+Kanamia Hunter,20113
+Kanamia Archer,20114
+Defensive Type 04,20115
+Sentinel Type 01,20116
+Self-Destruct Type 02,20117
+Goblin Dagger,20118
+Goblin Cudgel,20119
+Kanamia Hunter,20120
+Kanamia Archer,20121
+Byrnhald Shield Bearer,20122
+Edge Blade,20123
+Soul Essence,20124
+Flame Orc,20125
+Goblin Axe,20126
+Frost Ogre,20127
+Stubborn Youth,20128
+Suicidal Soldier 03,21001
+Prank Bomb,21002
+Void Corruption Soulshard,21003
+Defensive Type 05,21004
+Mysterious Phantom,21005
+Crystal of Darkness,21006
+Support Team Member,28001
+Guardian Team Member,28002
+Damage Dealer Team Member,28003
+Damage Dealer Team Member,28004
+Trial Officer - Moonstrike,28010
+Trial Officer - Moonstrike,28011
+Trial Officer - Hanna,28012
+Trial Officer - Drew,28013
+Trial Officer - Tao Yu,28014
+Trial Officer - Ren Wen,28015
+Trial Officer - Yvonne,28016
+Trial Officer - Hanna,28021
+Trial Officer - Drew,28022
+Trial Officer - Tao Yu,28023
+Trial Officer - Ren Wen,28024
+Jerrad,29001
+Airona,29002
+Tina,29003
+Dorothy,29004
+Olvera,29005
+Tatta,29006
+Boyce,29007
+Rorola,29008
+Fafala,29009
+Darya,29010
+Grey Crow,30100
+Minion,30101
+Tina,30102
+Noisy Demi-Human,30120
+Wheat-Stealing Goblin,30121
+Lucien's Accomplice,30122
+Lucien's Accomplice,30123
+Dreamweaver Olsonne,30124
+Priest Horrace,30125
+Boyce,30126
+Dreamweaver Olsonne,30127
+Reiner,30128
+Blackstone Legion Soldier,30129
+Grieg,30130
+Dieter,30131
+Armand,30132
+Eric,30133
+Gunnar,30134
+Frost Lizard,30135
+Illusion Nappo,30136
+Arbiter,30137
+Gnashing Furball,30150
+Dogorman,30151
+Rebel King,30152
+Scenery Guard,30301
+Escort Unit - Civilian 1,30303
+Escort Unit - Civilian 2,30304
+Escort Unit - Civilian 3 Children,30305
+Escort Unit - Civilian 4 Center,30306
+Combat - Void Human - Young Male,30309
+Combat - Void Human - Young Male,30310
+Combat - Void Human - Soldier,30311
+Diorama - Void Human - Struggle 1 - Young Male,30312
+Diorama - Void Human - Confrontation,30313
+Diorama - Legion Soldier Confrontation,30314
+Diorama - Legion Soldier Vigilance,30315
+Diorama - Void Human - Struggle 2 - Young Male,30316
+Diorama - Void Human - Middle-aged Male,30317
+Diorama - Void Human - Elderly Male,30318
+Diorama - Void Human - Elderly Female,30319
+Diorama - Void Human - Struggle 1 - Middle-aged Male,30320
+Diorama - Void Human - Struggle 2 - Middle-aged Male,30321
+Diorama - Void Human - Struggle 1 - Middle-aged Female,30322
+Diorama - Void Human - Struggle 2 - Middle-aged Female,30323
+Diorama - Void Human - Struggle 1 - Elderly Male,30324
+Diorama - Void Human - Struggle 2 - Elderly Male,30325
+Diorama - Void Human - Struggle 1 - Elderly Female,30326
+Scene - Void- Human - Struggle 2 - Elderly Woman,30327
+Combat - Void Human - Soldier,30344
+Battle - Melee Young Man,30350
+Battle - Melee Elderly Woman,30351
+Battle - Ranged Soldier,30352
+Battle - Explosive Middle-aged Man,30353
+Battle Third Wave - Melee Young Man,30360
+Battle Third Wave - Melee Elderly Woman,30361
+Battle Third Wave - Ranged Soldier,30362
+Battle Third Wave - Explosive Middle-aged Man,30363
+Soldier,30401
+Soldier,30402
+Soldier,30403
+Olvera,30404
+Ancient City of Vill - Ryan,30405
+Tatta,30406
+Tina,30407
+Denvel,30408
+Tina,30409
+Mysterious Person,30410
+Initial Exploration of Dark Mist Trooper,30411
+Soldier,30420
+Denvel,30421
+Soldier,30422
+Soldier,30423
+Soldier,30424
+Soldier,30425
+Soldier,30426
+Goblin Dagger,30501
+Goblin Axe,30502
+Goblin Sword,30503
+Artisan,30601
+Artisan,30602
+Artisan,30603
+Artisan,30604
+Artisan,30605
+Artisan,30606
+Artisan,30607
+Artisan,30608
+Artisan,30609
+Female Artisan,30610
+Tina,30701
+Tina,30702
+Jerrad Lying Down,30703
+Soldier,30704
+Irritable Male Civilian,30801
+Irritable Male Civilian,30802
+Irritable Female Civilian,30803
+Irritable Female Civilian,30804
+Irritable Female Civilian,30805
+Irritable Female Civilian,30806
+Irritable Male Civilian,30807
+Irritable Male Civilian,30808
+Rabid Dog,30809
+Captain Gale,30810
+Dark Mist Sergeant,30811
+Dark Mist Sergeant,30812
+Tatta - Transform,30813
+Dark Mist Sergeant,30814
+Figaro Guard,30821
+Figaro Guard,30822
+Figaro Guard,30823
+Darya,30850
+Airona,30851
+Remote Bomb,30852
+Serpent Egg x1,30853
+Serpent Egg x3,30854
+Serpent Egg x4,30855
+Corrupted Serpent Hatchling,30856
+Rock Serpent Hatchling,30857
+Life Serpent Hatchling,30858
+Basilisk,30859
+Basilisk,30860
+Akufis,30861
+Serpent Hatchling,30862
+Explosive Barrel,30863
+Serpent,30864
+Serpent,30865
+Goblin Cudgel,31001
+Goblin Sword,31002
+Goblin Dagger,31003
+Lyon,31004
+Dorothy,31101
+Ryan's Box,31902
+Rock Snake BOSS,33201
+Corrosive Little Snake,33202
+Rock Snake Little Snake,33203
+Life Little Snake,33204
+Corrosive Snake Egg,33205
+Rock Snake Egg,33206
+Life Snake Egg,33207
+Corrupted Crystal_Coordinates,33208
+Life Crystal_Coordinates,33209
+Elemental Crystal_Coordinates,33210
+Corrupted Crystal,33211
+Life Crystal,33212
+Elemental Crystal,33213
+Soul Devouring Armor,33301
+Edgeblade,33302
+Edgeblade,33303
+Elemental Sword,33304
+Elemental Sword,33305
+Edgeblade Fake 1,33306
+Edgeblade Fake 2,33307
+Cabbage Boss,33311
+Cabbage Mage,33312
+Cabbage Heavy Swordsman,33313
+Cabbage Archer,33314
+Cabbage Rogue,33315
+Cabbage Apprentice,33316
+Cabbage Boss,33321
+Cabbage Mage,33322
+Cabbage Heavy Swordsman,33323
+Cabbage Archer,33324
+Cabbage Rogue,33325
+Plague Nappo,33401
+Plague Nappo,33402
+Plague Nappo Clone,33403
+Boss Spawn Point_Coordinates,33404
+Plague Nappo,33405
+Plague Nappo Clone,33406
+Plague Nappo Clone,33407
+Plague Nappo Clone,33408
+Plague Nappo Clone,33409
+Plague Nappo Clone,33410
+Plague Nappo Clone,33411
+Plague Nappo,33412
+Plague Nappo,33420
+Silver Nappo,33421
+Green Nappo,33422
+Golden Nappo,33423
+Silver Nappo,33424
+Green Nappo,33425
+Golden Nappo,33426
+Thanatos - Final Form,33500
+Steam Vent,33501
+Fire Tornado,33502
+Evasion Point,33503
+Jump Point,33504
+Arena Marker,33505
+Minecart,33506
+Arena Marker Offset,33507
+Muku - Cyborg Hound,33508
+Muku - Mecha Enforcer,33509
