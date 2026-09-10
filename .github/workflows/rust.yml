@@ -5,13 +5,13 @@ on:
     branches: [main, rust-rewrite]
     paths:
       - 'rust/**'
-      - 'assets-src/**'
+      - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
       - 'rust/**'
-      - 'assets-src/**'
+      - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
       - '.github/workflows/rust.yml'
   workflow_dispatch:
