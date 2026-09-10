@@ -1,371 +1,371 @@
 TrackerName,TrackedBuffId
-[Food] S1 ATK +15,2032011
-[Food] S1 ATK +30,2032012
-[Food] S1 ATK +45,2032013
-[Food] S1 ATK +60,2032014
-[Food] S1 ATK +75,2032015
-[Food] S1 ATK +105,2032016
-[Food] S1 ATK +120,2032017
-[Food] S1 ATK +150,2032018
-[Food] S1 MATK +15,2032021
-[Food] S1 MATK +30,2032022
-[Food] S1 MATK +45,2032023
-[Food] S1 MATK +60,2032024
-[Food] S1 MATK +75,2032025
-[Food] S1 MATK +105,2032026
-[Food] S1 MATK +120,2032027
-[Food] S1 MATK +150,2032028
-[Food] S1 Armor +80,2032031
-[Food] S1 Armor +160,2032032
-[Food] S1 Armor +240,2032033
-[Food] S1 Armor +320,2032034
-[Food] S1 Armor +400,2032035
-[Food] S1 Armor +560,2032036
-[Food] S1 Armor +640,2032037
-[Food] S1 Armor +800,2032038
-[Food] S1 Endurance +45,2032041
-[Food] S1 Endurance +90,2032042
-[Food] S1 Endurance +135,2032043
-[Food] S1 Endurance +225,2032044
-[Food] S1 Endurance +450,2032045
-[Food] S1 Endurance +825,2032046
-[Food] S1 Endurance +1050,2032047
-[Food] S1 Endurance +1500,2032048
-[Food] S1 Restores 105 HP /s,2032051
-[Food] S1 Restores 210 HP /s,2032052
-[Food] S1 Restores 315 HP /s,2032053
-[Food] S1 Restores 525 HP /s,2032054
-[Food] S1 Restores 1050 HP /s,2032055
-[Food] S1 Restores 1925 HP /s,2032056
-[Food] S1 Restores 2450 HP /s,2032057
-[Food] S1 Restores 3500 HP /s,2032058
-"[Food] S1 ATK +75, +5%",2032065
-"[Food] S1 ATK +120, +10%",2032067
-"[Food] S1 MATK +75, +5%",2032075
-"[Food] S1 MATK +120, +10%",2032077
-"[Food] S1 Armor +400, DMG Taken -5%",2032086
-"[Food] S1 Armor +640, DMG Taken -10%",2032088
-[Food] S2 ATK +90,2032111
-[Food] S2 ATK +115,2032112
-[Food] S2 ATK +140,2032113
-[Food] S2 ATK +165,2032114
-[Food] S2 ATK +195,2032115
-[Food] S2 ATK +225,2032116
-[Food] S2 MATK +90,2032121
-[Food] S2 MATK +115,2032122
-[Food] S2 MATK +140,2032123
-[Food] S2 MATK +165,2032124
-[Food] S2 MATK +195,2032125
-[Food] S2 MATK +225,2032126
-[Food] S2 Armor +480,2032131
-[Food] S2 Armor +615,2032132
-[Food] S2 Armor +750,2032133
-[Food] S2 Armor +885,2032134
-[Food] S2 Armor +1040,2032135
-[Food] S2 Armor +1200,2032136
-[Food] S2 Endurance +1050,2032141
-[Food] S2 Endurance +1350,2032142
-[Food] S2 Endurance +1650,2032143
-[Food] S2 Endurance +1950,2032144
-[Food] S2 Endurance +2325,2032145
-[Food] S2 Endurance +2700,2032146
-[Food] S2 Restores 2500 HP /s,2032151
-[Food] S2 Restores 3200 HP /s,2032152
-[Food] S2 Restores 3900 HP /s,2032153
-[Food] S2 Restores 4600 HP /s,2032154
-[Food] S2 Restores 5450 HP /s,2032155
-[Food] S2 Restores 6300 HP /s,2032156
-"[Food] S2 ATK +90, +5%",2032161
-"[Food] S2 ATK +115, +5%",2032162
-"[Food] S2 ATK +140, +5%",2032163
-"[Food] S2 ATK +140, +10%",2032164
-"[Food] S2 ATK +195, +10%",2032165
-"[Food] S2 ATK +225, +5%",2032166
-"[Food] S2 MATK +90, +5%",2032171
-"[Food] S2 MATK +115, +5%",2032172
-"[Food] S2 MATK +140, +5%",2032173
-"[Food] S2 MATK +140, +10%",2032174
-"[Food] S2 MATK +195, +10%",2032175
-"[Food] S2 MATK +225, +5%",2032176
-"[Food] S2 Armor +480, DMG Taken -5%",2032181
-"[Food] S2 Armor +615, DMG Taken -5%",2032182
-"[Food] S2 Armor +750, DMG Taken -5%",2032183
-"[Food] S2 Armor +750, DMG Taken -10%",2032184
-"[Food] S2 Armor +1040, DMG Taken -10%",2032185
-"[Food] S2 Armor +1200, DMG Taken -5%",2032186
-[Food] S3 ATK +150,2032211
-[Food] S3 ATK +180,2032212
-[Food] S3 ATK +210,2032213
-[Food] S3 ATK +240,2032214
-[Food] S3 ATK +270,2032215
-[Food] S3 ATK +315,2032216
-[Food] S3 MATK +150,2032221
-[Food] S3 MATK +180,2032222
-[Food] S3 MATK +210,2032223
-[Food] S3 MATK +240,2032224
-[Food] S3 MATK +270,2032225
-[Food] S3 MATK +315,2032226
-[Food] S3 Armor +900,2032231
-[Food] S3 Armor +1100,2032232
-[Food] S3 Armor +1300,2032233
-[Food] S3 Armor +1500,2032234
-[Food] S3 Armor +1700,2032235
-[Food] S3 Armor +2000,2032236
-[Food] S3 Endurance +2500,2032241
-[Food] S3 Endurance +3000,2032242
-[Food] S3 Endurance +3500,2032243
-[Food] S3 Endurance +4000,2032244
-[Food] S3 Endurance +4500,2032245
-[Food] S3 Endurance +5500,2032246
-"[Food] S3 Restores 5,000 HP /s",2032251
-"[Food] S3 Restores 5,500 HP /s",2032252
-"[Food] S3 Restores 6,000 HP /s",2032253
-"[Food] S3 Restores 6,500 HP /s",2032254
-"[Food] S3 Restores 7,000 HP /s",2032255
-"[Food] S3 Restores 8,000 HP /s",2032256
-"[Food] S3 ATK +150, +5%",2032261
-"[Food] S3 ATK +210, +10%",2032262
-"[Food] S3 ATK +210, +5%",2032263
-"[Food] S3 ATK +270, +10%",2032264
-"[Food] S3 MATK +150, +5%",2032271
-"[Food] S3 MATK +210, +10%",2032272
-"[Food] S3 MATK +210, +5%",2032273
-"[Food] S3 MATK +270, +10%",2032274
-"[Food] S3 Armor +900, DMG Taken -5%",2032281
-"[Food] S3 Armor +1300, DMG Taken -10%",2032282
-"[Food] S3 Armor +1300, DMG Taken -5%",2032283
-"[Food] S3 Armor +1700, DMG Taken -10%",2032284
-[Food] S4 ATK Lv1,2032311
-[Food] S4 ATK Lv2,2032312
-[Food] S4 ATK Lv3,2032313
-[Food] S4 MATK Lv1,2032321
-[Food] S4 MATK Lv2,2032322
-[Food] S4 MATK Lv3,2032323
-[Food] S4 Armor Lv1,2032331
-[Food] S4 Armor Lv2,2032332
-[Food] S4 Armor Lv3,2032333
-[Food] S4 Endurance Lv1,2032341
-[Food] S4 Endurance Lv2,2032342
-[Food] S4 Endurance Lv3,2032343
-[Food] S4 HP Recovery Lv1,2032351
-[Food] S4 HP Recovery Lv2,2032352
-[Food] S4 HP Recovery Lv3,2032353
-[Food] S4 ATK + Elite DMG Lv1,2032361
-[Food] S4 ATK + Elite DMG Lv2,2032362
-[Food] S4 ATK + Elite DMG Lv3,2032363
-[Food] S4 MATK + Elite DMG Lv1,2032371
-[Food] S4 MATK + Elite DMG Lv2,2032372
-[Food] S4 MATK + Elite DMG Lv3,2032373
-[Food] S4 Armor + Elite DMG Reduction Lv1,2032381
-[Food] S4 Armor + Elite DMG Reduction Lv2,2032382
-[Food] S4 Armor + Elite DMG Reduction Lv3,2032383
-[Serum] S1 Fire +240,2033011
-[Serum] S1 Fire +500,2033012
-[Serum] S1 Fire +750,2033013
-[Serum] S1 Ice +240,2033021
-[Serum] S1 Ice +500,2033022
-[Serum] S1 Ice +750,2033023
-[Serum] S1 Forest +240,2033031
-[Serum] S1 Forest +500,2033032
-[Serum] S1 Forest +750,2033033
-[Serum] S1 Rock +240,2033041
-[Serum] S1 Rock +500,2033042
-[Serum] S1 Rock +750,2033043
-[Serum] S1 Wind +240,2033051
-[Serum] S1 Wind +500,2033052
-[Serum] S1 Wind +750,2033053
-[Serum] S1 Thunder +240,2033061
-[Serum] S1 Thunder +500,2033062
-[Serum] S1 Thunder +750,2033063
-[Serum] S1 Light +240,2033071
-[Serum] S1 Light +500,2033072
-[Serum] S1 Light +750,2033073
-[Serum] S1 Dark +240,2033081
-[Serum] S1 Dark +500,2033082
-[Serum] S1 Dark +750,2033083
-[Serum] S1 Fire Res +500,2033091
-[Serum] S1 Fire Res +1150,2033092
-[Serum] S1 Fire Res +1950,2033093
-[Serum] S1 Ice Res +500,2033101
-[Serum] S1 Ice Res +1150,2033102
-[Serum] S1 Ice Res +1950,2033103
-[Serum] S1 Forest Res +500,2033111
-[Serum] S1 Forest Res +1150,2033112
-[Serum] S1 Forest Res +1950,2033113
-[Serum] S1 Rock Res +500,2033121
-[Serum] S1 Rock Res +1150,2033122
-[Serum] S1 Rock Res +1950,2033123
-[Serum] S1 Wind Res +500,2033131
-[Serum] S1 Wind Res +1150,2033132
-[Serum] S1 Wind Res +1950,2033133
-[Serum] S1 Thunder Res +500,2033141
-[Serum] S1 Thunder Res +1150,2033142
-[Serum] S1 Thunder Res +1950,2033143
-[Serum] S1 Light Res +500,2033151
-[Serum] S1 Light Res +1150,2033152
-[Serum] S1 Light Res +1950,2033153
-[Serum] S1 Dark Res +500,2033161
-[Serum] S1 Dark Res +1150,2033162
-[Serum] S1 Dark Res +1950,2033163
-[Serum] S2 Fire +550,2033014
-[Serum] S2 Fire +900,2033015
-[Serum] S2 Fire +1250,2033016
-[Serum] S2 Ice +550,2033024
-[Serum] S2 Ice +900,2033025
-[Serum] S2 Ice +1250,2033026
-[Serum] S2 Forest +550,2033034
-[Serum] S2 Forest +900,2033035
-[Serum] S2 Forest +1250,2033036
-[Serum] S2 Rock +550,2033044
-[Serum] S2 Rock +900,2033045
-[Serum] S2 Rock +1250,2033046
-[Serum] S2 Wind +550,2033054
-[Serum] S2 Wind +900,2033055
-[Serum] S2 Wind +1250,2033056
-[Serum] S2 Thunder +550,2033064
-[Serum] S2 Thunder +900,2033065
-[Serum] S2 Thunder +1250,2033066
-[Serum] S2 Light +550,2033074
-[Serum] S2 Light +900,2033075
-[Serum] S2 Light +1250,2033076
-[Serum] S2 Dark +550,2033084
-[Serum] S2 Dark +900,2033085
-[Serum] S2 Dark +1250,2033086
-[Serum] S2 Fire Res +1300,2033094
-[Serum] S2 Fire Res +2200,2033095
-[Serum] S2 Fire Res +3000,2033096
-[Serum] S2 Ice Res +1300,2033104
-[Serum] S2 Ice Res +2200,2033105
-[Serum] S2 Ice Res +3000,2033106
-[Serum] S2 Forest Res +1300,2033114
-[Serum] S2 Forest Res +2200,2033115
-[Serum] S2 Forest Res +3000,2033116
-[Serum] S2 Rock Res +1300,2033124
-[Serum] S2 Rock Res +2200,2033125
-[Serum] S2 Rock Res +3000,2033126
-[Serum] S2 Wind Res +1300,2033134
-[Serum] S2 Wind Res +2200,2033135
-[Serum] S2 Wind Res +3000,2033136
-[Serum] S2 Thunder Res +1300,2033144
-[Serum] S2 Thunder Res +2200,2033145
-[Serum] S2 Thunder Res +3000,2033146
-[Serum] S2 Light Res +1300,2033154
-[Serum] S2 Light Res +2200,2033155
-[Serum] S2 Light Res +3000,2033156
-[Serum] S2 Dark Res +1300,2033164
-[Serum] S2 Dark Res +2200,2033165
-[Serum] S2 Dark Res +3000,2033166
-[Serum] S2 PHY Boost +360,2033174
-[Serum] S2 PHY Boost +575,2033175
-[Serum] S2 PHY Boost +800,2033176
-[Serum] S2 MAG Boost +360,2033184
-[Serum] S2 MAG Boost +575,2033185
-[Serum] S2 MAG Boost +800,2033186
-[Serum] S3 Fire +950,2033017
-[Serum] S3 Fire +1500,2033018
-[Serum] S3 Fire +2000,2033019
-[Serum] S3 Ice +950,2033027
-[Serum] S3 Ice +1500,2033028
-[Serum] S3 Ice +2000,2033029
-[Serum] S3 Forest +950,2033037
-[Serum] S3 Forest +1500,2033038
-[Serum] S3 Forest +2000,2033039
-[Serum] S3 Rock +950,2033047
-[Serum] S3 Rock +1500,2033048
-[Serum] S3 Rock +2000,2033049
-[Serum] S3 Wind +950,2033057
-[Serum] S3 Wind +1500,2033058
-[Serum] S3 Wind +2000,2033059
-[Serum] S3 Thunder +950,2033067
-[Serum] S3 Thunder +1500,2033068
-[Serum] S3 Thunder +2000,2033069
-[Serum] S3 Light +950,2033077
-[Serum] S3 Light +1500,2033078
-[Serum] S3 Light +2000,2033079
-[Serum] S3 Dark +950,2033087
-[Serum] S3 Dark +1500,2033088
-[Serum] S3 Dark +2000,2033089
-[Serum] S3 Fire Res +2300,2033097
-[Serum] S3 Fire Res +3500,2033098
-[Serum] S3 Fire Res +4500,2033099
-[Serum] S3 Ice Res +2300,2033107
-[Serum] S3 Ice Res +3500,2033108
-[Serum] S3 Ice Res +4500,2033109
-[Serum] S3 Forest Res +2300,2033117
-[Serum] S3 Forest Res +3500,2033118
-[Serum] S3 Forest Res +4500,2033119
-[Serum] S3 Rock Res +2300,2033127
-[Serum] S3 Rock Res +3500,2033128
-[Serum] S3 Rock Res +4500,2033129
-[Serum] S3 Wind Res +2300,2033137
-[Serum] S3 Wind Res +3500,2033138
-[Serum] S3 Wind Res +4500,2033139
-[Serum] S3 Thunder Res +2300,2033147
-[Serum] S3 Thunder Res +3500,2033148
-[Serum] S3 Thunder Res +4500,2033149
-[Serum] S3 Light Res +2300,2033157
-[Serum] S3 Light Res +3500,2033158
-[Serum] S3 Light Res +4500,2033159
-[Serum] S3 Dark Res +2300,2033167
-[Serum] S3 Dark Res +3500,2033168
-[Serum] S3 Dark Res +4500,2033169
-[Serum] S3 PHY Boost +640,2033177
-[Serum] S3 PHY Boost +1000,2033178
-[Serum] S3 PHY Boost +1350,2033179
-[Serum] S3 MAG Boost +640,2033187
-[Serum] S3 MAG Boost +1000,2033188
-[Serum] S3 MAG Boost +1350,2033189
-[Serum] S4 Fire Lv1,2033211
-[Serum] S4 Fire Lv2,2033212
-[Serum] S4 Fire Lv3,2033213
-[Serum] S4 Fire Res Lv1,2033221
-[Serum] S4 Fire Res Lv2,2033222
-[Serum] S4 Fire Res Lv3,2033223
-[Serum] S4 Ice Lv1,2033231
-[Serum] S4 Ice Lv2,2033232
-[Serum] S4 Ice Lv3,2033233
-[Serum] S4 Ice Res Lv1,2033241
-[Serum] S4 Ice Res Lv2,2033242
-[Serum] S4 Ice Res Lv3,2033243
-[Serum] S4 Forest Lv1,2033251
-[Serum] S4 Forest Lv2,2033252
-[Serum] S4 Forest Lv3,2033253
-[Serum] S4 Forest Res Lv1,2033261
-[Serum] S4 Forest Res Lv2,2033262
-[Serum] S4 Forest Res Lv3,2033263
-[Serum] S4 Rock Lv1,2033271
-[Serum] S4 Rock Lv2,2033272
-[Serum] S4 Rock Lv3,2033273
-[Serum] S4 Rock Res Lv1,2033281
-[Serum] S4 Rock Res Lv2,2033282
-[Serum] S4 Rock Res Lv3,2033283
-[Serum] S4 Wind Lv1,2033291
-[Serum] S4 Wind Lv2,2033292
-[Serum] S4 Wind Res Lv1,2033293
-[Serum] S4 Wind Lv3,2033301
-[Serum] S4 Wind Res Lv2,2033302
-[Serum] S4 Wind Res Lv3,2033303
-[Serum] S4 Thunder Lv1,2033311
-[Serum] S4 Thunder Lv2,2033312
-[Serum] S4 Thunder Lv3,2033313
-[Serum] S4 Thunder Res Lv1,2033321
-[Serum] S4 Thunder Res Lv2,2033322
-[Serum] S4 Thunder Res Lv3,2033323
-[Serum] S4 Light Lv1,2033331
-[Serum] S4 Light Lv2,2033332
-[Serum] S4 Light Lv3,2033333
-[Serum] S4 Light Res Lv1,2033341
-[Serum] S4 Light Res Lv2,2033342
-[Serum] S4 Light Res Lv3,2033343
-[Serum] S4 Dark Lv1,2033351
-[Serum] S4 Dark Lv2,2033352
-[Serum] S4 Dark Lv3,2033353
-[Serum] S4 Dark Res Lv1,2033361
-[Serum] S4 Dark Res Lv2,2033362
-[Serum] S4 Dark Res Lv3,2033363
-[Serum] S4 PHY Boost Lv1,2033371
-[Serum] S4 PHY Boost Lv2,2033372
-[Serum] S4 PHY Boost Lv3,2033373
-[Serum] S4 MAG Boost Lv1,2033381
-[Serum] S4 MAG Boost Lv2,2033382
-[Serum] S4 MAG Boost Lv3,2033383
+[Food] S1 lvl 1 (ATK +15),2032011
+[Food] S1 lvl 2 (ATK +30),2032012
+[Food] S1 lvl 3 (ATK +45),2032013
+[Food] S1 lvl 4 (ATK +60),2032014
+[Food] S1 lvl 5 (ATK +75),2032015
+[Food] S1 lvl 6 (ATK +105),2032016
+[Food] S1 lvl 7 (ATK +120),2032017
+[Food] S1 lvl 8 (ATK +150),2032018
+[Food] S1 lvl 1 (MATK +15),2032021
+[Food] S1 lvl 2 (MATK +30),2032022
+[Food] S1 lvl 3 (MATK +45),2032023
+[Food] S1 lvl 4 (MATK +60),2032024
+[Food] S1 lvl 5 (MATK +75),2032025
+[Food] S1 lvl 6 (MATK +105),2032026
+[Food] S1 lvl 7 (MATK +120),2032027
+[Food] S1 lvl 8 (MATK +150),2032028
+[Food] S1 lvl 1 (Armor +80),2032031
+[Food] S1 lvl 2 (Armor +160),2032032
+[Food] S1 lvl 3 (Armor +240),2032033
+[Food] S1 lvl 4 (Armor +320),2032034
+[Food] S1 lvl 5 (Armor +400),2032035
+[Food] S1 lvl 6 (Armor +560),2032036
+[Food] S1 lvl 7 (Armor +640),2032037
+[Food] S1 lvl 8 (Armor +800),2032038
+[Food] S1 lvl 1 (Endurance +45),2032041
+[Food] S1 lvl 2 (Endurance +90),2032042
+[Food] S1 lvl 3 (Endurance +135),2032043
+[Food] S1 lvl 4 (Endurance +225),2032044
+[Food] S1 lvl 5 (Endurance +450),2032045
+[Food] S1 lvl 6 (Endurance +825),2032046
+[Food] S1 lvl 7 (Endurance +1050),2032047
+[Food] S1 lvl 8 (Endurance +1500),2032048
+[Food] S1 lvl 1 (Restores 105 HP /s),2032051
+[Food] S1 lvl 2 (Restores 210 HP /s),2032052
+[Food] S1 lvl 3 (Restores 315 HP /s),2032053
+[Food] S1 lvl 4 (Restores 525 HP /s),2032054
+[Food] S1 lvl 5 (Restores 1050 HP /s),2032055
+[Food] S1 lvl 6 (Restores 1925 HP /s),2032056
+[Food] S1 lvl 7 (Restores 2450 HP /s),2032057
+[Food] S1 lvl 8 (Restores 3500 HP /s),2032058
+"[Food] S1 lvl 1 (ATK +75, +5%)",2032065
+"[Food] S1 lvl 2 (ATK +120, +10%)",2032067
+"[Food] S1 lvl 1 (MATK +75, +5%)",2032075
+"[Food] S1 lvl 2 (MATK +120, +10%)",2032077
+"[Food] S1 lvl 1 (Armor +400, DMG Taken -5%)",2032086
+"[Food] S1 lvl 2 (Armor +640, DMG Taken -10%)",2032088
+[Food] S2 lvl 1 (ATK +90),2032111
+[Food] S2 lvl 2 (ATK +115),2032112
+[Food] S2 lvl 3 (ATK +140),2032113
+[Food] S2 lvl 4 (ATK +165),2032114
+[Food] S2 lvl 5 (ATK +195),2032115
+[Food] S2 lvl 6 (ATK +225),2032116
+[Food] S2 lvl 1 (MATK +90),2032121
+[Food] S2 lvl 2 (MATK +115),2032122
+[Food] S2 lvl 3 (MATK +140),2032123
+[Food] S2 lvl 4 (MATK +165),2032124
+[Food] S2 lvl 5 (MATK +195),2032125
+[Food] S2 lvl 6 (MATK +225),2032126
+[Food] S2 lvl 1 (Armor +480),2032131
+[Food] S2 lvl 2 (Armor +615),2032132
+[Food] S2 lvl 3 (Armor +750),2032133
+[Food] S2 lvl 4 (Armor +885),2032134
+[Food] S2 lvl 5 (Armor +1040),2032135
+[Food] S2 lvl 6 (Armor +1200),2032136
+[Food] S2 lvl 1 (Endurance +1050),2032141
+[Food] S2 lvl 2 (Endurance +1350),2032142
+[Food] S2 lvl 3 (Endurance +1650),2032143
+[Food] S2 lvl 4 (Endurance +1950),2032144
+[Food] S2 lvl 5 (Endurance +2325),2032145
+[Food] S2 lvl 6 (Endurance +2700),2032146
+[Food] S2 lvl 1 (Restores 2500 HP /s),2032151
+[Food] S2 lvl 2 (Restores 3200 HP /s),2032152
+[Food] S2 lvl 3 (Restores 3900 HP /s),2032153
+[Food] S2 lvl 4 (Restores 4600 HP /s),2032154
+[Food] S2 lvl 5 (Restores 5450 HP /s),2032155
+[Food] S2 lvl 6 (Restores 6300 HP /s),2032156
+"[Food] S2 lvl 1 (ATK +90, +5%)",2032161
+"[Food] S2 lvl 2 (ATK +115, +5%)",2032162
+"[Food] S2 lvl 3 (ATK +140, +5%)",2032163
+"[Food] S2 lvl 4 (ATK +140, +10%)",2032164
+"[Food] S2 lvl 5 (ATK +195, +10%)",2032165
+"[Food] S2 lvl 6 (ATK +225, +5%)",2032166
+"[Food] S2 lvl 1 (MATK +90, +5%)",2032171
+"[Food] S2 lvl 2 (MATK +115, +5%)",2032172
+"[Food] S2 lvl 3 (MATK +140, +5%)",2032173
+"[Food] S2 lvl 4 (MATK +140, +10%)",2032174
+"[Food] S2 lvl 5 (MATK +195, +10%)",2032175
+"[Food] S2 lvl 6 (MATK +225, +5%)",2032176
+"[Food] S2 lvl 1 (Armor +480, DMG Taken -5%)",2032181
+"[Food] S2 lvl 2 (Armor +615, DMG Taken -5%)",2032182
+"[Food] S2 lvl 3 (Armor +750, DMG Taken -5%)",2032183
+"[Food] S2 lvl 4 (Armor +750, DMG Taken -10%)",2032184
+"[Food] S2 lvl 5 (Armor +1040, DMG Taken -10%)",2032185
+"[Food] S2 lvl 6 (Armor +1200, DMG Taken -5%)",2032186
+[Food] S3 lvl 1 (ATK +150),2032211
+[Food] S3 lvl 2 (ATK +180),2032212
+[Food] S3 lvl 3 (ATK +210),2032213
+[Food] S3 lvl 4 (ATK +240),2032214
+[Food] S3 lvl 5 (ATK +270),2032215
+[Food] S3 lvl 6 (ATK +315),2032216
+[Food] S3 lvl 1 (MATK +150),2032221
+[Food] S3 lvl 2 (MATK +180),2032222
+[Food] S3 lvl 3 (MATK +210),2032223
+[Food] S3 lvl 4 (MATK +240),2032224
+[Food] S3 lvl 5 (MATK +270),2032225
+[Food] S3 lvl 6 (MATK +315),2032226
+[Food] S3 lvl 1 (Armor +900),2032231
+[Food] S3 lvl 2 (Armor +1100),2032232
+[Food] S3 lvl 3 (Armor +1300),2032233
+[Food] S3 lvl 4 (Armor +1500),2032234
+[Food] S3 lvl 5 (Armor +1700),2032235
+[Food] S3 lvl 6 (Armor +2000),2032236
+[Food] S3 lvl 1 (Endurance +2500),2032241
+[Food] S3 lvl 2 (Endurance +3000),2032242
+[Food] S3 lvl 3 (Endurance +3500),2032243
+[Food] S3 lvl 4 (Endurance +4000),2032244
+[Food] S3 lvl 5 (Endurance +4500),2032245
+[Food] S3 lvl 6 (Endurance +5500),2032246
+"[Food] S3 lvl 1 (Restores 5,000 HP /s)",2032251
+"[Food] S3 lvl 2 (Restores 5,500 HP /s)",2032252
+"[Food] S3 lvl 3 (Restores 6,000 HP /s)",2032253
+"[Food] S3 lvl 4 (Restores 6,500 HP /s)",2032254
+"[Food] S3 lvl 5 (Restores 7,000 HP /s)",2032255
+"[Food] S3 lvl 6 (Restores 8,000 HP /s)",2032256
+"[Food] S3 lvl 1 (ATK +150, +5%)",2032261
+"[Food] S3 lvl 2 (ATK +210, +10%)",2032262
+"[Food] S3 lvl 3 (ATK +210, +5%)",2032263
+"[Food] S3 lvl 4 (ATK +270, +10%)",2032264
+"[Food] S3 lvl 1 (MATK +150, +5%)",2032271
+"[Food] S3 lvl 2 (MATK +210, +10%)",2032272
+"[Food] S3 lvl 3 (MATK +210, +5%)",2032273
+"[Food] S3 lvl 4 (MATK +270, +10%)",2032274
+"[Food] S3 lvl 1 (Armor +900, DMG Taken -5%)",2032281
+"[Food] S3 lvl 2 (Armor +1300, DMG Taken -10%)",2032282
+"[Food] S3 lvl 3 (Armor +1300, DMG Taken -5%)",2032283
+"[Food] S3 lvl 4 (Armor +1700, DMG Taken -10%)",2032284
+[Food] S4 lvl 1 (ATK),2032311
+[Food] S4 lvl 2 (ATK),2032312
+[Food] S4 lvl 3 (ATK),2032313
+[Food] S4 lvl 1 (MATK),2032321
+[Food] S4 lvl 2 (MATK),2032322
+[Food] S4 lvl 3 (MATK),2032323
+[Food] S4 lvl 1 (Armor),2032331
+[Food] S4 lvl 2 (Armor),2032332
+[Food] S4 lvl 3 (Armor),2032333
+[Food] S4 lvl 1 (Endurance),2032341
+[Food] S4 lvl 2 (Endurance),2032342
+[Food] S4 lvl 3 (Endurance),2032343
+[Food] S4 lvl 1 (HP Recovery),2032351
+[Food] S4 lvl 2 (HP Recovery),2032352
+[Food] S4 lvl 3 (HP Recovery),2032353
+[Food] S4 lvl 1 (ATK + Elite DMG),2032361
+[Food] S4 lvl 2 (ATK + Elite DMG),2032362
+[Food] S4 lvl 3 (ATK + Elite DMG),2032363
+[Food] S4 lvl 1 (MATK + Elite DMG),2032371
+[Food] S4 lvl 2 (MATK + Elite DMG),2032372
+[Food] S4 lvl 3 (MATK + Elite DMG),2032373
+[Food] S4 lvl 1 (Armor + Elite DMG Reduction),2032381
+[Food] S4 lvl 2 (Armor + Elite DMG Reduction),2032382
+[Food] S4 lvl 3 (Armor + Elite DMG Reduction),2032383
+[Serum] S1 lvl 1 (Fire +240),2033011
+[Serum] S1 lvl 2 (Fire +500),2033012
+[Serum] S1 lvl 3 (Fire +750),2033013
+[Serum] S1 lvl 1 (Ice +240),2033021
+[Serum] S1 lvl 2 (Ice +500),2033022
+[Serum] S1 lvl 3 (Ice +750),2033023
+[Serum] S1 lvl 1 (Forest +240),2033031
+[Serum] S1 lvl 2 (Forest +500),2033032
+[Serum] S1 lvl 3 (Forest +750),2033033
+[Serum] S1 lvl 1 (Rock +240),2033041
+[Serum] S1 lvl 2 (Rock +500),2033042
+[Serum] S1 lvl 3 (Rock +750),2033043
+[Serum] S1 lvl 1 (Wind +240),2033051
+[Serum] S1 lvl 2 (Wind +500),2033052
+[Serum] S1 lvl 3 (Wind +750),2033053
+[Serum] S1 lvl 1 (Thunder +240),2033061
+[Serum] S1 lvl 2 (Thunder +500),2033062
+[Serum] S1 lvl 3 (Thunder +750),2033063
+[Serum] S1 lvl 1 (Light +240),2033071
+[Serum] S1 lvl 2 (Light +500),2033072
+[Serum] S1 lvl 3 (Light +750),2033073
+[Serum] S1 lvl 1 (Dark +240),2033081
+[Serum] S1 lvl 2 (Dark +500),2033082
+[Serum] S1 lvl 3 (Dark +750),2033083
+[Serum] S1 lvl 1 (Fire Res +500),2033091
+[Serum] S1 lvl 2 (Fire Res +1150),2033092
+[Serum] S1 lvl 3 (Fire Res +1950),2033093
+[Serum] S1 lvl 1 (Ice Res +500),2033101
+[Serum] S1 lvl 2 (Ice Res +1150),2033102
+[Serum] S1 lvl 3 (Ice Res +1950),2033103
+[Serum] S1 lvl 1 (Forest Res +500),2033111
+[Serum] S1 lvl 2 (Forest Res +1150),2033112
+[Serum] S1 lvl 3 (Forest Res +1950),2033113
+[Serum] S1 lvl 1 (Rock Res +500),2033121
+[Serum] S1 lvl 2 (Rock Res +1150),2033122
+[Serum] S1 lvl 3 (Rock Res +1950),2033123
+[Serum] S1 lvl 1 (Wind Res +500),2033131
+[Serum] S1 lvl 2 (Wind Res +1150),2033132
+[Serum] S1 lvl 3 (Wind Res +1950),2033133
+[Serum] S1 lvl 1 (Thunder Res +500),2033141
+[Serum] S1 lvl 2 (Thunder Res +1150),2033142
+[Serum] S1 lvl 3 (Thunder Res +1950),2033143
+[Serum] S1 lvl 1 (Light Res +500),2033151
+[Serum] S1 lvl 2 (Light Res +1150),2033152
+[Serum] S1 lvl 3 (Light Res +1950),2033153
+[Serum] S1 lvl 1 (Dark Res +500),2033161
+[Serum] S1 lvl 2 (Dark Res +1150),2033162
+[Serum] S1 lvl 3 (Dark Res +1950),2033163
+[Serum] S2 lvl 1 (Fire +550),2033014
+[Serum] S2 lvl 2 (Fire +900),2033015
+[Serum] S2 lvl 3 (Fire +1250),2033016
+[Serum] S2 lvl 1 (Ice +550),2033024
+[Serum] S2 lvl 2 (Ice +900),2033025
+[Serum] S2 lvl 3 (Ice +1250),2033026
+[Serum] S2 lvl 1 (Forest +550),2033034
+[Serum] S2 lvl 2 (Forest +900),2033035
+[Serum] S2 lvl 3 (Forest +1250),2033036
+[Serum] S2 lvl 1 (Rock +550),2033044
+[Serum] S2 lvl 2 (Rock +900),2033045
+[Serum] S2 lvl 3 (Rock +1250),2033046
+[Serum] S2 lvl 1 (Wind +550),2033054
+[Serum] S2 lvl 2 (Wind +900),2033055
+[Serum] S2 lvl 3 (Wind +1250),2033056
+[Serum] S2 lvl 1 (Thunder +550),2033064
+[Serum] S2 lvl 2 (Thunder +900),2033065
+[Serum] S2 lvl 3 (Thunder +1250),2033066
+[Serum] S2 lvl 1 (Light +550),2033074
+[Serum] S2 lvl 2 (Light +900),2033075
+[Serum] S2 lvl 3 (Light +1250),2033076
+[Serum] S2 lvl 1 (Dark +550),2033084
+[Serum] S2 lvl 2 (Dark +900),2033085
+[Serum] S2 lvl 3 (Dark +1250),2033086
+[Serum] S2 lvl 1 (Fire Res +1300),2033094
+[Serum] S2 lvl 2 (Fire Res +2200),2033095
+[Serum] S2 lvl 3 (Fire Res +3000),2033096
+[Serum] S2 lvl 1 (Ice Res +1300),2033104
+[Serum] S2 lvl 2 (Ice Res +2200),2033105
+[Serum] S2 lvl 3 (Ice Res +3000),2033106
+[Serum] S2 lvl 1 (Forest Res +1300),2033114
+[Serum] S2 lvl 2 (Forest Res +2200),2033115
+[Serum] S2 lvl 3 (Forest Res +3000),2033116
+[Serum] S2 lvl 1 (Rock Res +1300),2033124
+[Serum] S2 lvl 2 (Rock Res +2200),2033125
+[Serum] S2 lvl 3 (Rock Res +3000),2033126
+[Serum] S2 lvl 1 (Wind Res +1300),2033134
+[Serum] S2 lvl 2 (Wind Res +2200),2033135
+[Serum] S2 lvl 3 (Wind Res +3000),2033136
+[Serum] S2 lvl 1 (Thunder Res +1300),2033144
+[Serum] S2 lvl 2 (Thunder Res +2200),2033145
+[Serum] S2 lvl 3 (Thunder Res +3000),2033146
+[Serum] S2 lvl 1 (Light Res +1300),2033154
+[Serum] S2 lvl 2 (Light Res +2200),2033155
+[Serum] S2 lvl 3 (Light Res +3000),2033156
+[Serum] S2 lvl 1 (Dark Res +1300),2033164
+[Serum] S2 lvl 2 (Dark Res +2200),2033165
+[Serum] S2 lvl 3 (Dark Res +3000),2033166
+[Serum] S2 lvl 1 (PHY Boost +360),2033174
+[Serum] S2 lvl 2 (PHY Boost +575),2033175
+[Serum] S2 lvl 3 (PHY Boost +800),2033176
+[Serum] S2 lvl 1 (MAG Boost +360),2033184
+[Serum] S2 lvl 2 (MAG Boost +575),2033185
+[Serum] S2 lvl 3 (MAG Boost +800),2033186
+[Serum] S3 lvl 1 (Fire +950),2033017
+[Serum] S3 lvl 2 (Fire +1500),2033018
+[Serum] S3 lvl 3 (Fire +2000),2033019
+[Serum] S3 lvl 1 (Ice +950),2033027
+[Serum] S3 lvl 2 (Ice +1500),2033028
+[Serum] S3 lvl 3 (Ice +2000),2033029
+[Serum] S3 lvl 1 (Forest +950),2033037
+[Serum] S3 lvl 2 (Forest +1500),2033038
+[Serum] S3 lvl 3 (Forest +2000),2033039
+[Serum] S3 lvl 1 (Rock +950),2033047
+[Serum] S3 lvl 2 (Rock +1500),2033048
+[Serum] S3 lvl 3 (Rock +2000),2033049
+[Serum] S3 lvl 1 (Wind +950),2033057
+[Serum] S3 lvl 2 (Wind +1500),2033058
+[Serum] S3 lvl 3 (Wind +2000),2033059
+[Serum] S3 lvl 1 (Thunder +950),2033067
+[Serum] S3 lvl 2 (Thunder +1500),2033068
+[Serum] S3 lvl 3 (Thunder +2000),2033069
+[Serum] S3 lvl 1 (Light +950),2033077
+[Serum] S3 lvl 2 (Light +1500),2033078
+[Serum] S3 lvl 3 (Light +2000),2033079
+[Serum] S3 lvl 1 (Dark +950),2033087
+[Serum] S3 lvl 2 (Dark +1500),2033088
+[Serum] S3 lvl 3 (Dark +2000),2033089
+[Serum] S3 lvl 1 (Fire Res +2300),2033097
+[Serum] S3 lvl 2 (Fire Res +3500),2033098
+[Serum] S3 lvl 3 (Fire Res +4500),2033099
+[Serum] S3 lvl 1 (Ice Res +2300),2033107
+[Serum] S3 lvl 2 (Ice Res +3500),2033108
+[Serum] S3 lvl 3 (Ice Res +4500),2033109
+[Serum] S3 lvl 1 (Forest Res +2300),2033117
+[Serum] S3 lvl 2 (Forest Res +3500),2033118
+[Serum] S3 lvl 3 (Forest Res +4500),2033119
+[Serum] S3 lvl 1 (Rock Res +2300),2033127
+[Serum] S3 lvl 2 (Rock Res +3500),2033128
+[Serum] S3 lvl 3 (Rock Res +4500),2033129
+[Serum] S3 lvl 1 (Wind Res +2300),2033137
+[Serum] S3 lvl 2 (Wind Res +3500),2033138
+[Serum] S3 lvl 3 (Wind Res +4500),2033139
+[Serum] S3 lvl 1 (Thunder Res +2300),2033147
+[Serum] S3 lvl 2 (Thunder Res +3500),2033148
+[Serum] S3 lvl 3 (Thunder Res +4500),2033149
+[Serum] S3 lvl 1 (Light Res +2300),2033157
+[Serum] S3 lvl 2 (Light Res +3500),2033158
+[Serum] S3 lvl 3 (Light Res +4500),2033159
+[Serum] S3 lvl 1 (Dark Res +2300),2033167
+[Serum] S3 lvl 2 (Dark Res +3500),2033168
+[Serum] S3 lvl 3 (Dark Res +4500),2033169
+[Serum] S3 lvl 1 (PHY Boost +640),2033177
+[Serum] S3 lvl 2 (PHY Boost +1000),2033178
+[Serum] S3 lvl 3 (PHY Boost +1350),2033179
+[Serum] S3 lvl 1 (MAG Boost +640),2033187
+[Serum] S3 lvl 2 (MAG Boost +1000),2033188
+[Serum] S3 lvl 3 (MAG Boost +1350),2033189
+[Serum] S4 lvl 1 (Fire),2033211
+[Serum] S4 lvl 2 (Fire),2033212
+[Serum] S4 lvl 3 (Fire),2033213
+[Serum] S4 lvl 1 (Fire Res),2033221
+[Serum] S4 lvl 2 (Fire Res),2033222
+[Serum] S4 lvl 3 (Fire Res),2033223
+[Serum] S4 lvl 1 (Ice),2033231
+[Serum] S4 lvl 2 (Ice),2033232
+[Serum] S4 lvl 3 (Ice),2033233
+[Serum] S4 lvl 1 (Ice Res),2033241
+[Serum] S4 lvl 2 (Ice Res),2033242
+[Serum] S4 lvl 3 (Ice Res),2033243
+[Serum] S4 lvl 1 (Forest),2033251
+[Serum] S4 lvl 2 (Forest),2033252
+[Serum] S4 lvl 3 (Forest),2033253
+[Serum] S4 lvl 1 (Forest Res),2033261
+[Serum] S4 lvl 2 (Forest Res),2033262
+[Serum] S4 lvl 3 (Forest Res),2033263
+[Serum] S4 lvl 1 (Rock),2033271
+[Serum] S4 lvl 2 (Rock),2033272
+[Serum] S4 lvl 3 (Rock),2033273
+[Serum] S4 lvl 1 (Rock Res),2033281
+[Serum] S4 lvl 2 (Rock Res),2033282
+[Serum] S4 lvl 3 (Rock Res),2033283
+[Serum] S4 lvl 1 (Wind),2033291
+[Serum] S4 lvl 2 (Wind),2033292
+[Serum] S4 lvl 1 (Wind Res),2033293
+[Serum] S4 lvl 3 (Wind),2033301
+[Serum] S4 lvl 2 (Wind Res),2033302
+[Serum] S4 lvl 3 (Wind Res),2033303
+[Serum] S4 lvl 1 (Thunder),2033311
+[Serum] S4 lvl 2 (Thunder),2033312
+[Serum] S4 lvl 3 (Thunder),2033313
+[Serum] S4 lvl 1 (Thunder Res),2033321
+[Serum] S4 lvl 2 (Thunder Res),2033322
+[Serum] S4 lvl 3 (Thunder Res),2033323
+[Serum] S4 lvl 1 (Light),2033331
+[Serum] S4 lvl 2 (Light),2033332
+[Serum] S4 lvl 3 (Light),2033333
+[Serum] S4 lvl 1 (Light Res),2033341
+[Serum] S4 lvl 2 (Light Res),2033342
+[Serum] S4 lvl 3 (Light Res),2033343
+[Serum] S4 lvl 1 (Dark),2033351
+[Serum] S4 lvl 2 (Dark),2033352
+[Serum] S4 lvl 3 (Dark),2033353
+[Serum] S4 lvl 1 (Dark Res),2033361
+[Serum] S4 lvl 2 (Dark Res),2033362
+[Serum] S4 lvl 3 (Dark Res),2033363
+[Serum] S4 lvl 1 (PHY Boost),2033371
+[Serum] S4 lvl 2 (PHY Boost),2033372
+[Serum] S4 lvl 3 (PHY Boost),2033373
+[Serum] S4 lvl 1 (MAG Boost),2033381
+[Serum] S4 lvl 2 (MAG Boost),2033382
+[Serum] S4 lvl 3 (MAG Boost),2033383
