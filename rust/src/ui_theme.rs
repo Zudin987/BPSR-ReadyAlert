@@ -1,6 +1,6 @@
 //! Shared visual language for ReadyAlert's native Win32 surfaces.
 //! Keep this intentionally small: the app stays native/lightweight while all
-//! configuration windows use the same palette, spacing and interaction states.
+//! configuration windows and overlays share the same palette and interaction states.
 use std::{ffi::c_void, ptr::null, sync::OnceLock};
 use windows_sys::Win32::{
     Foundation::{HWND, RECT},
@@ -16,20 +16,31 @@ use windows_sys::Win32::{
     },
 };
 
-pub const BG: u32 = rgb(18, 22, 27);
-pub const SIDEBAR: u32 = rgb(22, 27, 33);
-pub const SURFACE: u32 = rgb(27, 33, 40);
-pub const SURFACE_HOVER: u32 = rgb(34, 42, 50);
-pub const SURFACE_PRESSED: u32 = rgb(39, 48, 57);
-pub const INPUT: u32 = rgb(30, 37, 44);
-pub const BORDER: u32 = rgb(48, 59, 69);
-pub const BORDER_STRONG: u32 = rgb(65, 78, 89);
-pub const TEXT: u32 = rgb(237, 242, 246);
-pub const TEXT_SECONDARY: u32 = rgb(166, 178, 190);
+// Compact native dark palette. Interaction color, class identity and combat
+// semantics intentionally use separate constants so their meanings do not compete.
+pub const BG: u32 = rgb(15, 19, 23);
+pub const SIDEBAR: u32 = rgb(21, 27, 33);
+pub const SURFACE: u32 = rgb(21, 27, 33);
+pub const RAISED: u32 = rgb(26, 32, 39);
+pub const SURFACE_HOVER: u32 = rgb(32, 40, 48);
+pub const SURFACE_PRESSED: u32 = rgb(37, 46, 55);
+pub const INPUT: u32 = rgb(26, 32, 39);
+pub const BORDER: u32 = rgb(46, 57, 68);
+pub const BORDER_STRONG: u32 = rgb(63, 76, 88);
+pub const TEXT: u32 = rgb(241, 244, 247);
+pub const TEXT_SECONDARY: u32 = rgb(181, 190, 200);
+pub const MUTED: u32 = rgb(131, 144, 157);
 pub const TEXT_DISABLED: u32 = rgb(103, 114, 125);
-pub const ACCENT: u32 = rgb(45, 164, 149);
-pub const ACCENT_HOVER: u32 = rgb(55, 181, 165);
-pub const ACCENT_PRESSED: u32 = rgb(37, 139, 127);
+pub const ACCENT: u32 = rgb(56, 184, 166);
+pub const ACCENT_HOVER: u32 = rgb(66, 198, 179);
+pub const ACCENT_PRESSED: u32 = rgb(47, 156, 141);
+pub const DAMAGE: u32 = rgb(255, 93, 98);
+pub const HEALING: u32 = rgb(69, 222, 139);
+pub const TANK: u32 = rgb(102, 151, 255);
+pub const WARNING: u32 = rgb(240, 184, 73);
+pub const CRITICAL: u32 = rgb(255, 81, 88);
+pub const RANK_TEXT: u32 = rgb(216, 222, 229);
+// Destructive settings actions stay quieter than live critical combat state.
 pub const DANGER: u32 = rgb(190, 70, 72);
 pub const DANGER_HOVER: u32 = rgb(210, 81, 83);
 
@@ -57,7 +68,9 @@ fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain(std::iter::once(0)).
 
 fn make_font(height: i32, weight: i32) -> usize {
     unsafe {
-        let face = wide("Segoe UI");
+        // The Windows font mapper supplies Segoe UI / installed CJK UI fallback
+        // glyphs when Segoe UI Variable Text does not contain a character.
+        let face = wide("Segoe UI Variable Text");
         CreateFontW(height, 0, 0, 0, weight, 0, 0, 0, 1, 0, 0, 5, 0, face.as_ptr()) as usize
     }
 }
@@ -91,7 +104,6 @@ pub unsafe fn dark_titlebar(hwnd: HWND) {
     if DwmSetWindowAttribute(hwnd, 20, ptr, std::mem::size_of::<i32>() as u32) != 0 {
         let _ = DwmSetWindowAttribute(hwnd, 19, ptr, std::mem::size_of::<i32>() as u32);
     }
-    // Rounded window corners on Windows 11. Older Windows simply ignores it.
     let rounded: i32 = 2;
     let _ = DwmSetWindowAttribute(hwnd, 33, (&rounded as *const i32).cast(), std::mem::size_of::<i32>() as u32);
 }
@@ -176,5 +188,9 @@ mod tests {
     }
     #[test] fn theme_has_readable_contrast_direction() {
         assert_ne!(BG, SURFACE); assert_ne!(TEXT, TEXT_SECONDARY); assert_ne!(ACCENT, BG);
+    }
+    #[test] fn semantic_overlay_colors_are_distinct() {
+        assert_ne!(ACCENT, DAMAGE); assert_ne!(DAMAGE, HEALING); assert_ne!(HEALING, TANK);
+        assert_ne!(WARNING, CRITICAL); assert_ne!(RANK_TEXT, DAMAGE);
     }
 }
