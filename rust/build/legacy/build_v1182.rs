@@ -23,12 +23,7 @@ fn patch_feature_overlay(out:&Path){
     let path=out.join("feature_overlays_v170_fixed.rs");
     let mut source=fs::read_to_string(&path).expect("read v1.18.1 generated overlays").replace("\r\n","\n");
 
-    replace_once(
-        &mut source,
-        "let image=take(96,\"Copy as Image\");",
-        "let image=take(116,\"Copy as Image\");",
-        "widen Copy as Image action",
-    );
+    replace_once(&mut source,"let image=take(96,\"Copy as Image\");","let image=take(116,\"Copy as Image\");","widen Copy as Image action");
 
     replace_between(
         &mut source,
@@ -66,7 +61,6 @@ fn patch_feature_overlay(out:&Path){
         "let time_r=RECT{left:(rc.right-90).max(target_r.left+80),top:target_r.top,right:rc.right-10,bottom:target_r.bottom};let hp_r=RECT{left:(time_r.left-78).max(target_r.left+80),top:target_r.top,right:time_r.left-8,bottom:target_r.bottom};let enrage_r=RECT{left:(hp_r.left-155).max(target_r.left+120),top:target_r.top,right:hp_r.left-12,bottom:target_r.bottom};let title_right=if enrage.is_some(){enrage_r.left-8}else{hp_r.left-8};",
         "tighten HP and separate Enrage",
     );
-
     replace_once(
         &mut source,
         "let hp_label=RECT{left:hp_r.left,top:hp_r.top,right:hp_r.left+22,bottom:hp_r.bottom};let hp_value=RECT{left:hp_r.left+20,top:hp_r.top,right:hp_r.right,bottom:hp_r.bottom};",
@@ -74,51 +68,16 @@ fn patch_feature_overlay(out:&Path){
         "tight HP label/value spacing",
     );
 
-    replace_once(
-        &mut source,
-        "let class_bg=spec_color(row);let bg=if row.is_dead{dim_color(class_bg,74)}else{class_bg};",
-        "let class_bg=spec_color(row);let bg=if row.is_dead{dim_color(crate::ui_theme::CRITICAL,48)}else{class_bg};",
-        "restore red dead-row background",
-    );
+    replace_once(&mut source,"let class_bg=spec_color(row);let bg=if row.is_dead{dim_color(class_bg,74)}else{class_bg};","let class_bg=spec_color(row);let bg=if row.is_dead{dim_color(crate::ui_theme::CRITICAL,48)}else{class_bg};","restore red dead-row background");
+    replace_once(&mut source,"SetTextColor(hdc,crate::ui_theme::RANK_TEXT);draw(hdc,&rank.to_string(),","SetTextColor(hdc,if row.is_local{crate::ui_theme::CRITICAL}else{crate::ui_theme::RANK_TEXT});draw(hdc,&rank.to_string(),","restore red local rank number");
+    replace_once(&mut source,"draw(hdc,&row.name,RECT{left:layout.name_left,top:r.top,right:layout.name_right,bottom:content_bottom},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);","draw(hdc,&row.name,RECT{left:layout.name_left,top:r.top,right:layout.name_right,bottom:content_bottom},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);","player name without ellipsis");
+    replace_once(&mut source,"const MECH_ATTR_H: i32 = 29;","const MECH_ATTR_H: i32 = 38;","Tracker attribute row height");
 
-    replace_once(
-        &mut source,
-        "SetTextColor(hdc,crate::ui_theme::RANK_TEXT);draw(hdc,&rank.to_string(),",
-        "SetTextColor(hdc,if row.is_local{crate::ui_theme::CRITICAL}else{crate::ui_theme::RANK_TEXT});draw(hdc,&rank.to_string(),",
-        "restore red local rank number",
-    );
-
-    replace_once(
-        &mut source,
-        "draw(hdc,&row.name,RECT{left:layout.name_left,top:r.top,right:layout.name_right,bottom:content_bottom},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);",
-        "draw(hdc,&row.name,RECT{left:layout.name_left,top:r.top,right:layout.name_right,bottom:content_bottom},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);",
-        "player name without ellipsis",
-    );
-
-    if source.contains("const MECH_ATTR_H: i32 = 29;") {
-        replace_once(&mut source,"const MECH_ATTR_H: i32 = 29;","const MECH_ATTR_H: i32 = 38;","Tracker attribute row height");
-    } else {
-        replace_once(&mut source,"const MECH_ATTR_H:i32=29;","const MECH_ATTR_H:i32=38;","Tracker attribute row height");
-    }
-
-    replace_once(
-        &mut source,
-        "draw(hdc,&format!(\"Track attributes ({selected}/6)\"),",
-        "draw(hdc,&format!(\"Track attributes ({selected}/{})\",feature_settings::MAX_TRACKED_ATTRIBUTES),",
-        "Tracker settings selected count",
-    );
-    replace_once(
-        &mut source,
-        "else if features.mechanic_attributes.tracked.len()<6{features.mechanic_attributes.tracked.push(id);}",
-        "else if features.mechanic_attributes.tracked.len()<feature_settings::MAX_TRACKED_ATTRIBUTES{features.mechanic_attributes.tracked.push(id);}",
-        "Tracker settings selection limit",
-    );
-    replace_once(
-        &mut source,
-        "change(&mut features);features.normalize();let snapshot=features.clone();",
-        "change(&mut features);feature_settings::normalize_v1182(&mut features);let snapshot=features.clone();",
-        "Tracker-aware feature normalization",
-    );
+    replace_once(&mut source,"Choose up to 6 stats. Food, Serum and Event Tracker rows appear automatically.","Choose up to 8 stats. Food, Serum and Event Tracker rows appear automatically.","Tracker settings help text");
+    replace_once(&mut source,"wide(&format!(\"Track attributes ({}/6)\",f.mechanic_attributes.tracked.len())).as_ptr()","wide(&format!(\"Track attributes ({}/{})\",f.mechanic_attributes.tracked.len(),feature_settings::MAX_TRACKED_ATTRIBUTES)).as_ptr()","Tracker settings selected count");
+    replace_once(&mut source,"crate::ui::EnableWindow(c,(selected||f.mechanic_attributes.tracked.len()<6) as i32);","crate::ui::EnableWindow(c,(selected||f.mechanic_attributes.tracked.len()<feature_settings::MAX_TRACKED_ATTRIBUTES) as i32);","Tracker settings enable limit");
+    replace_once(&mut source,"if checked{if f.mechanic_attributes.tracked.len()<6 && !f.mechanic_attributes.tracked.contains(attr){f.mechanic_attributes.tracked.push(*attr);}}","if checked{if f.mechanic_attributes.tracked.len()<feature_settings::MAX_TRACKED_ATTRIBUTES && !f.mechanic_attributes.tracked.contains(attr){f.mechanic_attributes.tracked.push(*attr);}}","Tracker settings selection limit");
+    replace_once(&mut source,"change(&mut features);features.normalize();let snapshot=features.clone();","change(&mut features);feature_settings::normalize_v1182(&mut features);let snapshot=features.clone();","Tracker-aware feature normalization");
 
     source.push_str(r#"
 
