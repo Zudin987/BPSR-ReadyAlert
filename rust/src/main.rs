@@ -75,6 +75,7 @@ mod settings_ui {
 }
 mod sharing;
 mod ui;
+mod ui_theme;
 mod hotkeys;
 #[path = "telemetry_v1110.rs"]
 mod telemetry;
@@ -97,7 +98,7 @@ fn main() {
 
     let paths = match paths::AppPaths::create() {
         Ok(p) => p,
-        Err(err) => { win::message_box("BPSR Ready Alert", &format!("Could not create app data folder.\n\n{err}"), true); return; }
+        Err(err) => { win::message_box("BPSR ReadyAlert", &format!("Could not create app data folder.\n\n{err}"), true); return; }
     };
     logging::init(paths.log.clone());
     logging::write(format!("startup: native-rust version={}", env!("CARGO_PKG_VERSION")));
@@ -105,10 +106,10 @@ fn main() {
 
     let guard = match win::SingleInstance::acquire() {
         Ok(g) => g,
-        Err(err) => { logging::write(format!("startup: mutex failed {err}")); win::message_box("BPSR Ready Alert", &err, true); logging::shutdown(); return; }
+        Err(err) => { logging::write(format!("startup: mutex failed {err}")); win::message_box("BPSR ReadyAlert", &err, true); logging::shutdown(); return; }
     };
     if !guard.is_owner() {
-        win::message_box("BPSR Ready Alert", "BPSR Ready Alert is already running in the system tray.", false);
+        win::message_box("BPSR ReadyAlert", "BPSR ReadyAlert is already running in the system tray.", false);
         logging::shutdown();
         return;
     }
@@ -122,8 +123,8 @@ fn main() {
         Err(err) => {
             logging::write(format!("startup: Npcap missing {err}"));
             win::message_box(
-                "BPSR Ready Alert - Npcap Required",
-                &format!("BPSR Ready Alert could not load Npcap.\n\nInstall or repair Npcap.\n\nDetails: {err}"),
+                "BPSR ReadyAlert - Npcap Required",
+                &format!("BPSR ReadyAlert could not load Npcap.\n\nInstall or repair Npcap.\n\nDetails: {err}"),
                 true,
             );
             logging::shutdown();
@@ -141,7 +142,7 @@ fn main() {
 
     if let Err(err) = win::run_ui(settings, paths, rx, stop.clone(), api) {
         logging::write(format!("startup/ui: {err}"));
-        win::message_box("BPSR Ready Alert - Error", &err, true);
+        win::message_box("BPSR ReadyAlert - Error", &err, true);
     }
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = capture_thread.join();
@@ -179,6 +180,7 @@ fn smoke_test() -> Result<(), String> {
     if tracker.max_visible != 12 || !tracker.rules.is_empty() { return Err("v1.14 tracker defaults failed".into()); }
     if model::imagine_tier_label(0) != "T0" || model::imagine_tier_label(5) != "T5" { return Err("v1.15 Imagine tier display failed".into()); }
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
+    if ui_theme::SETTINGS_W > 820 || ui_theme::SETTINGS_H > 450 || ui_theme::EVENT_H > 450 || ui_theme::MECH_SETTINGS_H > 450 { return Err("v1.17 fixed settings work-area budget failed".into()); }
     std::thread::sleep(Duration::from_millis(1));
     Ok(())
 }

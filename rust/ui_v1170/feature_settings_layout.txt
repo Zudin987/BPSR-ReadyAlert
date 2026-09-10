@@ -1,0 +1,25 @@
+unsafe fn build_feature_form(hwnd:HWND,state:&mut SettingsState) {
+    let title=if state.kind==Kind::Dps{"DPS Meter"}else{"Dungeon Mechanics"};let title_hwnd=feature_label(hwnd,0,title,18,14,320,24);crate::ui_theme::set_font(title_hwnd,crate::ui_theme::FontRole::Heading);
+    feature_label(hwnd,7000,"",18,50,112,22);feature_button(hwnd,7001,"−",134,44,36);feature_button(hwnd,7002,"+",176,44,36);
+    feature_label(hwnd,0,"Collapse edge",242,50,100,22);feature_combo(hwnd,7003,346,44,&["Right","Bottom","Left","Top"]);
+    if state.kind==Kind::Dps{
+        let section_hwnd=feature_label(hwnd,0,"DISPLAY",18,88,180,18);crate::ui_theme::set_font(section_hwnd,crate::ui_theme::FontRole::Secondary);
+        let display=["Damage share %","Healing share %","Tank share %","Death count","Battle Imagine badges","Target / HP summary","Active rate"];
+        for(i,label)in display.iter().enumerate(){let col=(i/4)as i32;let row=(i%4)as i32;feature_check(hwnd,7100+i as i32,label,18+col*286,108+row*27,270);}
+        feature_label(hwnd,0,"ROSTER & HISTORY",18,224,220,18);
+        let roster=["Only contributors","Party only","Always show self","Remember scroll between encounters"];
+        for(i,label)in roster.iter().enumerate(){let col=(i/2)as i32;let row=(i%2)as i32;feature_check(hwnd,7107+i as i32,label,18+col*286,246+row*27,270);}
+        feature_label(hwnd,0,"Visible rows",18,310,90,22);feature_combo(hwnd,7010,108,304,&["Auto","5","10","20","30","50"]);
+        feature_label(hwnd,7011,"",286,310,150,22);feature_button(hwnd,7012,"−",438,304,36);feature_button(hwnd,7013,"+",480,304,36);
+        feature_label(hwnd,0,"Changes save immediately.",18,350,220,20);feature_button(hwnd,2,"Close",494,344,92);
+    }else{
+        feature_label(hwnd,7020,"",18,88,220,22);feature_button(hwnd,7021,"Event Tracker",534,80,150);
+        feature_label(hwnd,0,"TRACKED COMBAT ATTRIBUTES",18,122,300,18);
+        let rows=(ATTRIBUTE_CATALOG.len()+2)/3;
+        for(i,(_,label))in ATTRIBUTE_CATALOG.iter().enumerate(){feature_check(hwnd,7200+i as i32,label,18+(i/rows)as i32*224,144+(i%rows)as i32*26,216);}
+        let bottom=144+rows as i32*26;
+        feature_label(hwnd,0,"Choose up to 6 stats. Food, Serum and Event Tracker rows appear automatically.",18,bottom+10,520,34);
+        feature_button(hwnd,2,"Close",598,bottom+12,92);
+    }
+    refresh_feature_form(hwnd,state);
+}
