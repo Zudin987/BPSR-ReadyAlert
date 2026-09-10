@@ -23,7 +23,7 @@ Requires **64-bit Windows** and [Npcap](https://npcap.com/#download), installed 
 
 ## Capture and troubleshooting
 
-ReadyAlert reads game network traffic through Npcap. It uses native Rust and Win32, with no injection or gameplay automation.
+ReadyAlert reads game network traffic through Npcap. It uses native Rust and Win32, with no injection or gameplay automation. Client detection covers CN, Global, TW, JP/KR and SEA; game-data mappings can still vary by region/version.
 
 - **No combat or chat data:** confirm Npcap is installed and the selected adapter carries your game connection.
 - **Hidden overlays:** check their Settings controls and the overlay hotkey.
