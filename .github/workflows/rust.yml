@@ -79,6 +79,9 @@ jobs:
       - name: Focused v1.18.3 sticky-self direction tests
         run: cargo test --manifest-path rust/Cargo.toml v1183_
 
+      - name: Focused v1.18.4 DPS identity tests
+        run: cargo test --manifest-path rust/Cargo.toml v1184_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
