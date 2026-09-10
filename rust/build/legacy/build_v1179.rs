@@ -25,10 +25,12 @@ fn patch_overlay(out: &Path) {
         .expect("read v1.17.8 overlay")
         .replace("\r\n", "\n");
 
+    // v1.17.8's combat controls were 52px each. Match the Chat Overlay's
+    // compact proportions, while giving Hide a slightly larger target.
     replace_once(
         &mut source,
-        "const BUTTON_W: i32 = 32;",
-        "const BUTTON_W: i32 = 32;\nconst COMBAT_GEAR_W:i32=30;\nconst COMBAT_COLLAPSE_W:i32=30;\nconst COMBAT_HIDE_W:i32=36;",
+        "const BUTTON_W: i32 = 52;",
+        "const BUTTON_W: i32 = 52;\nconst COMBAT_GEAR_W:i32=40;\nconst COMBAT_COLLAPSE_W:i32=38;\nconst COMBAT_HIDE_W:i32=42;",
         "combat control widths",
     );
 
@@ -89,11 +91,24 @@ fn patch_overlay(out: &Path) {
 
     replace_once(
         &mut source,
+        r#"        if x>=rc.right-BUTTON_W{return Some("Hide overlay • restore from tray or Ctrl+Shift+F10".into());}
+        if x>=rc.right-BUTTON_W*2{return Some("Collapse to the configured screen edge".into());}
+        if x>=rc.right-BUTTON_W*3{return Some("Open overlay settings".into());}"#,
+        r#"        let controls_left=combat_controls_left(rc.right);
+        if x>=rc.right-COMBAT_HIDE_W{return Some("Hide overlay • restore from tray or Ctrl+Shift+F10".into());}
+        if x>=rc.right-COMBAT_HIDE_W-COMBAT_COLLAPSE_W{return Some("Collapse to the configured screen edge".into());}
+        if x>=controls_left{return Some("Open overlay settings".into());}"#,
+        "combat toolbar hover zones",
+    );
+
+    replace_once(
+        &mut source,
         "match index{0=>\"Older encounter\",1=>\"Return to live encounter\",2=>\"Newer encounter\",3=>\"Copy selected encounter as text\",4=>\"Copy the full DPS Meter as an image\",5=>\"Reset the live encounter\",_=>\"Combat action\"}",
         "match index{0=>\"Older encounter\",1=>\"Return to live encounter\",2=>\"Newer encounter\",3=>\"Copy the full DPS Meter as an image\",4=>\"Reset the live encounter\",_=>\"Combat action\"}",
         "DPS toolbar help",
     );
 
+    // Keep the v1.17.8 regression meaningful after intentionally removing text copy.
     replace_once(
         &mut source,
         "fn toolbar_has_text_and_image_copy_but_no_exports()",
@@ -129,12 +144,13 @@ mod v1179_toolbar_polish_tests {
     }
 
     #[test]
-    fn hide_control_grows_while_settings_and_collapse_shrink() {
-        assert_eq!(COMBAT_GEAR_W,30);
-        assert_eq!(COMBAT_COLLAPSE_W,30);
-        assert_eq!(COMBAT_HIDE_W,36);
-        assert!(COMBAT_HIDE_W>BUTTON_W);
-        assert!(COMBAT_GEAR_W<BUTTON_W&&COMBAT_COLLAPSE_W<BUTTON_W);
+    fn combat_controls_match_chat_proportions() {
+        assert_eq!(COMBAT_GEAR_W,40);
+        assert_eq!(COMBAT_COLLAPSE_W,38);
+        assert_eq!(COMBAT_HIDE_W,42);
+        assert!(COMBAT_GEAR_W<BUTTON_W);
+        assert!(COMBAT_COLLAPSE_W<BUTTON_W);
+        assert!(COMBAT_HIDE_W<BUTTON_W);
     }
 }
 "#);
@@ -152,6 +168,19 @@ fn patch_chat_overlay(out:&Path){
         "const HIDE_WIDTH: i32 = 42;",
         "slightly larger Chat Overlay hide button",
     );
+    source.push_str(r#"
+
+#[cfg(test)]
+mod v1179_chat_toolbar_tests {
+    use super::*;
+    #[test]
+    fn hide_button_is_slightly_larger() {
+        assert_eq!(GEAR_WIDTH,40);
+        assert_eq!(COLLAPSE_WIDTH,38);
+        assert_eq!(HIDE_WIDTH,42);
+    }
+}
+"#);
     fs::write(out.join("overlay_v150_v1179.rs"),source).expect("write v1.17.9 chat overlay");
 }
 
