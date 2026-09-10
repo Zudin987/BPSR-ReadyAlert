@@ -9,7 +9,7 @@ const AF_INET: u32 = 2;
 const AF_INET6: u32 = 23;
 const TCP_TABLE_OWNER_PID_ALL: u32 = 5;
 const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
-const GAME_NAMES: &[&str] = &["BPSR", "BPSR_STEAM", "BPSR_EPIC", "StarSEA", "StarASIA", "StarSEA_STEAM", "StarASIA_STEAM", "Star"];
+const GAME_NAMES: &[&str] = &["BPSR", "BPSR_STEAM", "BPSR_EPIC", "StarSEA", "StarASIA", "StarTW", "StarSEA_STEAM", "StarASIA_STEAM", "Star"];
 
 #[link(name = "iphlpapi")]
 extern "system" {
@@ -293,6 +293,12 @@ fn be32(data: &[u8], at: usize) -> Option<u32> { Some(u32::from_be_bytes(data.ge
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn known_clients_include_tw() {
+        assert!(GAME_NAMES.iter().any(|name| name.eq_ignore_ascii_case("StarTW")));
+    }
+
     #[test]
     fn ethernet_ipv4_tcp_parse() {
         let mut p = vec![0u8; 14 + 20 + 20 + 3];
