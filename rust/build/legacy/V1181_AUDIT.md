@@ -1,0 +1,1 @@
+v1.18.1 audit scope: recover legacy short overlay heights to the current minimum and measure compact chat messages using the actual width remaining after channel/time/sender metadata. The focused v1181 tests cover both regressions.
