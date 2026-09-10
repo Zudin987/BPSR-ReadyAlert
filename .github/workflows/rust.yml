@@ -58,6 +58,9 @@ jobs:
       - name: Focused v1.17.5 consumable-name tests
         run: cargo test --manifest-path rust/Cargo.toml v1175_
 
+      - name: Focused v1.17.6 target/enrage tests
+        run: cargo test --manifest-path rust/Cargo.toml v1176_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
