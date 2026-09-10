@@ -73,6 +73,9 @@ jobs:
       - name: Focused v1.18.1 post-release audit tests
         run: cargo test --manifest-path rust/Cargo.toml v1181_
 
+      - name: Focused v1.18.2 DPS/Tracker UI tests
+        run: cargo test --manifest-path rust/Cargo.toml v1182_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
