@@ -100,19 +100,22 @@ fn main() {
         Ok(p) => p,
         Err(err) => { win::message_box("BPSR ReadyAlert", &format!("Could not create app data folder.\n\n{err}"), true); return; }
     };
-    logging::init(paths.log.clone());
-    logging::write(format!("startup: native-rust version={}", env!("CARGO_PKG_VERSION")));
-    event_tracker::init(&paths.root);
 
+    // Establish ownership before initializing any subsystem that can read or write
+    // persistent state. A second launch should not race the running instance's
+    // event-tracker/settings/log files merely to discover that it must exit.
     let guard = match win::SingleInstance::acquire() {
         Ok(g) => g,
-        Err(err) => { logging::write(format!("startup: mutex failed {err}")); win::message_box("BPSR ReadyAlert", &err, true); logging::shutdown(); return; }
+        Err(err) => { win::message_box("BPSR ReadyAlert", &err, true); return; }
     };
     if !guard.is_owner() {
         win::message_box("BPSR ReadyAlert", "BPSR ReadyAlert is already running in the system tray.", false);
-        logging::shutdown();
         return;
     }
+
+    logging::init(paths.log.clone());
+    logging::write(format!("startup: native-rust version={}", env!("CARGO_PKG_VERSION")));
+    event_tracker::init(&paths.root);
 
     let mut loaded = settings::load(&paths);
     loaded.normalize();
