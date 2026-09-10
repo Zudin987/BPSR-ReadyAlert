@@ -83,12 +83,6 @@ extern "system" {
     fn SetClipboardData(format:u32,data:*mut c_void)->*mut c_void;
     fn CloseClipboard()->i32;
 }
-#[link(name="gdi32")]
-extern "system" {
-    fn CreateCompatibleDC(hdc:HDC)->HDC;
-    fn CreateCompatibleBitmap(hdc:HDC,width:i32,height:i32)->*mut c_void;
-    fn DeleteDC(hdc:HDC)->i32;
-}
 
 fn dps_image_dimensions(client_width:i32,row_count:usize)->(i32,i32){
     let rows=i32::try_from(row_count.max(1)).unwrap_or(i32::MAX/DPS_ROW_H.max(1));
@@ -151,7 +145,7 @@ unsafe fn copy_view_image(hwnd:HWND,state:&mut State){
     replace_between(
         &mut source,
         "unsafe fn on_click(hwnd:HWND,state:&mut State,lparam:LPARAM){",
-        "unsafe fn on_wheel",
+        "fn wheel_row_steps",
         r#"unsafe fn on_click(hwnd:HWND,state:&mut State,lparam:LPARAM){crate::ui::SetFocus(hwnd);if state.collapsed{expand_state(hwnd,state);return;}let x=lo_signed(lparam);let y=hi_signed(lparam);let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);if y<TOOLBAR_H{if x>=rc.right-BUTTON_W{PostMessageW(state.main_hwnd,0x0111,if state.kind==Kind::Dps{CMD_HIDE_DPS as usize}else{CMD_HIDE_MECHANICS as usize},0);}else if x>=rc.right-BUTTON_W*2{collapse(hwnd,state);}else if x>=rc.right-BUTTON_W*3{open_feature_settings(hwnd,state);}else if state.kind==Kind::Dps{for(index,(r,_))in toolbar_action_rects(rc.right).iter().enumerate(){if x>=r.left&&x<r.right&&y>=r.top&&y<r.bottom{match index{0=>history_older(state),1=>{state.history_index=None;state.scroll=0;},2=>history_newer(state),3=>copy_view_text(state),4=>copy_view_image(hwnd,state),5=>{if state.history_index.is_none(){archive_live_snapshot(state);crate::telemetry::request_manual_reset();state.dps=DpsSnapshot::default();state.scroll=0;}else{state.history_index=None;state.scroll=0;}},_=>{}}refresh_view_detail(state);clamp_scroll(hwnd,state);InvalidateRect(hwnd,null(),0);return;}}drag_window(hwnd);}else{drag_window(hwnd);}return;}if state.kind==Kind::Dps&&y<dps_rows_top(){let tabs_top=TOOLBAR_H+35;if y>=tabs_top&&y<tabs_top+23{match x{8..=78=>state.sort_mode=SortMode::Damage,83..=148=>state.sort_mode=SortMode::Heal,153..=218=>state.sort_mode=SortMode::Tank,_=>{}}state.scroll=0;refresh_view_detail(state);clamp_scroll(hwnd,state);InvalidateRect(hwnd,null(),0);}return;}if state.kind==Kind::Dps{if let Some(row)=dps_row_at(hwnd,state,y){open_detail(hwnd,state,row);}}}
 "#,
         "DPS text/image toolbar action routing",
