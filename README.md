@@ -1,94 +1,29 @@
-# BPSR Ready Alert
+# BPSR ReadyAlert
 
-Lightweight native Windows companion for **Blue Protocol: Star Resonance**, written in **Rust**.
+Lightweight native Windows companion for **Blue Protocol: Star Resonance**. Rust + Win32 + Npcap. No injection or gameplay automation.
 
-**Website:** https://zudin987.github.io/projects/readyalert/
+**Download:** [BPSR-ReadyAlert.exe](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest/download/BPSR-ReadyAlert.exe)  
+Requires [Npcap](https://npcap.com/#download).
 
 ## Features
 
-- Native DPS meter with Damage, Heal and Tank views.
-- Local combat history with previous-fight browsing and historical Entity Inspector data.
-- Same-target/same-spec local-player personal-best comparison for Damage and Healing encounters.
-- Copy the currently viewed encounter summary, or export it locally as CSV / JSON.
-- **Ctrl+Shift+F10** global hotkey to hide/show the DPS + Dungeon Mechanics overlays together.
-- Active and Encounter DPS/HPS/DTPS, plus contributor/party filters and configurable row limits.
-- Per-player Entity Inspector with skill damage/healing/taken breakdowns.
-- Combat Analysis: boss/objective damage split, effective healing/overheal, buff uptime, source-to-skill Tank analysis and 10-second death recaps.
-- Skill Analysis: per-skill boss/objective damage, per-skill effective healing/overheal, Crit/Lucky rates, average/minimum/maximum event values, and direct shield/absorbed events kept separate from HP damage taken.
-- Direct character-sheet Block % in Tank analysis; ReadyAlert does not invent unsupported Lucky Block statistics.
-- Battle Imagine detection with game icons and tiers.
-- Dungeon Mechanics overlay with food/serum timers, tracked buffs and character attributes.
-- ActorState-based death tracking and conservative party-wipe detection.
-- Capture-health status with Npcap kernel/interface drop counters so silent capture loss is visible.
-- Lag-tolerant TCP reassembly with reorder grace, bounded decompression and larger bounded frame/reorder buffers.
-- Queue Pop, Ready Check, party invite and party request sounds.
-- Optional desktop notifications.
-- View-only BPSR chat overlay with filters and keyword alerts.
-- Optional English translation and Guild/Party TTS.
-- Native Npcap capture, process filtering and TCP reassembly without a .NET runtime.
+- DPS / Heal / Tank meter with history, exports and player inspection.
+- Live target HP + Enrage, Dungeon Mechanics, Food/Serum and Imagine tracking.
+- Ready/queue/party alerts plus a view-only chat overlay with optional translation/TTS.
 
-ReadyAlert uses one shared Npcap capture path. It does **not** inject into BPSR, replace game files, send chat, or automate gameplay.
+## Run
 
-## Use
+1. Install Npcap.
+2. Download the EXE.
+3. Run it. If capture is empty, select the correct network adapter in Settings.
 
-1. Install **Npcap**.
-2. Download the latest `BPSR-ReadyAlert-v*-win-x64.zip` from Releases.
-3. Extract it and run `BPSR-ReadyAlert.exe`.
-4. Select the correct network adapter if automatic selection misses the game connection.
-5. Leave ReadyAlert running in the system tray and enable only the overlays/alerts you want.
-
-The Dungeon Mechanics title shows capture health. If it reports stale frames, no recent game packets, or new Npcap packet drops while you are actively playing, re-check the selected adapter/network path before trusting combat totals.
-
-Press **Ctrl+Shift+F10** to hide or restore both combat overlays at once. The chat overlay is intentionally left unchanged by this shortcut.
-
-## Combat history, training and sharing
-
-Completed/reset encounters are stored **locally** under ReadyAlert's app-data `History` folder as compressed, schema-versioned files. History is never uploaded or synchronized to a web service. The number of retained encounters can be configured in DPS Meter Settings.
-
-Use the DPS meter's `<`, `LIVE`, and `>` controls to move between older fights, the current live encounter, and newer saved fights. Clicking a player name while viewing history opens the Entity Inspector using that saved encounter state.
-
-The DPS toolbar also provides **Copy**, **CSV**, and **JSON** actions. They operate on the encounter currently being viewed, including historical encounters, and respect the current Damage / Heal / Tank tab. Copy places a compact top-10 summary on the Windows clipboard. CSV and JSON files are written under ReadyAlert's local app-data `Exports` folder; they are never uploaded automatically.
-
-For Damage and Healing, ReadyAlert compares your local player's encounter rate against matching saved runs from the **same target and same profession/spec**. Pulls shorter than 10 seconds are ignored to avoid noisy startup/burst records. A historical encounter never compares against itself. Tank does not display a “personal best” because taking more damage/DTPS is not treated as an improvement.
-
-The Entity Inspector provides five analysis tabs:
-
-- **Damage:** total damage, stable boss/objective damage, add/other damage, boss share and per-skill boss/objective contribution. Skill rows also show Hits, Crit %, Lucky %, Avg, Min and Max.
-- **Healing:** total/effective healing, overheal, healing efficiency and per-skill effective/overheal breakdown. Effective healing uses the game's observed HP modification when available rather than estimating from an arbitrary snapshot.
-- **Taken:** incoming HP damage and direct shield/absorbed events grouped by source and skill, with DTPS, absorb rate, biggest hits and direct Block %. Direct `Absorbed` events are tracked separately; mixed shield+HP hits are not guessed without sufficient shield-state data.
-- **Buffs:** named player-buff uptime and activation counts from observed apply/remove/expiry events.
-- **Deaths:** up to the latest eight deaths with the preceding 10 seconds of incoming damage and effective healing, a last-5-second summary, and the final recorded damage before ActorState death marked as `LAST HIT`.
-
-Older v1.9-v1.12 history remains readable; new analysis fields are additive and default safely when absent. The Entity Inspector is also clamped to the visible screen instead of blindly opening to the right of the meter.
-
-When **Active + encounter rates** is enabled, rows show both values:
-
-- **Active rate (A)** reduces the effect of a player's late start and long per-player downtime.
-- **Encounter rate (E)** divides the total by the full encounter duration.
-
-DPS Meter Settings also provides contributor-only filtering, party-only filtering, always-show-self behavior, and Auto / 5 / 10 / 20 / 30 / 50 row caps. Full party roster snapshots replace stale cached membership so the Party-only filter does not retain players from an older roster.
-
-## Combat segmentation
-
-ReadyAlert deliberately avoids resetting a pull because one player dies, an add despawns, or a boss changes phase. Automatic encounter reset is conservative: scene changes and validated full-party wipes are boundaries; manual Reset is always available for training/testing.
-
-The displayed target is also stabilized so a low-HP add does not constantly replace a known stronger boss/objective. A new target may take over after the previous target disappears between phases or when a clearly stronger target is observed.
-
-## Data and attribution
-
-Some protocol identifiers, English skill/buff names and game-asset mappings are derived from community projects and/or game data. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution and pinned upstream sources.
+`Ctrl+Shift+F10` toggles the DPS + Mechanics overlays.
 
 ## Build
-
-Run:
 
 ```powershell
 scripts\prepare-build-assets.ps1
 cargo build --manifest-path rust/Cargo.toml --release
 ```
 
-The executable is written to `rust/target/release/BPSR-ReadyAlert.exe`.
-
-Translation/TTS depend on no-key web endpoints and may be rate-limited or changed upstream; the core capture, alerts, DPS and mechanics features work independently.
-
-[Latest release](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [Rust architecture notes](rust/README.md) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[Website](https://zudin987.github.io/projects/readyalert/) · [Releases](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [Development](docs/DEVELOPMENT.md) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
