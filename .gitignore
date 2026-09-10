@@ -6,4 +6,4 @@ dist-rust/
 *.user
 *.suo
 rust/target/
-src/BPSR.ReadyAlert/Assets/*.wav
+/src/BPSR.ReadyAlert/Assets/
