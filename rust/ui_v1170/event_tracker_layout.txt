@@ -1,0 +1,23 @@
+unsafe fn build_controls(hwnd: HWND, state: &mut UiState) {
+    let title=create_static(hwnd,"Event Tracker",18,14,420,24);crate::ui_theme::set_font(title,crate::ui_theme::FontRole::Heading);
+    let sub=create_static(hwnd,"Show custom buff or skill events inside Dungeon Mechanics.",18,40,650,20);crate::ui_theme::set_font(sub,crate::ui_theme::FontRole::Secondary);
+    create_checkbox(hwnd,ID_GLOBAL_ENABLED,"Enable tracker",18,72,160);
+    create_static(hwnd,"Max rows",188,76,76,20);create_edit(hwnd,ID_MAX_VISIBLE,268,70,54,26);
+    let rules=create_static(hwnd,"RULES",18,112,270,18);crate::ui_theme::set_font(rules,crate::ui_theme::FontRole::Secondary);
+    create_listbox(hwnd,ID_RULE_LIST,18,134,272,190);SendMessageW(GetDlgItem(hwnd,ID_RULE_LIST),0x0194,680,0);
+    create_button(hwnd,ID_ADD,"Add",18,332,82,28);create_button(hwnd,ID_REMOVE,"Remove",108,332,82,28);
+    let edit_title=create_static(hwnd,"RULE DETAILS",314,112,370,18);crate::ui_theme::set_font(edit_title,crate::ui_theme::FontRole::Secondary);
+    create_checkbox(hwnd,ID_RULE_ENABLED,"Rule enabled",314,134,160);
+    create_static(hwnd,"Type",314,170,90,20);create_combo(hwnd,ID_KIND,408,164,150,120);
+    create_static(hwnd,"Numeric ID",314,204,90,20);create_edit(hwnd,ID_EVENT_ID,408,198,150,26);
+    create_static(hwnd,"Label",314,238,90,20);create_edit(hwnd,ID_LABEL,408,232,260,26);
+    create_static(hwnd,"Scope",314,272,90,20);create_combo(hwnd,ID_SCOPE,408,266,150,120);
+    create_static(hwnd,"Display time",314,306,90,20);create_edit(hwnd,ID_HOLD,408,300,64,26);create_static(hwnd,"seconds (skills only)",480,306,150,20);
+    create_button(hwnd,ID_APPLY,"Apply",510,354,82,30);create_button(hwnd,ID_CLOSE,"Close",600,354,82,30);
+    let note=create_static(hwnd,"Buffs use the game timer. Skill rules stay visible for the configured display time.",18,370,470,20);crate::ui_theme::set_font(note,crate::ui_theme::FontRole::Secondary);
+    set_combo_items(hwnd,ID_KIND,&["Buff ID","Skill ID"],0);set_combo_items(hwnd,ID_SCOPE,&["Any","Self","Party (includes self)"],0);
+    set_check(hwnd,ID_GLOBAL_ENABLED,state.working.enabled);set_text(hwnd,ID_MAX_VISIBLE,&state.working.max_visible.to_string());
+    for id in [ID_EVENT_ID,ID_MAX_VISIBLE,ID_HOLD]{SendMessageW(GetDlgItem(hwnd,id),0x00c5,10,0);}SendMessageW(GetDlgItem(hwnd,ID_LABEL),0x00c5,80,0);
+    state.selected=if state.working.rules.is_empty(){None}else{Some(0)};refresh_list(hwnd,state);load_selected(hwnd,state);
+}
+
