@@ -3,7 +3,7 @@ use std::{ffi::c_void, sync::{Arc, RwLock}};
 use windows_sys::Win32::Foundation::{HINSTANCE, HWND, RECT};
 
 mod legacy {
-    include!("overlay_v150.rs");
+    include!(concat!(env!("OUT_DIR"), "/overlay_v150_v1179.rs"));
 }
 
 pub use legacy::{apply_style, expand_if_collapsed, push_chat, refresh, set_translation};
@@ -18,7 +18,7 @@ struct MonitorInfo {
     flags: u32,
 }
 
-#[link(name = "user32")]
+#[link(name="user32")]
 extern "system" {
     fn MonitorFromRect(rect: *const RECT, flags: u32) -> *mut c_void;
     fn GetMonitorInfoW(monitor: *mut c_void, info: *mut MonitorInfo) -> i32;
@@ -82,8 +82,6 @@ fn recover_chat_bounds(settings: &mut AppSettings) -> bool {
     let work_height = (work.bottom - work.top).max(1);
     let old = (chat.window_x, chat.window_y, chat.window_width, chat.window_height);
 
-    // Keep the normal minimums where the monitor can accommodate them, but never
-    // leave a previously valid overlay larger than the current work area.
     chat.window_width = chat.window_width.min(work_width);
     chat.window_height = chat.window_height.min(work_height);
     let max_x = (work.right - chat.window_width).max(work.left);
