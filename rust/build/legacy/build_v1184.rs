@@ -26,7 +26,7 @@ fn decode_b64(input:&str)->Vec<u8>{
 }
 
 fn materialize_class_icons(out:&Path){
-    let source=PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR")).join("../assets/source");let mut text=String::new();for index in 1..=6{let path=source.join(format!("ClassIcons.v1184.b64.{index:03}"));text.push_str(&fs::read_to_string(path).expect("read v1.18.4 class icon bundle"));}
+    let source=PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR")).join("../assets/source");let mut text=String::new();for index in 1..=6{let path=source.join(format!("ClassIcons.v1184.b64.{index:03}"));text.push_str(&fs::read_to_string(path).expect("read v1.18.4 class icon bundle"));text.push('\n');}
     let dir=out.join("class-icons");fs::create_dir_all(&dir).expect("create v1.18.4 class icon dir");let mut count=0usize;
     for line in text.lines().filter(|line|!line.trim().is_empty()){let(name,data)=line.split_once('\t').expect("class icon manifest name/data");let bytes=decode_b64(data);assert!(bytes.len()>54&&&bytes[0..2]==b"BM","invalid v1.18.4 class icon {name}");fs::write(dir.join(format!("{name}.bmp")),bytes).expect("write v1.18.4 class icon");count+=1;}
     assert_eq!(count,18,"v1.18.4 class icon bundle must contain all 18 specs");
