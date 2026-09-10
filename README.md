@@ -17,7 +17,7 @@ Requires **64-bit Windows** and [Npcap](https://npcap.com/#download), installed 
 
 ## Features
 
-- **Combat:** DPS, Heal and Tank meters, encounter history, exports and player inspection.
+- **Combat:** DPS, Heal and Tank meters, encounter history, full-roster image copy and player inspection.
 - **Tracking:** live target HP and Enrage timer, Dungeon Mechanics, Food/Serum and Imagine tracking.
 - **Alerts and chat:** Ready/queue/party alerts and a view-only chat overlay with optional translation and TTS.
 
