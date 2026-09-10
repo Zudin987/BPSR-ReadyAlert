@@ -24,7 +24,7 @@ fn patch_feature_overlay(out: &Path) {
     replace_once(
         &mut source,
         "fn toolbar_action_rects(right:i32)->[(RECT,&'static str);6]{let mut x=right-BUTTON_W*3;let mut take=|w:i32,label:&'static str|{let r=RECT{left:x-w,top:5,right:x,bottom:29};x-=w;(r,label)};let reset=take(52,\"Reset\");let image=take(96,\"Copy as Image\");let text=take(88,\"Copy as Text\");let newer=take(30,\">\");let live=take(46,\"LIVE\");let older=take(30,\"<\");[older,live,newer,text,image,reset]}",
-        "fn toolbar_action_rects(right:i32)->[(RECT,&'static str);5]{let mut x=right-BUTTON_W*3;let mut take=|w:i32,label:&'static str|{let r=RECT{left:x-w,top:5,right:x,bottom:29};x-=w;(r,label)};let reset=take(52,\"Reset\");let image=take(96,\"Copy as Image\");x-=12;let newer=take(30,\">\");let live=take(46,\"LIVE\");let older=take(30,\"<\");[older,live,newer,image,reset]}",
+        "fn toolbar_action_rects(right:i32)->[(RECT,&'static str);5]{let mut x=right-BUTTON_W*3;let mut take=|w:i32,label:&'static str|{let r=RECT{left:x-w,top:5,right:x,bottom:29};x-=w;(r,label)};let reset=take(52,\"Reset\");let image=take(96,\"Copy as Image\");let _gap=take(12,\"\");let newer=take(30,\">\");let live=take(46,\"LIVE\");let older=take(30,\"<\");[older,live,newer,image,reset]}",
         "remove Copy as Text and separate navigation/share groups",
     );
 
