@@ -61,7 +61,7 @@ fn patch_overlay(out: &Path) {
     replace_between(
         &mut source,
         "unsafe fn paint_toolbar(hdc:HDC,rc:RECT,state:&State){",
-        "fn toolbar_title(state:&State)->String{",
+        "fn overlay_header(kind:Kind)->&'static str{",
         r#"unsafe fn paint_toolbar(hdc:HDC,rc:RECT,state:&State){
     let toolbar=RECT{left:0,top:0,right:rc.right,bottom:TOOLBAR_H};
     fill(hdc,&toolbar,rgb(20,27,33));
