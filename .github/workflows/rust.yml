@@ -67,6 +67,9 @@ jobs:
       - name: Focused v1.17.9 toolbar polish tests
         run: cargo test --manifest-path rust/Cargo.toml v1179_
 
+      - name: Focused v1.18.0 overlay polish tests
+        run: cargo test --manifest-path rust/Cargo.toml v1180_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
