@@ -28,8 +28,10 @@ jobs:
         with:
           ref: ${{ env.TARGET_SHA }}
 
-      - name: Install stable Rust
+      - name: Install pinned Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
 
       - name: Prepare embedded assets
         shell: pwsh
@@ -39,10 +41,10 @@ jobs:
       # exact same commit here so the published bytes can never come from a different
       # revision than the one that passed CI.
       - name: Unit tests
-        run: cargo test --manifest-path rust/Cargo.toml --all-targets
+        run: cargo test --manifest-path rust/Cargo.toml --all-targets --locked
 
       - name: Native release build
-        run: cargo build --manifest-path rust/Cargo.toml --release
+        run: cargo build --manifest-path rust/Cargo.toml --release --locked
 
       - name: Smoke-test native EXE
         shell: pwsh

@@ -42,25 +42,10 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
 
-      # Until Cargo.lock is committed, this generates the exact lockfile used by
-      # the branch and publishes it as a short-lived diagnostic artifact. Once the
-      # v1.23 lockfile lands, --locked below makes dependency drift a hard failure.
-      - name: Resolve dependencies
-        shell: pwsh
-        run: cargo generate-lockfile --manifest-path rust/Cargo.toml
-
-      - name: Upload resolved Cargo lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-lock
-          path: rust/Cargo.lock
-          if-no-files-found: error
-          retention-days: 3
-
       - name: Unit and regression tests
         shell: pwsh
         run: |
-          cargo test --manifest-path rust/Cargo.toml --all-targets 2>&1 | Tee-Object -FilePath rust-test-output.txt
+          cargo test --manifest-path rust/Cargo.toml --all-targets --locked 2>&1 | Tee-Object -FilePath rust-test-output.txt
           $exitCode = $LASTEXITCODE
           exit $exitCode
 
@@ -74,10 +59,10 @@ jobs:
           retention-days: 3
 
       - name: Clippy analysis
-        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked
 
       - name: Native release build
-        run: cargo build --manifest-path rust/Cargo.toml --release
+        run: cargo build --manifest-path rust/Cargo.toml --release --locked
 
       - name: Smoke-test native EXE
         shell: pwsh
