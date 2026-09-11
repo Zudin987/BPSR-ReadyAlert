@@ -17,6 +17,9 @@ pub const DLT_IPV4: i32 = 228;
 pub const DLT_IPV6: i32 = 229;
 
 const ERRBUF: usize = 256;
+const PCAP_IF_LOOPBACK: u32 = 0x0000_0001;
+const PCAP_IF_UP: u32 = 0x0000_0002;
+const PCAP_IF_RUNNING: u32 = 0x0000_0004;
 
 #[repr(C)]
 struct PcapIf {
@@ -110,17 +113,29 @@ unsafe impl Sync for PcapApi {}
 pub struct NpcapDevice {
     pub name: String,
     pub description: String,
+    pub flags: u32,
+}
+
+impl NpcapDevice {
+    pub fn is_up(&self) -> bool { self.flags & PCAP_IF_UP != 0 }
+    pub fn is_running(&self) -> bool { self.flags & PCAP_IF_RUNNING != 0 }
+    pub fn is_loopback(&self) -> bool { self.flags & PCAP_IF_LOOPBACK != 0 }
 }
 
 impl PcapApi {
     pub fn load() -> Result<Arc<Self>, String> {
+        // Never fall back to a bare `wpcap.dll` name. Loading by search order can
+        // pick up an attacker-controlled DLL from the working directory. Resolve
+        // only the normal Windows Npcap installation locations.
         let mut candidates = Vec::<PathBuf>::new();
-        if let Some(windir) = env::var_os("WINDIR") {
+        if let Some(windir) = env::var_os("WINDIR").or_else(|| env::var_os("SystemRoot")) {
             let root = PathBuf::from(windir);
             candidates.push(root.join("System32").join("Npcap").join("wpcap.dll"));
             candidates.push(root.join("SysWOW64").join("Npcap").join("wpcap.dll"));
         }
-        candidates.push(PathBuf::from("wpcap.dll"));
+        if candidates.is_empty() {
+            return Err("Windows system directory is unavailable; cannot resolve the trusted Npcap DLL path".into());
+        }
 
         let mut last_error = String::new();
         for path in candidates {
@@ -164,7 +179,7 @@ impl PcapApi {
                 }));
             }
         }
-        Err(format!("Npcap wpcap.dll could not be loaded. {last_error}"))
+        Err(format!("Npcap wpcap.dll could not be loaded from the trusted Npcap install folders. {last_error}"))
     }
 
     pub fn version(&self) -> String {
@@ -189,7 +204,9 @@ impl PcapApi {
                     let name = CStr::from_ptr(item.name).to_string_lossy().into_owned();
                     let description = if item.description.is_null() { name.clone() }
                     else { CStr::from_ptr(item.description).to_string_lossy().into_owned() };
-                    if !name.trim().is_empty() { devices.push(NpcapDevice { name, description }); }
+                    if !name.trim().is_empty() {
+                        devices.push(NpcapDevice { name, description, flags: item.flags });
+                    }
                 }
                 cur = item.next;
             }
@@ -311,4 +328,19 @@ fn check(api: &PcapApi, handle: *mut c_void, code: i32, name: &str) -> Result<()
 
 fn c_error(err: &[i8; ERRBUF]) -> String {
     unsafe { CStr::from_ptr(err.as_ptr()).to_string_lossy().into_owned() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn npcap_flags_report_adapter_health() {
+        let active = NpcapDevice { name: "a".into(), description: "Ethernet".into(), flags: PCAP_IF_UP | PCAP_IF_RUNNING };
+        assert!(active.is_up());
+        assert!(active.is_running());
+        assert!(!active.is_loopback());
+        let loopback = NpcapDevice { name: "b".into(), description: "Loopback".into(), flags: PCAP_IF_LOOPBACK };
+        assert!(loopback.is_loopback());
+    }
 }

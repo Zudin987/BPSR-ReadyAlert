@@ -7,15 +7,16 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
+    sync::atomic::{AtomicBool, Ordering as AtomicOrdering},
     thread,
     time::Duration,
 };
 use windows_sys::Win32::{
-    Foundation::CloseHandle,
+    Foundation::{CloseHandle, HWND},
     System::Threading::{OpenProcess, WaitForSingleObject},
     UI::WindowsAndMessaging::{
-        FindWindowW, MessageBoxW, PostMessageW, IDYES, MB_ICONERROR, MB_ICONINFORMATION,
-        MB_OK, MB_YESNO, WM_COMMAND,
+        MessageBoxW, PostMessageW, IDYES, MB_ICONERROR, MB_ICONINFORMATION, MB_OK, MB_YESNO,
+        WM_COMMAND,
     },
 };
 
@@ -26,6 +27,24 @@ const RELEASE_PREFIX: &str =
 const MAX_DOWNLOAD_BYTES: u64 = 50 * 1024 * 1024;
 const CMD_EXIT: usize = 1099;
 const SYNCHRONIZE_ACCESS: u32 = 0x0010_0000;
+const WAIT_OBJECT_0_CODE: u32 = 0;
+const WAIT_TIMEOUT_CODE: u32 = 0x0000_0102;
+const WAIT_FAILED_CODE: u32 = 0xffff_ffff;
+static UPDATE_BUSY: AtomicBool = AtomicBool::new(false);
+
+struct UpdateBusyGuard;
+impl Drop for UpdateBusyGuard {
+    fn drop(&mut self) {
+        UPDATE_BUSY.store(false, AtomicOrdering::Release);
+    }
+}
+
+fn begin_update_operation() -> Option<UpdateBusyGuard> {
+    UPDATE_BUSY
+        .compare_exchange(false, true, AtomicOrdering::AcqRel, AtomicOrdering::Acquire)
+        .ok()
+        .map(|_| UpdateBusyGuard)
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -61,32 +80,58 @@ pub fn load_preferences(root: &Path) -> UpdatePreferences {
 pub fn save_preferences(root: &Path, prefs: &UpdatePreferences) -> Result<(), String> {
     let path = preferences_path(root);
     let pending = path.with_extension("json.new");
+    let backup = path.with_extension("json.bak");
     let data = serde_json::to_vec_pretty(prefs).map_err(|e| e.to_string())?;
     fs::write(&pending, data).map_err(|e| format!("write update settings: {e}"))?;
+    let _: UpdatePreferences = serde_json::from_slice(
+        &fs::read(&pending).map_err(|e| format!("verify update settings: {e}"))?,
+    )
+    .map_err(|e| format!("verify update settings JSON: {e}"))?;
     if path.exists() {
+        if fs::read(&path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<UpdatePreferences>(&bytes).ok())
+            .is_some()
+        {
+            let _ = fs::copy(&path, &backup);
+        }
         fs::remove_file(&path).map_err(|e| format!("replace update settings: {e}"))?;
     }
     fs::rename(&pending, &path).map_err(|e| format!("commit update settings: {e}"))?;
     Ok(())
 }
 
-pub fn spawn_startup(root: PathBuf) {
+pub fn spawn_startup(root: PathBuf, owner: isize) {
     let prefs = load_preferences(&root);
     if !prefs.auto_check {
         return;
     }
     thread::spawn(move || {
-        if let Err(err) = run_check(&root, false) {
+        let Some(_busy) = begin_update_operation() else {
+            logging::write("updater: startup check skipped because another update operation is active");
+            return;
+        };
+        if let Err(err) = run_check(&root, false, owner) {
             logging::write(format!("updater: startup check failed: {err}"));
         }
     });
 }
 
-pub fn check_interactive(root: PathBuf) {
+pub fn check_interactive(root: PathBuf, owner: isize) {
     thread::spawn(move || {
-        if let Err(err) = run_check(&root, true) {
+        let Some(_busy) = begin_update_operation() else {
+            message(
+                owner,
+                "BPSR ReadyAlert - Updates",
+                "An update check or installation is already in progress.",
+                false,
+            );
+            return;
+        };
+        if let Err(err) = run_check(&root, true, owner) {
             logging::write(format!("updater: manual check failed: {err}"));
             message(
+                owner,
                 "BPSR ReadyAlert - Updates",
                 &format!("Could not check for updates.\n\n{err}"),
                 true,
@@ -103,6 +148,7 @@ pub fn handle_special_args() -> bool {
         let downloaded = PathBuf::from(&args[4]);
         if let Err(err) = apply_update_helper(pid, &target, &downloaded) {
             message(
+                0,
                 "BPSR ReadyAlert - Update failed",
                 &format!("The update could not be installed.\n\n{err}"),
                 true,
@@ -121,7 +167,7 @@ pub fn cleanup_stale_helper() {
     }
 }
 
-fn run_check(root: &Path, interactive: bool) -> Result<(), String> {
+fn run_check(root: &Path, interactive: bool, owner: isize) -> Result<(), String> {
     let manifest = fetch_manifest()?;
     validate_manifest(&manifest)?;
     let current = env!("CARGO_PKG_VERSION");
@@ -129,6 +175,7 @@ fn run_check(root: &Path, interactive: bool) -> Result<(), String> {
         Ordering::Less | Ordering::Equal => {
             if interactive {
                 message(
+                    owner,
                     "BPSR ReadyAlert - Updates",
                     &format!("You're up to date.\n\nCurrent version: v{current}"),
                     false,
@@ -142,24 +189,30 @@ fn run_check(root: &Path, interactive: bool) -> Result<(), String> {
     let prefs = load_preferences(root);
     let downloaded = if prefs.auto_download {
         let path = download_and_verify(&manifest)?;
-        if !prompt_yes(&format!(
-            "BPSR ReadyAlert v{} is available.\n\nThe update has been downloaded and verified.\n\nUpdate and restart now?\n\nYes = Update & Restart\nNo = Later",
-            manifest.version
-        )) {
+        if !prompt_yes(
+            owner,
+            &format!(
+                "BPSR ReadyAlert v{} is available.\n\nThe update has been downloaded and verified.\n\nUpdate and restart now?\n\nYes = Update & Restart\nNo = Later",
+                manifest.version
+            ),
+        ) {
             return Ok(());
         }
         path
     } else {
-        if !prompt_yes(&format!(
-            "BPSR ReadyAlert v{} is available.\n\nDownload, install, and restart now?\n\nYes = Update & Restart\nNo = Later",
-            manifest.version
-        )) {
+        if !prompt_yes(
+            owner,
+            &format!(
+                "BPSR ReadyAlert v{} is available.\n\nDownload, install, and restart now?\n\nYes = Update & Restart\nNo = Later",
+                manifest.version
+            ),
+        ) {
             return Ok(());
         }
         download_and_verify(&manifest)?
     };
 
-    launch_helper_and_exit(&downloaded)?;
+    launch_helper_and_exit(&downloaded, owner)?;
     Ok(())
 }
 
@@ -178,9 +231,12 @@ fn fetch_manifest() -> Result<UpdateManifest, String> {
 }
 
 fn validate_manifest(manifest: &UpdateManifest) -> Result<(), String> {
-    version_tuple(&manifest.version).ok_or_else(|| "invalid manifest version".to_string())?;
-    if !manifest.url.starts_with(RELEASE_PREFIX) || !manifest.url.ends_with("/BPSR-ReadyAlert.exe") {
-        return Err("manifest download URL is not an official ReadyAlert release asset".into());
+    let (major, minor, patch) =
+        version_tuple(&manifest.version).ok_or_else(|| "invalid manifest version".to_string())?;
+    let canonical = format!("{major}.{minor}.{patch}");
+    let expected_url = format!("{RELEASE_PREFIX}v{canonical}/BPSR-ReadyAlert.exe");
+    if manifest.url != expected_url {
+        return Err("manifest download URL does not match its ReadyAlert release version".into());
     }
     let hash = manifest.sha256.trim();
     if hash.len() != 64 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -229,7 +285,7 @@ fn download_and_verify(manifest: &UpdateManifest) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn launch_helper_and_exit(downloaded: &Path) -> Result<(), String> {
+fn launch_helper_and_exit(downloaded: &Path, owner: isize) -> Result<(), String> {
     let current = std::env::current_exe().map_err(|e| format!("current executable: {e}"))?;
     let helper = helper_path();
     if let Some(parent) = helper.parent() {
@@ -237,7 +293,7 @@ fn launch_helper_and_exit(downloaded: &Path) -> Result<(), String> {
     }
     let _ = fs::remove_file(&helper);
     fs::copy(&current, &helper).map_err(|e| format!("prepare updater helper: {e}"))?;
-    Command::new(&helper)
+    let mut helper_process = Command::new(&helper)
         .arg("--apply-update")
         .arg(std::process::id().to_string())
         .arg(&current)
@@ -246,22 +302,17 @@ fn launch_helper_and_exit(downloaded: &Path) -> Result<(), String> {
         .map_err(|e| format!("launch updater helper: {e}"))?;
 
     logging::write("updater: helper launched; requesting graceful shutdown");
-    unsafe {
-        let class = wide("BPSRReadyAlertRustMain");
-        let hwnd = FindWindowW(class.as_ptr(), std::ptr::null());
-        if !hwnd.is_null() && PostMessageW(hwnd, WM_COMMAND, CMD_EXIT, 0) != 0 {
-            return Ok(());
-        }
+    let hwnd = owner as HWND;
+    if !hwnd.is_null() && unsafe { PostMessageW(hwnd, WM_COMMAND, CMD_EXIT, 0) } != 0 {
+        return Ok(());
     }
 
-    // The normal path above asks the native UI to close so capture/log workers can
-    // stop cleanly. This fallback is only for the rare case where the main window
-    // disappeared between the update prompt and installation request.
-    std::process::exit(0);
+    let _ = helper_process.kill();
+    Err("could not request graceful ReadyAlert shutdown; update was not installed".into())
 }
 
 fn apply_update_helper(pid: u32, target: &Path, downloaded: &Path) -> Result<(), String> {
-    wait_for_process(pid);
+    wait_for_process(pid)?;
     let backup = target.with_extension("exe.old");
     let _ = fs::remove_file(&backup);
     fs::rename(target, &backup).map_err(|e| format!("backup current EXE: {e}"))?;
@@ -286,20 +337,27 @@ fn apply_update_helper(pid: u32, target: &Path, downloaded: &Path) -> Result<(),
     }
 }
 
-fn wait_for_process(pid: u32) {
+fn wait_for_process(pid: u32) -> Result<(), String> {
     if pid == 0 {
         thread::sleep(Duration::from_secs(2));
-        return;
+        return Ok(());
     }
     unsafe {
         let handle = OpenProcess(SYNCHRONIZE_ACCESS, 0, pid);
-        if !handle.is_null() {
-            let _ = WaitForSingleObject(handle, 30_000);
-            let _ = CloseHandle(handle);
-            return;
+        if handle.is_null() {
+            // The process may already have exited between helper launch and here.
+            thread::sleep(Duration::from_millis(250));
+            return Ok(());
+        }
+        let result = WaitForSingleObject(handle, 30_000);
+        let _ = CloseHandle(handle);
+        match result {
+            WAIT_OBJECT_0_CODE => Ok(()),
+            WAIT_TIMEOUT_CODE => Err("ReadyAlert did not exit within 30 seconds; update cancelled".into()),
+            WAIT_FAILED_CODE => Err("Windows failed while waiting for ReadyAlert to exit".into()),
+            other => Err(format!("unexpected process wait result {other}; update cancelled")),
         }
     }
-    thread::sleep(Duration::from_secs(2));
 }
 
 fn sha256_file(path: &Path) -> Result<String, String> {
@@ -346,17 +404,10 @@ fn helper_path() -> PathBuf {
     temp_root().join("BPSR-ReadyAlert-Updater.exe")
 }
 
-fn main_window() -> windows_sys::Win32::Foundation::HWND {
-    unsafe {
-        let class = wide("BPSRReadyAlertRustMain");
-        FindWindowW(class.as_ptr(), std::ptr::null())
-    }
-}
-
-fn prompt_yes(text: &str) -> bool {
+fn prompt_yes(owner: isize, text: &str) -> bool {
     unsafe {
         MessageBoxW(
-            main_window(),
+            owner as HWND,
             wide(text).as_ptr(),
             wide("BPSR ReadyAlert - Update available").as_ptr(),
             MB_YESNO | MB_ICONINFORMATION,
@@ -364,10 +415,10 @@ fn prompt_yes(text: &str) -> bool {
     }
 }
 
-fn message(title: &str, text: &str, error: bool) {
+fn message(owner: isize, title: &str, text: &str, error: bool) {
     unsafe {
         MessageBoxW(
-            main_window(),
+            owner as HWND,
             wide(text).as_ptr(),
             wide(title).as_ptr(),
             MB_OK | if error { MB_ICONERROR } else { MB_ICONINFORMATION },
@@ -382,6 +433,14 @@ fn wide(text: &str) -> Vec<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn good_manifest(version: &str) -> UpdateManifest {
+        UpdateManifest {
+            version: version.into(),
+            url: format!("{RELEASE_PREFIX}v{version}/BPSR-ReadyAlert.exe"),
+            sha256: "a".repeat(64),
+        }
+    }
 
     #[test]
     fn version_comparison_is_numeric() {
@@ -398,5 +457,13 @@ mod tests {
             sha256: "a".repeat(64),
         };
         assert!(validate_manifest(&bad).is_err());
+    }
+
+    #[test]
+    fn manifest_url_must_match_version_exactly() {
+        let mut manifest = good_manifest("1.23.0");
+        assert!(validate_manifest(&manifest).is_ok());
+        manifest.url = format!("{RELEASE_PREFIX}v1.22.1/BPSR-ReadyAlert.exe");
+        assert!(validate_manifest(&manifest).is_err());
     }
 }

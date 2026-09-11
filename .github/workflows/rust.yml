@@ -8,12 +8,14 @@ on:
       - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
       - '.github/workflows/rust.yml'
+      - 'rust-toolchain.toml'
   pull_request:
     paths:
       - 'rust/**'
       - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
       - '.github/workflows/rust.yml'
+      - 'rust-toolchain.toml'
   workflow_dispatch:
 
 permissions:
@@ -30,91 +32,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install stable Rust
+      - name: Install pinned Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+          components: clippy
 
       - name: Prepare embedded assets
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
 
-      - name: Focused tracker tests
+      - name: Unit and regression tests
         shell: pwsh
         run: |
-          cargo test --manifest-path rust/Cargo.toml event_tracker 2>&1 | Tee-Object -FilePath tracker-test-output.txt
+          cargo test --manifest-path rust/Cargo.toml --all-targets --locked 2>&1 | Tee-Object -FilePath rust-test-output.txt
           $exitCode = $LASTEXITCODE
           exit $exitCode
 
-      - name: Upload tracker test diagnostics
+      - name: Upload test diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: tracker-test-output
-          path: tracker-test-output.txt
+          name: rust-test-output
+          path: rust-test-output.txt
           if-no-files-found: error
           retention-days: 3
 
-      - name: Focused Imagine tier tests
-        run: cargo test --manifest-path rust/Cargo.toml imagine_tier
-
-      - name: Focused exact data-map tests
-        run: cargo test --manifest-path rust/Cargo.toml v1171_exact_mapping_tests
-
-      - name: Focused v1.17.2 mechanics/UI tests
-        run: cargo test --manifest-path rust/Cargo.toml v1172_
-
-      - name: Focused v1.17.3 sticky-self tests
-        run: cargo test --manifest-path rust/Cargo.toml v1173_
-
-      - name: Focused v1.17.4 pinned-self/wheel tests
-        run: cargo test --manifest-path rust/Cargo.toml v1174_
-
-      - name: Focused v1.17.5 consumable-name tests
-        run: cargo test --manifest-path rust/Cargo.toml v1175_
-
-      - name: Focused v1.17.6 target/enrage tests
-        run: cargo test --manifest-path rust/Cargo.toml v1176_
-
-      - name: Focused v1.17.8 toolbar/image tests
-        run: cargo test --manifest-path rust/Cargo.toml v1178_
-
-      - name: Focused v1.17.9 toolbar polish tests
-        run: cargo test --manifest-path rust/Cargo.toml v1179_
-
-      - name: Focused v1.18.0 overlay polish tests
-        run: cargo test --manifest-path rust/Cargo.toml v1180_
-
-      - name: Focused v1.18.1 post-release audit tests
-        run: cargo test --manifest-path rust/Cargo.toml v1181_
-
-      - name: Focused v1.18.2 DPS/Tracker UI tests
-        run: cargo test --manifest-path rust/Cargo.toml v1182_
-
-      - name: Focused v1.18.3 sticky-self direction tests
-        run: cargo test --manifest-path rust/Cargo.toml v1183_
-
-      - name: Focused v1.18.5 DPS identity tests
-        run: cargo test --manifest-path rust/Cargo.toml v1185_
-
-      - name: Focused v1.18.6 overlay scale tests
-        run: cargo test --manifest-path rust/Cargo.toml v1186_
-
-      - name: Focused v1.18.7 DPS minimum-size tests
-        run: cargo test --manifest-path rust/Cargo.toml v1187_
-
-      - name: Focused v1.18.8 scale UX tests
-        run: cargo test --manifest-path rust/Cargo.toml v1188_
-
-      - name: Focused v1.18.9 maintenance tests
-        run: cargo test --manifest-path rust/Cargo.toml v1189_
-
-      - name: Focused v1.19.0 responsive DPS tests
-        run: cargo test --manifest-path rust/Cargo.toml v1190_
-
-      - name: Unit tests
-        run: cargo test --manifest-path rust/Cargo.toml --all-targets
+      - name: Clippy analysis
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked
 
       - name: Native release build
-        run: cargo build --manifest-path rust/Cargo.toml --release
+        run: cargo build --manifest-path rust/Cargo.toml --release --locked
 
       - name: Smoke-test native EXE
         shell: pwsh

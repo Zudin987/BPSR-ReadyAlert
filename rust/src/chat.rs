@@ -12,6 +12,7 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::{
+        atomic::{AtomicU64, Ordering as AtomicOrdering},
         mpsc::{self, SyncSender, TrySendError},
         Arc, Mutex, OnceLock, RwLock,
     },
@@ -22,12 +23,21 @@ use windows_sys::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetL
 
 const MAX_FILTER_EXPRESSION: usize = 4096;
 const MAX_FILTER_CACHE: usize = 256;
+static LOG_QUEUE_DROPS: AtomicU64 = AtomicU64::new(0);
+static SPEECH_QUEUE_DROPS: AtomicU64 = AtomicU64::new(0);
+static TTS_QUEUE_DROPS: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone)]
 pub struct ChatRuntime {
     log_tx: SyncSender<ChatMessage>,
     speech_tx: SyncSender<ChatMessage>,
     dedupe: Arc<Mutex<RecentDedupe>>,
+}
+
+#[derive(Clone, Debug)]
+struct TtsJob {
+    text: String,
+    volume: i32,
 }
 
 #[derive(Default)]
@@ -95,9 +105,36 @@ impl ChatRuntime {
             }
         });
 
-        let (speech_tx, speech_rx) = mpsc::sync_channel::<ChatMessage>(24);
+        // Translation/preparation and actual speech playback are deliberately
+        // separate. Slow network TTS or a long audio clip must never stall chat
+        // translation for messages that arrive behind it.
+        let (tts_tx, tts_rx) = mpsc::sync_channel::<TtsJob>(16);
+        let _ = thread::Builder::new().name("readyalert-tts".into()).spawn(move || {
+            let agent = ureq::AgentBuilder::new()
+                .timeout_connect(Duration::from_secs(4))
+                .timeout_read(Duration::from_secs(8))
+                .timeout_write(Duration::from_secs(8))
+                .build();
+            while let Ok(job) = tts_rx.recv() {
+                for chunk in split_tts(&job.text, 200) {
+                    match download_tts(&agent, &chunk) {
+                        Ok(bytes) => {
+                            if let Err(err) = audio::play_mp3(&bytes, job.volume) {
+                                logging::write(format!("tts: playback {err}"));
+                            }
+                        }
+                        Err(err) => {
+                            logging::write(format!("tts: {err}"));
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+
+        let (speech_tx, speech_rx) = mpsc::sync_channel::<ChatMessage>(64);
         let speech_settings = settings.clone();
-        let _ = thread::Builder::new().name("readyalert-speech".into()).spawn(move || {
+        let _ = thread::Builder::new().name("readyalert-speech-prepare".into()).spawn(move || {
             let agent = ureq::AgentBuilder::new()
                 .timeout_connect(Duration::from_secs(4))
                 .timeout_read(Duration::from_secs(8))
@@ -136,12 +173,11 @@ impl ChatRuntime {
                 if speech.read_sender_name && !message.sender_name.trim().is_empty() {
                     spoken = format!("{}. {}", clean_text(&message.sender_name, 80), spoken);
                 }
-                for chunk in split_tts(&spoken, 200) {
-                    match download_tts(&agent, &chunk) {
-                        Ok(bytes) => if let Err(err) = audio::play_mp3(&bytes, speech.tts_volume) { logging::write(format!("tts: playback {err}")); },
-                        Err(err) => { logging::write(format!("tts: {err}")); break; }
-                    }
-                }
+                if spoken.is_empty() { continue; }
+                try_send_tts(
+                    &tts_tx,
+                    TtsJob { text: spoken, volume: speech.tts_volume },
+                );
             }
         });
         Self { log_tx, speech_tx, dedupe: Arc::new(Mutex::new(RecentDedupe::default())) }
@@ -153,8 +189,8 @@ impl ChatRuntime {
             logging::write(format!("chat: duplicate suppressed msg_id={} seq={}", message.message_id, message.sequence_id));
             return;
         }
-        let _ = try_bounded(&self.log_tx, message.clone());
-        let _ = try_bounded(&self.speech_tx, message.clone());
+        try_send_chat(&self.log_tx, message.clone(), "log", &LOG_QUEUE_DROPS);
+        try_send_chat(&self.speech_tx, message.clone(), "translation/TTS", &SPEECH_QUEUE_DROPS);
     }
 }
 
@@ -262,8 +298,25 @@ fn message_key(message: &ChatMessage) -> u64 {
     hash
 }
 
-fn try_bounded(tx: &SyncSender<ChatMessage>, message: ChatMessage) -> bool {
-    match tx.try_send(message) { Ok(()) => true, Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => false }
+fn note_queue_drop(counter: &AtomicU64, label: &str) {
+    let dropped = counter.fetch_add(1, AtomicOrdering::Relaxed).saturating_add(1);
+    if dropped == 1 || dropped % 32 == 0 {
+        logging::write(format!("chat: {label} queue full/disconnected; dropped {dropped} message(s)"));
+    }
+}
+
+fn try_send_chat(tx: &SyncSender<ChatMessage>, message: ChatMessage, label: &str, counter: &AtomicU64) {
+    match tx.try_send(message) {
+        Ok(()) => {}
+        Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => note_queue_drop(counter, label),
+    }
+}
+
+fn try_send_tts(tx: &SyncSender<TtsJob>, job: TtsJob) {
+    match tx.try_send(job) {
+        Ok(()) => {}
+        Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => note_queue_drop(&TTS_QUEUE_DROPS, "TTS playback"),
+    }
 }
 
 fn is_sprite_only(text: &str) -> bool {
