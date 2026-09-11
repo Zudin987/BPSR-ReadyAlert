@@ -86,8 +86,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$env:TAG" *> $null
-          if ($LASTEXITCODE -eq 0) {
+          # GitHub-hosted PowerShell may treat a native command's non-zero exit
+          # as an error before $LASTEXITCODE can be inspected. A missing release
+          # is the expected/success case here, so probe inside try/catch.
+          $exists = $false
+          try {
+            gh release view "$env:TAG" --json tagName *> $null
+            $exists = ($LASTEXITCODE -eq 0)
+          } catch {
+            $exists = $false
+          }
+          if ($exists) {
             throw "Release $env:TAG already exists. ReadyAlert releases are immutable; bump rust/Cargo.toml instead of replacing assets."
           }
           Write-Host "Version $env:TAG is unused and safe to publish."
