@@ -3,9 +3,9 @@ use std::ptr::null;
 use windows_sys::Win32::{
     Foundation::{HWND, POINT},
     UI::WindowsAndMessaging::{
-        AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, SetForegroundWindow,
+        AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, PostMessageW, SetForegroundWindow,
         TrackPopupMenu, HMENU, MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING,
-        TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, TPM_RIGHTBUTTON,
+        TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, TPM_RIGHTBUTTON, WM_NULL,
     },
 };
 
@@ -60,7 +60,11 @@ pub unsafe fn show(hwnd:HWND,settings:&AppSettings,features:&FeatureSettings,api
     let volume_menu=CreatePopupMenu();if !volume_menu.is_null(){for step in 0..=10{let volume=step*10;let label=if volume==0{"Mute".to_string()}else{format!("{volume}%")};append_check(volume_menu,CMD_VOLUME_BASE+step as u32,&label,settings.alert_volume==volume);}AppendMenuW(menu,MF_POPUP,volume_menu as usize,wide(&format!("Alert volume: {}%",settings.alert_volume.clamp(0,100))).as_ptr());}
 
     AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_SETTINGS,"Settings…");append_string(menu,CMD_CHAT_LOGS,"Open chat logs");append_string(menu,CMD_APP_FOLDER,"Open app data folder");append_string(menu,CMD_LOG_FILE,"Open diagnostic log");AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_EXIT,"Exit ReadyAlert");
-    let mut p:POINT=std::mem::zeroed();GetCursorPos(&mut p);SetForegroundWindow(hwnd);let command=TrackPopupMenu(menu,TPM_LEFTALIGN|TPM_BOTTOMALIGN|TPM_RIGHTBUTTON|TPM_RETURNCMD,p.x,p.y,0,hwnd,null());DestroyMenu(menu);
+    let mut p:POINT=std::mem::zeroed();GetCursorPos(&mut p);SetForegroundWindow(hwnd);let command=TrackPopupMenu(menu,TPM_LEFTALIGN|TPM_BOTTOMALIGN|TPM_RIGHTBUTTON|TPM_RETURNCMD,p.x,p.y,0,hwnd,null());
+    // Explorer notification-area menus require a message after TrackPopupMenu
+    // returns; without it the menu can remain in an odd/stuck dismissal state.
+    let _=PostMessageW(hwnd,WM_NULL,0,0);
+    DestroyMenu(menu);
     match command as u32{
         CMD_SOUND_ALERTS=>TrayAction::ToggleSoundAlerts,CMD_DESKTOP=>TrayAction::ToggleDesktop,CMD_CHAT=>TrayAction::ToggleChat,CMD_DPS=>TrayAction::ToggleDps,CMD_MECH=>TrayAction::ToggleMechanics,CMD_EVENT_TRACKER=>TrayAction::OpenEventTracker,
         CMD_SETTINGS=>TrayAction::OpenSettings,CMD_CHAT_LOGS=>TrayAction::OpenChatLogs,CMD_APP_FOLDER=>TrayAction::OpenAppFolder,CMD_LOG_FILE=>TrayAction::OpenLogFile,CMD_EXIT=>TrayAction::Exit,CMD_ADAPTER_AUTO=>TrayAction::SelectAdapter(None),

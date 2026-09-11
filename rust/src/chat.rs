@@ -8,9 +8,9 @@ use regex::{Regex, RegexBuilder};
 use serde_json::Value;
 use std::{
     collections::{HashMap, VecDeque},
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         mpsc::{self, SyncSender, TrySendError},
         Arc, Mutex, OnceLock, RwLock,
@@ -49,6 +49,33 @@ impl RecentDedupe {
     }
 }
 
+#[derive(Default)]
+struct ChatLogWriter {
+    path: Option<PathBuf>,
+    file: Option<File>,
+}
+
+impl ChatLogWriter {
+    fn write(&mut self, dir: &Path, message: &ChatMessage) {
+        let now = local_time();
+        let filename = format!("chat-{:04}-{:02}-{:02}.txt", now.wYear, now.wMonth, now.wDay);
+        let path = dir.join(filename);
+        if self.path.as_ref() != Some(&path) || self.file.is_none() {
+            self.path = Some(path.clone());
+            self.file = None;
+            if fs::create_dir_all(dir).is_ok() {
+                self.file = OpenOptions::new().create(true).append(true).open(&path).ok();
+            }
+        }
+        let Some(file) = self.file.as_mut() else { return; };
+        let sender = message.sender_name.replace(|c: char| matches!(c, '\r' | '\n' | '\t'), " ");
+        let text = message.text.replace(|c: char| matches!(c, '\r' | '\n' | '\t'), " ");
+        if writeln!(file, "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}\t{}\t{}\t{}", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, now.wMilliseconds, message.channel, sender, text).is_err() {
+            self.file = None;
+        }
+    }
+}
+
 impl ChatRuntime {
     pub fn start(paths: AppPaths, settings: Arc<RwLock<AppSettings>>, identity: Arc<RwLock<Option<PlayerIdentity>>>, ui_tx: std::sync::mpsc::Sender<AppEvent>) -> Self {
         let (log_tx, log_rx) = mpsc::sync_channel::<ChatMessage>(4096);
@@ -56,10 +83,11 @@ impl ChatRuntime {
         let log_dir = paths.chat_logs.clone();
         let _ = thread::Builder::new().name("readyalert-chatlog".into()).spawn(move || {
             cleanup_old_logs(&log_dir, &log_settings);
+            let mut writer = ChatLogWriter::default();
             let mut next_cleanup = SystemTime::now() + Duration::from_secs(300);
             while let Ok(message) = log_rx.recv() {
                 let enabled = log_settings.read().map(|s| s.chat.keep_local_chat_logs24_hours).unwrap_or(false);
-                if enabled { write_chat_log(&log_dir, &message); }
+                if enabled { writer.write(&log_dir, &message); }
                 if SystemTime::now() >= next_cleanup {
                     cleanup_old_logs(&log_dir, &log_settings);
                     next_cleanup = SystemTime::now() + Duration::from_secs(300);
@@ -79,7 +107,9 @@ impl ChatRuntime {
                 let snapshot = match speech_settings.read() { Ok(v) => v.clone(), Err(_) => continue };
                 if snapshot.chat.is_blocked(message.sender_id) || skip_speech(&message) { continue; }
                 let speech = snapshot.speech_translation.clone();
-                let wants_translation = speech.show_translation_in_overlay && speech.translation_for(message.channel);
+                let wants_translation = snapshot.chat_overlay_enabled
+                    && speech.show_translation_in_overlay
+                    && speech.translation_for(message.channel);
                 let own_name = speech.ignore_own_username.trim().to_string();
                 let detected = identity.read().ok().and_then(|g| g.clone()).map(|x| x.name).unwrap_or_default();
                 let expected = if own_name.is_empty() { detected } else { own_name };
@@ -313,16 +343,17 @@ fn clean_text(text: &str, max: usize) -> String {
     text.replace(|c: char| c == '\r' || c == '\n' || c == '\0', " ").split_whitespace().collect::<Vec<_>>().join(" ").chars().take(max).collect()
 }
 
-fn write_chat_log(dir: &PathBuf, message: &ChatMessage) {
-    let now = local_time();
-    let filename = format!("chat-{:04}-{:02}-{:02}.txt", now.wYear, now.wMonth, now.wDay);
-    let path = dir.join(filename);
-    let _ = fs::create_dir_all(dir);
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
-        let sender = message.sender_name.replace(|c: char| matches!(c, '\r' | '\n' | '\t'), " ");
-        let text = message.text.replace(|c: char| matches!(c, '\r' | '\n' | '\t'), " ");
-        let _ = writeln!(file, "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}\t{}\t{}\t{}", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, now.wMilliseconds, message.channel, sender, text);
-    }
+fn is_readyalert_chat_log(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|x| x.to_str()) else { return false; };
+    let bytes = name.as_bytes();
+    bytes.len() == 19
+        && &bytes[0..5] == b"chat-"
+        && &bytes[9..10] == b"-"
+        && &bytes[12..13] == b"-"
+        && &bytes[15..19] == b".txt"
+        && bytes[5..9].iter().all(u8::is_ascii_digit)
+        && bytes[10..12].iter().all(u8::is_ascii_digit)
+        && bytes[13..15].iter().all(u8::is_ascii_digit)
 }
 
 fn cleanup_old_logs(dir: &PathBuf, settings: &Arc<RwLock<AppSettings>>) {
@@ -331,7 +362,7 @@ fn cleanup_old_logs(dir: &PathBuf, settings: &Arc<RwLock<AppSettings>>) {
     let Ok(entries) = fs::read_dir(dir) else { return; };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|x| x.to_str()) != Some("txt") { continue; }
+        if !is_readyalert_chat_log(&path) { continue; }
         if let Ok(modified) = entry.metadata().and_then(|m| m.modified()) {
             if modified < cutoff { let _ = fs::remove_file(path); }
         }
@@ -382,5 +413,11 @@ mod tests {
     #[test] fn invalid_filter_fails_closed() {
         assert!(!matches_expression("anything", "["));
         assert!(validate_expression("[").is_err());
+    }
+    #[test] fn maintenance_cleanup_only_recognizes_owned_log_names() {
+        assert!(is_readyalert_chat_log(Path::new("chat-2026-09-10.txt")));
+        assert!(!is_readyalert_chat_log(Path::new("notes.txt")));
+        assert!(!is_readyalert_chat_log(Path::new("chat-old.txt")));
+        assert!(!is_readyalert_chat_log(Path::new("chat-2026-9-10.txt")));
     }
 }

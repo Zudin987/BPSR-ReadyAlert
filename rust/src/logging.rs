@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     sync::{mpsc::{self, SyncSender, TrySendError}, Mutex, OnceLock},
@@ -33,18 +33,32 @@ pub fn init(path: PathBuf) {
         .name("readyalert-log".into())
         .spawn(move || {
             rotate_if_needed(&path);
+            let mut output = open_log(&path);
             while let Ok(message) = rx.recv() {
                 match message {
                     LogMessage::Line(line) => {
-                        rotate_if_needed(&path);
-                        if let Some(parent) = path.parent() {
-                            let _ = fs::create_dir_all(parent);
+                        let bytes = format_log_line(&line);
+                        let needs_rotate = output
+                            .as_ref()
+                            .is_some_and(|(_, size)| size.saturating_add(bytes.len() as u64) > MAX_LOG_BYTES);
+                        if needs_rotate {
+                            output.take();
+                            rotate_existing(&path);
                         }
-                        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
-                            let _ = writeln!(file, "{} {}", unix_millis(), line.replace('\0', ""));
+                        if output.is_none() {
+                            output = open_log(&path);
+                        }
+                        if let Some((file, size)) = output.as_mut() {
+                            match file.write_all(bytes.as_bytes()) {
+                                Ok(()) => *size = size.saturating_add(bytes.len() as u64),
+                                Err(_) => output = None,
+                            }
                         }
                     }
-                    LogMessage::Stop => break,
+                    LogMessage::Stop => {
+                        if let Some((file, _)) = output.as_mut() { let _ = file.flush(); }
+                        break;
+                    }
                 }
             }
         })
@@ -79,10 +93,38 @@ fn unix_millis() -> u128 {
         .unwrap_or_default()
 }
 
-fn rotate_if_needed(path: &Path) {
-    let Ok(meta) = fs::metadata(path) else { return; };
-    if meta.len() <= MAX_LOG_BYTES { return; }
+fn format_log_line(line: &str) -> String {
+    format!("{} {}\n", unix_millis(), line.replace('\0', ""))
+}
+
+fn open_log(path: &Path) -> Option<(File, u64)> {
+    if let Some(parent) = path.parent() { fs::create_dir_all(parent).ok()?; }
+    let file = OpenOptions::new().create(true).append(true).open(path).ok()?;
+    let size = file.metadata().map(|m| m.len()).unwrap_or(0);
+    Some((file, size))
+}
+
+fn rotate_existing(path: &Path) {
+    if !path.exists() { return; }
     let old = path.with_extension("log.old");
     let _ = fs::remove_file(&old);
     let _ = fs::rename(path, old);
+}
+
+fn rotate_if_needed(path: &Path) {
+    let Ok(meta) = fs::metadata(path) else { return; };
+    if meta.len() <= MAX_LOG_BYTES { return; }
+    rotate_existing(path);
+}
+
+#[cfg(test)]
+mod v1189_logging_tests {
+    use super::*;
+
+    #[test]
+    fn log_line_removes_nul_and_ends_with_newline() {
+        let line = format_log_line("a\0b");
+        assert!(!line.contains('\0'));
+        assert!(line.ends_with(" ab\n"));
+    }
 }
