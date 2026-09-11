@@ -17,10 +17,11 @@ fn patch_telemetry(out: &Path) {
         .expect("read v1.23.0 telemetry")
         .replace("\r\n", "\n");
 
-    // v1.23 already includes encounter participants that have produced combat
-    // activity. In Raid-sized encounters also include every current combat row,
-    // because a quiet member outside the local five-player subgroup must still
-    // prevent a false full-Raid wipe/reset while alive.
+    // Keep roster inference conservative as a diagnostic/fallback helper, but do
+    // not use it to decide automatic wipes. CN Resonance treats the dedicated
+    // 510072 buff applied to the local player as the authoritative wipe signal.
+    // In Raid-sized encounters include every current combat row, and only count
+    // actor-state DEAD (9) as confirmed dead when authoritative player state exists.
     replace_once(
         &mut source,
         r#"    fn party_is_wiped(&self) -> bool {
@@ -58,24 +59,63 @@ fn patch_telemetry(out: &Path) {
             }
         }
         // Raid Team messages may expose only the local five-player subgroup.
-        // Once the encounter has Raid-sized combat state, every current combat
-        // row is a known participant; even a quiet/alive member must block wipe.
+        // Once Raid-sized combat state is visible, include every known row so a
+        // quiet/alive member outside the subgroup blocks inferred all-dead state.
         if self.combat.len() > 5 {
             roster.extend(self.combat.keys().copied());
         }
-        // Be conservative when only one player is known. In party content this
-        // avoids the v1.8.1 false reset when the roster sync is incomplete; solo
-        // users can still use manual Reset or scene re-entry.
         if roster.len() < 2 { return false; }
         roster.iter().all(|uid| {
-            self.combat.get(uid).is_some_and(|actor| actor.is_dead)
-                || self.players.get(uid).is_some_and(|player| {
-                    matches!(player.actor_state, ACTOR_STATE_DEAD | ACTOR_STATE_RESURRECTION)
-                        || (player.actor_state == ACTOR_STATE_TELEPORT && player.hp <= 0)
-                })
+            // Match current CN semantics: actor state 9 is the confirmed dead
+            // state. Resurrection/Teleport are transitions, not proof of death.
+            if let Some(player) = self.players.get(uid) {
+                player.actor_state == ACTOR_STATE_DEAD
+            } else {
+                self.combat.get(uid).is_some_and(|actor| actor.is_dead)
+            }
         })
     }"#,
-        "Raid-safe wipe roster",
+        "conservative Raid roster diagnostics",
+    );
+
+    // Do not infer an encounter reset from player ActorState transitions. A Raid
+    // can expose only the local five-player subgroup, so five dead rows are not
+    // proof that the full Raid wiped. The authoritative local 510072 wipe buff
+    // below is what calls arm_boundary(). ActorState still drives death UI/counts.
+    replace_once(
+        &mut source,
+        r#"        if combat.is_dead && self.party_is_wiped() {
+            self.arm_boundary();
+        }"#,
+        r#"        // Automatic wipe boundaries are intentionally not inferred here.
+        // The server-provided local wipe buff is authoritative."#,
+        "stop ActorState inferred wipe resets",
+    );
+
+    // v1.8.2 guarded the CN wipe marker with an inferred all-dead roster check.
+    // Current CN Resonance does the opposite: local application of wipe buff
+    // 510072 is itself WipeDetected. Trust that signal, then keep the existing
+    // 3-second pending boundary so trailing packets stay in the old pull and the
+    // reset happens on the next eligible attack.
+    replace_once(
+        &mut source,
+        r#"    fn arm_boundary(&mut self) {
+        // The CN 510072 marker is useful evidence, but it also appears around
+        // individual deaths. Never arm an automatic reset unless the observed
+        // encounter roster is actually down.
+        if !self.party_is_wiped() { return; }
+        if self.encounter_started.is_some() && self.pending_boundary.is_none() {
+            self.pending_boundary = Some(Instant::now());
+        }
+    }"#,
+        r#"    fn arm_boundary(&mut self) {
+        // WIPE_BUFF_BASE_ID (510072) applied to the local player is the
+        // authoritative wipe signal. Do not require a complete party/Raid roster.
+        if self.encounter_started.is_some() && self.pending_boundary.is_none() {
+            self.pending_boundary = Some(Instant::now());
+        }
+    }"#,
+        "trust authoritative CN wipe marker",
     );
 
     // Keep individual mechanic instances internally so despawn/buff removal still
@@ -161,7 +201,7 @@ mod v1231_mechanics_and_raid_tests {
     }
 
     #[test]
-    fn raid_wipe_waits_for_members_outside_local_subgroup() {
+    fn raid_roster_diagnostic_waits_for_members_outside_local_subgroup() {
         let (tx, _rx) = std::sync::mpsc::channel();
         let mut runtime = TelemetryRuntime::new(tx);
         runtime.local_uid = 1;
@@ -175,6 +215,48 @@ mod v1231_mechanics_and_raid_tests {
         assert!(!runtime.party_is_wiped());
         runtime.combat.get_mut(&6).unwrap().is_dead = true;
         assert!(runtime.party_is_wiped());
+    }
+
+    #[test]
+    fn resurrection_transition_is_not_confirmed_dead_for_wipe_diagnostic() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut runtime = TelemetryRuntime::new(tx);
+        runtime.local_uid = 1;
+        for uid in 1..=5 {
+            runtime.team.insert(uid);
+            runtime.combat.entry(uid).or_default().is_dead = true;
+        }
+        runtime.players.entry(1).or_default().actor_state = ACTOR_STATE_RESURRECTION;
+        assert!(!runtime.party_is_wiped());
+        runtime.players.get_mut(&1).unwrap().actor_state = ACTOR_STATE_DEAD;
+        assert!(runtime.party_is_wiped());
+    }
+
+    #[test]
+    fn actorstate_deaths_do_not_arm_an_automatic_wipe_boundary() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut runtime = TelemetryRuntime::new(tx);
+        runtime.local_uid = 1;
+        runtime.encounter_started = Some(Instant::now());
+        for uid in 1..=5 {
+            runtime.team.insert(uid);
+            runtime.apply_player_actor_state(uid, 0, ACTOR_STATE_DEAD);
+        }
+        assert!(runtime.pending_boundary.is_none());
+    }
+
+    #[test]
+    fn authoritative_wipe_signal_does_not_require_complete_raid_roster() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut runtime = TelemetryRuntime::new(tx);
+        runtime.local_uid = 1;
+        runtime.encounter_started = Some(Instant::now());
+        for uid in 1..=5 {
+            runtime.team.insert(uid);
+            runtime.combat.entry(uid).or_default().is_dead = false;
+        }
+        runtime.arm_boundary();
+        assert!(runtime.pending_boundary.is_some());
     }
 }
 "#);
