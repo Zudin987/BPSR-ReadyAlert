@@ -42,6 +42,18 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
 
+      - name: Refresh v1.23.1 lockfile
+        shell: pwsh
+        run: cargo generate-lockfile --manifest-path rust/Cargo.toml
+
+      - name: Upload refreshed Cargo lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-lock-v1231
+          path: rust/Cargo.lock
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Unit and regression tests
         shell: pwsh
         run: |
