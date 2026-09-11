@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: rust-${{ github.event.pull_request.number || github.ref }}
@@ -31,8 +31,6 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Install pinned Rust
         uses: dtolnay/rust-toolchain@stable
@@ -43,26 +41,6 @@ jobs:
       - name: Prepare embedded assets
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
-
-      - name: Refresh v1.23.1 lockfile
-        shell: pwsh
-        run: cargo generate-lockfile --manifest-path rust/Cargo.toml
-
-      - name: Commit refreshed Cargo lock
-        if: github.event_name == 'pull_request'
-        shell: pwsh
-        run: |
-          git diff --quiet -- rust/Cargo.lock
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host 'Cargo.lock is already current.'
-          } else {
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add rust/Cargo.lock
-            git commit -m 'v1.23.1: refresh Cargo.lock'
-            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
 
       - name: Unit and regression tests
         shell: pwsh
