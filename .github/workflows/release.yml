@@ -1,12 +1,16 @@
 name: Release Rust
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Rust CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: readyalert-release
@@ -14,10 +18,15 @@ concurrency:
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-latest
     timeout-minutes: 25
+    env:
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
@@ -26,6 +35,9 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
 
+      # CI has already passed for workflow_run releases. Rebuild and smoke-test the
+      # exact same commit here so the published bytes can never come from a different
+      # revision than the one that passed CI.
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
@@ -67,17 +79,26 @@ jobs:
           "SUMS=package/SHA256SUMS.txt" >> $env:GITHUB_ENV
           "MANIFEST=update.json" >> $env:GITHUB_ENV
 
-      - name: Publish GitHub release
+      - name: Enforce immutable release version
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$env:TAG" *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $env:TAG already exists; refreshing updater assets."
-            gh release upload "$env:TAG" "$env:EXE" "$env:SUMS" "$env:MANIFEST" --clobber
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            exit 0
+            throw "Release $env:TAG already exists. ReadyAlert releases are immutable; bump rust/Cargo.toml instead of replacing assets."
           }
-          gh release create "$env:TAG" "$env:ARCHIVE" "$env:EXE" "$env:SUMS" "$env:MANIFEST" --target "${{ github.sha }}" --title "BPSR ReadyAlert $env:TAG" --generate-notes
+          Write-Host "Version $env:TAG is unused and safe to publish."
+
+      - name: Attest release executable
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: './package/BPSR-ReadyAlert.exe'
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:TAG" "$env:ARCHIVE" "$env:EXE" "$env:SUMS" "$env:MANIFEST" --target "$env:TARGET_SHA" --title "BPSR ReadyAlert $env:TAG" --generate-notes
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
