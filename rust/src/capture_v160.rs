@@ -69,7 +69,7 @@ pub fn spawn(
                 let datalink = handle.datalink;
                 match handle.next_packet() {
                     Ok(Some(packet)) => {
-                        if filter.is_game_packet(packet, datalink) {
+                        if filter.is_game_server_packet(packet, datalink) {
                             last_packet = Some(Instant::now());
                             processor.process_packet(packet, datalink);
                         }
@@ -154,12 +154,12 @@ struct FlowState {
     next_seq:Option<u32>, pending:BTreeMap<u32,Vec<u8>>, pending_bytes:usize,
     stream:ByteStream, synchronized:bool, gap_started:Option<Instant>, last_seen:Instant,
 }
-impl Default for FlowState { fn default()->Self { Self { next_seq:None,pending:BTreeMap::new(),pending_bytes:0,stream:ByteStream::default(),synchronized:false,gap_started:None,last_seen:Instant::now() } } }
+impl Default for FlowState { fn default()->Self { Self { next_seq:None,pending:BTreeMap::new(),pending_bytes:0,stream:ByteStream::default(),synchronized:false,gap_started=None,last_seen:Instant::now() } } }
 impl FlowState { fn reset(&mut self,next:Option<u32>, synchronized:bool){ self.next_seq=next; self.pending.clear();self.pending_bytes=0;self.stream.clear();self.synchronized=synchronized;self.gap_started=None; } }
 
 struct CaptureProcessor {
     tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime, telemetry:TelemetryRuntime,
-    flows:HashMap<FlowKey,FlowState>, last_ready:Option<Instant>, last_queue:Option<Instant>,
+    flows:HashMap<FlowKey,FlowState>, last_ready:Option<Instant>, last_match:Option<Instant>, last_vote:Option<Instant>,
     last_invite:(u64,Option<Instant>), last_request:(u64,Option<Instant>), sequence:u64,
     pub last_valid_frame:Option<Instant>, last_cleanup:Instant,
 }
@@ -167,7 +167,7 @@ struct CaptureProcessor {
 impl CaptureProcessor {
     fn new(tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime)->Self {
         let telemetry = TelemetryRuntime::new(tx.clone());
-        Self { tx,identity,chat,telemetry,flows:HashMap::new(),last_ready:None,last_queue:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
+        Self { tx,identity,chat,telemetry,flows:HashMap::new(),last_ready:None,last_match:None,last_vote:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
     }
     fn reset_flows(&mut self){ self.flows.clear(); self.last_valid_frame=Some(Instant::now()); }
     fn cleanup_flows(&mut self, aggressive:bool){
@@ -235,21 +235,44 @@ impl CaptureProcessor {
         let service=be64(payload,0).unwrap_or(0);let method=be32(payload,12).unwrap_or(0);let raw=&payload[16..];let owned;
         let body=if compressed{match zstd::stream::decode_all(Cursor::new(raw)){Ok(v)=>{owned=v;&owned[..]},Err(err)=>{logging::write(format!("packet: zstd notify failed: {err}"));return;}}}else{raw};
 
-        // One decoded Notify stream fans out to every feature. No second Npcap session.
+        // One decoded server Notify stream fans out to every feature. No second Npcap session.
         self.telemetry.handle_notify(service,method,body);
 
         if service==proto::CHAT_SERVICE&&method==proto::CHAT_NOTIFY_NEWEST{self.sequence=self.sequence.wrapping_add(1).max(1);if let Some(message)=proto::parse_chat(body,self.sequence){self.chat.handle(&message);let _=self.tx.send(AppEvent::Chat(message));}return;}
         if service==proto::WORLD_SERVICE&&method==proto::ENTER_SCENE_METHOD{if let Some(id)=proto::parse_identity(body){let changed=self.identity.read().ok().and_then(|g|g.clone()).map(|x|x.uid!=id.uid||x.name!=id.name).unwrap_or(true);if changed{if let Ok(mut g)=self.identity.write(){*g=Some(id.clone());}let _=self.tx.send(AppEvent::Identity(id));}}}
-        if service==proto::WORLD_SERVICE&&method==proto::READY_ALL_METHOD{if self.last_ready.map(|x|x.elapsed()>=Duration::from_secs(3)).unwrap_or(true){self.last_ready=Some(Instant::now());self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");}return;}
+        if service==proto::WORLD_SERVICE&&method==proto::READY_ALL_METHOD{
+            if !valid_proto_message(body){logging::write("packet: ignored malformed/empty NotifyAllMemberReady");return;}
+            if allow_after(&mut self.last_ready,Duration::from_secs(3)){self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");}
+            return;
+        }
         if service==proto::WORLD_SERVICE&&method==proto::READY_CAPTAIN_METHOD{return;}
-        if service==proto::MATCH_SERVICE&&method==proto::MATCH_ENTER_RESULT_METHOD&&proto::parse_match_wait_ready(body){self.queue_alert("BPSR Match Found","Matchmaking is waiting for acceptance.");return;}
-        if service==proto::TEAM_SERVICE&&method==proto::TEAM_ACTIVITY_METHOD&&proto::parse_team_activity_voting(body){self.queue_alert("BPSR Party Ready Vote","A party activity is waiting for your vote.");return;}
-        if service==proto::TEAM_SERVICE&&matches!(method,proto::TEAM_INVITATION_METHOD|proto::TEAM_APPLY_JOIN_METHOD){let hash=fnv1a(body);let slot=if method==proto::TEAM_INVITATION_METHOD{&mut self.last_invite}else{&mut self.last_request};if slot.0==hash&&slot.1.map(|x|x.elapsed()<Duration::from_secs(5)).unwrap_or(false){return;}*slot=(hash,Some(Instant::now()));if method==proto::TEAM_INVITATION_METHOD{self.alert(AlertKind::PartyInvite,"BPSR Party Invite","You received a party invitation.");}else{self.alert(AlertKind::PartyRequest,"BPSR Party Join Request","Someone requested to join your party.");}}
+        if service==proto::MATCH_SERVICE&&method==proto::MATCH_ENTER_RESULT_METHOD&&proto::parse_match_wait_ready(body){if allow_after(&mut self.last_match,Duration::from_secs(5)){self.alert(AlertKind::Queue,"BPSR Match Found","Matchmaking is waiting for acceptance.");}return;}
+        if service==proto::TEAM_SERVICE&&method==proto::TEAM_ACTIVITY_METHOD&&proto::parse_team_activity_voting(body){if allow_after(&mut self.last_vote,Duration::from_secs(5)){self.alert(AlertKind::Queue,"BPSR Party Ready Vote","A party activity is waiting for your vote.");}return;}
+        if service==proto::TEAM_SERVICE&&matches!(method,proto::TEAM_INVITATION_METHOD|proto::TEAM_APPLY_JOIN_METHOD){
+            if !valid_proto_message(body){logging::write(format!("packet: ignored malformed team notify method={method}"));return;}
+            let hash=fnv1a(body);let slot=if method==proto::TEAM_INVITATION_METHOD{&mut self.last_invite}else{&mut self.last_request};if slot.0==hash&&slot.1.map(|x|x.elapsed()<Duration::from_secs(5)).unwrap_or(false){return;}*slot=(hash,Some(Instant::now()));if method==proto::TEAM_INVITATION_METHOD{self.alert(AlertKind::PartyInvite,"BPSR Party Invite","You received a party invitation.");}else{self.alert(AlertKind::PartyRequest,"BPSR Party Join Request","Someone requested to join your party.");}
+        }
     }
-    fn queue_alert(&mut self,title:&str,message:&str){if self.last_queue.map(|x|x.elapsed()<Duration::from_secs(5)).unwrap_or(false){return;}self.last_queue=Some(Instant::now());self.alert(AlertKind::Queue,title,message);}
     fn alert(&self,kind:AlertKind,title:&str,message:&str){let _=self.tx.send(AppEvent::Alert(AlertEvent{kind,title:title.into(),message:message.into()}));}
 }
 
+fn allow_after(slot:&mut Option<Instant>,window:Duration)->bool{if slot.map(|x|x.elapsed()<window).unwrap_or(false){return false;}*slot=Some(Instant::now());true}
+fn valid_proto_message(data:&[u8])->bool{
+    if data.is_empty(){return false;}
+    let mut p=0usize;
+    while p<data.len(){
+        let Some(key)=proto::read_varint(data,&mut p)else{return false;};
+        if key>>3==0{return false;}
+        match (key&7) as u8{
+            0=>{if proto::read_varint(data,&mut p).is_none(){return false;}},
+            1=>{let Some(end)=p.checked_add(8)else{return false;};if end>data.len(){return false;}p=end;},
+            2=>{let Some(raw_len)=proto::read_varint(data,&mut p)else{return false;};let Ok(len)=usize::try_from(raw_len)else{return false;};let Some(end)=p.checked_add(len)else{return false;};if end>data.len(){return false;}p=end;},
+            5=>{let Some(end)=p.checked_add(4)else{return false;};if end>data.len(){return false;}p=end;},
+            _=>return false,
+        }
+    }
+    true
+}
 fn seq_before(a:u32,b:u32)->bool{(a.wrapping_sub(b) as i32)<0}
 fn plausible_header(data:&[u8],offset:usize)->Option<(usize,u16)>{if offset+6>data.len(){return None;}let size=be32(data,offset)? as usize;let t=be16(data,offset+4)?;if size<6||size>MAX_GAME_FRAME||(t&0x7fff)>8{return None;}Some((size,t))}
 fn find_strong_frame(data:&[u8],start:usize)->Option<(usize,usize,u16)>{if data.len()<6{return None;}for offset in start.min(data.len()-6)..=data.len()-6{let Some((size,t))=plausible_header(data,offset)else{continue;};let kind=t&0x7fff;if kind==2&&size>=22&&offset+22<=data.len(){if known_service(be64(data,offset+6).unwrap_or(0)){return Some((offset,size,t));}}if size<=data.len()-offset{let next=offset+size;if plausible_header(data,next).is_some_and(|(s,_)|s<=data.len().saturating_sub(next)){return Some((offset,size,t));}}if kind!=6||size<10{continue;}if t&0x8000!=0{let z=offset+10;if size>=14&&z+4<=data.len()&&data[z..z+4]==[0x28,0xb5,0x2f,0xfd]{return Some((offset,size,t));}}else{let nested=offset+10;if nested+22<=data.len()&&size>=32{if let Some((_,nt))=plausible_header(data,nested){if nt&0x7fff==2&&known_service(be64(data,nested+6).unwrap_or(0)){return Some((offset,size,t));}}}}}None}
@@ -264,4 +287,5 @@ mod tests{
  use super::*;
  #[test]fn strong_known_notify(){let mut d=vec![0u8;22];d[0..4].copy_from_slice(&22u32.to_be_bytes());d[4..6].copy_from_slice(&2u16.to_be_bytes());d[6..14].copy_from_slice(&proto::CHAT_SERVICE.to_be_bytes());assert_eq!(find_strong_frame(&d,0).map(|x|x.0),Some(0));}
  #[test]fn seq_wrap(){assert!(seq_before(u32::MAX-2,3));}
+ #[test]fn proto_validation_rejects_false_ready_payloads(){assert!(!valid_proto_message(&[]));assert!(!valid_proto_message(&[0x08,0x80]));assert!(!valid_proto_message(&[0x00]));assert!(valid_proto_message(&[0x08,0x01]));}
 }
