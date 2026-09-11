@@ -8,6 +8,7 @@ use windows_sys::Win32::{
 const AF_INET: u32 = 2;
 const AF_INET6: u32 = 23;
 const TCP_TABLE_OWNER_PID_ALL: u32 = 5;
+const MIB_TCP_STATE_SYN_SENT: u32 = 3;
 const MIB_TCP_STATE_ESTAB: u32 = 5;
 const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
 const GAME_NAMES: &[&str] = &["BPSR", "BPSR_STEAM", "BPSR_EPIC", "StarSEA", "StarASIA", "StarTW", "StarSEA_STEAM", "StarASIA_STEAM", "Star"];
@@ -75,9 +76,9 @@ impl GamePacketFilter {
         !self.pids.is_empty()
     }
 
-    /// Accept only packets travelling from the exact remote peer of an established
-    /// game/relay TCP connection back to its local endpoint. Notifications are
-    /// server-to-client; decoding the reverse direction can create false events.
+    /// Accept only packets travelling from the exact remote peer of a game/relay
+    /// TCP connection back to its local endpoint. Notifications are server-to-client;
+    /// decoding the reverse direction can create false events.
     pub fn is_game_server_packet(&mut self, packet: &[u8], datalink: i32) -> bool {
         let Some(info) = parse_tcp(packet, datalink) else { return false; };
         self.refresh(false);
@@ -86,8 +87,9 @@ impl GamePacketFilter {
             return true;
         }
 
-        // Preserve the fast new-process/new-connection discovery path without
-        // broad endpoint matching. A later established packet will be admitted.
+        // A server SYN-ACK can arrive while Windows still reports the owning client
+        // socket as SYN_SENT. Refresh immediately so the handshake establishes the
+        // correct TCP sequence instead of dropping the first server payload.
         if info.flags & 0x02 == 0 || self.last_forced_refresh.elapsed() < Duration::from_millis(50) {
             return false;
         }
@@ -108,14 +110,14 @@ impl GamePacketFilter {
         if !self.pids.is_empty() {
             if let Ok(rows) = read_ipv4_rows() {
                 for (connection, state, pid) in rows {
-                    if state == MIB_TCP_STATE_ESTAB && self.pids.contains(&pid) {
+                    if tracked_connection_state(state) && self.pids.contains(&pid) {
                         connections.insert(connection);
                     }
                 }
             }
             if let Ok(rows) = read_ipv6_rows() {
                 for (connection, state, pid) in rows {
-                    if state == MIB_TCP_STATE_ESTAB && self.pids.contains(&pid) {
+                    if tracked_connection_state(state) && self.pids.contains(&pid) {
                         connections.insert(connection);
                     }
                 }
@@ -130,6 +132,10 @@ impl GamePacketFilter {
             logging::write(format!("game-filter: {summary}"));
         }
     }
+}
+
+fn tracked_connection_state(state: u32) -> bool {
+    matches!(state, MIB_TCP_STATE_SYN_SENT | MIB_TCP_STATE_ESTAB)
 }
 
 pub fn parse_tcp(packet: &[u8], datalink: i32) -> Option<PacketTcpInfo> {
@@ -168,8 +174,14 @@ fn parse_ipv4(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
     if ip + 20 > packet.len() || packet[ip] >> 4 != 4 { return None; }
     let ip_header = usize::from(packet[ip] & 0x0f) * 4;
     if ip_header < 20 || ip + ip_header + 20 > packet.len() || packet[ip + 9] != 6 { return None; }
+    // Npcap exposes IP fragments before host TCP reassembly. Feeding a first or
+    // later fragment into the TCP parser can turn arbitrary payload bytes into a
+    // fake TCP header/sequence, so reject every fragmented IPv4 datagram here.
+    if be16(packet, ip + 6)? & 0x3fff != 0 { return None; }
     let total = usize::from(be16(packet, ip + 2)?);
-    let packet_end = if total >= ip_header { (ip + total).min(packet.len()) } else { packet.len() };
+    if total < ip_header + 20 { return None; }
+    let packet_end = ip.checked_add(total)?;
+    if packet_end > packet.len() { return None; }
     let tcp = ip + ip_header;
     let tcp_header = usize::from((packet[tcp + 12] >> 4) & 0x0f) * 4;
     if tcp_header < 20 || tcp + tcp_header > packet_end { return None; }
@@ -192,7 +204,13 @@ fn parse_ipv4(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
 fn parse_ipv6(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
     if ip + 40 > packet.len() || packet[ip] >> 4 != 6 { return None; }
     let payload_length = usize::from(be16(packet, ip + 4)?);
-    let packet_end = if payload_length == 0 { packet.len() } else { (ip + 40 + payload_length).min(packet.len()) };
+    let packet_end = if payload_length == 0 {
+        packet.len()
+    } else {
+        let end = ip.checked_add(40)?.checked_add(payload_length)?;
+        if end > packet.len() { return None; }
+        end
+    };
     let mut next = packet[ip + 6];
     let mut cursor = ip + 40;
     for _ in 0..8 {
@@ -208,7 +226,9 @@ fn parse_ipv6(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
             44 => {
                 if cursor + 8 > packet_end { return None; }
                 next = packet[cursor];
-                if be16(packet, cursor + 2)? & 0xfff8 != 0 { return None; }
+                // Only an atomic fragment (offset=0, M=0) is complete enough for
+                // direct TCP parsing. Real fragmented IPv6 traffic must be ignored.
+                if be16(packet, cursor + 2)? != 0 { return None; }
                 cursor += 8;
             }
             51 => {
@@ -340,6 +360,13 @@ mod tests {
     }
 
     #[test]
+    fn tracked_states_include_connecting_and_established() {
+        assert!(tracked_connection_state(MIB_TCP_STATE_SYN_SENT));
+        assert!(tracked_connection_state(MIB_TCP_STATE_ESTAB));
+        assert!(!tracked_connection_state(2));
+    }
+
+    #[test]
     fn ethernet_ipv4_tcp_parse() {
         let mut p = vec![0u8; 14 + 20 + 20 + 3];
         p[12..14].copy_from_slice(&0x0800u16.to_be_bytes());
@@ -347,6 +374,20 @@ mod tests {
         p[ip+12..ip+16].copy_from_slice(&[10,0,0,1]); p[ip+16..ip+20].copy_from_slice(&[1,2,3,4]);
         let tcp=34; p[tcp..tcp+2].copy_from_slice(&40000u16.to_be_bytes()); p[tcp+2..tcp+4].copy_from_slice(&50000u16.to_be_bytes()); p[tcp+12]=0x50; p[tcp+13]=0x18;
         let info=parse_tcp(&p, DLT_EN10MB).unwrap(); assert_eq!(info.payload_len,3); assert_eq!(info.source.port,40000);
+    }
+
+    #[test]
+    fn ipv4_fragments_and_truncation_are_rejected() {
+        let mut p = vec![0u8; 14 + 20 + 20];
+        p[12..14].copy_from_slice(&0x0800u16.to_be_bytes());
+        let ip=14; p[ip]=0x45; p[ip+2..ip+4].copy_from_slice(&40u16.to_be_bytes()); p[ip+9]=6;
+        p[ip+12..ip+16].copy_from_slice(&[10,0,0,1]); p[ip+16..ip+20].copy_from_slice(&[1,2,3,4]);
+        let tcp=34; p[tcp..tcp+2].copy_from_slice(&40000u16.to_be_bytes()); p[tcp+2..tcp+4].copy_from_slice(&50000u16.to_be_bytes()); p[tcp+12]=0x50;
+        p[ip+6..ip+8].copy_from_slice(&0x2000u16.to_be_bytes());
+        assert!(parse_tcp(&p, DLT_EN10MB).is_none());
+        p[ip+6..ip+8].copy_from_slice(&0u16.to_be_bytes());
+        p[ip+2..ip+4].copy_from_slice(&60u16.to_be_bytes());
+        assert!(parse_tcp(&p, DLT_EN10MB).is_none());
     }
 
     #[test]
