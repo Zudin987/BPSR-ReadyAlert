@@ -154,7 +154,7 @@ struct FlowState {
     next_seq:Option<u32>, pending:BTreeMap<u32,Vec<u8>>, pending_bytes:usize,
     stream:ByteStream, synchronized:bool, gap_started:Option<Instant>, last_seen:Instant,
 }
-impl Default for FlowState { fn default()->Self { Self { next_seq:None,pending:BTreeMap::new(),pending_bytes:0,stream:ByteStream::default(),synchronized:false,gap_started=None,last_seen:Instant::now() } } }
+impl Default for FlowState { fn default()->Self { Self { next_seq:None,pending:BTreeMap::new(),pending_bytes:0,stream:ByteStream::default(),synchronized:false,gap_started:None,last_seen:Instant::now() } } }
 impl FlowState { fn reset(&mut self,next:Option<u32>, synchronized:bool){ self.next_seq=next; self.pending.clear();self.pending_bytes=0;self.stream.clear();self.synchronized=synchronized;self.gap_started=None; } }
 
 struct CaptureProcessor {
