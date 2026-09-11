@@ -94,6 +94,9 @@ jobs:
       - name: Focused v1.18.9 maintenance tests
         run: cargo test --manifest-path rust/Cargo.toml v1189_
 
+      - name: Focused v1.19.0 responsive DPS tests
+        run: cargo test --manifest-path rust/Cargo.toml v1190_
+
       - name: Unit tests
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
 
