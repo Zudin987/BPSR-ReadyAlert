@@ -106,6 +106,9 @@ pub unsafe fn dark_titlebar(hwnd: HWND) {
     }
     let rounded: i32 = 2;
     let _ = DwmSetWindowAttribute(hwnd, 33, (&rounded as *const i32).cast(), std::mem::size_of::<i32>() as u32);
+    // Keep Win11's resize/frame line inside the same visual system instead of a pale strip.
+    let border = BORDER;
+    let _ = DwmSetWindowAttribute(hwnd, 34, (&border as *const u32).cast(), std::mem::size_of::<u32>() as u32);
 }
 
 pub unsafe fn theme_control(hwnd: HWND) {
@@ -113,6 +116,17 @@ pub unsafe fn theme_control(hwnd: HWND) {
     set_font(hwnd, FontRole::Body);
     let theme = wide("DarkMode_Explorer");
     let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
+}
+
+pub unsafe fn theme_combo(hwnd: HWND) {
+    if hwnd.is_null() { return; }
+    set_font(hwnd, FontRole::Body);
+    // DarkMode_CFD themes the closed combo field and arrow as well as the popup list.
+    let theme = wide("DarkMode_CFD");
+    if SetWindowTheme(hwnd, theme.as_ptr(), null()) != 0 {
+        let fallback = wide("DarkMode_Explorer");
+        let _ = SetWindowTheme(hwnd, fallback.as_ptr(), null());
+    }
 }
 
 unsafe fn fill(hdc: HDC, rect: &RECT, color: u32) {
