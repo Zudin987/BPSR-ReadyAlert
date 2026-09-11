@@ -159,7 +159,7 @@ impl FlowState { fn reset(&mut self,next:Option<u32>, synchronized:bool){ self.n
 
 struct CaptureProcessor {
     tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime, telemetry:TelemetryRuntime,
-    flows:HashMap<FlowKey,FlowState>, last_ready:Option<Instant>, last_match:Option<Instant>, last_vote:Option<Instant>,
+    flows:HashMap<FlowKey,FlowState>, ready_opened_at:Option<Instant>, last_match:Option<Instant>, last_vote:Option<Instant>,
     last_invite:(u64,Option<Instant>), last_request:(u64,Option<Instant>), sequence:u64,
     pub last_valid_frame:Option<Instant>, last_cleanup:Instant,
 }
@@ -167,7 +167,7 @@ struct CaptureProcessor {
 impl CaptureProcessor {
     fn new(tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime)->Self {
         let telemetry = TelemetryRuntime::new(tx.clone());
-        Self { tx,identity,chat,telemetry,flows:HashMap::new(),last_ready:None,last_match:None,last_vote:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
+        Self { tx,identity,chat,telemetry,flows:HashMap::new(),ready_opened_at:None,last_match:None,last_vote:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
     }
     fn reset_flows(&mut self){ self.flows.clear(); self.last_valid_frame=Some(Instant::now()); }
     fn cleanup_flows(&mut self, aggressive:bool){
@@ -179,6 +179,10 @@ impl CaptureProcessor {
 
     fn process_packet(&mut self, packet:&[u8], datalink:i32){
         let Some(tcp)=parse_tcp(packet,datalink) else{return;};
+        // Pure ACK/window-update packets carry no server application bytes and do
+        // not advance this one-way reassembly stream. Skip the HashMap churn while
+        // still keeping SYN/FIN/RST control packets for sequence/lifecycle handling.
+        if tcp.payload_len==0 && tcp.flags&0x07==0{return;}
         let key=FlowKey{source:tcp.source,destination:tcp.destination};
         if self.flows.len()>=MAX_FLOWS && !self.flows.contains_key(&key){self.cleanup_flows(true);}
         let mut flow=self.flows.remove(&key).unwrap_or_default(); flow.last_seen=Instant::now();
@@ -223,7 +227,10 @@ impl CaptureProcessor {
         loop{if flow.stream.len()<6{return;}
             if !flow.synchronized{let start=flow.stream.scan_cursor.saturating_sub(40);let found=find_strong_frame(flow.stream.slice(),start);match found{Some((offset,_,_))=>{if offset>0{flow.stream.consume(offset);}flow.synchronized=true;flow.stream.scan_cursor=0;},None=>{flow.stream.scan_cursor=flow.stream.len().saturating_sub(40);flow.stream.trim_unsync();return;}}}
             let slice=flow.stream.slice();let Some((size,_))=plausible_header(slice,0) else{flow.synchronized=false;continue;};
-            if slice.len()<size{if let Some((offset,_,_))=find_strong_frame(slice,1).filter(|x|x.0>0){flow.stream.consume(offset);flow.synchronized=true;continue;}return;}
+            // Once synchronized, an incomplete plausible frame is normal TCP
+            // segmentation. Scanning inside its partial payload for another header
+            // can falsely resync on coincidental bytes and discard a valid frame.
+            if slice.len()<size{return;}
             let frame=&slice[..size];self.last_valid_frame=Some(Instant::now());self.process_messages(frame,0);flow.stream.consume(size);
         }
     }
@@ -242,10 +249,13 @@ impl CaptureProcessor {
         if service==proto::WORLD_SERVICE&&method==proto::ENTER_SCENE_METHOD{if let Some(id)=proto::parse_identity(body){let changed=self.identity.read().ok().and_then(|g|g.clone()).map(|x|x.uid!=id.uid||x.name!=id.name).unwrap_or(true);if changed{if let Ok(mut g)=self.identity.write(){*g=Some(id.clone());}let _=self.tx.send(AppEvent::Identity(id));}}}
         if service==proto::WORLD_SERVICE&&method==proto::READY_ALL_METHOD{
             match parse_ready_open(body) {
-                Some(true) => {
-                    if allow_after(&mut self.last_ready,Duration::from_secs(3)){self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");}
+                Some(open) => {
+                    if ready_transition(&mut self.ready_opened_at,open,Instant::now()){
+                        self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");
+                    } else if !open {
+                        logging::write("packet: Ready Check closed");
+                    }
                 }
-                Some(false) => logging::write("packet: ignored NotifyAllMemberReady close event"),
                 None => logging::write("packet: ignored malformed NotifyAllMemberReady"),
             }
             return;
@@ -262,6 +272,12 @@ impl CaptureProcessor {
 }
 
 fn allow_after(slot:&mut Option<Instant>,window:Duration)->bool{if slot.map(|x|x.elapsed()<window).unwrap_or(false){return false;}*slot=Some(Instant::now());true}
+fn ready_transition(slot:&mut Option<Instant>,open:bool,now:Instant)->bool{
+    if !open{*slot=None;return false;}
+    if slot.and_then(|started|now.checked_duration_since(started)).map(|age|age<Duration::from_secs(60)).unwrap_or(false){return false;}
+    *slot=Some(now);
+    true
+}
 fn parse_ready_open(data:&[u8])->Option<bool>{
     if !valid_proto_message(data){return None;}
     let mut p=0usize;
@@ -317,5 +333,6 @@ mod tests{
  #[test]fn strong_known_notify(){let mut d=vec![0u8;22];d[0..4].copy_from_slice(&22u32.to_be_bytes());d[4..6].copy_from_slice(&2u16.to_be_bytes());d[6..14].copy_from_slice(&proto::CHAT_SERVICE.to_be_bytes());assert_eq!(find_strong_frame(&d,0).map(|x|x.0),Some(0));}
  #[test]fn proto_validation_rejects_false_ready_payloads(){assert!(!valid_proto_message(&[]));assert!(!valid_proto_message(&[0x08,0x80]));assert!(!valid_proto_message(&[0x00]));assert!(valid_proto_message(&[0x08,0x01]));}
  #[test]fn ready_open_close_semantics(){assert_eq!(parse_ready_open(&[0x08,0x01]),Some(true));assert_eq!(parse_ready_open(&[0x08,0x00]),Some(false));assert_eq!(parse_ready_open(&[]),None);assert_eq!(parse_ready_open(&[0x10,0x01]),None);}
+ #[test]fn ready_transition_dedupes_until_close(){let t=Instant::now();let mut state=None;assert!(ready_transition(&mut state,true,t));assert!(!ready_transition(&mut state,true,t+Duration::from_secs(5)));assert!(!ready_transition(&mut state,false,t+Duration::from_secs(6)));assert!(ready_transition(&mut state,true,t+Duration::from_secs(7)));}
  #[test]fn seq_wrap(){assert!(seq_before(u32::MAX-2,3));}
 }
