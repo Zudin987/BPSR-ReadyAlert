@@ -38,7 +38,20 @@ jobs:
         run: ./scripts/prepare-build-assets.ps1
 
       - name: Focused tracker tests
-        run: cargo test --manifest-path rust/Cargo.toml event_tracker
+        shell: pwsh
+        run: |
+          cargo test --manifest-path rust/Cargo.toml event_tracker 2>&1 | Tee-Object -FilePath tracker-test-output.txt
+          $exitCode = $LASTEXITCODE
+          exit $exitCode
+
+      - name: Upload tracker test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracker-test-output
+          path: tracker-test-output.txt
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Focused Imagine tier tests
         run: cargo test --manifest-path rust/Cargo.toml imagine_tier
