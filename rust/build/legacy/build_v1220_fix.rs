@@ -62,12 +62,13 @@ fn main(){
         "raid consumable hide constant",
     );
 
-    // ui::work_area is unsafe in the current UI helper API; raid_auto_rect itself is
-    // intentionally safe, so isolate that one call instead of widening the function.
+    // ui::work_area is unsafe in the current UI helper API. Anchor this rewrite to
+    // raid_auto_rect's target-height calculation because older overlay helpers also
+    // call work_area and must remain untouched.
     replace_once(
         &mut source,
-        "let work=crate::ui::work_area(hwnd);",
-        "let work=unsafe{crate::ui::work_area(hwnd)};",
+        "let target_h=scale_px(logical_h,state.scale_percent).max(overlay_min_height(Kind::Dps,state.scale_percent));\n    let work=crate::ui::work_area(hwnd);",
+        "let target_h=scale_px(logical_h,state.scale_percent).max(overlay_min_height(Kind::Dps,state.scale_percent));\n    let work=unsafe{crate::ui::work_area(hwnd)};",
         "raid work area unsafe call",
     );
 
