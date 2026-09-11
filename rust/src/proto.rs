@@ -97,16 +97,24 @@ fn skip_field(data: &[u8], p: &mut usize, wire: u8) -> Option<()> {
     Some(())
 }
 
+pub fn parse_match_status(payload: &[u8]) -> Option<u64> {
+    let request = get_len_field(payload, 1)?;
+    let info = get_len_field(request, 2)?;
+    get_varint_field(info, 2)
+}
+
 pub fn parse_match_wait_ready(payload: &[u8]) -> bool {
-    let Some(request) = get_len_field(payload, 1) else { return false; };
-    let Some(info) = get_len_field(request, 2) else { return false; };
-    get_varint_field(info, 2) == Some(2)
+    parse_match_status(payload) == Some(2)
+}
+
+pub fn parse_team_activity_state(payload: &[u8]) -> Option<u64> {
+    let request = get_len_field(payload, 1)?;
+    let activity = get_len_field(request, 1)?;
+    get_varint_field(activity, 2)
 }
 
 pub fn parse_team_activity_voting(payload: &[u8]) -> bool {
-    let Some(request) = get_len_field(payload, 1) else { return false; };
-    let Some(activity) = get_len_field(request, 1) else { return false; };
-    get_varint_field(activity, 2) == Some(3)
+    parse_team_activity_state(payload) == Some(3)
 }
 
 pub fn parse_chat(payload: &[u8], sequence_id: u64) -> Option<ChatMessage> {
@@ -310,7 +318,15 @@ mod tests {
     #[test]
     fn queue_status_parser() {
         let payload = [0x0a, 0x06, 0x12, 0x04, 0x10, 0x02, 0x18, 0x01];
+        assert_eq!(parse_match_status(&payload), Some(2));
         assert!(parse_match_wait_ready(&payload));
+    }
+
+    #[test]
+    fn team_activity_state_parser() {
+        let payload = [0x0a, 0x04, 0x0a, 0x02, 0x10, 0x03];
+        assert_eq!(parse_team_activity_state(&payload), Some(3));
+        assert!(parse_team_activity_voting(&payload));
     }
 
     #[test]

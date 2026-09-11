@@ -8,6 +8,8 @@ use windows_sys::Win32::{
 const AF_INET: u32 = 2;
 const AF_INET6: u32 = 23;
 const TCP_TABLE_OWNER_PID_ALL: u32 = 5;
+const MIB_TCP_STATE_SYN_SENT: u32 = 3;
+const MIB_TCP_STATE_ESTAB: u32 = 5;
 const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
 const GAME_NAMES: &[&str] = &["BPSR", "BPSR_STEAM", "BPSR_EPIC", "StarSEA", "StarASIA", "StarTW", "StarSEA_STEAM", "StarASIA_STEAM", "Star"];
 
@@ -30,6 +32,12 @@ pub struct Endpoint {
     port: u16,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+struct GameConnection {
+    local: Endpoint,
+    remote: Endpoint,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct PacketTcpInfo {
     pub source: Endpoint,
@@ -43,9 +51,9 @@ pub struct PacketTcpInfo {
 
 pub struct GamePacketFilter {
     pids: HashSet<u32>,
-    endpoints: HashSet<Endpoint>,
+    connections: HashSet<GameConnection>,
     last_pid_refresh: Instant,
-    last_endpoint_refresh: Instant,
+    last_connection_refresh: Instant,
     last_forced_refresh: Instant,
     last_summary: String,
 }
@@ -55,9 +63,9 @@ impl GamePacketFilter {
         let now = Instant::now();
         Self {
             pids: HashSet::new(),
-            endpoints: HashSet::new(),
+            connections: HashSet::new(),
             last_pid_refresh: now.checked_sub(Duration::from_secs(10)).unwrap_or(now),
-            last_endpoint_refresh: now.checked_sub(Duration::from_secs(10)).unwrap_or(now),
+            last_connection_refresh: now.checked_sub(Duration::from_secs(10)).unwrap_or(now),
             last_forced_refresh: now.checked_sub(Duration::from_secs(10)).unwrap_or(now),
             last_summary: String::new(),
         }
@@ -68,46 +76,74 @@ impl GamePacketFilter {
         !self.pids.is_empty()
     }
 
-    pub fn is_game_packet(&mut self, packet: &[u8], datalink: i32) -> bool {
+    /// Accept only packets travelling from the exact remote peer of a game/relay
+    /// TCP connection back to its local endpoint. Notifications are server-to-client;
+    /// decoding the reverse direction can create false events.
+    pub fn is_game_server_packet(&mut self, packet: &[u8], datalink: i32) -> bool {
         let Some(info) = parse_tcp(packet, datalink) else { return false; };
         self.refresh(false);
-        if self.endpoints.contains(&info.source) || self.endpoints.contains(&info.destination) {
+        let connection = GameConnection { local: info.destination, remote: info.source };
+        if self.connections.contains(&connection) {
             return true;
         }
+
+        // A server SYN-ACK can arrive while Windows still reports the owning client
+        // socket as SYN_SENT. Refresh immediately so the handshake establishes the
+        // correct TCP sequence instead of dropping the first server payload.
         if info.flags & 0x02 == 0 || self.last_forced_refresh.elapsed() < Duration::from_millis(50) {
             return false;
         }
         self.last_forced_refresh = Instant::now();
         self.refresh(true);
-        self.endpoints.contains(&info.source) || self.endpoints.contains(&info.destination)
+        self.connections.contains(&connection)
     }
 
-    fn refresh(&mut self, force: bool) {
-        let pid_interval = if self.pids.is_empty() { Duration::from_millis(100) } else { Duration::from_secs(2) };
-        if force || self.last_pid_refresh.elapsed() >= pid_interval {
+    fn refresh(&mut self, force_connections: bool) {
+        // Process snapshots are comparatively expensive. Half-second discovery is
+        // still effectively instant when the game launches, while avoiding ten full
+        // process-list walks per second when ReadyAlert is idle.
+        let pid_interval = if self.pids.is_empty() { Duration::from_millis(500) } else { Duration::from_secs(2) };
+        if self.last_pid_refresh.elapsed() >= pid_interval || (force_connections && self.pids.is_empty()) {
             self.last_pid_refresh = Instant::now();
             self.pids = find_game_pids();
         }
-        if !force && self.last_endpoint_refresh.elapsed() < Duration::from_millis(100) { return; }
-        self.last_endpoint_refresh = Instant::now();
-        let mut endpoints = HashSet::new();
+
+        // Once a connection is known, refresh less aggressively. New connections
+        // still get immediate discovery from the SYN path above, so this reduces
+        // GetExtendedTcpTable allocations/calls without adding alert latency.
+        let connection_interval = if self.connections.is_empty() { Duration::from_millis(100) } else { Duration::from_millis(250) };
+        if !force_connections && self.last_connection_refresh.elapsed() < connection_interval { return; }
+        self.last_connection_refresh = Instant::now();
+        let mut connections = HashSet::new();
         if !self.pids.is_empty() {
             if let Ok(rows) = read_ipv4_rows() {
-                for (endpoint, pid) in rows { if self.pids.contains(&pid) { endpoints.insert(endpoint); } }
+                for (connection, state, pid) in rows {
+                    if tracked_connection_state(state) && self.pids.contains(&pid) {
+                        connections.insert(connection);
+                    }
+                }
             }
             if let Ok(rows) = read_ipv6_rows() {
-                for (endpoint, pid) in rows { if self.pids.contains(&pid) { endpoints.insert(endpoint); } }
+                for (connection, state, pid) in rows {
+                    if tracked_connection_state(state) && self.pids.contains(&pid) {
+                        connections.insert(connection);
+                    }
+                }
             }
         }
-        self.endpoints = endpoints;
+        self.connections = connections;
         let mut pid_list: Vec<_> = self.pids.iter().copied().collect();
         pid_list.sort_unstable();
-        let summary = format!("pids={pid_list:?} endpoints={}", self.endpoints.len());
+        let summary = format!("pids={pid_list:?} connections={}", self.connections.len());
         if summary != self.last_summary {
             self.last_summary = summary.clone();
             logging::write(format!("game-filter: {summary}"));
         }
     }
+}
+
+fn tracked_connection_state(state: u32) -> bool {
+    matches!(state, MIB_TCP_STATE_SYN_SENT | MIB_TCP_STATE_ESTAB)
 }
 
 pub fn parse_tcp(packet: &[u8], datalink: i32) -> Option<PacketTcpInfo> {
@@ -146,8 +182,14 @@ fn parse_ipv4(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
     if ip + 20 > packet.len() || packet[ip] >> 4 != 4 { return None; }
     let ip_header = usize::from(packet[ip] & 0x0f) * 4;
     if ip_header < 20 || ip + ip_header + 20 > packet.len() || packet[ip + 9] != 6 { return None; }
+    // Npcap exposes IP fragments before host TCP reassembly. Feeding a first or
+    // later fragment into the TCP parser can turn arbitrary payload bytes into a
+    // fake TCP header/sequence, so reject every fragmented IPv4 datagram here.
+    if be16(packet, ip + 6)? & 0x3fff != 0 { return None; }
     let total = usize::from(be16(packet, ip + 2)?);
-    let packet_end = if total >= ip_header { (ip + total).min(packet.len()) } else { packet.len() };
+    if total < ip_header + 20 { return None; }
+    let packet_end = ip.checked_add(total)?;
+    if packet_end > packet.len() { return None; }
     let tcp = ip + ip_header;
     let tcp_header = usize::from((packet[tcp + 12] >> 4) & 0x0f) * 4;
     if tcp_header < 20 || tcp + tcp_header > packet_end { return None; }
@@ -170,7 +212,13 @@ fn parse_ipv4(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
 fn parse_ipv6(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
     if ip + 40 > packet.len() || packet[ip] >> 4 != 6 { return None; }
     let payload_length = usize::from(be16(packet, ip + 4)?);
-    let packet_end = if payload_length == 0 { packet.len() } else { (ip + 40 + payload_length).min(packet.len()) };
+    let packet_end = if payload_length == 0 {
+        packet.len()
+    } else {
+        let end = ip.checked_add(40)?.checked_add(payload_length)?;
+        if end > packet.len() { return None; }
+        end
+    };
     let mut next = packet[ip + 6];
     let mut cursor = ip + 40;
     for _ in 0..8 {
@@ -186,7 +234,9 @@ fn parse_ipv6(packet: &[u8], ip: usize) -> Option<PacketTcpInfo> {
             44 => {
                 if cursor + 8 > packet_end { return None; }
                 next = packet[cursor];
-                if be16(packet, cursor + 2)? & 0xfff8 != 0 { return None; }
+                // Only an atomic fragment (offset=0, M=0) is complete enough for
+                // direct TCP parsing. Real fragmented IPv6 traffic must be ignored.
+                if be16(packet, cursor + 2)? != 0 { return None; }
                 cursor += 8;
             }
             51 => {
@@ -254,17 +304,35 @@ struct TcpRow4 { state:u32, local_addr:u32, local_port:u32, remote_addr:u32, rem
 #[derive(Clone, Copy)]
 struct TcpRow6 { local_addr:[u8;16], local_scope:u32, local_port:u32, remote_addr:[u8;16], remote_scope:u32, remote_port:u32, state:u32, pid:u32 }
 
-fn read_ipv4_rows() -> Result<Vec<(Endpoint,u32)>, String> {
-    read_table::<TcpRow4>(AF_INET).map(|rows| rows.into_iter().map(|row| {
-        let port = decode_port(row.local_port);
-        (Endpoint::v4(row.local_addr.to_ne_bytes(), port), row.pid)
+fn read_ipv4_rows() -> Result<Vec<(GameConnection,u32,u32)>, String> {
+    read_table::<TcpRow4>(AF_INET).map(|rows| rows.into_iter().filter_map(|row| {
+        let local_port = decode_port(row.local_port);
+        let remote_port = decode_port(row.remote_port);
+        if remote_port == 0 { return None; }
+        Some((
+            GameConnection {
+                local: Endpoint::v4(row.local_addr.to_ne_bytes(), local_port),
+                remote: Endpoint::v4(row.remote_addr.to_ne_bytes(), remote_port),
+            },
+            row.state,
+            row.pid,
+        ))
     }).collect())
 }
 
-fn read_ipv6_rows() -> Result<Vec<(Endpoint,u32)>, String> {
-    read_table::<TcpRow6>(AF_INET6).map(|rows| rows.into_iter().map(|row| {
-        let port = decode_port(row.local_port);
-        (Endpoint::v6(row.local_addr, port), row.pid)
+fn read_ipv6_rows() -> Result<Vec<(GameConnection,u32,u32)>, String> {
+    read_table::<TcpRow6>(AF_INET6).map(|rows| rows.into_iter().filter_map(|row| {
+        let local_port = decode_port(row.local_port);
+        let remote_port = decode_port(row.remote_port);
+        if remote_port == 0 { return None; }
+        Some((
+            GameConnection {
+                local: Endpoint::v6(row.local_addr, local_port),
+                remote: Endpoint::v6(row.remote_addr, remote_port),
+            },
+            row.state,
+            row.pid,
+        ))
     }).collect())
 }
 
@@ -300,6 +368,13 @@ mod tests {
     }
 
     #[test]
+    fn tracked_states_include_connecting_and_established() {
+        assert!(tracked_connection_state(MIB_TCP_STATE_SYN_SENT));
+        assert!(tracked_connection_state(MIB_TCP_STATE_ESTAB));
+        assert!(!tracked_connection_state(2));
+    }
+
+    #[test]
     fn ethernet_ipv4_tcp_parse() {
         let mut p = vec![0u8; 14 + 20 + 20 + 3];
         p[12..14].copy_from_slice(&0x0800u16.to_be_bytes());
@@ -307,5 +382,29 @@ mod tests {
         p[ip+12..ip+16].copy_from_slice(&[10,0,0,1]); p[ip+16..ip+20].copy_from_slice(&[1,2,3,4]);
         let tcp=34; p[tcp..tcp+2].copy_from_slice(&40000u16.to_be_bytes()); p[tcp+2..tcp+4].copy_from_slice(&50000u16.to_be_bytes()); p[tcp+12]=0x50; p[tcp+13]=0x18;
         let info=parse_tcp(&p, DLT_EN10MB).unwrap(); assert_eq!(info.payload_len,3); assert_eq!(info.source.port,40000);
+    }
+
+    #[test]
+    fn ipv4_fragments_and_truncation_are_rejected() {
+        let mut p = vec![0u8; 14 + 20 + 20];
+        p[12..14].copy_from_slice(&0x0800u16.to_be_bytes());
+        let ip=14; p[ip]=0x45; p[ip+2..ip+4].copy_from_slice(&40u16.to_be_bytes()); p[ip+9]=6;
+        p[ip+12..ip+16].copy_from_slice(&[10,0,0,1]); p[ip+16..ip+20].copy_from_slice(&[1,2,3,4]);
+        let tcp=34; p[tcp..tcp+2].copy_from_slice(&40000u16.to_be_bytes()); p[tcp+2..tcp+4].copy_from_slice(&50000u16.to_be_bytes()); p[tcp+12]=0x50;
+        p[ip+6..ip+8].copy_from_slice(&0x2000u16.to_be_bytes());
+        assert!(parse_tcp(&p, DLT_EN10MB).is_none());
+        p[ip+6..ip+8].copy_from_slice(&0u16.to_be_bytes());
+        p[ip+2..ip+4].copy_from_slice(&60u16.to_be_bytes());
+        assert!(parse_tcp(&p, DLT_EN10MB).is_none());
+    }
+
+    #[test]
+    fn connection_direction_is_server_to_client_only() {
+        let local = Endpoint::v4([10, 0, 0, 1], 40000);
+        let remote = Endpoint::v4([1, 2, 3, 4], 50000);
+        let connection = GameConnection { local, remote };
+        let set = HashSet::from([connection]);
+        assert!(set.contains(&GameConnection { local, remote }));
+        assert!(!set.contains(&GameConnection { local: remote, remote: local }));
     }
 }

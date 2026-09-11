@@ -225,7 +225,10 @@ impl CaptureHandle {
 
         let configure = (|| {
             check(&api, handle, unsafe { (api.set_snaplen)(handle, 65_536) }, "pcap_set_snaplen")?;
-            check(&api, handle, unsafe { (api.set_promisc)(handle, 1) }, "pcap_set_promisc")?;
+            // ReadyAlert only needs traffic addressed to/from this host. Avoid
+            // promiscuous mode so unrelated LAN traffic never reaches the BPF/user
+            // space pipeline and cannot add capture load or false-network noise.
+            check(&api, handle, unsafe { (api.set_promisc)(handle, 0) }, "pcap_set_promisc")?;
             check(&api, handle, unsafe { (api.set_timeout)(handle, 1) }, "pcap_set_timeout")?;
             // Give bursty Master Dungeon traffic more kernel-side headroom. This
             // is memory reserved for Npcap, not a per-packet allocation.

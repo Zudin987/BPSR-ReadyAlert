@@ -69,7 +69,7 @@ pub fn spawn(
                 let datalink = handle.datalink;
                 match handle.next_packet() {
                     Ok(Some(packet)) => {
-                        if filter.is_game_packet(packet, datalink) {
+                        if filter.is_game_server_packet(packet, datalink) {
                             last_packet = Some(Instant::now());
                             processor.process_packet(packet, datalink);
                         }
@@ -159,7 +159,7 @@ impl FlowState { fn reset(&mut self,next:Option<u32>, synchronized:bool){ self.n
 
 struct CaptureProcessor {
     tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime, telemetry:TelemetryRuntime,
-    flows:HashMap<FlowKey,FlowState>, last_ready:Option<Instant>, last_queue:Option<Instant>,
+    flows:HashMap<FlowKey,FlowState>, ready_opened_at:Option<Instant>, match_waiting_at:Option<Instant>, vote_opened_at:Option<Instant>,
     last_invite:(u64,Option<Instant>), last_request:(u64,Option<Instant>), sequence:u64,
     pub last_valid_frame:Option<Instant>, last_cleanup:Instant,
 }
@@ -167,7 +167,7 @@ struct CaptureProcessor {
 impl CaptureProcessor {
     fn new(tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime)->Self {
         let telemetry = TelemetryRuntime::new(tx.clone());
-        Self { tx,identity,chat,telemetry,flows:HashMap::new(),last_ready:None,last_queue:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
+        Self { tx,identity,chat,telemetry,flows:HashMap::new(),ready_opened_at:None,match_waiting_at:None,vote_opened_at:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
     }
     fn reset_flows(&mut self){ self.flows.clear(); self.last_valid_frame=Some(Instant::now()); }
     fn cleanup_flows(&mut self, aggressive:bool){
@@ -179,6 +179,10 @@ impl CaptureProcessor {
 
     fn process_packet(&mut self, packet:&[u8], datalink:i32){
         let Some(tcp)=parse_tcp(packet,datalink) else{return;};
+        // Pure ACK/window-update packets carry no server application bytes and do
+        // not advance this one-way reassembly stream. Skip the HashMap churn while
+        // still keeping SYN/FIN/RST control packets for sequence/lifecycle handling.
+        if tcp.payload_len==0 && tcp.flags&0x07==0{return;}
         let key=FlowKey{source:tcp.source,destination:tcp.destination};
         if self.flows.len()>=MAX_FLOWS && !self.flows.contains_key(&key){self.cleanup_flows(true);}
         let mut flow=self.flows.remove(&key).unwrap_or_default(); flow.last_seen=Instant::now();
@@ -223,7 +227,10 @@ impl CaptureProcessor {
         loop{if flow.stream.len()<6{return;}
             if !flow.synchronized{let start=flow.stream.scan_cursor.saturating_sub(40);let found=find_strong_frame(flow.stream.slice(),start);match found{Some((offset,_,_))=>{if offset>0{flow.stream.consume(offset);}flow.synchronized=true;flow.stream.scan_cursor=0;},None=>{flow.stream.scan_cursor=flow.stream.len().saturating_sub(40);flow.stream.trim_unsync();return;}}}
             let slice=flow.stream.slice();let Some((size,_))=plausible_header(slice,0) else{flow.synchronized=false;continue;};
-            if slice.len()<size{if let Some((offset,_,_))=find_strong_frame(slice,1).filter(|x|x.0>0){flow.stream.consume(offset);flow.synchronized=true;continue;}return;}
+            // Once synchronized, an incomplete plausible frame is normal TCP
+            // segmentation. Scanning inside its partial payload for another header
+            // can falsely resync on coincidental bytes and discard a valid frame.
+            if slice.len()<size{return;}
             let frame=&slice[..size];self.last_valid_frame=Some(Instant::now());self.process_messages(frame,0);flow.stream.consume(size);
         }
     }
@@ -235,21 +242,95 @@ impl CaptureProcessor {
         let service=be64(payload,0).unwrap_or(0);let method=be32(payload,12).unwrap_or(0);let raw=&payload[16..];let owned;
         let body=if compressed{match zstd::stream::decode_all(Cursor::new(raw)){Ok(v)=>{owned=v;&owned[..]},Err(err)=>{logging::write(format!("packet: zstd notify failed: {err}"));return;}}}else{raw};
 
-        // One decoded Notify stream fans out to every feature. No second Npcap session.
+        // One decoded server Notify stream fans out to every feature. No second Npcap session.
         self.telemetry.handle_notify(service,method,body);
 
         if service==proto::CHAT_SERVICE&&method==proto::CHAT_NOTIFY_NEWEST{self.sequence=self.sequence.wrapping_add(1).max(1);if let Some(message)=proto::parse_chat(body,self.sequence){self.chat.handle(&message);let _=self.tx.send(AppEvent::Chat(message));}return;}
         if service==proto::WORLD_SERVICE&&method==proto::ENTER_SCENE_METHOD{if let Some(id)=proto::parse_identity(body){let changed=self.identity.read().ok().and_then(|g|g.clone()).map(|x|x.uid!=id.uid||x.name!=id.name).unwrap_or(true);if changed{if let Ok(mut g)=self.identity.write(){*g=Some(id.clone());}let _=self.tx.send(AppEvent::Identity(id));}}}
-        if service==proto::WORLD_SERVICE&&method==proto::READY_ALL_METHOD{if self.last_ready.map(|x|x.elapsed()>=Duration::from_secs(3)).unwrap_or(true){self.last_ready=Some(Instant::now());self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");}return;}
+        if service==proto::WORLD_SERVICE&&method==proto::READY_ALL_METHOD{
+            match parse_ready_open(body) {
+                Some(open) => {
+                    if alert_state_transition(&mut self.ready_opened_at,open,Duration::from_secs(60),Instant::now()){
+                        self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");
+                    } else if !open {
+                        logging::write("packet: Ready Check closed");
+                    }
+                }
+                None => logging::write("packet: ignored malformed NotifyAllMemberReady"),
+            }
+            return;
+        }
         if service==proto::WORLD_SERVICE&&method==proto::READY_CAPTAIN_METHOD{return;}
-        if service==proto::MATCH_SERVICE&&method==proto::MATCH_ENTER_RESULT_METHOD&&proto::parse_match_wait_ready(body){self.queue_alert("BPSR Match Found","Matchmaking is waiting for acceptance.");return;}
-        if service==proto::TEAM_SERVICE&&method==proto::TEAM_ACTIVITY_METHOD&&proto::parse_team_activity_voting(body){self.queue_alert("BPSR Party Ready Vote","A party activity is waiting for your vote.");return;}
-        if service==proto::TEAM_SERVICE&&matches!(method,proto::TEAM_INVITATION_METHOD|proto::TEAM_APPLY_JOIN_METHOD){let hash=fnv1a(body);let slot=if method==proto::TEAM_INVITATION_METHOD{&mut self.last_invite}else{&mut self.last_request};if slot.0==hash&&slot.1.map(|x|x.elapsed()<Duration::from_secs(5)).unwrap_or(false){return;}*slot=(hash,Some(Instant::now()));if method==proto::TEAM_INVITATION_METHOD{self.alert(AlertKind::PartyInvite,"BPSR Party Invite","You received a party invitation.");}else{self.alert(AlertKind::PartyRequest,"BPSR Party Join Request","Someone requested to join your party.");}}
+        if service==proto::MATCH_SERVICE&&method==proto::MATCH_ENTER_RESULT_METHOD{
+            if let Some(status)=proto::parse_match_status(body){
+                if alert_state_transition(&mut self.match_waiting_at,status==2,Duration::from_secs(120),Instant::now()){
+                    self.alert(AlertKind::Queue,"BPSR Match Found","Matchmaking is waiting for acceptance.");
+                }
+            }
+            return;
+        }
+        if service==proto::TEAM_SERVICE&&method==proto::TEAM_ACTIVITY_METHOD{
+            if let Some(state)=proto::parse_team_activity_state(body){
+                if alert_state_transition(&mut self.vote_opened_at,state==3,Duration::from_secs(120),Instant::now()){
+                    self.alert(AlertKind::Queue,"BPSR Party Ready Vote","A party activity is waiting for your vote.");
+                }
+            }
+            return;
+        }
+        if service==proto::TEAM_SERVICE&&matches!(method,proto::TEAM_INVITATION_METHOD|proto::TEAM_APPLY_JOIN_METHOD){
+            if !valid_proto_message(body){logging::write(format!("packet: ignored malformed team notify method={method}"));return;}
+            let hash=fnv1a(body);let slot=if method==proto::TEAM_INVITATION_METHOD{&mut self.last_invite}else{&mut self.last_request};if slot.0==hash&&slot.1.map(|x|x.elapsed()<Duration::from_secs(5)).unwrap_or(false){return;}*slot=(hash,Some(Instant::now()));if method==proto::TEAM_INVITATION_METHOD{self.alert(AlertKind::PartyInvite,"BPSR Party Invite","You received a party invitation.");}else{self.alert(AlertKind::PartyRequest,"BPSR Party Join Request","Someone requested to join your party.");}
+        }
     }
-    fn queue_alert(&mut self,title:&str,message:&str){if self.last_queue.map(|x|x.elapsed()<Duration::from_secs(5)).unwrap_or(false){return;}self.last_queue=Some(Instant::now());self.alert(AlertKind::Queue,title,message);}
     fn alert(&self,kind:AlertKind,title:&str,message:&str){let _=self.tx.send(AppEvent::Alert(AlertEvent{kind,title:title.into(),message:message.into()}));}
 }
 
+fn alert_state_transition(slot:&mut Option<Instant>,active:bool,stale_after:Duration,now:Instant)->bool{
+    if !active{*slot=None;return false;}
+    if slot.and_then(|started|now.checked_duration_since(started)).map(|age|age<stale_after).unwrap_or(false){return false;}
+    *slot=Some(now);
+    true
+}
+fn parse_ready_open(data:&[u8])->Option<bool>{
+    if !valid_proto_message(data){return None;}
+    let mut p=0usize;
+    let mut open=None;
+    while p<data.len(){
+        let key=proto::read_varint(data,&mut p)?;
+        let field=key>>3;
+        let wire=(key&7) as u8;
+        if field==1{
+            if wire!=0{return None;}
+            open=Some(proto::read_varint(data,&mut p)?!=0);
+            continue;
+        }
+        match wire{
+            0=>{proto::read_varint(data,&mut p)?;},
+            1=>{p=p.checked_add(8)?;},
+            2=>{let len=usize::try_from(proto::read_varint(data,&mut p)?).ok()?;p=p.checked_add(len)?;},
+            5=>{p=p.checked_add(4)?;},
+            _=>return None,
+        }
+        if p>data.len(){return None;}
+    }
+    open
+}
+fn valid_proto_message(data:&[u8])->bool{
+    if data.is_empty(){return false;}
+    let mut p=0usize;
+    while p<data.len(){
+        let Some(key)=proto::read_varint(data,&mut p)else{return false;};
+        if key>>3==0{return false;}
+        match (key&7) as u8{
+            0=>{if proto::read_varint(data,&mut p).is_none(){return false;}},
+            1=>{let Some(end)=p.checked_add(8)else{return false;};if end>data.len(){return false;}p=end;},
+            2=>{let Some(raw_len)=proto::read_varint(data,&mut p)else{return false;};let Ok(len)=usize::try_from(raw_len)else{return false;};let Some(end)=p.checked_add(len)else{return false;};if end>data.len(){return false;}p=end;},
+            5=>{let Some(end)=p.checked_add(4)else{return false;};if end>data.len(){return false;}p=end;},
+            _=>return false,
+        }
+    }
+    true
+}
 fn seq_before(a:u32,b:u32)->bool{(a.wrapping_sub(b) as i32)<0}
 fn plausible_header(data:&[u8],offset:usize)->Option<(usize,u16)>{if offset+6>data.len(){return None;}let size=be32(data,offset)? as usize;let t=be16(data,offset+4)?;if size<6||size>MAX_GAME_FRAME||(t&0x7fff)>8{return None;}Some((size,t))}
 fn find_strong_frame(data:&[u8],start:usize)->Option<(usize,usize,u16)>{if data.len()<6{return None;}for offset in start.min(data.len()-6)..=data.len()-6{let Some((size,t))=plausible_header(data,offset)else{continue;};let kind=t&0x7fff;if kind==2&&size>=22&&offset+22<=data.len(){if known_service(be64(data,offset+6).unwrap_or(0)){return Some((offset,size,t));}}if size<=data.len()-offset{let next=offset+size;if plausible_header(data,next).is_some_and(|(s,_)|s<=data.len().saturating_sub(next)){return Some((offset,size,t));}}if kind!=6||size<10{continue;}if t&0x8000!=0{let z=offset+10;if size>=14&&z+4<=data.len()&&data[z..z+4]==[0x28,0xb5,0x2f,0xfd]{return Some((offset,size,t));}}else{let nested=offset+10;if nested+22<=data.len()&&size>=32{if let Some((_,nt))=plausible_header(data,nested){if nt&0x7fff==2&&known_service(be64(data,nested+6).unwrap_or(0)){return Some((offset,size,t));}}}}}None}
@@ -263,5 +344,8 @@ fn be64(d:&[u8],at:usize)->Option<u64>{Some(u64::from_be_bytes(d.get(at..at+8)?.
 mod tests{
  use super::*;
  #[test]fn strong_known_notify(){let mut d=vec![0u8;22];d[0..4].copy_from_slice(&22u32.to_be_bytes());d[4..6].copy_from_slice(&2u16.to_be_bytes());d[6..14].copy_from_slice(&proto::CHAT_SERVICE.to_be_bytes());assert_eq!(find_strong_frame(&d,0).map(|x|x.0),Some(0));}
+ #[test]fn proto_validation_rejects_false_ready_payloads(){assert!(!valid_proto_message(&[]));assert!(!valid_proto_message(&[0x08,0x80]));assert!(!valid_proto_message(&[0x00]));assert!(valid_proto_message(&[0x08,0x01]));}
+ #[test]fn ready_open_close_semantics(){assert_eq!(parse_ready_open(&[0x08,0x01]),Some(true));assert_eq!(parse_ready_open(&[0x08,0x00]),Some(false));assert_eq!(parse_ready_open(&[]),None);assert_eq!(parse_ready_open(&[0x10,0x01]),None);}
+ #[test]fn alert_state_transition_dedupes_until_inactive(){let t=Instant::now();let mut state=None;assert!(alert_state_transition(&mut state,true,Duration::from_secs(60),t));assert!(!alert_state_transition(&mut state,true,Duration::from_secs(60),t+Duration::from_secs(5)));assert!(!alert_state_transition(&mut state,false,Duration::from_secs(60),t+Duration::from_secs(6)));assert!(alert_state_transition(&mut state,true,Duration::from_secs(60),t+Duration::from_secs(7)));}
  #[test]fn seq_wrap(){assert!(seq_before(u32::MAX-2,3));}
 }
