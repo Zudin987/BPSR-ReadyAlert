@@ -81,6 +81,7 @@ mod hotkeys;
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
+mod updater;
 mod win {
     include!(concat!(env!("OUT_DIR"), "/win_v182_fixed.rs"));
 }
@@ -92,6 +93,11 @@ use std::{
 };
 
 fn main() {
+    if updater::handle_special_args() {
+        return;
+    }
+    updater::cleanup_stale_helper();
+
     if std::env::args().any(|x| x.eq_ignore_ascii_case("--build-smoke-test")) {
         std::process::exit(match smoke_test() { Ok(()) => 0, Err(err) => { eprintln!("{err}"); 1 } });
     }
