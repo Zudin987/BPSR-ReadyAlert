@@ -17,42 +17,63 @@ fn patch_telemetry(out: &Path) {
         .expect("read v1.23.0 telemetry")
         .replace("\r\n", "\n");
 
-    // A 20-player Raid can expose only a five-player subgroup through some Team
-    // messages. Once the encounter has more than five player rows, include every
-    // current encounter participant in wipe detection so one subgroup dying does
-    // not arm a reset while another Raid member is still alive.
+    // v1.23 already includes encounter participants that have produced combat
+    // activity. In Raid-sized encounters also include every current combat row,
+    // because a quiet member outside the local five-player subgroup must still
+    // prevent a false full-Raid wipe/reset while alive.
     replace_once(
         &mut source,
         r#"    fn party_is_wiped(&self) -> bool {
-        let mut roster: Vec<i64> = self.team.iter().copied().collect();
-        if self.local_uid > 0 && !roster.contains(&self.local_uid) {
-            roster.push(self.local_uid);
-        }
-        !roster.is_empty()
-            && roster
-                .iter()
-                .all(|uid| self.combat.get(uid).is_some_and(|actor| actor.is_dead))
-    }"#,
-        r#"    fn party_is_wiped(&self) -> bool {
-        let mut roster: Vec<i64> = self.team.iter().copied().collect();
-        if self.local_uid > 0 && !roster.contains(&self.local_uid) {
-            roster.push(self.local_uid);
-        }
-        // Normal parties keep their authoritative Team roster. In Raid-sized
-        // encounters, combat rows also contain members outside the local subgroup.
-        // Treat those rows as part of the wipe roster and fail closed when any
-        // participant is still alive or has not produced a dead ActorState.
-        if self.combat.len() > 5 {
-            for uid in self.combat.keys().copied() {
-                if !roster.contains(&uid) {
-                    roster.push(uid);
-                }
+        let mut roster: HashSet<i64> = self.team.iter().copied().collect();
+        if self.local_uid > 0 { roster.insert(self.local_uid); }
+        // Team packets can be partial. Include players that actually participated
+        // in this encounter so one missing roster packet cannot turn a single
+        // death into a false full-party wipe.
+        for (uid, actor) in &self.combat {
+            if actor.damage > 0 || actor.healing > 0 || actor.damage_taken > 0 || actor.hits > 0 || actor.deaths > 0 {
+                roster.insert(*uid);
             }
         }
-        !roster.is_empty()
-            && roster
-                .iter()
-                .all(|uid| self.combat.get(uid).is_some_and(|actor| actor.is_dead))
+        // Be conservative when only one player is known. In party content this
+        // avoids the v1.8.1 false reset when the roster sync is incomplete; solo
+        // users can still use manual Reset or scene re-entry.
+        if roster.len() < 2 { return false; }
+        roster.iter().all(|uid| {
+            self.combat.get(uid).is_some_and(|actor| actor.is_dead)
+                || self.players.get(uid).is_some_and(|player| {
+                    matches!(player.actor_state, ACTOR_STATE_DEAD | ACTOR_STATE_RESURRECTION)
+                        || (player.actor_state == ACTOR_STATE_TELEPORT && player.hp <= 0)
+                })
+        })
+    }"#,
+        r#"    fn party_is_wiped(&self) -> bool {
+        let mut roster: HashSet<i64> = self.team.iter().copied().collect();
+        if self.local_uid > 0 { roster.insert(self.local_uid); }
+        // Team packets can be partial. Include players that actually participated
+        // in this encounter so one missing roster packet cannot turn a single
+        // death into a false full-party wipe.
+        for (uid, actor) in &self.combat {
+            if actor.damage > 0 || actor.healing > 0 || actor.damage_taken > 0 || actor.hits > 0 || actor.deaths > 0 {
+                roster.insert(*uid);
+            }
+        }
+        // Raid Team messages may expose only the local five-player subgroup.
+        // Once the encounter has Raid-sized combat state, every current combat
+        // row is a known participant; even a quiet/alive member must block wipe.
+        if self.combat.len() > 5 {
+            roster.extend(self.combat.keys().copied());
+        }
+        // Be conservative when only one player is known. In party content this
+        // avoids the v1.8.1 false reset when the roster sync is incomplete; solo
+        // users can still use manual Reset or scene re-entry.
+        if roster.len() < 2 { return false; }
+        roster.iter().all(|uid| {
+            self.combat.get(uid).is_some_and(|actor| actor.is_dead)
+                || self.players.get(uid).is_some_and(|player| {
+                    matches!(player.actor_state, ACTOR_STATE_DEAD | ACTOR_STATE_RESURRECTION)
+                        || (player.actor_state == ACTOR_STATE_TELEPORT && player.hp <= 0)
+                })
+        })
     }"#,
         "Raid-safe wipe roster",
     );
@@ -120,7 +141,7 @@ mod v1231_mechanics_and_raid_tests {
     #[test]
     fn simultaneous_identical_mechanics_collapse_but_targets_stay_distinct() {
         let now = now_ms();
-        let make = |key: &str, target: Option<&str>, expiry_offset: i64| MechanicRow {
+        let make = |key: &str, target: Option<&str>, expiry_offset: u64| MechanicRow {
             key: key.into(),
             label: "Tower activating".into(),
             target: target.map(str::to_string),
