@@ -141,7 +141,7 @@ mod v1231_mechanics_and_raid_tests {
     #[test]
     fn simultaneous_identical_mechanics_collapse_but_targets_stay_distinct() {
         let now = now_ms();
-        let make = |key: &str, target: Option<&str>, expiry_offset: u64| MechanicRow {
+        let make = |key: &str, target: Option<&str>, expiry_offset: i64| MechanicRow {
             key: key.into(),
             label: "Tower activating".into(),
             target: target.map(str::to_string),
