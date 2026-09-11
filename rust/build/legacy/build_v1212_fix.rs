@@ -59,6 +59,18 @@ fn patch_feature_overlay(out:&Path){
         "popup timer cleanup",
     );
 
+    // v1.21.1 lowered the 100% DPS minimum width from 500 to 300 pixels.
+    // The old v1.18.8 screen-limit fixture used a 1280px work area because the
+    // former 300% minimum was 1500px. At the new 900px minimum that fixture is
+    // intentionally no longer screen-limited, so keep the test's original
+    // purpose by using a genuinely narrower 800px work area.
+    replace_once(
+        &mut source,
+        "let small=RECT{left:0,top:0,right:1280,bottom:680};",
+        "let small=RECT{left:0,top:0,right:800,bottom:680};",
+        "v1.18.8 screen-limit fixture after 300px minimum",
+    );
+
     source.push_str(r#"
 
 #[cfg(test)]
