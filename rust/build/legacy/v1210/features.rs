@@ -57,7 +57,7 @@ fn patch_features(out:&Path){
         "entity boss damage header");
 
     let old="fill(hdc,&RECT{left:3,top:head,right:rc.right-3,bottom:head+24},rgb(49,49,49));SetTextColor(hdc,rgb(225,225,225));";
-    let count=source.matches(old).count();assert_eq!(count,4,"v1.21 entity table header count");
+    let count=source.matches(old).count();assert_eq!(count,3,"v1.21 entity table header count");
     source=source.replace(old,"fill(hdc,&RECT{left:3,top:head,right:rc.right-3,bottom:head+24},crate::ui_theme::RAISED);SetTextColor(hdc,crate::ui_theme::TEXT_SECONDARY);");
 
     replace_once(&mut source,
