@@ -41,6 +41,7 @@ unsafe fn draw_toolbar_symbol(hdc:HDC,text:&str,rect:RECT,pixel_height:i32){
 
 #[cfg(test)]
 mod v1189_repeat_gdi_tests{
+    use super::{COMBAT_ICON_PX,HIDE_ICON_PX};
     #[test]fn toolbar_uses_only_two_symbol_font_sizes(){assert_ne!(COMBAT_ICON_PX,HIDE_ICON_PX);}
 }
 "###);
