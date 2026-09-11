@@ -51,7 +51,7 @@ extern "system"{fn ChooseColorW(data:*mut ChooseColorWData)->i32;}"###,
             if !state_ptr.is_null() {
                 let id=(wparam as u32&0xffff)as i32;let notify=((wparam as u32>>16)&0xffff)as u16;
                 if let Some(edit)=swatch_edit_id(id){if choose_color(hwnd,edit){set_dirty(hwnd,&mut *state_ptr,true);}return 0;}
-                if let Some(swatch)=edit_swatch_id(id){windows_sys::Win32::Graphics::Gdi::InvalidateRect(GetDlgItem(hwnd,swatch),null(),0);}
+                if let Some(swatch)=edit_swatch_id(id){windows_sys::Win32::UI::WindowsAndMessaging::InvalidateRect(GetDlgItem(hwnd,swatch),null(),0);}
                 if is_mutating_command(id,notify){set_dirty(hwnd,&mut *state_ptr,true);}
                 handle_command(hwnd, &mut *state_ptr, wparam);
             }
@@ -138,9 +138,9 @@ fn swatch_edit_id(id:i32)->Option<i32>{if id>=ID_COLOR_SWATCH_BASE&&id<ID_COLOR_
 fn edit_swatch_id(id:i32)->Option<i32>{if id>=ID_COLOR_BASE&&id<ID_COLOR_BASE+10{Some(ID_COLOR_SWATCH_BASE+(id-ID_COLOR_BASE))}else if id==ID_HIGHLIGHT_COLOR{Some(ID_HIGHLIGHT_SWATCH)}else if id==ID_PRIVATE_COLOR{Some(ID_PRIVATE_SWATCH)}else{None}}
 fn hex_colorref(text:&str)->Option<u32>{if !valid_hex_color(text){return None;}let v=u32::from_str_radix(&text.trim()[1..],16).ok()?;Some(rgb(((v>>16)&255)as u8,((v>>8)&255)as u8,(v&255)as u8))}
 fn colorref_hex(c:u32)->String{format!("#{:02X}{:02X}{:02X}",c&255,(c>>8)&255,(c>>16)&255)}
-unsafe fn choose_color(hwnd:HWND,edit:i32)->bool{let mut custom=[0u32;16];let mut data=ChooseColorWData{l_struct_size:std::mem::size_of::<ChooseColorWData>()as u32,hwnd_owner:hwnd,h_instance:null_mut(),rgb_result:hex_colorref(&get_text(hwnd,edit)).unwrap_or(0),custom_colors:custom.as_mut_ptr(),flags:0x00000001|0x00000002,cust_data:0,hook:null_mut(),template:null()};if ChooseColorW(&mut data)==0{return false;}set_text(hwnd,edit,&colorref_hex(data.rgb_result));if let Some(swatch)=edit_swatch_id(edit){windows_sys::Win32::Graphics::Gdi::InvalidateRect(GetDlgItem(hwnd,swatch),null(),0);}true}
+unsafe fn choose_color(hwnd:HWND,edit:i32)->bool{let mut custom=[0u32;16];let mut data=ChooseColorWData{l_struct_size:std::mem::size_of::<ChooseColorWData>()as u32,hwnd_owner:hwnd,h_instance:null_mut(),rgb_result:hex_colorref(&get_text(hwnd,edit)).unwrap_or(0),custom_colors:custom.as_mut_ptr(),flags:0x00000001|0x00000002,cust_data:0,hook:null_mut(),template:null()};if ChooseColorW(&mut data)==0{return false;}set_text(hwnd,edit,&colorref_hex(data.rgb_result));if let Some(swatch)=edit_swatch_id(edit){windows_sys::Win32::UI::WindowsAndMessaging::InvalidateRect(GetDlgItem(hwnd,swatch),null(),0);}true}
 fn is_mutating_command(id:i32,notify:u16)->bool{if matches!(id,ID_APPLY|ID_CLOSE|ID_UPDATE_CHECK_NOW|ID_TEST_TTS|3207|3208|3209|ID_OPEN_LOGS|ID_OPEN_JSON|ID_OPEN_FOLDER){return false;}if id>=NAV_BASE&&id<NAV_BASE+PAGE_COUNT as i32{return false;}let settings_range=(3200..=3422).contains(&id);settings_range||matches!(id,ID_TAB_ADD|ID_TAB_DELETE|ID_UNBLOCK|ID_CLEAR_BLOCKED)||notify!=0&&id>0}
-unsafe fn set_dirty(hwnd:HWND,state:&mut SettingsState,dirty:bool){state.dirty=dirty;EnableWindow(GetDlgItem(hwnd,ID_APPLY),dirty as i32);windows_sys::Win32::Graphics::Gdi::InvalidateRect(GetDlgItem(hwnd,ID_APPLY),null(),0);}
+unsafe fn set_dirty(hwnd:HWND,state:&mut SettingsState,dirty:bool){state.dirty=dirty;EnableWindow(GetDlgItem(hwnd,ID_APPLY),dirty as i32);windows_sys::Win32::UI::WindowsAndMessaging::InvalidateRect(GetDlgItem(hwnd,ID_APPLY),null(),0);}
 unsafe fn close_settings(hwnd:HWND,state:&mut SettingsState){if state.dirty{let result=MessageBoxW(hwnd,wide("Discard unsaved settings changes?").as_ptr(),wide("ReadyAlert Settings").as_ptr(),0x00000004|0x00000030);if result!=6{return;}}DestroyWindow(hwnd);}
 "###,
         "dirty state and color picker helpers");
