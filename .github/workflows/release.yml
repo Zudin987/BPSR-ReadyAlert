@@ -54,10 +54,18 @@ jobs:
           Copy-Item './THIRD_PARTY_NOTICES.md' './package/THIRD_PARTY_NOTICES.md'
           $hash = (Get-FileHash './package/BPSR-ReadyAlert.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  BPSR-ReadyAlert.exe" | Set-Content './package/SHA256SUMS.txt' -Encoding ascii
+          $manifest = [ordered]@{
+            version = $version
+            url = "https://github.com/Zudin987/BPSR-ReadyAlert/releases/download/$tag/BPSR-ReadyAlert.exe"
+            sha256 = $hash
+          }
+          $manifest | ConvertTo-Json | Set-Content './update.json' -Encoding utf8
           Compress-Archive -Path './package/*' -DestinationPath "./BPSR-ReadyAlert-$tag-win-x64.zip" -Force
           "TAG=$tag" >> $env:GITHUB_ENV
           "ARCHIVE=BPSR-ReadyAlert-$tag-win-x64.zip" >> $env:GITHUB_ENV
           "EXE=package/BPSR-ReadyAlert.exe" >> $env:GITHUB_ENV
+          "SUMS=package/SHA256SUMS.txt" >> $env:GITHUB_ENV
+          "MANIFEST=update.json" >> $env:GITHUB_ENV
 
       - name: Publish GitHub release
         shell: pwsh
@@ -66,10 +74,10 @@ jobs:
         run: |
           gh release view "$env:TAG" *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $env:TAG already exists; uploading the standalone EXE."
-            gh release upload "$env:TAG" "$env:EXE" --clobber
+            Write-Host "Release $env:TAG already exists; refreshing updater assets."
+            gh release upload "$env:TAG" "$env:EXE" "$env:SUMS" "$env:MANIFEST" --clobber
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             exit 0
           }
-          gh release create "$env:TAG" "$env:ARCHIVE" "$env:EXE" --target "${{ github.sha }}" --title "BPSR ReadyAlert $env:TAG" --generate-notes
+          gh release create "$env:TAG" "$env:ARCHIVE" "$env:EXE" "$env:SUMS" "$env:MANIFEST" --target "${{ github.sha }}" --title "BPSR ReadyAlert $env:TAG" --generate-notes
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
