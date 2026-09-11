@@ -1,12 +1,12 @@
 mod current {
-    include!("build/legacy/build_v1230.rs");
+    include!("build/legacy/build_v1231_mechanics.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
-    // Historical generated-source compatibility remains assertion-guarded. v1.23
-    // consolidates the new audit fixes in one final stage so future source edits
-    // fail loudly instead of silently producing a partially patched runtime.
+    // Historical generated-source compatibility remains assertion-guarded. v1.23.1
+    // now layers CN-authoritative wipe handling, mechanic-wave dedupe, EnterScene
+    // scene detection, and scene-gated dungeon/Raid mechanic parity.
     println!("cargo:rerun-if-changed=build/legacy");
 }
