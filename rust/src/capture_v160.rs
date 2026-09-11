@@ -315,7 +315,7 @@ fn be64(d:&[u8],at:usize)->Option<u64>{Some(u64::from_be_bytes(d.get(at..at+8)?.
 mod tests{
  use super::*;
  #[test]fn strong_known_notify(){let mut d=vec![0u8;22];d[0..4].copy_from_slice(&22u32.to_be_bytes());d[4..6].copy_from_slice(&2u16.to_be_bytes());d[6..14].copy_from_slice(&proto::CHAT_SERVICE.to_be_bytes());assert_eq!(find_strong_frame(&d,0).map(|x|x.0),Some(0));}
- #[test]fn seq_wrap(){assert!(seq_before(u32::MAX-2,3));}
  #[test]fn proto_validation_rejects_false_ready_payloads(){assert!(!valid_proto_message(&[]));assert!(!valid_proto_message(&[0x08,0x80]));assert!(!valid_proto_message(&[0x00]));assert!(valid_proto_message(&[0x08,0x01]));}
  #[test]fn ready_open_close_semantics(){assert_eq!(parse_ready_open(&[0x08,0x01]),Some(true));assert_eq!(parse_ready_open(&[0x08,0x00]),Some(false));assert_eq!(parse_ready_open(&[]),None);assert_eq!(parse_ready_open(&[0x10,0x01]),None);}
+ #[test]fn seq_wrap(){assert!(seq_before(u32::MAX-2,3));}
 }
