@@ -98,13 +98,21 @@ impl GamePacketFilter {
         self.connections.contains(&connection)
     }
 
-    fn refresh(&mut self, force: bool) {
-        let pid_interval = if self.pids.is_empty() { Duration::from_millis(100) } else { Duration::from_secs(2) };
-        if force || self.last_pid_refresh.elapsed() >= pid_interval {
+    fn refresh(&mut self, force_connections: bool) {
+        // Process snapshots are comparatively expensive. Half-second discovery is
+        // still effectively instant when the game launches, while avoiding ten full
+        // process-list walks per second when ReadyAlert is idle.
+        let pid_interval = if self.pids.is_empty() { Duration::from_millis(500) } else { Duration::from_secs(2) };
+        if self.last_pid_refresh.elapsed() >= pid_interval || (force_connections && self.pids.is_empty()) {
             self.last_pid_refresh = Instant::now();
             self.pids = find_game_pids();
         }
-        if !force && self.last_connection_refresh.elapsed() < Duration::from_millis(100) { return; }
+
+        // Once a connection is known, refresh less aggressively. New connections
+        // still get immediate discovery from the SYN path above, so this reduces
+        // GetExtendedTcpTable allocations/calls without adding alert latency.
+        let connection_interval = if self.connections.is_empty() { Duration::from_millis(100) } else { Duration::from_millis(250) };
+        if !force_connections && self.last_connection_refresh.elapsed() < connection_interval { return; }
         self.last_connection_refresh = Instant::now();
         let mut connections = HashSet::new();
         if !self.pids.is_empty() {
