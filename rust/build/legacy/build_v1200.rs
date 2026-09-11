@@ -39,8 +39,8 @@ fn patch_settings(out: &PathBuf) {
 
     replace_once(
         &mut source,
-        "    s.alert_volume = read_i32(hwnd, ID_ALERT_VOLUME, s.alert_volume);",
-        "    s.alert_volume = read_i32(hwnd, ID_ALERT_VOLUME, s.alert_volume);\n    let update_prefs=crate::updater::UpdatePreferences{auto_check:get_check(hwnd,ID_UPDATE_AUTO_CHECK),auto_download:get_check(hwnd,ID_UPDATE_AUTO_DOWNLOAD)};\n    if let Err(err)=crate::updater::save_preferences(&state.paths.root,&update_prefs){MessageBoxW(hwnd,wide(&format!(\"Could not save update settings.\\r\\n\\r\\n{err}\")).as_ptr(),wide(\"ReadyAlert Updates\").as_ptr(),MB_OK|MB_ICONERROR);return;}",
+        "    s.alert_volume = alert_volume;",
+        "    s.alert_volume = alert_volume;\n    let update_prefs=crate::updater::UpdatePreferences{auto_check:get_check(hwnd,ID_UPDATE_AUTO_CHECK),auto_download:get_check(hwnd,ID_UPDATE_AUTO_DOWNLOAD)};\n    if let Err(err)=crate::updater::save_preferences(&state.paths.root,&update_prefs){MessageBoxW(hwnd,wide(&format!(\"Could not save update settings.\\r\\n\\r\\n{err}\")).as_ptr(),wide(\"ReadyAlert Updates\").as_ptr(),MB_OK|MB_ICONERROR);return;}",
         "save update preferences",
     );
 
@@ -59,8 +59,8 @@ fn patch_win(out: &PathBuf) {
     let mut source = fs::read_to_string(&path).expect("read generated win UI");
     replace_once(
         &mut source,
-        "        add_tray(hwnd, &state.capture_status)?;",
-        "        add_tray(hwnd, &state.capture_status)?;\n        crate::updater::spawn_startup(state.paths.root.clone());",
+        "    add_tray(hwnd,&state.capture_status)?;apply_visibility(&mut state);SetTimer(hwnd,TIMER_ID,50,None);",
+        "    add_tray(hwnd,&state.capture_status)?;crate::updater::spawn_startup(state.paths.root.clone());apply_visibility(&mut state);SetTimer(hwnd,TIMER_ID,50,None);",
         "background updater startup",
     );
     fs::write(path, source).expect("write v1.20 win UI");
