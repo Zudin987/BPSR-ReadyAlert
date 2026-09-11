@@ -241,8 +241,13 @@ impl CaptureProcessor {
         if service==proto::CHAT_SERVICE&&method==proto::CHAT_NOTIFY_NEWEST{self.sequence=self.sequence.wrapping_add(1).max(1);if let Some(message)=proto::parse_chat(body,self.sequence){self.chat.handle(&message);let _=self.tx.send(AppEvent::Chat(message));}return;}
         if service==proto::WORLD_SERVICE&&method==proto::ENTER_SCENE_METHOD{if let Some(id)=proto::parse_identity(body){let changed=self.identity.read().ok().and_then(|g|g.clone()).map(|x|x.uid!=id.uid||x.name!=id.name).unwrap_or(true);if changed{if let Ok(mut g)=self.identity.write(){*g=Some(id.clone());}let _=self.tx.send(AppEvent::Identity(id));}}}
         if service==proto::WORLD_SERVICE&&method==proto::READY_ALL_METHOD{
-            if !valid_proto_message(body){logging::write("packet: ignored malformed/empty NotifyAllMemberReady");return;}
-            if allow_after(&mut self.last_ready,Duration::from_secs(3)){self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");}
+            match parse_ready_open(body) {
+                Some(true) => {
+                    if allow_after(&mut self.last_ready,Duration::from_secs(3)){self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");}
+                }
+                Some(false) => logging::write("packet: ignored NotifyAllMemberReady close event"),
+                None => logging::write("packet: ignored malformed NotifyAllMemberReady"),
+            }
             return;
         }
         if service==proto::WORLD_SERVICE&&method==proto::READY_CAPTAIN_METHOD{return;}
@@ -257,6 +262,30 @@ impl CaptureProcessor {
 }
 
 fn allow_after(slot:&mut Option<Instant>,window:Duration)->bool{if slot.map(|x|x.elapsed()<window).unwrap_or(false){return false;}*slot=Some(Instant::now());true}
+fn parse_ready_open(data:&[u8])->Option<bool>{
+    if !valid_proto_message(data){return None;}
+    let mut p=0usize;
+    let mut open=None;
+    while p<data.len(){
+        let key=proto::read_varint(data,&mut p)?;
+        let field=key>>3;
+        let wire=(key&7) as u8;
+        if field==1{
+            if wire!=0{return None;}
+            open=Some(proto::read_varint(data,&mut p)?!=0);
+            continue;
+        }
+        match wire{
+            0=>{proto::read_varint(data,&mut p)?;},
+            1=>{p=p.checked_add(8)?;},
+            2=>{let len=usize::try_from(proto::read_varint(data,&mut p)?).ok()?;p=p.checked_add(len)?;},
+            5=>{p=p.checked_add(4)?;},
+            _=>return None,
+        }
+        if p>data.len(){return None;}
+    }
+    open
+}
 fn valid_proto_message(data:&[u8])->bool{
     if data.is_empty(){return false;}
     let mut p=0usize;
@@ -288,4 +317,5 @@ mod tests{
  #[test]fn strong_known_notify(){let mut d=vec![0u8;22];d[0..4].copy_from_slice(&22u32.to_be_bytes());d[4..6].copy_from_slice(&2u16.to_be_bytes());d[6..14].copy_from_slice(&proto::CHAT_SERVICE.to_be_bytes());assert_eq!(find_strong_frame(&d,0).map(|x|x.0),Some(0));}
  #[test]fn seq_wrap(){assert!(seq_before(u32::MAX-2,3));}
  #[test]fn proto_validation_rejects_false_ready_payloads(){assert!(!valid_proto_message(&[]));assert!(!valid_proto_message(&[0x08,0x80]));assert!(!valid_proto_message(&[0x00]));assert!(valid_proto_message(&[0x08,0x01]));}
+ #[test]fn ready_open_close_semantics(){assert_eq!(parse_ready_open(&[0x08,0x01]),Some(true));assert_eq!(parse_ready_open(&[0x08,0x00]),Some(false));assert_eq!(parse_ready_open(&[]),None);assert_eq!(parse_ready_open(&[0x10,0x01]),None);}
 }
