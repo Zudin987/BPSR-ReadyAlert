@@ -59,8 +59,8 @@ fn patch_win(out: &PathBuf) {
     let mut source = fs::read_to_string(&path).expect("read generated win UI");
     replace_once(
         &mut source,
-        "    add_tray(hwnd,&state.capture_status)?;apply_visibility(&mut state);SetTimer(hwnd,TIMER_ID,50,None);",
-        "    add_tray(hwnd,&state.capture_status)?;crate::updater::spawn_startup(state.paths.root.clone());apply_visibility(&mut state);SetTimer(hwnd,TIMER_ID,50,None);",
+        "        add_tray(hwnd,&state.capture_status)?;apply_visibility(&mut state);",
+        "        add_tray(hwnd,&state.capture_status)?;crate::updater::spawn_startup(state.paths.root.clone());apply_visibility(&mut state);",
         "background updater startup",
     );
     fs::write(path, source).expect("write v1.20 win UI");
