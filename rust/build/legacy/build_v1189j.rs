@@ -15,6 +15,7 @@ fn patch_tray_add_race(out:&Path){
 
 #[cfg(test)]
 mod v1189_repeat_tray_race_tests{
+    use super::TRAY_ID;
     #[test]fn tray_identity_is_stable(){assert_eq!(TRAY_ID,1);}
 }
 "###);
