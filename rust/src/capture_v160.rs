@@ -159,7 +159,7 @@ impl FlowState { fn reset(&mut self,next:Option<u32>, synchronized:bool){ self.n
 
 struct CaptureProcessor {
     tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime, telemetry:TelemetryRuntime,
-    flows:HashMap<FlowKey,FlowState>, ready_opened_at:Option<Instant>, last_match:Option<Instant>, last_vote:Option<Instant>,
+    flows:HashMap<FlowKey,FlowState>, ready_opened_at:Option<Instant>, match_waiting_at:Option<Instant>, vote_opened_at:Option<Instant>,
     last_invite:(u64,Option<Instant>), last_request:(u64,Option<Instant>), sequence:u64,
     pub last_valid_frame:Option<Instant>, last_cleanup:Instant,
 }
@@ -167,7 +167,7 @@ struct CaptureProcessor {
 impl CaptureProcessor {
     fn new(tx:Sender<AppEvent>, identity:Arc<RwLock<Option<PlayerIdentity>>>, chat:ChatRuntime)->Self {
         let telemetry = TelemetryRuntime::new(tx.clone());
-        Self { tx,identity,chat,telemetry,flows:HashMap::new(),ready_opened_at:None,last_match:None,last_vote:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
+        Self { tx,identity,chat,telemetry,flows:HashMap::new(),ready_opened_at:None,match_waiting_at:None,vote_opened_at:None,last_invite:(0,None),last_request:(0,None),sequence:0,last_valid_frame:None,last_cleanup:Instant::now() }
     }
     fn reset_flows(&mut self){ self.flows.clear(); self.last_valid_frame=Some(Instant::now()); }
     fn cleanup_flows(&mut self, aggressive:bool){
@@ -250,7 +250,7 @@ impl CaptureProcessor {
         if service==proto::WORLD_SERVICE&&method==proto::READY_ALL_METHOD{
             match parse_ready_open(body) {
                 Some(open) => {
-                    if ready_transition(&mut self.ready_opened_at,open,Instant::now()){
+                    if alert_state_transition(&mut self.ready_opened_at,open,Duration::from_secs(60),Instant::now()){
                         self.alert(AlertKind::Ready,"BPSR Ready Check","Party Ready Check started.");
                     } else if !open {
                         logging::write("packet: Ready Check closed");
@@ -261,8 +261,22 @@ impl CaptureProcessor {
             return;
         }
         if service==proto::WORLD_SERVICE&&method==proto::READY_CAPTAIN_METHOD{return;}
-        if service==proto::MATCH_SERVICE&&method==proto::MATCH_ENTER_RESULT_METHOD&&proto::parse_match_wait_ready(body){if allow_after(&mut self.last_match,Duration::from_secs(5)){self.alert(AlertKind::Queue,"BPSR Match Found","Matchmaking is waiting for acceptance.");}return;}
-        if service==proto::TEAM_SERVICE&&method==proto::TEAM_ACTIVITY_METHOD&&proto::parse_team_activity_voting(body){if allow_after(&mut self.last_vote,Duration::from_secs(5)){self.alert(AlertKind::Queue,"BPSR Party Ready Vote","A party activity is waiting for your vote.");}return;}
+        if service==proto::MATCH_SERVICE&&method==proto::MATCH_ENTER_RESULT_METHOD{
+            if let Some(status)=proto::parse_match_status(body){
+                if alert_state_transition(&mut self.match_waiting_at,status==2,Duration::from_secs(120),Instant::now()){
+                    self.alert(AlertKind::Queue,"BPSR Match Found","Matchmaking is waiting for acceptance.");
+                }
+            }
+            return;
+        }
+        if service==proto::TEAM_SERVICE&&method==proto::TEAM_ACTIVITY_METHOD{
+            if let Some(state)=proto::parse_team_activity_state(body){
+                if alert_state_transition(&mut self.vote_opened_at,state==3,Duration::from_secs(120),Instant::now()){
+                    self.alert(AlertKind::Queue,"BPSR Party Ready Vote","A party activity is waiting for your vote.");
+                }
+            }
+            return;
+        }
         if service==proto::TEAM_SERVICE&&matches!(method,proto::TEAM_INVITATION_METHOD|proto::TEAM_APPLY_JOIN_METHOD){
             if !valid_proto_message(body){logging::write(format!("packet: ignored malformed team notify method={method}"));return;}
             let hash=fnv1a(body);let slot=if method==proto::TEAM_INVITATION_METHOD{&mut self.last_invite}else{&mut self.last_request};if slot.0==hash&&slot.1.map(|x|x.elapsed()<Duration::from_secs(5)).unwrap_or(false){return;}*slot=(hash,Some(Instant::now()));if method==proto::TEAM_INVITATION_METHOD{self.alert(AlertKind::PartyInvite,"BPSR Party Invite","You received a party invitation.");}else{self.alert(AlertKind::PartyRequest,"BPSR Party Join Request","Someone requested to join your party.");}
@@ -271,10 +285,9 @@ impl CaptureProcessor {
     fn alert(&self,kind:AlertKind,title:&str,message:&str){let _=self.tx.send(AppEvent::Alert(AlertEvent{kind,title:title.into(),message:message.into()}));}
 }
 
-fn allow_after(slot:&mut Option<Instant>,window:Duration)->bool{if slot.map(|x|x.elapsed()<window).unwrap_or(false){return false;}*slot=Some(Instant::now());true}
-fn ready_transition(slot:&mut Option<Instant>,open:bool,now:Instant)->bool{
-    if !open{*slot=None;return false;}
-    if slot.and_then(|started|now.checked_duration_since(started)).map(|age|age<Duration::from_secs(60)).unwrap_or(false){return false;}
+fn alert_state_transition(slot:&mut Option<Instant>,active:bool,stale_after:Duration,now:Instant)->bool{
+    if !active{*slot=None;return false;}
+    if slot.and_then(|started|now.checked_duration_since(started)).map(|age|age<stale_after).unwrap_or(false){return false;}
     *slot=Some(now);
     true
 }
@@ -333,6 +346,6 @@ mod tests{
  #[test]fn strong_known_notify(){let mut d=vec![0u8;22];d[0..4].copy_from_slice(&22u32.to_be_bytes());d[4..6].copy_from_slice(&2u16.to_be_bytes());d[6..14].copy_from_slice(&proto::CHAT_SERVICE.to_be_bytes());assert_eq!(find_strong_frame(&d,0).map(|x|x.0),Some(0));}
  #[test]fn proto_validation_rejects_false_ready_payloads(){assert!(!valid_proto_message(&[]));assert!(!valid_proto_message(&[0x08,0x80]));assert!(!valid_proto_message(&[0x00]));assert!(valid_proto_message(&[0x08,0x01]));}
  #[test]fn ready_open_close_semantics(){assert_eq!(parse_ready_open(&[0x08,0x01]),Some(true));assert_eq!(parse_ready_open(&[0x08,0x00]),Some(false));assert_eq!(parse_ready_open(&[]),None);assert_eq!(parse_ready_open(&[0x10,0x01]),None);}
- #[test]fn ready_transition_dedupes_until_close(){let t=Instant::now();let mut state=None;assert!(ready_transition(&mut state,true,t));assert!(!ready_transition(&mut state,true,t+Duration::from_secs(5)));assert!(!ready_transition(&mut state,false,t+Duration::from_secs(6)));assert!(ready_transition(&mut state,true,t+Duration::from_secs(7)));}
+ #[test]fn alert_state_transition_dedupes_until_inactive(){let t=Instant::now();let mut state=None;assert!(alert_state_transition(&mut state,true,Duration::from_secs(60),t));assert!(!alert_state_transition(&mut state,true,Duration::from_secs(60),t+Duration::from_secs(5)));assert!(!alert_state_transition(&mut state,false,Duration::from_secs(60),t+Duration::from_secs(6)));assert!(alert_state_transition(&mut state,true,Duration::from_secs(60),t+Duration::from_secs(7)));}
  #[test]fn seq_wrap(){assert!(seq_before(u32::MAX-2,3));}
 }
