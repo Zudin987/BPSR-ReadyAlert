@@ -6,8 +6,8 @@ mod current {
 fn main() {
     current::run();
     // Keep the historical generated-source compatibility chain assertion-guarded.
-    // The final UI pass applies compact Pixel / Material 3 + One UI polish while
-    // adding the dedicated meter Compact Mode without changing the protected
-    // normal-mode footprint or native Win32 architecture.
+    // The final pass applies the BPSR Mist Glass / Dark Glass native design system
+    // after Compact/Raid behavior is generated, without changing protected meter
+    // algorithms, density, state mapping or the lightweight Win32 architecture.
     println!("cargo:rerun-if-changed=build/legacy");
 }
