@@ -40,6 +40,9 @@ jobs:
           toolchain: 1.98.1
           components: clippy
 
+      - name: Refresh v1.24.1 root package lock metadata
+        run: cargo update --manifest-path rust/Cargo.toml -p bpsr-readyalert --precise 1.24.1
+
       - name: Prepare embedded assets
         shell: pwsh
         run: ./scripts/prepare-build-assets.ps1
@@ -100,5 +103,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-source
-          path: rust/target/debug/build/bpsr-readyalert-*/out/*.rs
+          path: |
+            rust/target/debug/build/bpsr-readyalert-*/out/*.rs
+            rust/Cargo.lock
           retention-days: 3
