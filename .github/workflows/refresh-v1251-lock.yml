@@ -1,0 +1,39 @@
+name: Refresh v1.25.1 Cargo lock
+
+on:
+  push:
+    branches: [fix/v1251-chat-archive-filters]
+    paths:
+      - 'rust/Cargo.toml'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+
+      - name: Refresh root package lock version
+        shell: pwsh
+        run: cargo generate-lockfile --manifest-path rust/Cargo.toml
+
+      - name: Commit Cargo.lock
+        shell: pwsh
+        run: |
+          if (git diff --quiet -- rust/Cargo.lock) {
+            Write-Host 'Cargo.lock already current.'
+            exit 0
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rust/Cargo.lock
+          git commit -m 'chore: refresh v1.25.1 Cargo.lock'
+          git push origin HEAD:fix/v1251-chat-archive-filters
