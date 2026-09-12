@@ -27,14 +27,14 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
+checksum = "3078c7629b62ffcace7a11195552ec576cd665632a881bc011d5bb2fd4d80"
 dependencies = [
  "generic-array",
 ]
 
 [[package]]
 name = "bpsr-readyalert"
-version = "1.27.0"
+version = "1.27.1"
 dependencies = [
  "libloading",
  "regex",
