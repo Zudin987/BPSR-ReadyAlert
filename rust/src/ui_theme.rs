@@ -1,17 +1,18 @@
 //! Shared visual language for ReadyAlert's native Win32 surfaces.
 //! Keep this intentionally small: the app stays native/lightweight while all
 //! configuration windows and overlays share the same palette and interaction states.
-use std::{ffi::c_void, ptr::null, sync::OnceLock};
+use std::{ffi::c_void, ptr::null, sync::{atomic::{AtomicIsize, Ordering}, OnceLock}};
 use windows_sys::Win32::{
-    Foundation::{HWND, RECT},
+    Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::Gdi::{
         CreateFontW, CreateSolidBrush, DeleteObject, DrawTextW, FillRect, SelectObject,
-        SetBkMode, SetTextColor, HDC, HFONT, TRANSPARENT,
+        SetBkMode, SetTextColor, HBRUSH, HDC, HFONT, TRANSPARENT,
     },
     UI::{
-        Controls::DRAWITEMSTRUCT,
+        Controls::{DefSubclassProc, SetWindowSubclass, DRAWITEMSTRUCT},
         WindowsAndMessaging::{
-            GetWindowTextLengthW, GetWindowTextW, SendMessageW, WM_SETFONT,
+            GetWindowTextLengthW, GetWindowTextW, InvalidateRect, SendMessageW, TrackMouseEvent,
+            TRACKMOUSEEVENT, TME_LEAVE, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_SETFONT,
         },
     },
 };
@@ -34,6 +35,9 @@ pub const TEXT_DISABLED: u32 = rgb(103, 114, 125);
 pub const ACCENT: u32 = rgb(56, 184, 166);
 pub const ACCENT_HOVER: u32 = rgb(66, 198, 179);
 pub const ACCENT_PRESSED: u32 = rgb(47, 156, 141);
+// ACCENT is a medium-light teal; the dark foreground keeps primary actions
+// readable at the app's compact native control sizes.
+pub const ACCENT_TEXT: u32 = rgb(15, 19, 23);
 pub const DAMAGE: u32 = rgb(255, 93, 98);
 pub const HEALING: u32 = rgb(69, 222, 139);
 pub const TANK: u32 = rgb(102, 151, 255);
@@ -93,6 +97,21 @@ pub unsafe fn set_font(hwnd: HWND, role: FontRole) {
     if !hwnd.is_null() { SendMessageW(hwnd, WM_SETFONT, font as usize, 1); }
 }
 
+pub unsafe fn bg_brush() -> HBRUSH {
+    static BRUSH: OnceLock<usize> = OnceLock::new();
+    *BRUSH.get_or_init(|| CreateSolidBrush(BG) as usize) as HBRUSH
+}
+
+pub unsafe fn input_brush() -> HBRUSH {
+    static BRUSH: OnceLock<usize> = OnceLock::new();
+    *BRUSH.get_or_init(|| CreateSolidBrush(INPUT) as usize) as HBRUSH
+}
+
+pub unsafe fn surface_brush() -> HBRUSH {
+    static BRUSH: OnceLock<usize> = OnceLock::new();
+    *BRUSH.get_or_init(|| CreateSolidBrush(SURFACE) as usize) as HBRUSH
+}
+
 #[link(name = "dwmapi")]
 extern "system" { fn DwmSetWindowAttribute(hwnd: HWND, attribute: u32, value: *const c_void, size: u32) -> i32; }
 #[link(name = "uxtheme")]
@@ -129,6 +148,41 @@ pub unsafe fn theme_combo(hwnd: HWND) {
     }
 }
 
+const BUTTON_SUBCLASS_ID: usize = 0x4250_5352;
+static HOVERED_BUTTON: AtomicIsize = AtomicIsize::new(0);
+
+pub unsafe fn theme_button(hwnd: HWND) {
+    if hwnd.is_null() { return; }
+    theme_control(hwnd);
+    let _ = SetWindowSubclass(hwnd, Some(button_subclass_proc), BUTTON_SUBCLASS_ID, 0);
+}
+
+unsafe extern "system" fn button_subclass_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _data: usize) -> LRESULT {
+    match msg {
+        WM_MOUSEMOVE => {
+            let previous = HOVERED_BUTTON.swap(hwnd as isize, Ordering::AcqRel);
+            if previous != hwnd as isize {
+                if previous != 0 { InvalidateRect(previous as HWND, null(), 0); }
+                InvalidateRect(hwnd, null(), 0);
+            }
+            let mut tracking = TRACKMOUSEEVENT {
+                cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                dwFlags: TME_LEAVE,
+                hwndTrack: hwnd,
+                dwHoverTime: 0,
+            };
+            let _ = TrackMouseEvent(&mut tracking);
+        }
+        WM_MOUSELEAVE => {
+            if HOVERED_BUTTON.compare_exchange(hwnd as isize, 0, Ordering::AcqRel, Ordering::Acquire).is_ok() {
+                InvalidateRect(hwnd, null(), 0);
+            }
+        }
+        _ => {}
+    }
+    DefSubclassProc(hwnd, msg, wparam, lparam)
+}
+
 unsafe fn fill(hdc: HDC, rect: &RECT, color: u32) {
     let brush = CreateSolidBrush(color);
     if !brush.is_null() { FillRect(hdc, rect, brush); DeleteObject(brush); }
@@ -139,7 +193,7 @@ pub unsafe fn draw_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: 
     let item = &*item;
     let disabled = item.itemState & 0x0004 != 0;
     let pressed = item.itemState & 0x0001 != 0;
-    let hot = item.itemState & 0x0040 != 0;
+    let hot = item.itemState & 0x0040 != 0 || HOVERED_BUTTON.load(Ordering::Acquire) == item.hwndItem as isize;
     let focused = item.itemState & 0x0010 != 0;
 
     let mut bg = if selected { SURFACE_HOVER } else if primary { ACCENT } else if danger { rgb(77, 35, 38) } else { SURFACE };
@@ -159,7 +213,7 @@ pub unsafe fn draw_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: 
     let mut buf = vec![0u16; len + 1];
     let got = GetWindowTextW(item.hwndItem, buf.as_mut_ptr(), buf.len() as i32).max(0) as usize;
     SetBkMode(item.hDC, TRANSPARENT as i32);
-    let color = if disabled { TEXT_DISABLED } else if primary { rgb(248, 253, 252) } else { TEXT };
+    let color = if disabled { TEXT_DISABLED } else if primary { ACCENT_TEXT } else { TEXT };
     SetTextColor(item.hDC, color);
     SelectObject(item.hDC, body_font());
     let mut rect = item.rcItem;
@@ -201,7 +255,7 @@ mod tests {
         assert!(MECH_SETTINGS_W <= 760 && MECH_SETTINGS_H <= 450);
     }
     #[test] fn theme_has_readable_contrast_direction() {
-        assert_ne!(BG, SURFACE); assert_ne!(TEXT, TEXT_SECONDARY); assert_ne!(ACCENT, BG);
+        assert_ne!(BG, SURFACE); assert_ne!(TEXT, TEXT_SECONDARY); assert_ne!(ACCENT, BG); assert_ne!(ACCENT_TEXT, TEXT);
     }
     #[test] fn semantic_overlay_colors_are_distinct() {
         assert_ne!(ACCENT, DAMAGE); assert_ne!(DAMAGE, HEALING); assert_ne!(HEALING, TANK);
