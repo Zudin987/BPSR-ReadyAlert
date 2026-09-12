@@ -8,6 +8,7 @@ on:
       - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
       - '.github/workflows/rust.yml'
+      - '.github/workflows/release.yml'
       - 'rust-toolchain.toml'
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
       - '.github/workflows/rust.yml'
+      - '.github/workflows/release.yml'
       - 'rust-toolchain.toml'
   workflow_dispatch:
 
