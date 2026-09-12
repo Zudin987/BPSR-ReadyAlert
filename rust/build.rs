@@ -1,12 +1,12 @@
 mod current {
-    include!("build/legacy/build_v1260_encounter_archive.rs");
+    include!("build/legacy/build_v1270_benchmark_history.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
     // Historical generated-source compatibility remains assertion-guarded.
-    // v1.26 keeps the native UI path and routes the existing archive action to
-    // one offline hub for chat plus saved encounter history.
+    // v1.27 keeps the native Win32 overlay while adding benchmark controls and
+    // the refreshed offline encounter-history experience.
     println!("cargo:rerun-if-changed=build/legacy");
 }
