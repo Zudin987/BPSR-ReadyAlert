@@ -11,8 +11,8 @@ use windows_sys::Win32::{
     UI::{
         Controls::{DefSubclassProc, SetWindowSubclass, DRAWITEMSTRUCT},
         WindowsAndMessaging::{
-            GetWindowTextLengthW, GetWindowTextW, InvalidateRect, SendMessageW, TrackMouseEvent,
-            TRACKMOUSEEVENT, TME_LEAVE, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_SETFONT,
+            GetClassNameW, GetWindowTextLengthW, GetWindowTextW, InvalidateRect, SendMessageW,
+            TrackMouseEvent, TRACKMOUSEEVENT, TME_LEAVE, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_SETFONT,
         },
     },
 };
@@ -130,11 +130,31 @@ pub unsafe fn dark_titlebar(hwnd: HWND) {
     let _ = DwmSetWindowAttribute(hwnd, 34, (&border as *const u32).cast(), std::mem::size_of::<u32>() as u32);
 }
 
+const BUTTON_SUBCLASS_ID: usize = 0x4250_5352;
+static HOVERED_BUTTON: AtomicIsize = AtomicIsize::new(0);
+
+unsafe fn is_button_control(hwnd: HWND) -> bool {
+    let mut class = [0u16; 16];
+    let len = GetClassNameW(hwnd, class.as_mut_ptr(), class.len() as i32).max(0) as usize;
+    if len == 0 { return false; }
+    String::from_utf16_lossy(&class[..len]).eq_ignore_ascii_case("BUTTON")
+}
+
+unsafe fn install_button_hover_tracking(hwnd: HWND) {
+    if is_button_control(hwnd) {
+        let _ = SetWindowSubclass(hwnd, Some(button_subclass_proc), BUTTON_SUBCLASS_ID, 0);
+    }
+}
+
 pub unsafe fn theme_control(hwnd: HWND) {
     if hwnd.is_null() { return; }
     set_font(hwnd, FontRole::Body);
     let theme = wide("DarkMode_Explorer");
     let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
+    // Most generated Settings/Event Tracker controls already flow through this
+    // generic helper. Detect BUTTON here so owner-drawn controls gain reliable
+    // hover invalidation without another generated-code patch stage.
+    install_button_hover_tracking(hwnd);
 }
 
 pub unsafe fn theme_combo(hwnd: HWND) {
@@ -148,13 +168,9 @@ pub unsafe fn theme_combo(hwnd: HWND) {
     }
 }
 
-const BUTTON_SUBCLASS_ID: usize = 0x4250_5352;
-static HOVERED_BUTTON: AtomicIsize = AtomicIsize::new(0);
-
 pub unsafe fn theme_button(hwnd: HWND) {
     if hwnd.is_null() { return; }
     theme_control(hwnd);
-    let _ = SetWindowSubclass(hwnd, Some(button_subclass_proc), BUTTON_SUBCLASS_ID, 0);
 }
 
 unsafe extern "system" fn button_subclass_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _data: usize) -> LRESULT {
