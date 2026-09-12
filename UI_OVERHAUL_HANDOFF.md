@@ -7,8 +7,9 @@ Modernize the existing compact native Rust/Win32 utility into a polished 2026 de
 - Branch: `feat/native-ui-modernization`
 - PR: #119 `Modernize ReadyAlert native UI without changing density`
 - Base: `main` v1.27.2, `67b7fb27faa06c60d887b57f7eae1c2fea027ccb`
-- Current code checkpoint: `e7286497c9f3a0f546091a4a2bed9c26b69c3905` (`polish: finish compact Pixel One UI native pass`)
-- Previous known-good code checkpoint: `356b5410a2e44c8db8b7aa8b16835eb5c21e1080`
+- Latest code checkpoint: `e6ef7f7182ea3041afd864c1923f369aad2ed009` (`polish: soften Settings navigation and disabled states`)
+- Previous UI checkpoint: `e7286497c9f3a0f546091a4a2bed9c26b69c3905` (`polish: finish compact Pixel One UI native pass`)
+- Previous fully validated checkpoint: `356b5410a2e44c8db8b7aa8b16835eb5c21e1080`
 
 ## Completed
 - Read the complete implementation brief and individually audited all 27 supplied screenshots, including compact/resized overlays, Settings pages, Benchmark, detailed DPS views, tray menu and 5 offline archive pages. Do not repeat the screenshot audit unless a concrete regression appears.
@@ -20,8 +21,11 @@ Modernize the existing compact native Rust/Win32 utility into a polished 2026 de
   - readable dark foreground on teal primary actions;
   - cached native brushes/fonts;
   - native dark title bars;
-  - owner-draw hover/pressed/focus/disabled states;
-  - reliable hover invalidation through a tiny local Win32 subclass ABI, avoiding dependency growth.
+  - reliable owner-draw hover tracking through a tiny local Win32 subclass ABI;
+  - coherent hover/pressed/focus/disabled states;
+  - Settings sidebar navigation no longer draws a legacy box around every row: neutral rows blend into the sidebar, selected rows use a restrained raised surface + 3 px teal leading indicator, and keyboard focus still receives a visible outline;
+  - disabled regular buttons no longer keep primary/destructive accent borders;
+  - owner-drawn combo text/background/border now visibly respect disabled state.
 - Modernized `rust/src/benchmark_ui.rs` while preserving its exact 440 × 285 footprint and field/button coordinates:
   - shared dark theme;
   - Start is primary, Cancel neutral;
@@ -108,7 +112,7 @@ The older base source still contains pre-patch 32 px DPS rows and 29 px Mechanic
 
 ## Screenshot Audit Notes
 The full screenshot-by-screenshot audit is already complete. Retained decisions:
-- Main Settings: compact two-column structure is good; modernize shared controls/hierarchy, not the footprint.
+- Main Settings: compact two-column structure is good; shared control hierarchy was modernized without changing the footprint, and the sidebar now uses a flatter One UI-like selection treatment instead of eight individually boxed navigation buttons.
 - Chat Overlay / Colors / Speech / Tabs / Sounds / Network / Blocked Users: keep group density and tuned positions; focus on consistency and state clarity.
 - Blocked Users: empty/destructive actions should not look available when they cannot do anything; implemented via native enabled/disabled state.
 - DPS Settings 620×420 and Mechanics Settings 720×430 remain fixed and compact.
@@ -124,7 +128,8 @@ The full screenshot-by-screenshot audit is already complete. Retained decisions:
 - Source-level audit of current branch and generated-source chain.
 - Replacement anchors for the new final UI stage were tested against the exact generated source artifact from CI #347 before committing; all expected counts matched.
 - Windows Rust CI #347 passed on `356b5410a2e44c8db8b7aa8b16835eb5c21e1080`: unit/regression tests, Clippy, native release build, smoke test, size budget and artifact packaging all succeeded.
-- New coherent UI checkpoint `e7286497c9f3a0f546091a4a2bed9c26b69c3905` triggered Windows Rust CI #348 (`34698184991`). At this handoff update it is still in progress; do not repeatedly poll it.
+- CI #348 and #349 were superseded by subsequent synchronization commits while the coherent UI batch was still being finalized; do not treat those cancellations as code failures.
+- The latest code checkpoint requiring final integration validation is `e6ef7f7182ea3041afd864c1923f369aad2ed009`. Because PR path filters consider the cumulative Rust diff, this handoff documentation synchronization may trigger a newer PR-head Rust CI run; use the latest PR-head run instead of a stale run number.
 
 ## Known Limitations / Follow-up
 - No live Windows screenshot/DPI visual pass has been performed in this environment. Do not claim one.
@@ -133,8 +138,8 @@ The full screenshot-by-screenshot audit is already complete. Retained decisions:
 - Pixel/One UI “softness” is implemented through tone, hierarchy and control states; do not add expensive blur/acrylic or inflate geometry just to chase more rounding.
 
 ## Exact Next Steps
-1. Inspect Windows Rust CI #348 **once after it finishes**. If it failed, read the useful failing step/log, batch-fix the related issue, and let the next code push rerun CI. Do not poll repeatedly.
-2. If #348 is green, inspect PR #119 final diff/status and leave it open for review. Do not merge or release unless explicitly requested.
+1. Inspect the **latest PR-head Windows Rust CI run once after it finishes**. If it failed, read the useful failing step/log, batch-fix the related issue, and let the next code push rerun CI. Do not poll repeatedly.
+2. If the latest PR-head CI is green, inspect PR #119 final diff/status and leave it open for review. Do not merge or release unless explicitly requested.
 3. If a later real Windows screenshot/runtime pass exposes a concrete remaining visual defect, make a narrow correction without changing fixed dimensions, final row heights, responsive hide priorities or Chat scroll semantics.
 
 ## Do Not Revisit Unless Broken
