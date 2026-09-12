@@ -4,7 +4,9 @@ mod audio;
 mod capture {
     include!(concat!(env!("OUT_DIR"), "/capture_v185.rs"));
 }
-mod capture_supervisor;
+mod capture_supervisor {
+    include!(concat!(env!("OUT_DIR"), "/capture_supervisor_v1241.rs"));
+}
 #[path = "chat.rs"]
 mod chat_legacy;
 mod chat {
@@ -81,7 +83,9 @@ mod hotkeys;
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
-mod updater;
+mod updater {
+    include!(concat!(env!("OUT_DIR"), "/updater_v1241.rs"));
+}
 mod win {
     include!(concat!(env!("OUT_DIR"), "/win_v182_fixed.rs"));
 }
@@ -145,9 +149,17 @@ fn main() {
     let (tx, rx) = mpsc::channel();
     let chat_runtime = ChatRuntime::start(paths.clone(), settings.clone(), identity.clone(), tx.clone());
     let stop = Arc::new(AtomicBool::new(false));
-    let capture_thread = capture_supervisor::spawn(
+    let capture_thread = match capture_supervisor::spawn(
         api.clone(), settings.clone(), identity, chat_runtime, tx, stop.clone(),
-    );
+    ) {
+        Ok(handle) => handle,
+        Err(err) => {
+            logging::write(format!("startup/capture-supervisor: {err}"));
+            win::message_box("BPSR ReadyAlert - Error", &format!("Could not start packet capture supervision.\n\n{err}"), true);
+            logging::shutdown();
+            return;
+        }
+    };
 
     if let Err(err) = win::run_ui(settings, paths, rx, stop.clone(), api) {
         logging::write(format!("startup/ui: {err}"));
