@@ -27,12 +27,21 @@ fn dungeons() -> &'static [DungeonMeta] {
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
             .filter_map(|line| {
                 let mut p = line.splitn(5, '\t');
+                let scene_id = p.next()?.parse().ok()?;
+                let dungeon_id = p.next()?.parse().ok()?;
+                let play_type = p.next()?.parse().ok()?;
+                let raw_difficulty = p.next()?.trim();
+                let name = p.next()?.trim();
                 Some(DungeonMeta {
-                    scene_id: p.next()?.parse().ok()?,
-                    dungeon_id: p.next()?.parse().ok()?,
-                    play_type: p.next()?.parse().ok()?,
-                    difficulty: leak(p.next()?.trim()),
-                    name: leak(p.next()?.trim()),
+                    scene_id,
+                    dungeon_id,
+                    play_type,
+                    difficulty: if raw_difficulty.is_empty() {
+                        known_difficulty(dungeon_id)
+                    } else {
+                        leak(raw_difficulty)
+                    },
+                    name: leak(name),
                 })
             })
             .collect()
@@ -41,6 +50,20 @@ fn dungeons() -> &'static [DungeonMeta] {
 
 fn leak(value: &str) -> &'static str {
     Box::leak(value.to_string().into_boxed_str())
+}
+
+// The complete supplied dungeon table intentionally remains the source of
+// scene/name/play-type truth. A prior v1.26 table carried a small set of
+// authoritative difficulty labels that were lost when the complete table was
+// imported with blank difficulty cells; retain only those known labels here
+// rather than guessing for newer/remapped rows.
+fn known_difficulty(dungeon_id: i32) -> &'static str {
+    match dungeon_id {
+        1031 | 1631 | 1121 | 1152 | 1221 | 1233 | 1331 | 1421 | 6007 => "Normal",
+        1032 | 1632 | 1122 | 1151 | 1222 | 1234 | 1332 | 1422 | 6008 => "Hard",
+        1033 | 1123 | 1150 | 1223 | 1235 | 1333 | 1423 | 1533 | 1633 | 6009 | 6023 => "Master 1",
+        _ => "",
+    }
 }
 
 pub fn dungeon_by_id(id: i32) -> Option<&'static DungeonMeta> {
@@ -180,7 +203,7 @@ const EQUIP_RANGES: &[(i32, i32, i32, i32, i32)] = &[
     (2021358, 2021360, 202, 240, 102),
     (2021361, 2021363, 202, 240, 103),
     (2021401, 2021439, 202, 260, 0),
-    (2021440, 2021442, 202, 260, 102),
+    (2021440, 2021442, 208, 260, 102),
     (2021443, 2021454, 202, 260, 0),
     (2021455, 2021457, 202, 260, 103),
     (2021458, 2021460, 202, 260, 102),
