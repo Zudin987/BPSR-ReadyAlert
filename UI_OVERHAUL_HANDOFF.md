@@ -1,155 +1,156 @@
 # BPSR ReadyAlert UI Overhaul Handoff
 
 ## Overall Goal
-Modernize the existing compact native Rust/Win32 utility into a polished 2026 desktop gaming tool with **Google Pixel / Material 3 clarity + Samsung One UI softness and organization**, adapted to desktop rather than copied from mobile. Preserve the tuned information density, minimum sizes, normal spacing, responsive priorities, saved preferences, and native/lightweight behavior. Exhaust reclaimable space before hiding useful data.
+Create an unmistakably modern 2026 desktop gaming utility using **Google Pixel / Material 3 clarity + Samsung One UI softness/organization**, adapted to compact desktop density. Keep native Rust + Win32, lightweight performance, existing minimum dimensions, information density, responsive priorities, and feature semantics. The Win32 architecture stays; the old Win32 appearance does not.
+
+Compact Mode is a first-class UI state. Normal / Compact / Raid / Raid+Compact must all receive the same visual system.
 
 ## Current Branch / PR
-- Branch: `feat/native-ui-modernization`
-- PR: #119 `Modernize ReadyAlert native UI without changing density`
-- Base: `main` v1.27.2, `67b7fb27faa06c60d887b57f7eae1c2fea027ccb`
-- Latest code checkpoint: `e6ef7f7182ea3041afd864c1923f369aad2ed009` (`polish: soften Settings navigation and disabled states`)
-- Previous UI checkpoint: `e7286497c9f3a0f546091a4a2bed9c26b69c3905` (`polish: finish compact Pixel One UI native pass`)
-- Previous fully validated checkpoint: `356b5410a2e44c8db8b7aa8b16835eb5c21e1080`
+- Branch: `feat/compact-meter-mode`
+- PR: #120 `Add dedicated Compact Mode to native meter UI`
+- Base: `main` v1.28.0
+- Pre-overhaul Compact head: `ab7df982a4940ac50817164dd2a5dac0f5054228`
+- Last known green Windows Rust CI: run `34700831809`
+
+## Last Known Good Commit
+`ab7df982a4940ac50817164dd2a5dac0f5054228` — Compact Mode implementation + semantic toolbar-state fix + raid-aware copy rendering. Full Windows Rust CI passed before this visual-overhaul continuation.
 
 ## Completed
-- Read the complete implementation brief and individually audited all 27 supplied screenshots, including compact/resized overlays, Settings pages, Benchmark, detailed DPS views, tray menu and 5 offline archive pages. Do not repeat the screenshot audit unless a concrete regression appears.
-- Inspected the assertion-guarded generated-source build chain through v1.27.1 and the final generated runtime source emitted by successful Windows CI #347.
-- Verified the existing Chat Overlay reading-position fix and later translation-wrap hardening are already present in the generated chain; preserve them rather than duplicating them.
-- Recorded the final generated DPS/mechanics geometry and responsive thresholds below.
-- Improved `rust/src/ui_theme.rs` without new runtime dependencies or dimension changes:
-  - semantic dark palette and Segoe UI Variable hierarchy;
-  - readable dark foreground on teal primary actions;
-  - cached native brushes/fonts;
-  - native dark title bars;
-  - reliable owner-draw hover tracking through a tiny local Win32 subclass ABI;
-  - coherent hover/pressed/focus/disabled states;
-  - Settings sidebar navigation no longer draws a legacy box around every row: neutral rows blend into the sidebar, selected rows use a restrained raised surface + 3 px teal leading indicator, and keyboard focus still receives a visible outline;
-  - disabled regular buttons no longer keep primary/destructive accent borders;
-  - owner-drawn combo text/background/border now visibly respect disabled state.
-- Modernized `rust/src/benchmark_ui.rs` while preserving its exact 440 × 285 footprint and field/button coordinates:
-  - shared dark theme;
-  - Start is primary, Cancel neutral;
-  - benchmark behavior/timing untouched.
-- Added the final assertion-guarded generated UI polish stage `rust/build/legacy/build_ui_modernization.rs` and routed `rust/build.rs` through it. It deliberately patches only final generated UI surfaces that cannot safely be changed earlier in the historical chain.
-- Settings interaction polish in the final generated UI:
-  - Delete tab is disabled when deletion is impossible (only one tab or no valid selection);
-  - Unblock selected is disabled until a blocked user is actually selected;
-  - Clear all is disabled when the blocked list is empty;
-  - selection changes refresh those states immediately.
-- Event Tracker editor combo boxes now explicitly receive the existing `DarkMode_CFD` combo theme, removing the remaining legacy-looking closed dropdown/arrow treatment without changing control dimensions.
-- DPS/overlay hover help is now measured and wrapped instead of forcing every tooltip into a 25 px single line with ellipsis. It stays native GDI, caps width at 420 px and measured content height at 96 px, and repositions inside the current overlay bounds.
-- Entity detail skill/taken/buff/death tables now reuse shared `RAISED`, `SURFACE`, `TEXT`, `TEXT_SECONDARY`, and `MUTED` tokens instead of isolated legacy gray values. Row height and table density are unchanged.
-- Opened and maintained PR #119. Do not merge or release unless explicitly requested.
+- Existing v1.28 native UI modernization foundation is already merged into this branch ancestry.
+- Shared `rust/src/ui_theme.rs` already provides semantic dark tokens, Segoe UI Variable Text, cached native brushes/fonts, dark DWM title bars, themed controls, owner-drawn buttons/combo support, and hover/pressed/focus/disabled states.
+- Dedicated persistent Compact Mode exists with permanent `C` control.
+- Compact rows are intentionally thinner than Normal rows (~24 logical px).
+- Compact hides lower-priority presentation including Ability Score, Illusion Score, Imagine display, build/spec detail, and extra chrome.
+- Separate Normal / Compact / Raid Normal / Raid Compact sizing persistence exists.
+- Semantic `ToolbarAction` state mapping replaced positional highlight mapping.
+- `Live`, `Raid`, and `Compact` active visuals derive from their semantic state; encounter arrows do not inherit neighboring state.
+- Copy as Image now routes through raid-aware painting and respects Compact presentation.
+- Chat manual-scroll reading-position protection and long-message wrapping were already implemented in the inherited build chain; preserve them.
 
-## Important Design Decisions
-- Pixel / Material 3 supplies clarity, coherent states, restrained accent usage and modern dark surfaces.
-- One UI supplies section organization, softer grouping and easier Settings scanning.
-- This is **not** a mobile UI: no giant padding, giant toggles, card-per-setting layouts or increased row heights.
-- Keep the existing teal interaction accent, class/spec full-row identity colors and dense live-data geometry.
-- Settings fixed outer dimensions: 800 × 440.
-- Event Tracker editor fixed outer dimensions: 720 × 440.
-- DPS Settings fixed outer dimensions: 620 × 420.
-- Mechanics Settings fixed outer dimensions: 720 × 430.
-- Benchmark fixed outer dimensions: 440 × 285.
-- Resizable overlay minima remain: DPS 600 × 220; Dungeon Mechanics 400 × 220; Chat Overlay 360 × 180.
-- Current app uses Windows DPI virtualization. Do not switch the process to per-monitor awareness without implementing a complete scaling strategy for every window.
-- Event Tracker live events are embedded in Dungeon Mechanics; do not invent a separate event overlay.
-- Offline HTML archives open in the user's browser and are not the native runtime UI.
+## Partial
+- The previous modernization remains visually too conservative: several surfaces still structurally read as classic Win32 with dark colors.
+- Common controls need stronger custom presentation and more obvious Pixel/One UI shape/state language.
+- DPS Normal/Compact/Raid/Raid+Compact need a stronger shared chrome/table visual pass without changing density.
 
-## Protected Existing Behavior
-- Main Settings and Event Tracker use staged Apply semantics.
-- DPS/Mechanics feature Settings save immediately.
-- Native keyboard, tray and menu behavior stays native.
-- Preserve saved bounds, opacity, collapse state and overlay restore behavior.
-- Preserve full-row class/spec coloring, self emphasis and dead-player semantics.
-- Preserve the current meter hide/reclaim order; never hide useful data while reclaimable horizontal space remains.
-- Preserve current Chat Overlay manual-scroll reading position and unseen-message behavior.
-- Preserve protocol, telemetry, encounter/archive format, updater and combat calculations.
+## Not Started
+- Stronger shared design primitives / reusable rounded tonal helpers.
+- Strong Settings/sidebar structural restyle.
+- Modern checkbox/toggle/input/list presentation across generated settings surfaces.
+- Stronger DPS toolbar/table visual system for all four meter presentation states.
+- Chat/Mechanics/Event Tracker visual pass on top of already-correct behavior.
+- Benchmark/small-dialog visual pass beyond the inherited theme.
+- Final DPI/pixel polish using actual Windows screenshots.
 
-## Verified Runtime Layout Contracts
-### Final generated overlay constants
-Verified against the generated source artifact from successful Windows CI #347, not only the older base input:
+## Design System
+Current baseline tokens before this pass:
+- Background: `rgb(15,19,23)`
+- Sidebar / Surface 1: `rgb(21,27,33)`
+- Raised / Input: `rgb(26,32,39)`
+- Hover: `rgb(32,40,48)`
+- Pressed: `rgb(37,46,55)`
+- Text primary: `rgb(241,244,247)`
+- Text secondary: `rgb(181,190,200)`
+- Muted: `rgb(131,144,157)`
+- Accent: teal `rgb(56,184,166)`
+- Font: Segoe UI Variable Text with native fallback
+- Body / secondary / heading logical font heights: -14 / -13 / -17
+- Shared control / button / nav heights: 28 / 30 / 30
+
+Target shape direction:
+- Major panel: 8-12 px equivalent radius
+- Section surface: 8-10 px
+- Standard control/input: 6-8 px
+- Toolbar button: 5-7 px
+- Dense DPS rows remain nearly rectangular; use restrained tint/accent/contribution treatment instead of card-per-row.
+
+Target interaction language:
+- Primary: restrained teal tonal fill, dark foreground
+- Secondary: neutral elevated tonal fill
+- Selected/active: clear accent-tonal fill, not a 1 px-only indicator
+- Hover/pressed/focus/disabled: explicit and stable, no layout shift
+- Checkbox: compact rounded-square custom presentation with centered check
+- Toggle: only for genuine persistent on/off options
+- Combo/edit/list: dark tonal field/row surface, custom focus/selection treatment where practical
+
+## Protected Layout Values
+Inherited v1.28 runtime contracts:
+- Settings fixed outer: 800 × 440
+- Event Tracker fixed outer: 720 × 440
+- DPS Settings fixed outer: 620 × 420
+- Mechanics Settings fixed outer: 720 × 430
+- Benchmark fixed outer: 440 × 285
 - Toolbar: 34 px
 - Collapsed widget: 25 px
-- Final DPS row: **33 px**
-- Final Mechanics attribute row: **38 px**
+- Normal DPS row: 33 px
+- Mechanics attribute row: 38 px
 - Mechanics consumable row: 44 px
 - Mechanics event row: 36 px
 - DPS detail row: 30 px
-- Imagine badge: 25 px with 3 px gap
+- Imagine badge: 25 px, 3 px gap
 
-The older base source still contains pre-patch 32 px DPS rows and 29 px Mechanics attribute rows; do not use those older values as the final runtime contract.
+Compact Mode contracts from PR #120:
+- Compact minimum logical width: 300 px
+- Compact minimum logical height: 140 px
+- Compact default non-raid logical width: 420 px
+- Compact default raid logical width: 760 px
+- Compact player row height: 24 px
+- Raid Compact remains two columns: ranks 1-10 and 11-20
 
-### DPS meter row allocation / responsive behavior
-- deaths: 30 px; share: 56 px; total: 88 px; active rate: 90 px; metric gap: 5 px.
-- player identity begins at row-left + 25.
-- player-name allocation is flexible and ellipsizes only when constrained.
-- battle-imagine badges require sufficient width rather than forcing core data out.
-- numeric metrics are right-aligned.
-- main rows retain class/spec tinting and self/dead emphasis.
-- height growth shows more rows; it does not inflate row height.
+Normal-mode protected minima come from the inherited generated overlay functions and must not be increased. Exact current generated values/breakpoints must be re-recorded after inspecting the latest generated source.
 
-### v1.27 toolbar priority tiers
-- Comfortable: History 28, arrows 30, Live 46, Raid 44, Copy 48, Benchmark 76, Reset 52, gap 4.
-- Compact: History 24, arrows 24, Live 30, Raid 28, Copy 28, Benchmark 28, Reset 28, gap 3.
-- Dense: History 22, arrows 20, Live 28, Raid 26, Copy 26, Benchmark 26, Reset 26, gap 2.
-- Minimum: History 22, arrows 18, Live 26, Raid 24, Copy 24, Benchmark 24, Reset 24, gap 1.
-- Toolbar action vertical bounds remain 5..29.
+Responsive rules:
+1. use practical empty width;
+2. reduce nonessential gaps;
+3. shrink flexible name region;
+4. compact decoration/labels;
+5. rebalance columns;
+6. hide lowest-priority useful data last.
 
-### Chat Overlay behavior already verified
-- When the user has scrolled away from the bottom, incoming visible messages preserve the reading position instead of forcing the viewport back to latest.
-- An unseen-message counter and “Back to latest” affordance are maintained.
-- Returning to the tail clears unseen state.
-- The v1.24.1 generated patch removed the previous fixed 3/4-line wrap cap so long translated/chat text can use measured height.
-- Do not reimplement these fixes unless the build chain itself is intentionally replaced.
+Compact Mode must not re-add intentionally hidden Ability Score, Illusion Score, Imagine presentation, or low-priority build detail.
 
-## Files Modified on This Branch
-- `UI_OVERHAUL_HANDOFF.md`
-- `rust/src/ui_theme.rs`
-- `rust/src/benchmark_ui.rs`
+## State Mapping
+Protected semantic toolbar state:
+- `ToolbarAction::Live` active iff `history_index.is_none()`.
+- `ToolbarAction::Raid` active iff raid mode is enabled.
+- `ToolbarAction::Compact` active iff Compact Mode is enabled.
+- `<`, `>`, History, Copy, Benchmark, Reset, Settings, overflow, collapse/close are actions, not persistent modes unless explicitly modeled.
+- Never derive selected state from action-array index.
+
+## Export / Copy Rendering
+Copy as Image must reflect the current presentation:
+- Normal + non-raid -> Normal non-raid.
+- Compact + non-raid -> Compact non-raid.
+- Normal + Raid -> Normal Raid.
+- Compact + Raid -> Compact Raid.
+- Compact exports must not reintroduce intentionally hidden information.
+- Prefer shared live/layout painting logic rather than a stale default export renderer.
+
+## Files Modified
+Current PR already modifies:
 - `rust/build.rs`
-- `rust/build/legacy/build_ui_modernization.rs`
+- `rust/build/legacy/build_v1290_compact_meter.rs`
+- `rust/build/legacy/build_v1290_compact_stage1.rs` ... `stage7.rs`
+- `UI_OVERHAUL_HANDOFF.md`
 
-## Screenshot Audit Notes
-The full screenshot-by-screenshot audit is already complete. Retained decisions:
-- Main Settings: compact two-column structure is good; shared control hierarchy was modernized without changing the footprint, and the sidebar now uses a flatter One UI-like selection treatment instead of eight individually boxed navigation buttons.
-- Chat Overlay / Colors / Speech / Tabs / Sounds / Network / Blocked Users: keep group density and tuned positions; focus on consistency and state clarity.
-- Blocked Users: empty/destructive actions should not look available when they cannot do anything; implemented via native enabled/disabled state.
-- DPS Settings 620×420 and Mechanics Settings 720×430 remain fixed and compact.
-- Event Tracker editor remains 720×440 and staged Apply; disabled editor controls stay native rather than being replaced by heavy custom widgets.
-- Benchmark: small dialog should share the app theme; implemented.
-- Chat Overlay: preserve configured density, manual-scroll reading position and long translation wrapping.
-- DPS/raid meter: preserve 20-player density, class-colored rows, self outline, flexible identity and existing responsive priorities.
-- Entity detail tables: keep dense 30 px rows but remove disconnected legacy gray surfaces; implemented.
-- Tray menu: native Windows menu semantics are intentional.
-- Offline archive pages remain browser content and are outside the native runtime modernization pass.
+Additional files for this visual pass will be recorded here as they are changed.
 
-## Verification Already Done
-- Source-level audit of current branch and generated-source chain.
-- Replacement anchors for the new final UI stage were tested against the exact generated source artifact from CI #347 before committing; all expected counts matched.
-- Windows Rust CI #347 passed on `356b5410a2e44c8db8b7aa8b16835eb5c21e1080`: unit/regression tests, Clippy, native release build, smoke test, size budget and artifact packaging all succeeded.
-- CI #348 and #349 were superseded by subsequent synchronization commits while the coherent UI batch was still being finalized; do not treat those cancellations as code failures.
-- The latest code checkpoint requiring final integration validation is `e6ef7f7182ea3041afd864c1923f369aad2ed009`. Because PR path filters consider the cumulative Rust diff, this handoff documentation synchronization may trigger a newer PR-head Rust CI run; use the latest PR-head run instead of a stale run number.
+## Screenshots Reviewed
+The inherited v1.28 handoff records a completed 27-screenshot audit. Do not restart that audit. This continuation request supplies the stronger design specification; use it to push the existing implementation substantially further while preserving the earlier spacing/density decisions.
 
-## Known Limitations / Follow-up
-- No live Windows screenshot/DPI visual pass has been performed in this environment. Do not claim one.
-- Native disabled checkbox/edit glyphs in Event Tracker may still vary by Windows theme. Do not replace native controls merely for cosmetics unless a Windows visual pass proves a real defect.
-- The historical generated-source patch chain remains architecture debt. This UI task intentionally preserves it rather than risking an unrelated refactor.
-- Pixel/One UI “softness” is implemented through tone, hierarchy and control states; do not add expensive blur/acrylic or inflate geometry just to chase more rounding.
+## Verification Completed
+- Pre-overhaul Compact branch Windows CI run `34700831809`: unit/regression tests, Clippy, native release build, EXE smoke test, size budget, packaging, generated-source diagnostics — all passed.
+
+## Known Issues
+- The app can still read as “classic Win32 with a dark theme” because shape/composition/control rendering remains conservative.
+- Stock-looking checkboxes, inputs, list selections, combo affordances, and some dialog composition remain high-priority modernization targets.
+- DPI/pixel visual acceptance cannot be truthfully completed without a real Windows screenshot/runtime pass.
+- Historical assertion-guarded generated-source chain is architecture debt; preserve it for this UI task instead of refactoring unrelated systems.
 
 ## Exact Next Steps
-1. Inspect the **latest PR-head Windows Rust CI run once after it finishes**. If it failed, read the useful failing step/log, batch-fix the related issue, and let the next code push rerun CI. Do not poll repeatedly.
-2. If the latest PR-head CI is green, inspect PR #119 final diff/status and leave it open for review. Do not merge or release unless explicitly requested.
-3. If a later real Windows screenshot/runtime pass exposes a concrete remaining visual defect, make a narrow correction without changing fixed dimensions, final row heights, responsive hide priorities or Chat scroll semantics.
-
-## Do Not Revisit Unless Broken
-- Do not redo the 27-screenshot audit.
-- Do not alter protocol/telemetry/archive formats.
-- Do not increase fixed/minimum sizes for aesthetics.
-- Do not increase DPS row height or reduce visible information at equivalent window sizes.
-- Do not replace compact desktop spacing with mobile Material/One UI spacing.
-- Do not undo current Chat scroll/translation fixes.
-- Do not replace the native tray/menu behavior with a custom oversized menu.
-
-## Final Cleanup Rule
-When final validation is green, keep this handoff long enough for review/continuation. Record any Windows-only visual limitation precisely rather than claiming testing that did not occur.
+1. Inspect the latest generated source for PR #120 and record exact Normal minima, responsive breakpoints, toolbar/row allocation, and Compact rendering anchors.
+2. Strengthen `rust/src/ui_theme.rs` with lightweight rounded/tonal drawing primitives and reusable modern control state helpers; no new heavy runtime.
+3. Apply those primitives to Settings/common controls and small dialogs without changing protected outer dimensions.
+4. Redesign DPS toolbar/table chrome for Normal + Compact + Raid + Raid Compact while preserving all state semantics, row density, and responsive hide order.
+5. Modernize Chat + Mechanics + Event Tracker presentation while preserving the already-fixed chat scroll-follow behavior.
+6. Batch validation: source review -> targeted compile/tests -> one Windows CI run after coherent changes. Do not poll repeatedly.
+7. Update this handoff with exact final tokens, breakpoints, files, validation state, known limitations, and next action before stopping.
