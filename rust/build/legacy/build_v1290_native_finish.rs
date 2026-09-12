@@ -76,7 +76,9 @@ fn patch_event_tracker(out: &Path) {
     replace_once(&mut source,"crate::ui_theme::theme_combo(c);","crate::ui_modern::theme_combo(c);","Event Tracker combo theming");
     replace_once(&mut source,"crate::ui_theme::draw_combo(item)","crate::ui_modern::draw_combo(item)","Event Tracker combo owner draw");
     replace_once(&mut source,"crate::ui_theme::draw_button(item,false,id==ID_APPLY,id==ID_REMOVE,false)","crate::ui_modern::draw_button(item,false,id==ID_APPLY,id==ID_REMOVE,false)","Event Tracker button owner draw");
-    replace_once(&mut source,r#"    create_control(hwnd, "LISTBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | 0x00100000 | LBS_NOTIFY | WS_BORDER, 0)"#,r#"    create_control(hwnd, "LISTBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | 0x00100000 | LBS_NOTIFY, 0)"#,"Event Tracker listbox legacy border");
+    // Earlier modernization stages can already remove this border. This is a
+    // cosmetic cleanup, so make it idempotent rather than fail the build chain.
+    replace_if_present(&mut source,r#"    create_control(hwnd, "LISTBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | 0x00100000 | LBS_NOTIFY | WS_BORDER, 0)"#,r#"    create_control(hwnd, "LISTBOX", "", id, x, y, w, h, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | 0x00100000 | LBS_NOTIFY, 0)"#);
     replace_if_present(&mut source, "try_dark_titlebar(hwnd);", "crate::ui_modern::mist_titlebar(hwnd);");
     replace_if_present(&mut source, "crate::ui_theme::dark_titlebar(hwnd);", "crate::ui_modern::mist_titlebar(hwnd);");
     mist_tokens(&mut source);
