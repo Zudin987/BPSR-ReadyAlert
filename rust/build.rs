@@ -1,12 +1,12 @@
 mod current {
-    include!("build/legacy/build_v1271_history_button.rs");
+    include!("build/legacy/build_ui_modernization.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
-    // Historical generated-source compatibility remains assertion-guarded.
-    // v1.27.1 polishes the native Benchmark dialog and adds direct Encounter
-    // History access to the responsive meter toolbar.
+    // Keep the historical generated-source compatibility chain assertion-guarded.
+    // The final UI pass applies compact Pixel / Material 3 + One UI polish without
+    // changing the protected native window footprints or responsive data density.
     println!("cargo:rerun-if-changed=build/legacy");
 }
