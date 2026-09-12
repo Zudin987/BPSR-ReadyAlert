@@ -163,21 +163,21 @@ fn patch_feature_overlay(out: &Path) {
         "urgent mechanic returns viewport to top",
     );
 
-    // Keep all active rows available for scrolling, but rank the first screen by
-    // importance: high priority first, then expiring rows, then nearest expiry.
+    // Keep all active rows available for scrolling, but rank the mechanic rows by
+    // importance while preserving the tracker rows that v1.23.1 renders first.
     // A hard six-row first-screen budget prevents a large raid state dump from
     // drowning the mechanic the player needs to act on now.
     replace_once(
         &mut source,
-        "let now=now_ms();let active:Vec<_>=state.mechanics.rows.iter().filter(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now).collect();let visible=((rc.bottom-top)/MECH_ROW_H).max(0)as usize;",
-        "let now=now_ms();let mut active:Vec<_>=state.mechanics.rows.iter().filter(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now).collect();active.sort_by(|a,b|{let a_timed=!a.persistent&&a.expires_unix_ms>now;let b_timed=!b.persistent&&b.expires_unix_ms>now;let ae=if a_timed{a.expires_unix_ms}else{i64::MAX};let be=if b_timed{b.expires_unix_ms}else{i64::MAX};b.priority.cmp(&a.priority).then_with(||b_timed.cmp(&a_timed)).then_with(||ae.cmp(&be)).then_with(||b.created_unix_ms.cmp(&a.created_unix_ms)).then_with(||a.key.cmp(&b.key))});let visible=(((rc.bottom-top)/MECH_ROW_H).max(0)as usize).min(MAX_MECHANIC_ROWS_VISIBLE);",
+        "let now=now_ms();let tracker=crate::event_tracker::rows();let active:Vec<_>=state.mechanics.rows.iter().filter(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now).collect();let total=tracker.len().saturating_add(active.len());let visible=((rc.bottom-top)/MECH_ROW_H).max(0)as usize;",
+        "let now=now_ms();let tracker=crate::event_tracker::rows();let mut active:Vec<_>=state.mechanics.rows.iter().filter(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now).collect();active.sort_by(|a,b|{let a_timed=!a.persistent&&a.expires_unix_ms>now;let b_timed=!b.persistent&&b.expires_unix_ms>now;let ae=if a_timed{a.expires_unix_ms}else{i64::MAX};let be=if b_timed{b.expires_unix_ms}else{i64::MAX};b.priority.cmp(&a.priority).then_with(||b_timed.cmp(&a_timed)).then_with(||ae.cmp(&be)).then_with(||b.created_unix_ms.cmp(&a.created_unix_ms)).then_with(||a.key.cmp(&b.key))});let total=tracker.len().saturating_add(active.len());let visible=(((rc.bottom-top)/MECH_ROW_H).max(0)as usize).min(MAX_MECHANIC_ROWS_VISIBLE);",
         "priority and urgency mechanic ordering",
     );
 
     replace_once(
         &mut source,
-        "let visible=((rc.bottom-top)/MECH_ROW_H).max(0)as usize;let now=now_ms();let total=state.mechanics.rows.iter().filter(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now).count();(total,visible)",
-        "let visible=(((rc.bottom-top)/MECH_ROW_H).max(0)as usize).min(MAX_MECHANIC_ROWS_VISIBLE);let now=now_ms();let total=state.mechanics.rows.iter().filter(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now).count();(total,visible)",
+        "let visible=((bottom-top)/MECH_ROW_H).max(0)as usize;",
+        "let visible=(((bottom-top)/MECH_ROW_H).max(0)as usize).min(MAX_MECHANIC_ROWS_VISIBLE);",
         "scroll clamp follows compact mechanic budget",
     );
 
