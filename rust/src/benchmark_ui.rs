@@ -1,18 +1,20 @@
 use std::{ptr::null_mut, sync::{atomic::{AtomicIsize, Ordering}, OnceLock}};
 use windows_sys::Win32::{
     Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
+    Graphics::Gdi::{GetStockObject, DEFAULT_GUI_FONT},
     System::LibraryLoader::GetModuleHandleW,
     UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, GetDlgItem, GetWindowTextLengthW,
-        GetWindowTextW, IsWindow, LoadCursorW, MessageBoxW, RegisterClassW, SetForegroundWindow,
-        SetWindowTextW, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, IDC_ARROW,
-        MB_ICONWARNING, MB_OK, SW_SHOW, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_NCCREATE,
-        WM_NCDESTROY, WS_CAPTION, WS_CHILD, WS_EX_CLIENTEDGE, WS_EX_TOOLWINDOW, WS_POPUP,
-        WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WNDCLASSW,
+        GetWindowTextW, IsWindow, LoadCursorW, MessageBoxW, RegisterClassW, SendMessageW,
+        SetForegroundWindow, SetWindowTextW, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT,
+        GWLP_USERDATA, IDC_ARROW, MB_ICONWARNING, MB_OK, SW_SHOW, WM_CLOSE, WM_COMMAND,
+        WM_CREATE, WM_NCCREATE, WM_NCDESTROY, WM_SETFONT, WS_CAPTION, WS_CHILD,
+        WS_EX_CLIENTEDGE, WS_EX_TOOLWINDOW, WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
+        WNDCLASSW,
     },
 };
 
-const CLASS: &str = "BPSRReadyAlertBenchmarkV1270";
+const CLASS: &str = "BPSRReadyAlertBenchmarkV1271";
 const ID_NAME: i32 = 5101;
 const ID_SECONDS: i32 = 5102;
 const ID_START: i32 = 5103;
@@ -23,6 +25,11 @@ const BS_DEFPUSHBUTTON: u32 = 0x0001;
 const BS_PUSHBUTTON: u32 = 0x0000;
 const SS_LEFT: u32 = 0x0000;
 const WS_EX_TOPMOST: u32 = 0x0000_0008;
+
+const WINDOW_W: i32 = 440;
+const WINDOW_H: i32 = 285;
+const PAD: i32 = 18;
+const CONTENT_W: i32 = 388;
 
 static CLASS_READY: OnceLock<()> = OnceLock::new();
 static OPEN_HWND: AtomicIsize = AtomicIsize::new(0);
@@ -60,8 +67,8 @@ pub unsafe fn show(owner: HWND) {
         WS_POPUP | WS_CAPTION | WS_SYSMENU,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        400,
-        225,
+        WINDOW_W,
+        WINDOW_H,
         owner,
         null_mut(),
         instance,
@@ -114,26 +121,30 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
 
 unsafe fn build_form(hwnd: HWND) {
     let instance = GetModuleHandleW(null_mut()) as HINSTANCE;
-    child(hwnd, instance, "STATIC", "Benchmark name", 18, 18, 350, 20, SS_LEFT, 0);
-    child(hwnd, instance, "EDIT", "", 18, 40, 350, 27, ES_AUTOHSCROLL, ID_NAME);
-    child(hwnd, instance, "STATIC", "Duration (seconds)", 18, 79, 160, 20, SS_LEFT, 0);
-    let seconds = child(hwnd, instance, "EDIT", "", 18, 101, 125, 27, ES_AUTOHSCROLL | ES_NUMBER, ID_SECONDS);
+
+    child(hwnd, instance, "STATIC", "Benchmark name (optional)", PAD, 18, CONTENT_W, 18, SS_LEFT, 0);
+    child(hwnd, instance, "EDIT", "", PAD, 40, CONTENT_W, 27, ES_AUTOHSCROLL, ID_NAME);
+
+    child(hwnd, instance, "STATIC", "Duration (seconds)", PAD, 82, 170, 18, SS_LEFT, 0);
+    let seconds = child(hwnd, instance, "EDIT", "", PAD, 104, 126, 27, ES_AUTOHSCROLL | ES_NUMBER, ID_SECONDS);
     let default_seconds = wide(&crate::telemetry::default_benchmark_seconds().to_string());
     SetWindowTextW(seconds, default_seconds.as_ptr());
+
     child(
         hwnd,
         instance,
         "STATIC",
-        "Timer starts on the first detected combat hit/use, not when Start is clicked.",
-        18,
-        136,
-        350,
-        20,
+        "Starts when your first local damage/heal is detected, not when you click Start.\r\nThe meter resets automatically when the benchmark timer ends.",
+        PAD,
+        147,
+        CONTENT_W,
+        40,
         SS_LEFT,
         0,
     );
-    child(hwnd, instance, "BUTTON", "Start", 202, 166, 78, 29, BS_DEFPUSHBUTTON, ID_START);
-    child(hwnd, instance, "BUTTON", "Cancel", 290, 166, 78, 29, BS_PUSHBUTTON, ID_CANCEL);
+
+    child(hwnd, instance, "BUTTON", "Start", 238, 202, 82, 30, BS_DEFPUSHBUTTON, ID_START);
+    child(hwnd, instance, "BUTTON", "Cancel", 330, 202, 82, 30, BS_PUSHBUTTON, ID_CANCEL);
 }
 
 unsafe fn child(
@@ -150,11 +161,11 @@ unsafe fn child(
 ) -> HWND {
     let class = wide(class);
     let text = wide(text);
-    CreateWindowExW(
+    let hwnd = CreateWindowExW(
         if class_name_is_edit(&class) { WS_EX_CLIENTEDGE } else { 0 },
         class.as_ptr(),
         text.as_ptr(),
-        WS_CHILD | WS_VISIBLE | if id != 0 { WS_TABSTOP } else { 0 } | extra_style,
+        WS_CHILD | WS_VISIBLE | (if id != 0 { WS_TABSTOP } else { 0 }) | extra_style,
         x,
         y,
         w,
@@ -163,7 +174,19 @@ unsafe fn child(
         id as usize as _,
         instance,
         null_mut(),
-    )
+    );
+    apply_gui_font(hwnd);
+    hwnd
+}
+
+unsafe fn apply_gui_font(hwnd: HWND) {
+    if hwnd.is_null() {
+        return;
+    }
+    let font = GetStockObject(DEFAULT_GUI_FONT);
+    if !font.is_null() {
+        let _ = SendMessageW(hwnd, WM_SETFONT, font as usize, 1);
+    }
 }
 
 fn class_name_is_edit(class: &[u16]) -> bool {
