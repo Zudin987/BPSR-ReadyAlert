@@ -10,10 +10,10 @@ mod stage7 { include!("build_v1290_compact_stage7.rs"); }
 mod finish { include!("build_v1290_native_finish.rs"); }
 fn main(){
     // Ordering is deliberate:
-    // 1) the existing modernization patches establish shared semantic surfaces,
+    // 1) the historical modernization patches establish stable generated anchors,
     // 2) Compact/Raid adds its mode/state/layout behavior,
-    // 3) the final native pass only restyles the resulting generated source.
-    // This prevents either visual pass from replacing Compact behavior.
+    // 3) the final BPSR-native pass applies Mist Glass / Dark Glass presentation.
+    // This prevents visual work from replacing Compact behavior or vice versa.
     prior::run();
     let out=PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     stage1::run(&out);stage2::run(&out);stage3::run(&out);stage4::run(&out);stage5::run(&out);stage6::run(&out);stage7::run(&out);
