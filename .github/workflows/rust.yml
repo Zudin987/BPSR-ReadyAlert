@@ -44,6 +44,10 @@ jobs:
         if: github.event_name == 'pull_request' && github.head_ref == 'feat/v1260-encounter-history-html'
         shell: pwsh
         run: |
+          git fetch origin "$env:GITHUB_HEAD_REF"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git checkout -B "$env:GITHUB_HEAD_REF" "origin/$env:GITHUB_HEAD_REF"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo update --manifest-path rust/Cargo.toml --workspace
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $changed = git status --porcelain -- rust/Cargo.lock
