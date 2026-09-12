@@ -1,0 +1,38 @@
+name: Temporary v1.27.2 lock sync
+
+on:
+  push:
+    branches:
+      - fix/v1272-comparison-skill-details
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v1272-comparison-skill-details
+      - name: Sync lockfile and remove temporary workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('rust/Cargo.lock')
+          text = path.read_text(encoding='utf-8')
+          old = '[[package]]\nname = "bpsr-readyalert"\nversion = "1.27.1"'
+          new = '[[package]]\nname = "bpsr-readyalert"\nversion = "1.27.2"'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'expected one ReadyAlert 1.27.1 lock entry, found {count}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/temp-v1272-lock-sync.yml
+          git add rust/Cargo.lock
+          git commit -m "Sync Cargo.lock for 1.27.2"
+          git push
