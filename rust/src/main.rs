@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod chat_archive;
 mod capture {
     include!(concat!(env!("OUT_DIR"), "/capture_v185.rs"));
 }
