@@ -6,9 +6,9 @@ use windows_sys::Win32::{
     UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, GetDlgItem, GetWindowTextLengthW,
         GetWindowTextW, IsWindow, LoadCursorW, MessageBoxW, RegisterClassW, SendMessageW,
-        SetFocus, SetForegroundWindow, SetWindowTextW, ShowWindow, CREATESTRUCTW, COLOR_BTNFACE,
-        CW_USEDEFAULT, GWLP_USERDATA, IDC_ARROW, MB_ICONWARNING, MB_OK, SW_SHOW, WM_CLOSE,
-        WM_COMMAND, WM_CREATE, WM_NCCREATE, WM_NCDESTROY, WM_SETFONT, WS_CAPTION, WS_CHILD,
+        SetForegroundWindow, SetWindowTextW, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT,
+        GWLP_USERDATA, IDC_ARROW, MB_ICONWARNING, MB_OK, SW_SHOW, WM_CLOSE, WM_COMMAND,
+        WM_CREATE, WM_NCCREATE, WM_NCDESTROY, WM_SETFONT, WS_CAPTION, WS_CHILD,
         WS_EX_CLIENTEDGE, WS_EX_TOOLWINDOW, WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
         WNDCLASSW,
     },
@@ -49,7 +49,6 @@ pub unsafe fn show(owner: HWND) {
             lpfnWndProc: Some(wnd_proc),
             hInstance: instance,
             hCursor: LoadCursorW(null_mut(), IDC_ARROW),
-            hbrBackground: (COLOR_BTNFACE + 1) as usize as _,
             lpszClassName: class.as_ptr(),
             ..std::mem::zeroed()
         };
@@ -124,7 +123,7 @@ unsafe fn build_form(hwnd: HWND) {
     let instance = GetModuleHandleW(null_mut()) as HINSTANCE;
 
     child(hwnd, instance, "STATIC", "Benchmark name (optional)", PAD, 18, CONTENT_W, 18, SS_LEFT, 0);
-    let name = child(hwnd, instance, "EDIT", "", PAD, 40, CONTENT_W, 27, ES_AUTOHSCROLL, ID_NAME);
+    child(hwnd, instance, "EDIT", "", PAD, 40, CONTENT_W, 27, ES_AUTOHSCROLL, ID_NAME);
 
     child(hwnd, instance, "STATIC", "Duration (seconds)", PAD, 82, 170, 18, SS_LEFT, 0);
     let seconds = child(hwnd, instance, "EDIT", "", PAD, 104, 126, 27, ES_AUTOHSCROLL | ES_NUMBER, ID_SECONDS);
@@ -146,7 +145,6 @@ unsafe fn build_form(hwnd: HWND) {
 
     child(hwnd, instance, "BUTTON", "Start", 238, 202, 82, 30, BS_DEFPUSHBUTTON, ID_START);
     child(hwnd, instance, "BUTTON", "Cancel", 330, 202, 82, 30, BS_PUSHBUTTON, ID_CANCEL);
-    SetFocus(name);
 }
 
 unsafe fn child(
