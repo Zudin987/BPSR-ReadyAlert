@@ -1,7 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod archive_hub;
 mod chat_archive;
+mod encounter_archive;
+mod encounter_context;
+mod encounter_store;
+mod game_data_v1260;
 mod capture {
     include!(concat!(env!("OUT_DIR"), "/capture_v185.rs"));
 }
@@ -80,7 +85,7 @@ mod sharing;
 mod ui;
 mod ui_theme;
 mod hotkeys;
-#[path = "telemetry_v1110.rs"]
+#[path = "telemetry_v1260.rs"]
 mod telemetry;
 #[path = "tray_v160.rs"]
 mod tray;
