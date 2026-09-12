@@ -5,14 +5,14 @@ use std::{ffi::c_void, ptr::null, sync::{atomic::{AtomicIsize, Ordering}, OnceLo
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::Gdi::{
-        CreateFontW, CreateSolidBrush, DeleteObject, DrawTextW, FillRect, SelectObject,
-        SetBkMode, SetTextColor, HBRUSH, HDC, HFONT, TRANSPARENT,
+        CreateFontW, CreateSolidBrush, DeleteObject, DrawTextW, FillRect, InvalidateRect,
+        SelectObject, SetBkMode, SetTextColor, HBRUSH, HDC, HFONT, TRANSPARENT,
     },
     UI::{
-        Controls::{DefSubclassProc, SetWindowSubclass, DRAWITEMSTRUCT},
+        Controls::DRAWITEMSTRUCT,
         WindowsAndMessaging::{
-            GetClassNameW, GetWindowTextLengthW, GetWindowTextW, InvalidateRect, SendMessageW,
-            TrackMouseEvent, TRACKMOUSEEVENT, TME_LEAVE, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_SETFONT,
+            GetClassNameW, GetWindowTextLengthW, GetWindowTextW, SendMessageW,
+            WM_MOUSEMOVE, WM_SETFONT,
         },
     },
 };
@@ -117,6 +117,30 @@ extern "system" { fn DwmSetWindowAttribute(hwnd: HWND, attribute: u32, value: *c
 #[link(name = "uxtheme")]
 extern "system" { fn SetWindowTheme(hwnd: HWND, app_name: *const u16, id_list: *const u16) -> i32; }
 
+// windows-sys 0.59 does not expose these common-control/user32 hover helpers
+// through the currently enabled feature set. Keep the tiny ABI surface local
+// instead of widening crate features just for owner-draw hover invalidation.
+type SubclassProc = Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM, usize, usize) -> LRESULT>;
+
+#[repr(C)]
+struct NativeTrackMouseEvent {
+    cb_size: u32,
+    flags: u32,
+    hwnd_track: HWND,
+    hover_time: u32,
+}
+
+const TME_LEAVE_NATIVE: u32 = 0x0000_0002;
+const WM_MOUSELEAVE_NATIVE: u32 = 0x02A3;
+
+#[link(name = "comctl32")]
+extern "system" {
+    fn SetWindowSubclass(hwnd: HWND, proc: SubclassProc, id: usize, data: usize) -> i32;
+    fn DefSubclassProc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT;
+}
+#[link(name = "user32")]
+extern "system" { fn TrackMouseEvent(event: *mut NativeTrackMouseEvent) -> i32; }
+
 pub unsafe fn dark_titlebar(hwnd: HWND) {
     let enabled: i32 = 1;
     let ptr = (&enabled as *const i32).cast::<c_void>();
@@ -181,15 +205,15 @@ unsafe extern "system" fn button_subclass_proc(hwnd: HWND, msg: u32, wparam: WPA
                 if previous != 0 { InvalidateRect(previous as HWND, null(), 0); }
                 InvalidateRect(hwnd, null(), 0);
             }
-            let mut tracking = TRACKMOUSEEVENT {
-                cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
-                dwFlags: TME_LEAVE,
-                hwndTrack: hwnd,
-                dwHoverTime: 0,
+            let mut tracking = NativeTrackMouseEvent {
+                cb_size: std::mem::size_of::<NativeTrackMouseEvent>() as u32,
+                flags: TME_LEAVE_NATIVE,
+                hwnd_track: hwnd,
+                hover_time: 0,
             };
             let _ = TrackMouseEvent(&mut tracking);
         }
-        WM_MOUSELEAVE => {
+        WM_MOUSELEAVE_NATIVE => {
             if HOVERED_BUTTON.compare_exchange(hwnd as isize, 0, Ordering::AcqRel, Ordering::Acquire).is_ok() {
                 InvalidateRect(hwnd, null(), 0);
             }
