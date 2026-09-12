@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: rust-${{ github.event.pull_request.number || github.ref }}
@@ -33,29 +33,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install pinned Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.98.1
           components: clippy
-
-      - name: Refresh v1.24.1 root package lock metadata
-        run: cargo update --manifest-path rust/Cargo.toml -p bpsr-readyalert --precise 1.24.1
-
-      - name: Commit refreshed v1.24.1 lockfile
-        if: github.event_name == 'pull_request'
-        shell: pwsh
-        run: |
-          git diff --quiet -- rust/Cargo.lock
-          if ($LASTEXITCODE -eq 0) { Write-Host 'Cargo.lock already current.'; exit 0 }
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add rust/Cargo.lock
-          git commit -m 'chore: refresh Cargo.lock for v1.24.1'
-          git push origin HEAD:${{ github.head_ref }}
 
       - name: Prepare embedded assets
         shell: pwsh
@@ -117,7 +100,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-source
-          path: |
-            rust/target/debug/build/bpsr-readyalert-*/out/*.rs
-            rust/Cargo.lock
+          path: rust/target/debug/build/bpsr-readyalert-*/out/*.rs
           retention-days: 3
