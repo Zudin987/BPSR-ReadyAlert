@@ -1,6 +1,7 @@
-//! Shared visual language for ReadyAlert's native Win32 surfaces.
-//! Keep this intentionally small: the app stays native/lightweight while all
-//! configuration windows and overlays share the same palette and interaction states.
+//! Shared fallback visual language for ReadyAlert's native Win32 surfaces.
+//! The final BPSR pass uses `ui_modern` for Mist/Dark family-specific drawing;
+//! this module deliberately defaults to BPSR Dark Glass so any native control
+//! not explicitly specialized still belongs to the same application language.
 use std::{ffi::c_void, ptr::null, sync::{atomic::{AtomicIsize, Ordering}, OnceLock}};
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
@@ -17,36 +18,33 @@ use windows_sys::Win32::{
     },
 };
 
-// Compact native dark palette. Interaction color, class identity and combat
+// BPSR Dark Glass fallback. Interaction color, class identity and combat
 // semantics intentionally use separate constants so their meanings do not compete.
-pub const BG: u32 = rgb(15, 19, 23);
-pub const SIDEBAR: u32 = rgb(21, 27, 33);
-pub const SURFACE: u32 = rgb(21, 27, 33);
-pub const RAISED: u32 = rgb(26, 32, 39);
-pub const SURFACE_HOVER: u32 = rgb(32, 40, 48);
-pub const SURFACE_PRESSED: u32 = rgb(37, 46, 55);
-pub const INPUT: u32 = rgb(26, 32, 39);
-pub const BORDER: u32 = rgb(46, 57, 68);
-pub const BORDER_STRONG: u32 = rgb(63, 76, 88);
-pub const TEXT: u32 = rgb(241, 244, 247);
-pub const TEXT_SECONDARY: u32 = rgb(181, 190, 200);
-pub const MUTED: u32 = rgb(131, 144, 157);
-pub const TEXT_DISABLED: u32 = rgb(103, 114, 125);
-pub const ACCENT: u32 = rgb(56, 184, 166);
-pub const ACCENT_HOVER: u32 = rgb(66, 198, 179);
-pub const ACCENT_PRESSED: u32 = rgb(47, 156, 141);
-// ACCENT is a medium-light teal; the dark foreground keeps primary actions
-// readable at the app's compact native control sizes.
-pub const ACCENT_TEXT: u32 = rgb(15, 19, 23);
-pub const DAMAGE: u32 = rgb(255, 93, 98);
-pub const HEALING: u32 = rgb(69, 222, 139);
-pub const TANK: u32 = rgb(102, 151, 255);
-pub const WARNING: u32 = rgb(240, 184, 73);
-pub const CRITICAL: u32 = rgb(255, 81, 88);
-pub const RANK_TEXT: u32 = rgb(216, 222, 229);
-// Destructive settings actions stay quieter than live critical combat state.
-pub const DANGER: u32 = rgb(190, 70, 72);
-pub const DANGER_HOVER: u32 = rgb(210, 81, 83);
+pub const BG: u32 = rgb(14, 23, 29);
+pub const SIDEBAR: u32 = rgb(18, 30, 37);
+pub const SURFACE: u32 = rgb(20, 32, 39);
+pub const RAISED: u32 = rgb(28, 42, 50);
+pub const SURFACE_HOVER: u32 = rgb(37, 54, 63);
+pub const SURFACE_PRESSED: u32 = rgb(44, 63, 72);
+pub const INPUT: u32 = rgb(23, 36, 43);
+pub const BORDER: u32 = rgb(69, 89, 99);
+pub const BORDER_STRONG: u32 = rgb(93, 115, 125);
+pub const TEXT: u32 = rgb(239, 246, 248);
+pub const TEXT_SECONDARY: u32 = rgb(200, 214, 219);
+pub const MUTED: u32 = rgb(156, 176, 183);
+pub const TEXT_DISABLED: u32 = rgb(121, 139, 145);
+pub const ACCENT: u32 = rgb(117, 211, 236);
+pub const ACCENT_HOVER: u32 = rgb(143, 224, 244);
+pub const ACCENT_PRESSED: u32 = rgb(83, 176, 204);
+pub const ACCENT_TEXT: u32 = rgb(14, 31, 38);
+pub const DAMAGE: u32 = rgb(242, 96, 103);
+pub const HEALING: u32 = rgb(85, 207, 139);
+pub const TANK: u32 = rgb(91, 156, 218);
+pub const WARNING: u32 = rgb(226, 157, 75);
+pub const CRITICAL: u32 = rgb(230, 76, 83);
+pub const RANK_TEXT: u32 = rgb(216, 225, 229);
+pub const DANGER: u32 = rgb(205, 83, 89);
+pub const DANGER_HOVER: u32 = rgb(225, 101, 106);
 
 pub const SPACE_1: i32 = 4;
 pub const SPACE_2: i32 = 8;
@@ -72,8 +70,8 @@ fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain(std::iter::once(0)).
 
 fn make_font(height: i32, weight: i32) -> usize {
     unsafe {
-        // The Windows font mapper supplies Segoe UI / installed CJK UI fallback
-        // glyphs when Segoe UI Variable Text does not contain a character.
+        // Windows supplies the normal installed CJK/UI fallback chain when the
+        // primary Segoe UI Variable Text face does not contain a glyph.
         let face = wide("Segoe UI Variable Text");
         CreateFontW(height, 0, 0, 0, weight, 0, 0, 0, 1, 0, 0, 5, 0, face.as_ptr()) as usize
     }
@@ -118,8 +116,7 @@ extern "system" { fn DwmSetWindowAttribute(hwnd: HWND, attribute: u32, value: *c
 extern "system" { fn SetWindowTheme(hwnd: HWND, app_name: *const u16, id_list: *const u16) -> i32; }
 
 // windows-sys 0.59 does not expose these common-control/user32 hover helpers
-// through the currently enabled feature set. Keep the tiny ABI surface local
-// instead of widening crate features just for owner-draw hover invalidation.
+// through the currently enabled feature set. Keep the tiny ABI surface local.
 type SubclassProc = Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM, usize, usize) -> LRESULT>;
 
 #[repr(C)]
@@ -147,11 +144,15 @@ pub unsafe fn dark_titlebar(hwnd: HWND) {
     if DwmSetWindowAttribute(hwnd, 20, ptr, std::mem::size_of::<i32>() as u32) != 0 {
         let _ = DwmSetWindowAttribute(hwnd, 19, ptr, std::mem::size_of::<i32>() as u32);
     }
-    let rounded: i32 = 2;
+    // BPSR uses restrained corners, not large rounded desktop cards.
+    let rounded: i32 = 1;
     let _ = DwmSetWindowAttribute(hwnd, 33, (&rounded as *const i32).cast(), std::mem::size_of::<i32>() as u32);
-    // Keep Win11's resize/frame line inside the same visual system instead of a pale strip.
     let border = BORDER;
+    let caption = SIDEBAR;
+    let text = TEXT;
     let _ = DwmSetWindowAttribute(hwnd, 34, (&border as *const u32).cast(), std::mem::size_of::<u32>() as u32);
+    let _ = DwmSetWindowAttribute(hwnd, 35, (&caption as *const u32).cast(), std::mem::size_of::<u32>() as u32);
+    let _ = DwmSetWindowAttribute(hwnd, 36, (&text as *const u32).cast(), std::mem::size_of::<u32>() as u32);
 }
 
 const BUTTON_SUBCLASS_ID: usize = 0x4250_5352;
@@ -175,16 +176,14 @@ pub unsafe fn theme_control(hwnd: HWND) {
     set_font(hwnd, FontRole::Body);
     let theme = wide("DarkMode_Explorer");
     let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
-    // Most generated Settings/Event Tracker controls already flow through this
-    // generic helper. Detect BUTTON here so owner-drawn controls gain reliable
-    // hover invalidation without another generated-code patch stage.
     install_button_hover_tracking(hwnd);
 }
 
 pub unsafe fn theme_combo(hwnd: HWND) {
     if hwnd.is_null() { return; }
     set_font(hwnd, FontRole::Body);
-    // DarkMode_CFD themes the closed combo field and arrow as well as the popup list.
+    // The OS owns the combo popup mechanics; DarkMode_CFD keeps it coherent
+    // with the dark/mist BPSR palettes without replacing accessibility behavior.
     let theme = wide("DarkMode_CFD");
     if SetWindowTheme(hwnd, theme.as_ptr(), null()) != 0 {
         let fallback = wide("DarkMode_Explorer");
@@ -244,7 +243,7 @@ pub unsafe fn draw_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: 
     } else if primary {
         ACCENT
     } else if danger {
-        rgb(77, 35, 38)
+        rgb(89, 49, 53)
     } else {
         SURFACE
     };
@@ -257,8 +256,8 @@ pub unsafe fn draw_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: 
         if selected {
             fill(item.hDC, &RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.left+3, bottom:item.rcItem.bottom }, ACCENT);
         }
-        // Keep the sidebar calm and One UI-like: no box around every row. Keyboard
-        // focus still gets a restrained outline so focus is never color-only.
+        // Sidebar rows stay visually quiet until selected/hovered; keyboard focus
+        // still gets a thin visible outline and is never color-only.
         if focused {
             let top = RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.right, bottom:item.rcItem.top+1 };
             let bottom = RECT { left:item.rcItem.left, top:item.rcItem.bottom-1, right:item.rcItem.right, bottom:item.rcItem.bottom };

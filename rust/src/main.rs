@@ -84,6 +84,7 @@ mod settings_ui {
 mod sharing;
 mod ui;
 mod ui_theme;
+mod ui_modern;
 mod hotkeys;
 #[path = "telemetry_v1260.rs"]
 mod telemetry;
