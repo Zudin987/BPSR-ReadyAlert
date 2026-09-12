@@ -1,0 +1,38 @@
+name: Temporary v1.27.1 lock sync
+
+on:
+  push:
+    branches: [feat/v1271-history-button-benchmark-ui]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore and sync lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show origin/main:rust/Cargo.lock > rust/Cargo.lock
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('rust/Cargo.lock')
+          s = p.read_text()
+          old = 'name = "bpsr-readyalert"\nversion = "1.27.0"'
+          new = 'name = "bpsr-readyalert"\nversion = "1.27.1"'
+          if s.count(old) != 1:
+              raise SystemExit(f'expected exactly one ReadyAlert 1.27.0 lock entry, got {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          rm .github/workflows/temp-v1271-lock-sync.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rust/Cargo.lock .github/workflows/temp-v1271-lock-sync.yml
+          git commit -m 'Sync Cargo.lock for 1.27.1'
+          git push
