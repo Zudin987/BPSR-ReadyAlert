@@ -1,12 +1,12 @@
 mod current {
-    include!("build/legacy/build_v1250_chat_archive.rs");
+    include!("build/legacy/build_v1260_encounter_archive.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
-    // Historical generated-source compatibility remains assertion-guarded. The
-    // chat archive patch keeps the existing append-only logs and only changes
-    // the Open Chat Logs action to build a local, offline HTML browser view.
+    // Historical generated-source compatibility remains assertion-guarded.
+    // v1.26 keeps the native UI path and routes the existing archive action to
+    // one offline hub for chat plus saved encounter history.
     println!("cargo:rerun-if-changed=build/legacy");
 }

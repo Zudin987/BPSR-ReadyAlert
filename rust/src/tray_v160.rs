@@ -59,7 +59,7 @@ pub unsafe fn show(hwnd:HWND,settings:&AppSettings,features:&FeatureSettings,api
 
     let volume_menu=CreatePopupMenu();if !volume_menu.is_null(){for step in 0..=10{let volume=step*10;let label=if volume==0{"Mute".to_string()}else{format!("{volume}%")};append_check(volume_menu,CMD_VOLUME_BASE+step as u32,&label,settings.alert_volume==volume);}AppendMenuW(menu,MF_POPUP,volume_menu as usize,wide(&format!("Alert volume: {}%",settings.alert_volume.clamp(0,100))).as_ptr());}
 
-    AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_SETTINGS,"Settings…");append_string(menu,CMD_CHAT_LOGS,"Open chat logs");append_string(menu,CMD_APP_FOLDER,"Open app data folder");append_string(menu,CMD_LOG_FILE,"Open diagnostic log");AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_EXIT,"Exit ReadyAlert");
+    AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_SETTINGS,"Settings…");append_string(menu,CMD_CHAT_LOGS,"Open local archives");append_string(menu,CMD_APP_FOLDER,"Open app data folder");append_string(menu,CMD_LOG_FILE,"Open diagnostic log");AppendMenuW(menu,MF_SEPARATOR,0,null());append_string(menu,CMD_EXIT,"Exit ReadyAlert");
     let mut p:POINT=std::mem::zeroed();GetCursorPos(&mut p);SetForegroundWindow(hwnd);let command=TrackPopupMenu(menu,TPM_LEFTALIGN|TPM_BOTTOMALIGN|TPM_RIGHTBUTTON|TPM_RETURNCMD,p.x,p.y,0,hwnd,null());
     // Explorer notification-area menus require a message after TrackPopupMenu
     // returns; without it the menu can remain in an odd/stuck dismissal state.

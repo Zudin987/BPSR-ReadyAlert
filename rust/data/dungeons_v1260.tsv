@@ -1,0 +1,584 @@
+# scene_id	dungeon_id	play_type	difficulty	name
+1001	1001	2		Tina's Mindrealm
+1002	1002	2		Tina's Mindrealm
+1011	1011	8		Unstable - Tina's Mindrealm
+1021	1021	8		Unstable - Tina's Mindrealm
+1031	1031	9		Tina's Mindrealm
+1031	1631	9		Void - Tina's Mindrealm
+1032	1032	9		Tina's Mindrealm
+1032	1632	9		Void - Tina's Mindrealm
+1033	1033	17		Tina's Mindrealm
+1101	1101	2		Towering Ruin
+1102	1102	2		Towering Ruin
+1111	1111	8		Unstable - Towering Ruin
+1112	1112	8		Unstable - Towering Ruin
+1121	1121	9		Towering Ruin
+1122	1122	9		Towering Ruin
+1123	1123	17		Towering Ruin
+1150	1150	17		Void - Towering Ruin
+1151	1151	9		Void - Towering Ruin
+1152	1152	9		Void - Towering Ruin
+1153	1153	8		Unstable Space - Void - Towering Ruin
+1154	1154	8		Unstable Space - Void - Towering Ruin
+1201	1201	2		Dragon Claw Valley
+1202	1202	2		Dragon Claw Valley
+1211	1211	8		Unstable - Dragon Claw Valley
+1212	1212	8		Unstable - Dragon Claw Valley
+1221	1221	9		Dragon Claw Valley
+1222	1222	9		Dragon Claw Valley
+1223	1223	17		Dragon Claw Valley
+1231	1231	8		Unstable - Dragon Claw Valley
+1232	1232	8		Unstable - Dragon Claw Valley
+1233	1233	9		Dragon Claw Valley
+1234	1234	9		Dragon Claw Valley
+1235	1235	17		Dragon Claw Valley
+1301	1301	2		Dark Mist Fortress
+1301	1399	2		Level quest test
+1302	1302	2		Dark Mist Fortress
+1311	1311	8		Unstable - Dark Mist Fortress
+1321	1321	8		Unstable - Dark Mist Fortress
+1331	1331	9		Dark Mist Fortress
+1332	1332	9		Dark Mist Fortress
+1333	1333	17		Dark Mist Fortress
+1401	1401	2		Illusory Moonveil Wilds
+1402	1402	2		Illusory Moonveil Wilds
+1403	1403	2		Illusory Moonveil Wilds
+1411	1411	8		Unstable - Illusory Moonveil Wilds
+1412	1412	8		Unstable - Illusory Moonveil Wilds
+1421	1421	9		Illusory Moonveil Wilds
+1422	1422	9		Illusory Moonveil Wilds
+1423	1423	17		Illusory Moonveil Wilds
+1501	1501	2		Rock Serpent Lair
+1501	1502	2		Rock Serpent Lair
+1511	1511	8		Unstable - Rock Serpent Lair
+1521	1521	8		Unstable - Rock Serpent Lair
+1531	1531	9		Rock Serpent Lair
+1532	1532	9		Rock Serpent Lair
+1533	1533	17		Rock Serpent Lair
+1611	1611	8		Unstable Space - Void - Tina's Mindrealm
+1621	1621	8		Unstable Space - Void - Tina's Mindrealm
+1633	1633	17		Void - Tina's Mindrealm
+5000	5000	1		Content mechanism test scene
+5033	5033	1		Tower Ruins
+5200	5200	1		Lamond's Office
+5206	5206	1		Asterleeds
+5211	5211	1		Lamond's Office
+5220	5220	1		Asterleeds
+5401	5401	1		Kanamia Forest
+5403	5403	1		Kanamia Brave Trial
+5501	5501	1		Dragon Claw Valley
+5602	5602	1		Fafala's Home
+5603	5603	2		Fafala's Home
+5604	5604	1		Fafala's Home
+5811	5811	1		Smelting Furnace Pipes
+5812	5812	1		Frostjade Staff
+5813	5813	1		Ruins Deep Within the Mine
+5900	5900	1		Sea-Ringed Reef
+5901	5901	1		Mistveil Hunting Ground
+5910	5910	1		Cursed Radiant Tomb
+6001	6001	1		Heroic Dungeon Test Dungeon
+6005	6005	8		Unstable - Goblin Lair
+6005	6111	8		Unstable - Wraith Shrine
+6006	6006	8		Unstable - Goblin Lair
+6006	6112	8		Unstable - Wraith Shrine
+6007	6007	9		Goblin Lair
+6008	6008	9		Goblin Lair
+6009	6009	17		Goblin Lair
+6011	6011	8		Unstable - Kanamia Trial
+6012	6012	8		Unstable - Kanamia Trial
+6021	6021	9		Kanamia Trial
+6022	6022	9		Kanamia Trial
+6023	6023	17		Kanamia Trial
+6031	6031	8		Unstable - Kanamia Trial
+6032	6032	8		Unstable - Kanamia Trial
+6040	6040	2		Verdant Embrace of Soundless City
+6041	6041	8		Unstable - Soundless City
+6042	6042	8		Unstable - Soundless City
+6043	6043	9		Soundless City
+6044	6044	9		Soundless City
+6045	6045	17		Soundless City
+6121	6121	9		Wraith Shrine
+6122	6122	9		Wraith Shrine
+6123	6123	17		Wraith Shrine
+6211	6211	8		Unstable - Depths of Decay
+6212	6212	8		Unstable - Depths of Decay
+6221	6221	9		Depths of Decay
+6222	6222	9		Depths of Decay
+6223	6223	17		Depths of Decay
+6311	6311	8		Unstable - Devourer Cage
+6321	6321	8		Unstable - Devourer Cage
+6331	6331	9		Devourer Cage
+6332	6332	9		Devourer Cage
+6333	6333	17		Devourer Cage
+6411	6411	8		Unstable - Soundless City
+6412	6412	8		Unstable - Soundless City
+6421	6421	9		Soundless City
+6422	6422	9		Soundless City
+6423	6423	17		Soundless City
+6511	6511	8		Unstable Space - Cursed Radiant Tomb
+6512	6512	8		Unstable Space - Cursed Radiant Tomb
+6513	6513	9		Cursed Radiant Tomb
+6514	6514	9		Cursed Radiant Tomb
+6515	6515	17		Cursed Radiant Tomb
+6521	6521	8		Unstable Space - Mech Facility
+6522	6522	8		Unstable Space - Mech Facility
+6523	6523	9		Mech Facility
+6524	6524	9		Mech Facility
+6525	6525	17		Mech Facility
+6541	6541	8		Unstable Space - Mistveil Hunting Ground
+6542	6542	8		Unstable Space - Mistveil Hunting Ground
+6543	6543	9		Mistveil Hunting Ground
+6544	6544	9		Mistveil Hunting Ground
+6545	6545	17		Mistveil Hunting Ground
+6561	6561	8		Unstable Space - Sea-Ringed Reef
+6562	6562	8		Unstable Space - Sea-Ringed Reef
+6563	6563	9		Sea-Ringed Reef
+6564	6564	9		Sea-Ringed Reef
+6565	6565	17		Sea-Ringed Reef
+7001	7001	5		Parkour
+7002	7002	5		Parkour
+7003	7003	5		Wasteland Race
+7004	7004	5		City Rally
+7050	7050	6		Goblin Rampage
+7051	7051	6		Goblin Rampage
+7052	7052	6		Goblin Rampage
+7053	7053	6		Goblin Rampage
+7054	7054	6		Goblin Rampage
+7055	7055	6		Defeat the Goblin Mage
+7056	7056	6		Defeat the Goblin Mage
+7057	7057	6		Defeat the Goblin Mage
+7058	7058	6		Defeat the Goblin Mage
+7060	7060	6		Canyon Battle
+7061	7061	6		Canyon Battle
+7065	7065	6		Urgent Delivery
+7070	7070	6		Light Bridge
+7071	7071	6		Light Bridge
+7072	7072	6		Light Bridge
+7073	7073	6		Light Bridge
+7075	7075	6		Demi-Human Q&A
+7076	7076	6		Demi-Human Q&A
+7077	7077	6		Demi-Human Q&A
+7080	7080	6		Wind Turbulence
+7085	7085	6		Boars Run
+7090	7090	6		Suppress the Eruption
+7095	7095	6		Spider Mine
+7101	7101	6		Sky Trial
+7102	7102	6		Sky Trial
+7103	7103	6		Sky Trial
+7150	7150	15		World Dominator
+7151	7151	15		World Dominator
+7151	7152	15		World Dominator
+8001	8001	6		Village Defense Battle
+8002	8002	6		Golem Arena
+8005	8005	6		Urgent Delivery
+8006	8006	6		Urgent Delivery
+8020	8020	6		Demi-Human Duel
+8021	8021	6		Demi-Human Duel
+8051	8051	1		Toxic Mire Breach
+8052	8052	1		Rift of Chaos
+8053	8053	1		Wasteland: Tainted
+8053	8054	1		Wasteland: Corrupted
+9000	9000	6		Spider Mine
+9001	9001	6		Balloon Capture
+9002	9002	6		Defeat the Year Demon
+9200	9200	1		Dragon Shackles: Adept's Trial
+9201	9201	1		Loom of Dreams​
+9202	9202	19		Slumberdream Valley (Easy)
+9203	9203	19		Slumberdream Valley (Hard)
+9204	9204	19		Slumberdream Valley (Nightmare)
+9205	9205	19		Illusion-Shroud Woods (Easy)
+9206	9206	19		Illusion-Shroud Woods (Hard)
+9207	9207	19		Illusion-Shroud Woods (Nightmare)
+10003	10003	1		Empty Copy 1
+10003	10030	1		Zone Test
+10004	10004	1		Empty Copy 2
+10004	10005	1		Test Logic Special Copy
+10020	10020	1		Performance Test Scene 1
+10021	10021	1		Performance Test Scene 2
+11001	11001	20		Wondrous Tag
+12000	12000	12		Guild Hall
+12011	12011	13		Guild Hunt - Hard
+12012	12012	13		Guild Hunt - Normal
+12013	12013	13		Guild Hunt - Easy
+12014	12014	13		Guild Hunt - Normal
+12015	12015	13		Guild Hunt - Hard
+12016	12016	13		Guild Hunt - Normal
+12017	12017	13		Guild Hunt - Hard
+12018	12018	13		Guild Hunt - Normal
+12019	12019	13		Guild Hunt - Hard
+12022	12022	13		Guild Hunt - Normal
+12023	12023	13		Guild Hunt - Hard
+12030	12030	1		Ee-chan's Story
+12040	12040	6		Ee-chan, don't stare at me!
+12050	12050	15		Giant Golem Crusade
+12051	12051	15		Giant Golem Crusade
+12051	12052	15		Giant Golem Crusade
+12100	12100	1		Rift of Slumberdream
+13001	13001	18		Backtrack! Floating Island - Dragon Shackles
+13002	13002	18		Brutal! Floating Island
+13003	13003	18		Purge! Floating Island
+13011	13011	18		Backtrack! Dreambloom Ruins
+13012	13012	18		Brutal! Dreambloom Ruins
+13013	13013	18		Purge! Dreambloom Ruins
+13021	13021	18		Clash! Field of Forgotten Illusions
+13022	13022	18		Brutal! Field of Forgotten Illusions
+13023	13023	18		Purge! Field of Forgotten Illusions
+15001	15001	3		Memory 1 - Normal
+15002	15002	3		Memory 13 - Advanced
+15003	15003	3		Memory 9 - Normal
+15004	15004	3		Memory 7 - Normal
+15005	15005	3		Memory 31 - Normal
+15006	15006	3		Memory 32 - Normal
+15007	15007	3		Memory 18 - Normal
+15008	15008	3		Memory 22 - Normal
+15009	15009	3		Memory 24 - Normal
+15010	15010	3		Memory 48 - Normal
+15011	15011	3		Memory 16 - Normal
+15012	15012	3		Memory 42 - Normal
+15501	15501	3		Memory 3 - Advanced
+15502	15502	3		Memory 49 - Advanced
+15503	15503	3		Memory 23 - Normal
+15504	15504	3		Memory 15 - Expert
+15505	15505	3		Memory 50 - Expert
+15506	15506	3		Memory 30 - Expert
+15507	15507	3		Memory 45 - Normal
+15508	15508	3		Memory 40 - Expert
+16001	16001	3		Memory 2 - Normal
+16002	16002	3		Memory 14 - Advanced
+16003	16003	3		Memory 20 - Normal
+16004	16004	3		Memory 36 - Normal
+16005	16005	3		Great Dungeon Survival Verification Template
+16006	16006	3		Great Dungeon Survival Verification Template
+16501	16501	3		Memory 4 - Normal
+16502	16502	3		Memory 34 - Normal
+16503	16503	3		Memory 41 - Normal
+16504	16504	3		Memory 28 - Advanced
+17001	17001	3		Memory 38 - Normal
+17002	17002	3		Memory 46 - Advanced
+17003	17003	3		Memory 11 - Normal
+17004	17004	3		Memory 17 - Normal
+17501	17501	3		Memory 35 - Normal
+17502	17502	3		Memory 26 - Advanced
+17503	17503	3		Memory 47 - Normal
+17504	17504	3		Memory 10 - Normal
+17505	17505	3		Memory 19 - Normal
+18001	18001	3		Memory 6 - Normal
+18002	18002	3		Memory 21 - Normal
+18003	18003	3		Memory 44 - Normal
+18004	18004	3		Memory 39 - Advanced
+18501	18501	3		Memory 8 - Normal
+18502	18502	3		Memory 27 - Normal
+18503	18503	3		Memory 43 - Normal
+18504	18504	3		Memory 37 - Advanced
+19001	19001	3		Memory 5 - Normal
+19002	19002	3		Memory 12 - Normal
+19003	19003	3		Memory 25 - Normal
+19004	19004	3		Memory 29 - Advanced
+19005	19005	3		Memory 33 - Normal
+20043	24401	3		Support 4
+20101	20101	3		Guardian 1
+20102	20102	3		Guardian 10
+20201	20201	3		Guardian 2
+20202	20202	3		Guardian 22
+20301	20301	3		Guardian 4
+20302	20302	3		Guardian 13
+20303	20303	3		Guardian 25
+20401	20401	3		Guardian 5
+20402	20402	3		Guardian 16
+20501	20501	3		Guardian 7
+20502	20502	3		Guardian 19
+20701	20701	3		Guardian 14
+20702	20702	3		Guardian 20
+20801	20801	3		Guardian 8
+20802	20802	3		Guardian 17
+20803	20803	3		Guardian 26
+21201	21201	3		Guardian 23
+21202	21202	3		Guardian 29
+21301	21301	3		Guardian 6
+21302	21302	3		Guardian 12
+21303	21303	3		Guardian 18
+21304	21304	3		Guardian 24
+21305	21305	3		Guardian 30
+21306	21306	3		Guardian 3
+21307	21307	3		Guardian 9
+21308	21308	3		Guardian 15
+21309	21309	3		Guardian 21
+21310	21310	3		Guardian 27
+21401	21401	3		Guardian 11
+21402	21402	3		Guardian 28
+22101	22101	3		Attack 17
+22201	22201	3		Attack 10
+22202	22202	3		Attack 23
+22301	22301	3		Attack 11
+22401	22401	3		Attack 13
+22402	22402	3		Attack 19
+22501	22501	3		Attack 6
+22502	22502	3		Attack 12
+22503	22503	3		Attack 18
+22504	22504	3		Attack 24
+22505	22505	3		Attack 30
+22601	22601	3		Attack 7
+22602	22602	3		Attack 14
+22701	22701	3		Attack 8
+22702	22702	3		Attack 26
+23101	23101	3		Attack 3
+23102	23102	3		Attack 9
+23103	23103	3		Attack 15
+23104	23104	3		Attack 21
+23105	23105	3		Attack 27
+23201	23201	3		Attack 4
+23301	23301	3		Attack 1
+23302	23302	3		Attack 20
+23401	23401	3		Attack 2
+23501	23501	3		Attack 5
+23502	23502	3		Attack 25
+23601	23601	3		Attack 16
+23602	23602	3		Attack 28
+23701	23701	3		Attack 22
+23702	23702	3		Attack 29
+24101	24101	3		Support 3
+24102	24102	3		Support 6
+24103	24103	3		Support 9
+24104	24104	3		Support 12
+24105	24105	3		Support 15
+24106	24106	3		Support 18
+24107	24107	3		Support 21
+24108	24108	3		Support 24
+24109	24109	3		Support 27
+24110	24110	3		Support 30
+24201	24201	3		Support 2
+24202	24202	3		Support 10
+24203	24203	3		Support 17
+24204	24204	3		Support 25
+24301	24301	3		Support 5
+24302	24302	3		Support 14
+24303	24303	3		Support 20
+24304	24304	3		Support 29
+24402	24402	3		Support 11
+24403	24403	3		Support 19
+24404	24404	3		Support 23
+24501	24501	3		Support 7
+24502	24502	3		Support 16
+24503	24503	3		Support 22
+24504	24504	3		Support 28
+24601	24601	3		Support 1
+24602	24602	3		Support 8
+24603	24603	3		Support 13
+24604	24604	3		Support 26
+24650	24650	3		Guardian 31
+24651	24651	3		Attack 31
+24652	24652	3		Support 31
+30001	30001	10		Homestead Courtyard
+30101	30101	16		Floor 1
+30102	30102	16		Floor 2
+30103	30103	16		Floor 3
+30104	30104	16		Floor 4
+30105	30105	16		Floor 5
+30106	30106	16		Floor 6
+30107	30107	16		Floor 7
+30108	30108	16		Floor 8
+30109	30109	16		Floor 9
+30110	30110	16		Floor 10
+30111	30111	16		Floor 11
+30112	30112	16		Floor 12
+30113	30113	16		Floor 13
+30114	30114	16		Floor 14
+30115	30115	16		Floor 15
+30116	30116	16		Floor 16
+30117	30117	16		Floor 17
+30118	30118	16		Floor 18
+30119	30119	16		Floor 19
+30120	30120	16		Floor 20
+30121	30121	16		Floor 21
+30122	30122	16		Floor 22
+30123	30123	16		Floor 23
+30124	30124	16		Floor 24
+30125	30125	16		Floor 25
+30126	30126	16		Floor 26
+30127	30127	16		Floor 27
+30128	30128	16		Floor 28
+30129	30129	16		Floor 29
+30130	30130	16		Floor 30
+30131	30131	16		Floor 31
+30132	30132	16		Floor 32
+30133	30133	16		Floor 33
+30134	30134	16		Floor 34
+30135	30135	16		Floor 35
+30136	30136	16		Floor 36
+30137	30137	16		Floor 37
+30138	30138	16		Floor 38
+30139	30139	16		Floor 39
+30140	30140	16		Floor 40
+30141	30141	16		Floor 41
+30142	30142	16		Floor 42
+30143	30143	16		Floor 43
+30144	30144	16		Floor 44
+30145	30145	16		Floor 45
+30146	30146	16		Floor 46
+30147	30147	16		Floor 47
+30148	30148	16		Floor 48
+30149	30149	16		Floor 49
+30150	30150	16		Floor 50
+30151	30151	16		Floor 51
+30152	30152	16		Floor 52
+30153	30153	16		Floor 53
+30154	30154	16		Floor 54
+30155	30155	16		Floor 55
+30156	30156	16		Floor 56
+30157	30157	16		Floor 57
+30158	30158	16		Floor 58
+30159	30159	16		Floor 59
+30160	30160	16		Floor 60
+30161	30161	16		Floor 61
+30162	30162	16		Floor 62
+30163	30163	16		Floor 63
+30164	30164	16		Floor 64
+30165	30165	16		Floor 65
+30166	30166	16		Floor 66
+30167	30167	16		Floor 67
+30168	30168	16		Floor 68
+30169	30169	16		Floor 69
+30170	30170	16		Floor 70
+30171	30171	16		Floor 71
+30172	30172	16		Floor 72
+30173	30173	16		Floor 73
+30174	30174	16		Floor 74
+30175	30175	16		Floor 75
+30200	30200	16		Floor 100 - Event 01
+31101	31101	16		Stimen Vaults Floor 1
+31102	31102	16		Stimen Vaults Floor 2
+31103	31103	16		Stimen Vaults Floor 3
+31104	31104	16		Stimen Vaults Floor 4
+31105	31105	16		Stimen Vaults Floor 5
+31106	31106	16		Stimen Vaults Floor 6
+31107	31107	16		Stimen Vaults Floor 7
+31108	31108	16		Stimen Vaults Floor 8
+31109	31109	16		Stimen Vaults Floor 9
+31110	31110	16		Stimen Vaults Floor 10
+31111	31111	16		Stimen Vaults Floor 11
+31112	31112	16		Stimen Vaults Floor 12
+31113	31113	16		Stimen Vaults Floor 13
+31114	31114	16		Stimen Vaults Floor 14
+31115	31115	16		Stimen Vaults Floor 15
+31116	31116	16		Stimen Vaults Floor 16
+31117	31117	16		Stimen Vaults Floor 17
+31118	31118	16		Stimen Vaults Floor 18
+31119	31119	16		Stimen Vaults Floor 19
+31120	31120	16		Stimen Vaults Floor 20
+31121	31121	16		Stimen Vaults Floor 21
+31122	31122	16		Stimen Vaults Floor 22
+31123	31123	16		Stimen Vaults Floor 23
+31124	31124	16		Stimen Vaults Floor 24
+31125	31125	16		Stimen Vaults Floor 25
+31126	31126	16		Stimen Vaults Floor 26
+31127	31127	16		Stimen Vaults Floor 27
+31128	31128	16		Stimen Vaults Floor 28
+31129	31129	16		Stimen Vaults Floor 29
+31130	31130	16		Stimen Vaults Floor 30
+31131	31131	16		Stimen Vaults Floor 31
+31132	31132	16		Stimen Vaults Floor 32
+31133	31133	16		Stimen Vaults Floor 33
+31134	31134	16		Stimen Vaults Floor 34
+31135	31135	16		Stimen Vaults Floor 35
+31136	31136	16		Stimen Vaults Floor 36
+31137	31137	16		Stimen Vaults Floor 37
+31138	31138	16		Stimen Vaults Floor 38
+31139	31139	16		Stimen Vaults Floor 39
+31140	31140	16		Stimen Vaults Floor 40
+31141	31141	16		Stimen Vaults Floor 41
+31142	31142	16		Stimen Vaults Floor 42
+31143	31143	16		Stimen Vaults Floor 43
+31144	31144	16		Stimen Vaults Floor 44
+31145	31145	16		Stimen Vaults Floor 45
+31146	31146	16		Floor 46
+31147	31147	16		Floor 47
+31148	31148	16		Floor 48
+31149	31149	16		Floor 49
+31150	31150	16		Stimen Vaults Floor 50
+31151	31151	16		Floor 51
+31152	31152	16		Floor 52
+31153	31153	16		Floor 53
+31154	31154	16		Floor 54
+31155	31155	16		Stimen Vaults Floor 55
+31156	31156	16		Floor 56
+31157	31157	16		Floor 57
+31158	31158	16		Floor 58
+31159	31159	16		Floor 59
+31160	31160	16		Stimen Vaults Floor 60
+31161	31161	16		Stimen Vaults Floor 61
+31162	31162	16		Stimen Vaults Floor 62
+31163	31163	16		Stimen Vaults Floor 63
+31164	31164	16		Stimen Vaults Floor 64
+31165	31165	16		Stimen Vaults Floor 65
+31166	31166	16		Stimen Vaults Floor 66
+31167	31167	16		Stimen Vaults Floor 67
+31168	31168	16		Stimen Vaults Floor 68
+31169	31169	16		Stimen Vaults Floor 69
+31170	31170	16		Stimen Vaults Floor 70
+31171	31171	16		Stimen Vaults Floor 71
+31172	31172	16		Stimen Vaults Floor 72
+31173	31173	16		Stimen Vaults Floor 73
+31174	31174	16		Stimen Vaults Floor 74
+31175	31175	16		Stimen Vaults Floor 75
+32101	32101	16		Floor 1
+32102	32102	16		Floor 2
+32103	32103	16		Floor 3
+32104	32104	16		Floor 4
+32105	32105	16		Floor 5
+32106	32106	16		Floor 6
+32107	32107	16		Floor 7
+32108	32108	16		Floor 8
+32109	32109	16		Floor 9
+32110	32110	16		Floor 10
+32111	32111	16		Floor 11
+32112	32112	16		Floor 12
+32113	32113	16		Floor 13
+32114	32114	16		Floor 14
+32115	32115	16		Floor 15
+32116	32116	16		Floor 16
+32117	32117	16		Floor 17
+32118	32118	16		Floor 18
+32119	32119	16		Floor 19
+32120	32120	16		Floor 20
+32121	32121	16		Floor 21
+32122	32122	16		Floor 22
+32123	32123	16		Floor 23
+32124	32124	16		Floor 24
+32125	32125	16		Floor 25
+32126	32126	16		Floor 26
+32127	32127	16		Floor 27
+32128	32128	16		Floor 28
+32129	32129	16		Floor 29
+32130	32130	16		Floor 30
+32131	32131	16		Floor 31
+32132	32132	16		Floor 32
+32133	32133	16		Floor 33
+32134	32134	16		Floor 34
+32135	32135	16		Floor 35
+32136	32136	16		Floor 36
+32137	32137	16		Floor 37
+32138	32138	16		Floor 38
+32139	32139	16		Floor 39
+32140	32140	16		Floor 40
+32141	32141	16		Floor 41
+32142	32142	16		Floor 42
+32143	32143	16		Floor 43
+32144	32144	16		Floor 44
+32145	32145	16		Floor 45
+32146	32146	16		Floor 46
+32147	32147	16		Floor 47
+32148	32148	16		Floor 48
+32149	32149	16		Floor 49
+32150	32150	16		Floor 50
+32151	32151	16		Floor 51
+32152	32152	16		Floor 52
+32153	32153	16		Floor 53
+32154	32154	16		Floor 54
+32155	32155	16		Floor 55
+32156	32156	16		Floor 56
+32157	32157	16		Floor 57
+32158	32158	16		Floor 58
+32159	32159	16		Floor 59
+32160	32160	16		Floor 60
+40001	40001	11		Homestead House
+171001	171001	2		Isolated Island
