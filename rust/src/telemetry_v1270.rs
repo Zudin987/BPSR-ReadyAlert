@@ -51,6 +51,7 @@ pub struct BenchmarkStatus {
 }
 
 static NEXT_BENCHMARK_ID: AtomicU64 = AtomicU64::new(1);
+static ACTIVE_BENCHMARK_ID: AtomicU64 = AtomicU64::new(0);
 static EXPIRED_BENCHMARK_ID: AtomicU64 = AtomicU64::new(0);
 static BENCHMARK_COMMAND: OnceLock<Mutex<Option<BenchmarkCommand>>> = OnceLock::new();
 static BENCHMARK_STATUS: OnceLock<Mutex<BenchmarkStatus>> = OnceLock::new();
@@ -93,16 +94,20 @@ pub fn arm_benchmark(name: String, seconds: u32) {
         name: normalize_benchmark_name(&name),
         seconds: normalize_benchmark_seconds(seconds),
     };
+    ACTIVE_BENCHMARK_ID.store(id, Ordering::Release);
+    EXPIRED_BENCHMARK_ID.store(0, Ordering::Release);
     if let Ok(mut slot) = command_slot().lock() {
         *slot = Some(BenchmarkCommand::Arm(config.clone()));
     }
     set_status(Some(&BenchmarkRun::Armed(config)));
     // Start from a clean meter, but the benchmark clock remains armed until the
-    // first real combat contribution reaches the DPS pipeline.
+    // local player produces an outgoing combat contribution.
     previous::request_manual_reset();
 }
 
 pub fn request_manual_reset() {
+    ACTIVE_BENCHMARK_ID.store(0, Ordering::Release);
+    EXPIRED_BENCHMARK_ID.store(0, Ordering::Release);
     if let Ok(mut slot) = command_slot().lock() {
         *slot = Some(BenchmarkCommand::Cancel);
     }
@@ -126,6 +131,17 @@ fn normalize_benchmark_name(name: &str) -> String {
         .take(MAX_BENCHMARK_NAME_CHARS)
         .collect();
     if cleaned.is_empty() { "Unnamed".into() } else { cleaned }
+}
+
+fn has_benchmark_activity(snapshot: &DpsSnapshot) -> bool {
+    if snapshot.encounter_ms == 0 {
+        return false;
+    }
+    snapshot
+        .rows
+        .iter()
+        .find(|row| row.is_local)
+        .is_some_and(|row| row.damage > 0 || row.healing > 0)
 }
 
 #[derive(Debug)]
@@ -194,6 +210,7 @@ impl TelemetryRuntime {
                 set_status(self.benchmark.as_ref());
             }
             Some(BenchmarkCommand::Cancel) => {
+                ACTIVE_BENCHMARK_ID.store(0, Ordering::Release);
                 self.benchmark = None;
                 set_status(None);
             }
@@ -224,7 +241,7 @@ impl TelemetryRuntime {
     fn observe_snapshot(&mut self, next: &DpsSnapshot) {
         match self.benchmark.clone() {
             Some(BenchmarkRun::Armed(config)) => {
-                if !encounter_store::has_combat_data(next) {
+                if !has_benchmark_activity(next) {
                     return;
                 }
                 let mut context = encounter_context::snapshot();
@@ -232,7 +249,7 @@ impl TelemetryRuntime {
                 self.last = Some((next.clone(), context));
                 self.benchmark = Some(BenchmarkRun::Running(config.clone()));
                 set_status(self.benchmark.as_ref());
-                start_benchmark_timer(config);
+                start_benchmark_timer(config, self.tx.clone());
                 return;
             }
             Some(BenchmarkRun::Running(config)) => {
@@ -242,6 +259,12 @@ impl TelemetryRuntime {
                     if let Some((snapshot, context)) = self.last.take() {
                         self.queue_archive(snapshot, context);
                     }
+                    let _ = ACTIVE_BENCHMARK_ID.compare_exchange(
+                        config.id,
+                        0,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    );
                     self.benchmark = None;
                     set_status(None);
                     if encounter_store::has_combat_data(next) {
@@ -287,7 +310,7 @@ fn mark_benchmark_context(context: &mut EncounterContextSnapshot, config: &Bench
     context.benchmark_duration_ms = u64::from(config.seconds).saturating_mul(1_000);
 }
 
-fn start_benchmark_timer(config: BenchmarkConfig) {
+fn start_benchmark_timer(config: BenchmarkConfig, ui_tx: Sender<AppEvent>) {
     let id = config.id;
     let seconds = config.seconds;
     logging::write(format!(
@@ -298,14 +321,31 @@ fn start_benchmark_timer(config: BenchmarkConfig) {
         .name("readyalert-benchmark-timer".into())
         .spawn(move || {
             thread::sleep(Duration::from_secs(u64::from(seconds)));
-            // Only the runtime that owns this generation will honor the id.
-            EXPIRED_BENCHMARK_ID.store(id, Ordering::Release);
-            previous::request_manual_reset();
+            // A stale timer must never reset a newer benchmark. Winning this CAS
+            // makes this generation the sole owner of expiry/reset.
+            if ACTIVE_BENCHMARK_ID
+                .compare_exchange(id, 0, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                EXPIRED_BENCHMARK_ID.store(id, Ordering::Release);
+                previous::request_manual_reset();
+                set_status(None);
+                // Reset the visible meter exactly at expiry instead of requiring
+                // one additional combat packet to make the UI catch up.
+                let _ = ui_tx.send(AppEvent::Dps(DpsSnapshot::default()));
+            }
         });
     if let Err(err) = result {
         logging::write(format!("benchmark: timer thread unavailable: {err}"));
-        EXPIRED_BENCHMARK_ID.store(id, Ordering::Release);
-        previous::request_manual_reset();
+        if ACTIVE_BENCHMARK_ID
+            .compare_exchange(id, 0, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            EXPIRED_BENCHMARK_ID.store(id, Ordering::Release);
+            previous::request_manual_reset();
+            set_status(None);
+            let _ = ui_tx.send(AppEvent::Dps(DpsSnapshot::default()));
+        }
     }
 }
 
@@ -341,6 +381,17 @@ fn archive_loop(rx: Receiver<ArchiveJob>) {
 
 impl Drop for TelemetryRuntime {
     fn drop(&mut self) {
+        if let Some(run) = self.benchmark.as_ref() {
+            let id = match run {
+                BenchmarkRun::Armed(config) | BenchmarkRun::Running(config) => config.id,
+            };
+            let _ = ACTIVE_BENCHMARK_ID.compare_exchange(
+                id,
+                0,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+        }
         if let Some((snapshot, context)) = self.last.take() {
             self.queue_archive(snapshot, context);
         }
@@ -356,7 +407,7 @@ impl Drop for TelemetryRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::TargetSnapshot;
+    use crate::model::{DpsRow, TargetSnapshot};
 
     #[test]
     fn benchmark_defaults_and_labels_are_stable() {
@@ -365,6 +416,24 @@ mod tests {
         assert_eq!(normalize_benchmark_seconds(9_999), 3_600);
         assert_eq!(normalize_benchmark_name("  frost\nmage  "), "frost mage");
         assert_eq!(normalize_benchmark_name("   "), "Unnamed");
+    }
+
+    #[test]
+    fn benchmark_waits_for_local_outgoing_activity() {
+        let idle = DpsSnapshot {
+            encounter_ms: 1_000,
+            total_damage_taken: 10_000,
+            rows: vec![DpsRow { is_local: true, damage_taken: 10_000, ..Default::default() }],
+            ..Default::default()
+        };
+        assert!(!has_benchmark_activity(&idle));
+        let active = DpsSnapshot {
+            encounter_ms: 1_000,
+            total_damage: 5_000,
+            rows: vec![DpsRow { is_local: true, damage: 5_000, ..Default::default() }],
+            ..Default::default()
+        };
+        assert!(has_benchmark_activity(&active));
     }
 
     #[test]
