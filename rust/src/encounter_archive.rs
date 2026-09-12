@@ -1,5 +1,6 @@
-include!("encounter_archive_v1270.rs");
+include!("encounter_archive_v1272.rs");
 
+use crate::encounter_store;
 use std::{os::windows::ffi::OsStrExt, ptr::null};
 use windows_sys::Win32::{
     Foundation::HWND,
