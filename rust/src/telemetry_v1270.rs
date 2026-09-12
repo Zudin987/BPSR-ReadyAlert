@@ -317,6 +317,7 @@ fn start_benchmark_timer(config: BenchmarkConfig, ui_tx: Sender<AppEvent>) {
         "benchmark: started id={} name={} duration={}s",
         id, config.name, seconds
     ));
+    let worker_tx = ui_tx.clone();
     let result = thread::Builder::new()
         .name("readyalert-benchmark-timer".into())
         .spawn(move || {
@@ -332,7 +333,7 @@ fn start_benchmark_timer(config: BenchmarkConfig, ui_tx: Sender<AppEvent>) {
                 set_status(None);
                 // Reset the visible meter exactly at expiry instead of requiring
                 // one additional combat packet to make the UI catch up.
-                let _ = ui_tx.send(AppEvent::Dps(DpsSnapshot::default()));
+                let _ = worker_tx.send(AppEvent::Dps(DpsSnapshot::default()));
             }
         });
     if let Err(err) = result {
