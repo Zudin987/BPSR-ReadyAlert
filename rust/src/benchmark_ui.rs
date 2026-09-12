@@ -1,16 +1,16 @@
 use std::{ptr::null_mut, sync::{atomic::{AtomicIsize, Ordering}, OnceLock}};
 use windows_sys::Win32::{
-    Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
-    Graphics::Gdi::{GetStockObject, DEFAULT_GUI_FONT},
+    Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
+    Graphics::Gdi::{FillRect, SetBkColor, SetBkMode, SetTextColor, HDC, TRANSPARENT},
     System::LibraryLoader::GetModuleHandleW,
     UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DestroyWindow, GetDlgItem, GetWindowTextLengthW,
-        GetWindowTextW, IsWindow, LoadCursorW, MessageBoxW, RegisterClassW, SendMessageW,
+        CreateWindowExW, DefWindowProcW, DestroyWindow, GetClientRect, GetDlgItem, GetWindowTextLengthW,
+        GetWindowTextW, IsWindow, LoadCursorW, MessageBoxW, RegisterClassW,
         SetForegroundWindow, SetWindowTextW, ShowWindow, CREATESTRUCTW, CW_USEDEFAULT,
         GWLP_USERDATA, IDC_ARROW, MB_ICONWARNING, MB_OK, SW_SHOW, WM_CLOSE, WM_COMMAND,
-        WM_CREATE, WM_NCCREATE, WM_NCDESTROY, WM_SETFONT, WS_CAPTION, WS_CHILD,
-        WS_EX_CLIENTEDGE, WS_EX_TOOLWINDOW, WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
-        WNDCLASSW,
+        WM_CREATE, WM_CTLCOLORSTATIC, WM_CTLCOLOREDIT, WM_DRAWITEM, WM_ERASEBKGND,
+        WM_NCCREATE, WM_NCDESTROY, WS_CAPTION, WS_CHILD, WS_EX_CLIENTEDGE,
+        WS_EX_TOOLWINDOW, WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WNDCLASSW,
     },
 };
 
@@ -21,11 +21,11 @@ const ID_START: i32 = 5103;
 const ID_CANCEL: i32 = 5104;
 const ES_AUTOHSCROLL: u32 = 0x0080;
 const ES_NUMBER: u32 = 0x2000;
-const BS_DEFPUSHBUTTON: u32 = 0x0001;
-const BS_PUSHBUTTON: u32 = 0x0000;
+const BS_OWNERDRAW: u32 = 0x000B;
 const SS_LEFT: u32 = 0x0000;
 const WS_EX_TOPMOST: u32 = 0x0000_0008;
 
+// Preserve the existing dialog footprint from the screenshot baseline.
 const WINDOW_W: i32 = 440;
 const WINDOW_H: i32 = 285;
 const PAD: i32 = 18;
@@ -49,6 +49,7 @@ pub unsafe fn show(owner: HWND) {
             lpfnWndProc: Some(wnd_proc),
             hInstance: instance,
             hCursor: LoadCursorW(null_mut(), IDC_ARROW),
+            hbrBackground: crate::ui_theme::bg_brush(),
             lpszClassName: class.as_ptr(),
             ..std::mem::zeroed()
         };
@@ -96,9 +97,33 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
     }
     match msg {
         WM_CREATE => {
+            crate::ui_theme::dark_titlebar(hwnd);
             build_form(hwnd);
             0
         }
+        WM_ERASEBKGND => {
+            let mut rect: RECT = std::mem::zeroed();
+            GetClientRect(hwnd, &mut rect);
+            FillRect(wparam as HDC, &rect, crate::ui_theme::bg_brush());
+            1
+        }
+        WM_CTLCOLORSTATIC => {
+            let hdc = wparam as HDC;
+            SetBkMode(hdc, TRANSPARENT as i32);
+            SetTextColor(hdc, crate::ui_theme::TEXT_SECONDARY);
+            crate::ui_theme::bg_brush() as LRESULT
+        }
+        WM_CTLCOLOREDIT => {
+            let hdc = wparam as HDC;
+            SetBkColor(hdc, crate::ui_theme::INPUT);
+            SetTextColor(hdc, crate::ui_theme::TEXT);
+            crate::ui_theme::input_brush() as LRESULT
+        }
+        WM_DRAWITEM => match (wparam & 0xffff) as i32 {
+            ID_START => crate::ui_theme::draw_button(lparam as _, false, true, false, false),
+            ID_CANCEL => crate::ui_theme::draw_button(lparam as _, false, false, false, false),
+            _ => 0,
+        },
         WM_COMMAND => {
             match (wparam & 0xffff) as i32 {
                 ID_START => start(hwnd),
@@ -130,7 +155,7 @@ unsafe fn build_form(hwnd: HWND) {
     let default_seconds = wide(&crate::telemetry::default_benchmark_seconds().to_string());
     SetWindowTextW(seconds, default_seconds.as_ptr());
 
-    child(
+    let info = child(
         hwnd,
         instance,
         "STATIC",
@@ -142,9 +167,10 @@ unsafe fn build_form(hwnd: HWND) {
         SS_LEFT,
         0,
     );
+    crate::ui_theme::set_font(info, crate::ui_theme::FontRole::Secondary);
 
-    child(hwnd, instance, "BUTTON", "Start", 238, 202, 82, 30, BS_DEFPUSHBUTTON, ID_START);
-    child(hwnd, instance, "BUTTON", "Cancel", 330, 202, 82, 30, BS_PUSHBUTTON, ID_CANCEL);
+    child(hwnd, instance, "BUTTON", "Start", 238, 202, 82, 30, BS_OWNERDRAW, ID_START);
+    child(hwnd, instance, "BUTTON", "Cancel", 330, 202, 82, 30, BS_OWNERDRAW, ID_CANCEL);
 }
 
 unsafe fn child(
@@ -159,11 +185,13 @@ unsafe fn child(
     extra_style: u32,
     id: i32,
 ) -> HWND {
-    let class = wide(class);
+    let is_edit = class.eq_ignore_ascii_case("EDIT");
+    let is_button = class.eq_ignore_ascii_case("BUTTON");
+    let class_w = wide(class);
     let text = wide(text);
     let hwnd = CreateWindowExW(
-        if class_name_is_edit(&class) { WS_EX_CLIENTEDGE } else { 0 },
-        class.as_ptr(),
+        if is_edit { WS_EX_CLIENTEDGE } else { 0 },
+        class_w.as_ptr(),
         text.as_ptr(),
         WS_CHILD | WS_VISIBLE | (if id != 0 { WS_TABSTOP } else { 0 }) | extra_style,
         x,
@@ -175,22 +203,9 @@ unsafe fn child(
         instance,
         null_mut(),
     );
-    apply_gui_font(hwnd);
+    if is_button { crate::ui_theme::theme_button(hwnd); }
+    else { crate::ui_theme::theme_control(hwnd); }
     hwnd
-}
-
-unsafe fn apply_gui_font(hwnd: HWND) {
-    if hwnd.is_null() {
-        return;
-    }
-    let font = GetStockObject(DEFAULT_GUI_FONT);
-    if !font.is_null() {
-        let _ = SendMessageW(hwnd, WM_SETFONT, font as usize, 1);
-    }
-}
-
-fn class_name_is_edit(class: &[u16]) -> bool {
-    String::from_utf16_lossy(class).trim_end_matches('\0').eq_ignore_ascii_case("EDIT")
 }
 
 unsafe fn start(hwnd: HWND) {
