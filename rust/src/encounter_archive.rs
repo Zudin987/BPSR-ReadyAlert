@@ -1,4 +1,4 @@
-include!("encounter_archive_v1270.rs");
+include!("encounter_archive_v1272.rs");
 
 use std::{os::windows::ffi::OsStrExt, ptr::null};
 use windows_sys::Win32::{
