@@ -23,7 +23,7 @@ use windows_sys::Win32::{
     UI::{
         Controls::DRAWITEMSTRUCT,
         WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EnableWindow,
+            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
             GetClassNameW, GetClientRect, GetMessageW, GetWindowLongPtrW, GetWindowTextLengthW,
             GetWindowTextW, IsWindow, LoadCursorW, MessageBoxW, PostQuitMessage, RegisterClassW,
             SendMessageW, SetForegroundWindow, SetWindowLongPtrW, ShowWindow, TranslateMessage,
@@ -137,6 +137,7 @@ extern "system" {
 #[link(name = "user32")]
 extern "system" {
     fn TrackMouseEvent(event: *mut NativeTrackMouseEvent) -> i32;
+    fn EnableWindow(hwnd: HWND, enable: i32) -> i32;
 }
 
 #[link(name = "dwmapi")]
