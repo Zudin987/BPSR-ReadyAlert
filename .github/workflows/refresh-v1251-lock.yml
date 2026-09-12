@@ -5,6 +5,7 @@ on:
     branches: [fix/v1251-chat-archive-filters]
     paths:
       - 'rust/Cargo.toml'
+      - '.github/workflows/refresh-v1251-lock.yml'
 
 permissions:
   contents: write
