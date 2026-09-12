@@ -235,19 +235,44 @@ pub unsafe fn draw_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: 
     let pressed = item.itemState & 0x0001 != 0;
     let hot = item.itemState & 0x0040 != 0 || HOVERED_BUTTON.load(Ordering::Acquire) == item.hwndItem as isize;
     let focused = item.itemState & 0x0010 != 0;
+    let nav = left_align;
 
-    let mut bg = if selected { SURFACE_HOVER } else if primary { ACCENT } else if danger { rgb(77, 35, 38) } else { SURFACE };
-    if disabled { bg = SURFACE; }
-    else if pressed { bg = if primary { ACCENT_PRESSED } else if danger { DANGER } else { SURFACE_PRESSED }; }
-    else if hot { bg = if primary { ACCENT_HOVER } else if danger { DANGER_HOVER } else { SURFACE_HOVER }; }
+    let mut bg = if nav {
+        if selected { RAISED } else { SIDEBAR }
+    } else if selected {
+        SURFACE_HOVER
+    } else if primary {
+        ACCENT
+    } else if danger {
+        rgb(77, 35, 38)
+    } else {
+        SURFACE
+    };
+    if disabled { bg = if nav { SIDEBAR } else { SURFACE }; }
+    else if pressed { bg = if nav { SURFACE_PRESSED } else if primary { ACCENT_PRESSED } else if danger { DANGER } else { SURFACE_PRESSED }; }
+    else if hot { bg = if nav { SURFACE_HOVER } else if primary { ACCENT_HOVER } else if danger { DANGER_HOVER } else { SURFACE_HOVER }; }
     fill(item.hDC, &item.rcItem, bg);
 
-    let border = if selected || primary || focused { ACCENT } else if danger { DANGER } else { BORDER };
-    let top = RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.right, bottom:item.rcItem.top+1 };
-    let bottom = RECT { left:item.rcItem.left, top:item.rcItem.bottom-1, right:item.rcItem.right, bottom:item.rcItem.bottom };
-    let left = RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.left + if selected { 3 } else { 1 }, bottom:item.rcItem.bottom };
-    let right = RECT { left:item.rcItem.right-1, top:item.rcItem.top, right:item.rcItem.right, bottom:item.rcItem.bottom };
-    for r in [&top,&bottom,&left,&right] { fill(item.hDC, r, border); }
+    if nav {
+        if selected {
+            fill(item.hDC, &RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.left+3, bottom:item.rcItem.bottom }, ACCENT);
+        }
+        // Keep the sidebar calm and One UI-like: no box around every row. Keyboard
+        // focus still gets a restrained outline so focus is never color-only.
+        if focused {
+            let top = RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.right, bottom:item.rcItem.top+1 };
+            let bottom = RECT { left:item.rcItem.left, top:item.rcItem.bottom-1, right:item.rcItem.right, bottom:item.rcItem.bottom };
+            let right = RECT { left:item.rcItem.right-1, top:item.rcItem.top, right:item.rcItem.right, bottom:item.rcItem.bottom };
+            for r in [&top, &bottom, &right] { fill(item.hDC, r, BORDER_STRONG); }
+        }
+    } else {
+        let border = if disabled { BORDER } else if selected || primary || focused { ACCENT } else if danger { DANGER } else { BORDER };
+        let top = RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.right, bottom:item.rcItem.top+1 };
+        let bottom = RECT { left:item.rcItem.left, top:item.rcItem.bottom-1, right:item.rcItem.right, bottom:item.rcItem.bottom };
+        let left = RECT { left:item.rcItem.left, top:item.rcItem.top, right:item.rcItem.left + if selected { 3 } else { 1 }, bottom:item.rcItem.bottom };
+        let right = RECT { left:item.rcItem.right-1, top:item.rcItem.top, right:item.rcItem.right, bottom:item.rcItem.bottom };
+        for r in [&top,&bottom,&left,&right] { fill(item.hDC, r, border); }
+    }
 
     let len = GetWindowTextLengthW(item.hwndItem).max(0) as usize;
     let mut buf = vec![0u16; len + 1];
@@ -266,10 +291,11 @@ pub unsafe fn draw_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: 
 pub unsafe fn draw_combo(item: *const DRAWITEMSTRUCT) -> isize {
     if item.is_null() { return 0; }
     let item=&*item;
+    let disabled=item.itemState & 0x0004 != 0;
     let selected=item.itemState & 0x0001 != 0;
     let focused=item.itemState & 0x0010 != 0;
-    fill(item.hDC,&item.rcItem,if selected{SURFACE_HOVER}else{INPUT});
-    let border=if focused{ACCENT}else{BORDER};
+    fill(item.hDC,&item.rcItem,if disabled{SURFACE}else if selected{SURFACE_HOVER}else{INPUT});
+    let border=if !disabled&&focused{ACCENT}else{BORDER};
     let top=RECT{left:item.rcItem.left,top:item.rcItem.top,right:item.rcItem.right,bottom:item.rcItem.top+1};
     let bottom=RECT{left:item.rcItem.left,top:item.rcItem.bottom-1,right:item.rcItem.right,bottom:item.rcItem.bottom};
     fill(item.hDC,&top,border);fill(item.hDC,&bottom,border);
@@ -278,7 +304,7 @@ pub unsafe fn draw_combo(item: *const DRAWITEMSTRUCT) -> isize {
         let len=SendMessageW(item.hwndItem,0x0149,index as usize,0).max(0)as usize;
         let mut buf=vec![0u16;len+1];
         let got=SendMessageW(item.hwndItem,0x0148,index as usize,buf.as_mut_ptr()as isize).max(0)as usize;
-        SetBkMode(item.hDC,TRANSPARENT as i32);SetTextColor(item.hDC,TEXT);SelectObject(item.hDC,body_font());
+        SetBkMode(item.hDC,TRANSPARENT as i32);SetTextColor(item.hDC,if disabled{TEXT_DISABLED}else{TEXT});SelectObject(item.hDC,body_font());
         let mut r=item.rcItem;r.left+=8;r.right-=6;DrawTextW(item.hDC,buf.as_ptr(),got as i32,&mut r,0x0004|0x0020|0x0800|0x8000);
     }
     1
