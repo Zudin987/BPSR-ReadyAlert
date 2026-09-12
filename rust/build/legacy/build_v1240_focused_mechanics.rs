@@ -158,7 +158,7 @@ fn patch_feature_overlay(out: &Path) {
     // below the fold. Normal row churn does not steal the player's scroll.
     replace_once(
         &mut source,
-        "pub unsafe fn update_mechanics(hwnd:HWND,snapshot:MechanicSnapshot){with_state(hwnd,|state|state.mechanics=snapshot);InvalidateRect(hwnd,null(),0);}",
+        "pub unsafe fn update_mechanics(hwnd:HWND,snapshot:MechanicSnapshot){with_state(hwnd,|state|state.mechanics=snapshot);}",
         "pub unsafe fn update_mechanics(hwnd:HWND,snapshot:MechanicSnapshot){with_state(hwnd,|state|{let new_urgent=snapshot.rows.iter().any(|next|next.priority>=3&&!state.mechanics.rows.iter().any(|old|old.priority>=3&&old.key==next.key));state.mechanics=snapshot;if new_urgent{state.scroll=0;}});InvalidateRect(hwnd,null(),0);}",
         "urgent mechanic returns viewport to top",
     );
