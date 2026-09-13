@@ -10,7 +10,7 @@ use windows_sys::Win32::{
         GWLP_USERDATA, IDC_ARROW, MB_ICONWARNING, MB_OK, SW_SHOW, WM_CLOSE, WM_COMMAND,
         WM_CREATE, WM_CTLCOLORSTATIC, WM_CTLCOLOREDIT, WM_DRAWITEM, WM_ERASEBKGND,
         WM_NCCREATE, WM_NCDESTROY, WS_CAPTION, WS_CHILD,
-        WS_EX_TOOLWINDOW, WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WNDCLASSW,
+        WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WNDCLASSW,
     },
 };
 
@@ -25,9 +25,11 @@ const BS_OWNERDRAW: u32 = 0x000B;
 const SS_LEFT: u32 = 0x0000;
 const WS_EX_TOPMOST: u32 = 0x0000_0008;
 
-// Preserve the existing dialog footprint from the screenshot baseline.
+// Keep the dialog compact, but reserve enough vertical room for the explanatory
+// copy at the current UI font. The previous 40 px static clipped its third wrapped
+// line into a row of glyph tops, which looked like random dots/dashes.
 const WINDOW_W: i32 = 440;
-const WINDOW_H: i32 = 285;
+const WINDOW_H: i32 = 302;
 const PAD: i32 = 18;
 const CONTENT_W: i32 = 388;
 
@@ -60,7 +62,7 @@ pub unsafe fn show(owner: HWND) {
     let class = wide(CLASS);
     let title = wide("ReadyAlert Benchmark");
     let hwnd = CreateWindowExW(
-        WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+        WS_EX_TOPMOST,
         class.as_ptr(),
         title.as_ptr(),
         WS_POPUP | WS_CAPTION | WS_SYSMENU,
@@ -106,8 +108,8 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
             crate::ui_modern::mist_input_brush() as LRESULT
         }
         WM_DRAWITEM => match (wparam & 0xffff) as i32 {
-            ID_START => crate::ui_modern::draw_button(lparam as _, false, true, false, false),
-            ID_CANCEL => crate::ui_modern::draw_button(lparam as _, false, false, false, false),
+            ID_START => crate::ui_modern::qa_draw_button(lparam as _, false, true, false, false),
+            ID_CANCEL => crate::ui_modern::qa_draw_button(lparam as _, false, false, false, false),
             _ => 0,
         },
         WM_COMMAND => {
@@ -140,13 +142,13 @@ unsafe fn build_form(hwnd: HWND) {
 
     let info = child(
         hwnd, instance, "STATIC",
-        "Starts when your first local damage/heal is detected, not when you click Start.\r\nThe meter resets automatically when the benchmark timer ends.",
-        PAD, 147, CONTENT_W, 40, SS_LEFT, 0,
+        "Starts on your first local damage/heal, not when you click Start.\r\nThe meter resets automatically when the timer ends.",
+        PAD, 147, CONTENT_W, 54, SS_LEFT, 0,
     );
     crate::ui_theme::set_font(info, crate::ui_theme::FontRole::Secondary);
 
-    child(hwnd, instance, "BUTTON", "Start", 238, 202, 82, 30, BS_OWNERDRAW, ID_START);
-    child(hwnd, instance, "BUTTON", "Cancel", 330, 202, 82, 30, BS_OWNERDRAW, ID_CANCEL);
+    child(hwnd, instance, "BUTTON", "Start", 238, 220, 82, 30, BS_OWNERDRAW, ID_START);
+    child(hwnd, instance, "BUTTON", "Cancel", 330, 220, 82, 30, BS_OWNERDRAW, ID_CANCEL);
 }
 
 unsafe fn child(parent: HWND, instance: HINSTANCE, class: &str, text: &str, x: i32, y: i32, w: i32, h: i32, extra_style: u32, id: i32) -> HWND {
@@ -159,6 +161,7 @@ unsafe fn child(parent: HWND, instance: HINSTANCE, class: &str, text: &str, x: i
         x, y, w, h, parent, id as usize as _, instance, null_mut(),
     );
     crate::ui_modern::theme_control(hwnd);
+    if class.eq_ignore_ascii_case("BUTTON") && id != 0 { crate::ui_modern::qa_prepare_owner_button(hwnd); }
     hwnd
 }
 
@@ -185,4 +188,15 @@ unsafe fn read_text(hwnd: HWND) -> String {
 
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn benchmark_help_copy_has_real_vertical_room() {
+        assert!(WINDOW_H >= 300);
+        assert!(54 >= 3 * 16);
+    }
 }

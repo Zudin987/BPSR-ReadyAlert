@@ -95,68 +95,12 @@ unsafe fn draw_control_text(hdc: HDC, hwnd: HWND, mut rect: RECT, color: u32, al
     DrawTextW(hdc, buf.as_ptr(), buf.len() as i32, &mut rect, flags);
 }
 
-unsafe fn draw_button_family(item: *const DRAWITEMSTRUCT, selected: bool, primary: bool, danger: bool, nav: bool, family: SurfaceFamily) -> isize {
-    if item.is_null() { return 0; }
-    let item = &*item;
-    let disabled = item.itemState & 0x0004 != 0;
-    let pressed = item.itemState & 0x0001 != 0;
-    let focused = item.itemState & 0x0010 != 0;
-    let hot = item.itemState & 0x0040 != 0 || HOVERED_CONTROL.load(Ordering::Acquire) == item.hwndItem as isize;
-    let mut rect = item.rcItem;
-    rect.left += 1; rect.top += 1; rect.right -= 1; rect.bottom -= 1;
-
-    let error_container = crate::ui_theme::rgb(72, 42, 45);
-    let background = if disabled {
-        family_surface(family)
-    } else if selected {
-        if pressed { family_pressed(family) } else if hot { family_selected_hover(family) } else { family_selected(family) }
-    } else if primary {
-        if pressed { BPSR_ACCENT_PRESSED } else if hot { BPSR_ACCENT_HOVER } else { BPSR_ACCENT }
-    } else if danger {
-        if pressed { crate::ui_theme::rgb(105, 55, 57) } else if hot { crate::ui_theme::rgb(88, 49, 52) } else { error_container }
-    } else if pressed {
-        family_pressed(family)
-    } else if hot {
-        family_hover(family)
-    } else if nav {
-        match family { SurfaceFamily::Mist => MIST_SIDEBAR, SurfaceFamily::Dark => DARK_SURFACE }
-    } else {
-        family_raised(family)
-    };
-
-    // Pixel navigation is a quiet rail with one tonal selected container, not a
-    // vertical stack of outlined rectangles.
-    if !nav || selected || hot || focused {
-        fill_round_rect(item.hDC, rect, background, if nav { RADIUS_MEDIUM } else { RADIUS_SMALL });
-    }
-    if nav && selected {
-        let marker = RECT { left: rect.left + 4, top: rect.top + 7, right: rect.left + 8, bottom: rect.bottom - 7 };
-        fill_round_rect(item.hDC, marker, BPSR_ACCENT, 2);
-    }
-
-    // Normal controls are surface-driven. A stroke appears only when it conveys
-    // focus/selection/destructive semantics, avoiding the old box-within-box look.
-    if focused {
-        stroke_round_rect(item.hDC, rect, BPSR_ACCENT, if nav { RADIUS_MEDIUM } else { RADIUS_SMALL }, 2);
-    } else if !nav && danger {
-        stroke_round_rect(item.hDC, rect, crate::ui_theme::rgb(112, 64, 65), RADIUS_SMALL, 1);
-    }
-
-    let text_color = if disabled { BPSR_DISABLED }
-        else if primary { BPSR_ACCENT_TEXT }
-        else { BPSR_TEXT };
-    let mut text_rect = item.rcItem;
-    if nav { text_rect.left += 14; }
-    draw_control_text(item.hDC, item.hwndItem, text_rect, text_color, nav, selected || primary);
-    1
-}
-
 pub unsafe fn draw_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: bool, danger: bool, nav: bool) -> isize {
-    draw_button_family(item, selected, primary, danger, nav, SurfaceFamily::Mist)
+    qa_draw_button_family(item, selected, primary, danger, nav, SurfaceFamily::Mist)
 }
 
 pub unsafe fn draw_dark_button(item: *const DRAWITEMSTRUCT, selected: bool, primary: bool, danger: bool, nav: bool) -> isize {
-    draw_button_family(item, selected, primary, danger, nav, SurfaceFamily::Dark)
+    qa_draw_button_family(item, selected, primary, danger, nav, SurfaceFamily::Dark)
 }
 
 unsafe fn draw_combo_family(item: *const DRAWITEMSTRUCT, family: SurfaceFamily) -> isize {
@@ -198,6 +142,7 @@ unsafe fn paint_checkbox(hwnd: HWND) -> LRESULT {
     let enabled = IsWindowEnabled(hwnd) != 0;
     let hovered = HOVERED_CONTROL.load(Ordering::Acquire) == hwnd as isize;
     let focused = GetFocus() == hwnd;
+    let pressed = SendMessageW(hwnd, 0x00f2, 0, 0) & 4 != 0;
     let checked = SendMessageW(hwnd, BM_GETCHECK_, 0, 0);
     let radio = is_radio(hwnd);
     let side = 18.min((client.bottom - client.top - 4).max(12));
@@ -206,13 +151,16 @@ unsafe fn paint_checkbox(hwnd: HWND) -> LRESULT {
 
     let active = checked == BST_CHECKED_ || checked == BST_INDETERMINATE_;
     let fill = if !enabled { MIST_SURFACE }
-        else if active { if hovered { BPSR_ACCENT_HOVER } else { BPSR_ACCENT } }
+        else if active { if pressed { BPSR_ACCENT_PRESSED } else if hovered { BPSR_ACCENT_HOVER } else { BPSR_ACCENT } }
+        else if pressed { MIST_PRESSED }
         else if hovered { MIST_HOVER }
         else { MIST_RAISED };
     fill_round_rect(hdc, glyph, fill, if radio { side / 2 } else { 5 });
     if !active {
         stroke_round_rect(hdc, glyph, if focused { BPSR_ACCENT } else { MIST_BORDER_STRONG }, if radio { side / 2 } else { 5 }, if focused { 2 } else { 1 });
     }
+
+    if enabled && focused && active { stroke_round_rect(hdc, glyph, BPSR_ACCENT_HOVER, if radio { side / 2 } else { 5 }, 2); }
 
     if checked == BST_CHECKED_ {
         if radio {
@@ -258,32 +206,35 @@ unsafe fn paint_listbox(hwnd: HWND) -> LRESULT {
     let hdc = BeginPaint(hwnd, &mut ps);
     if hdc.is_null() { return 0; }
     let mut client: RECT = std::mem::zeroed(); GetClientRect(hwnd, &mut client);
+    FillRect(hdc, &client, mist_bg_brush());
     fill_round_rect(hdc, client, MIST_INPUT, RADIUS_SMALL);
 
     let count = SendMessageW(hwnd, LB_GETCOUNT_, 0, 0);
     let top = SendMessageW(hwnd, LB_GETTOPINDEX_, 0, 0).max(0) as i32;
     let selected = SendMessageW(hwnd, LB_GETCURSEL_, 0, 0) as i32;
-    let item_h = SendMessageW(hwnd, LB_GETITEMHEIGHT_, 0, 0).max(18) as i32;
     let focused = GetFocus() == hwnd;
+    let enabled = IsWindowEnabled(hwnd) != 0;
     if count > 0 {
         let mut index = top;
-        let mut y = 3;
-        while index < count as i32 && y < client.bottom {
+        while index < count as i32 {
+            let mut native_row: RECT = std::mem::zeroed();
+            if SendMessageW(hwnd, 0x0198, index as usize, (&mut native_row as *mut RECT) as LPARAM) < 0 { break; }
+            if native_row.top >= client.bottom { break; }
             let len = SendMessageW(hwnd, LB_GETTEXTLEN_, index as usize, 0);
             if len >= 0 {
                 let mut text = vec![0u16; len as usize + 1];
                 let got = SendMessageW(hwnd, LB_GETTEXT_, index as usize, text.as_mut_ptr() as isize).max(0) as usize;
-                let row = RECT { left: 4, top: y, right: client.right - 4, bottom: (y + item_h).min(client.bottom) };
+                let row = RECT { left: 4, top: native_row.top, right: client.right - 4, bottom: native_row.bottom.min(client.bottom) };
                 if index == selected {
                     fill_round_rect(hdc, row, if focused { MIST_SELECTED_HOVER } else { MIST_SELECTED }, 6);
                 }
                 let mut tr = RECT { left: row.left + 9, top: row.top, right: row.right - 7, bottom: row.bottom };
                 SetBkMode(hdc, TRANSPARENT as i32);
-                SetTextColor(hdc, if index == selected { BPSR_TEXT } else { BPSR_TEXT_SECONDARY });
+                SetTextColor(hdc, if !enabled { BPSR_DISABLED } else if index == selected { BPSR_TEXT } else { BPSR_TEXT_SECONDARY });
                 SelectObject(hdc, if index == selected { medium_font() } else { body_font() });
                 DrawTextW(hdc, text.as_ptr(), got as i32, &mut tr, 0x0004 | 0x0020 | 0x0800 | 0x8000);
             }
-            index += 1; y += item_h;
+            index += 1;
         }
     }
     if focused { stroke_round_rect(hdc, client, BPSR_ACCENT, RADIUS_SMALL, 2); }
@@ -293,6 +244,11 @@ unsafe fn paint_listbox(hwnd: HWND) -> LRESULT {
 
 unsafe extern "system" fn button_subclass_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _data: usize) -> LRESULT {
     match msg {
+        WM_NCDESTROY | 0x0018 => {
+            if msg == WM_NCDESTROY || wparam == 0 {
+                HOVERED_CONTROL.compare_exchange(hwnd as isize, 0, Ordering::AcqRel, Ordering::Acquire).ok();
+            }
+        }
         WM_MOUSEMOVE_ => {
             let previous = HOVERED_CONTROL.swap(hwnd as isize, Ordering::AcqRel);
             if previous != hwnd as isize {
@@ -304,7 +260,7 @@ unsafe extern "system" fn button_subclass_proc(hwnd: HWND, msg: u32, wparam: WPA
         WM_MOUSELEAVE_ => {
             if HOVERED_CONTROL.compare_exchange(hwnd as isize, 0, Ordering::AcqRel, Ordering::Acquire).is_ok() { InvalidateRect(hwnd, null(), 0); }
         }
-        WM_SETFOCUS_ | WM_KILLFOCUS_ | WM_ENABLE_ => {
+        WM_SETFOCUS_ | WM_KILLFOCUS_ | WM_ENABLE_ | 0x00f1 | 0x00f3 | 0x0201 | 0x0202 | 0x0215 => {
             let result = DefSubclassProc(hwnd, msg, wparam, lparam);
             InvalidateRect(hwnd, null(), 0);
             return result;
@@ -317,6 +273,12 @@ unsafe extern "system" fn button_subclass_proc(hwnd: HWND, msg: u32, wparam: WPA
 
 unsafe extern "system" fn field_subclass_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _data: usize) -> LRESULT {
     match msg {
+        WM_NCDESTROY | 0x0018 => {
+            if msg == WM_NCDESTROY || wparam == 0 {
+                HOVERED_CONTROL.compare_exchange(hwnd as isize, 0, Ordering::AcqRel, Ordering::Acquire).ok();
+                FOCUSED_FIELD.compare_exchange(hwnd as isize, 0, Ordering::AcqRel, Ordering::Acquire).ok();
+            }
+        }
         WM_SETFOCUS_ => {
             FOCUSED_FIELD.store(hwnd as isize, Ordering::Release);
             let result = DefSubclassProc(hwnd, msg, wparam, lparam); InvalidateRect(hwnd, null(), 0); return result;
