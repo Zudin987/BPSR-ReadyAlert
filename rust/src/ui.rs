@@ -146,6 +146,16 @@ unsafe extern "system" fn collect_child(child: HWND, data: LPARAM) -> i32 {
 
 pub const WM_REVEAL_FOCUS: u32 = 0x8000 + 125;
 
+fn modeless_dialog_class(class: &str) -> bool {
+    matches!(
+        class,
+        "BPSRReadyAlertRustSettingsV151"
+            | "BPSRReadyAlertEventTrackerV114"
+            | "BPSRReadyAlertFeatureSettingsV180"
+            | "BPSRReadyAlertBenchmarkV1271"
+    )
+}
+
 /// Route modeless native forms through the dialog keyboard manager. A focused
 /// edit retains its arrows; Tab, Shift+Tab, mnemonics and Escape reach the form.
 pub unsafe fn dialog_message(msg: &MSG) -> bool {
@@ -154,7 +164,7 @@ pub unsafe fn dialog_message(msg: &MSG) -> bool {
     let mut class = [0u16; 96];
     let n = GetClassNameW(root, class.as_mut_ptr(), class.len() as i32).max(0) as usize;
     let class = String::from_utf16_lossy(&class[..n]);
-    if !matches!(class.as_str(), "BPSRReadyAlertRustSettingsV151" | "BPSRReadyAlertEventTrackerV114" | "BPSRReadyAlertFeatureSettingsV180") || IsWindowVisible(root)==0 { return false; }
+    if !modeless_dialog_class(class.as_str()) || IsWindowVisible(root)==0 { return false; }
     if msg.message == WM_KEYDOWN && msg.wParam == 0x1b { SendMessageW(root, WM_CLOSE, 0, 0); return true; }
     // DefWindowProc forwards unused wheel events from native child controls.
     let handled = IsDialogMessageW(root, msg) != 0;
@@ -172,5 +182,10 @@ mod tests {
             assert!(r.left>=work.left && r.right<=work.right && r.top>=work.top && r.bottom<=work.bottom);
             assert!(r.right>r.left && r.bottom>r.top);
         }
+    }
+
+    #[test]
+    fn benchmark_uses_modeless_dialog_keyboard_routing() {
+        assert!(modeless_dialog_class("BPSRReadyAlertBenchmarkV1271"));
     }
 }
