@@ -43,6 +43,22 @@ fn catalog() -> &'static Catalog {
     CATALOG.get_or_init(load_catalog)
 }
 
+fn parse_catalog_id(kind: &str, raw_id: &str) -> Option<i32> {
+    if let Ok(id) = raw_id.parse::<i32>() {
+        return Some(id);
+    }
+
+    // Skill ids arrive from the packet as a varint and the native telemetry
+    // path intentionally stores them as i32 (`value as i32`). Some game-data
+    // skill keys are unsigned/composite values wider than signed i32, so use
+    // the same low-32-bit normalization here instead of silently dropping them.
+    if kind == "S" {
+        return raw_id.parse::<u64>().ok().map(|id| id as i32);
+    }
+
+    None
+}
+
 fn load_catalog() -> Catalog {
     let compressed_len: usize = CATALOG_PARTS.iter().map(|part| part.len()).sum();
     let mut compressed = Vec::with_capacity(compressed_len);
@@ -63,7 +79,7 @@ fn load_catalog() -> Catalog {
         let Some(kind) = parts.next() else { continue };
         let Some(raw_id) = parts.next() else { continue };
         let Some(name) = parts.next() else { continue };
-        let Ok(id) = raw_id.parse::<i32>() else { continue };
+        let Some(id) = parse_catalog_id(kind, raw_id) else { continue };
         if name.is_empty() || is_excluded_development_record(kind, id) {
             continue;
         }
@@ -151,6 +167,8 @@ mod tests {
     #[test]
     fn supplemental_catalog_decodes_and_resolves_representative_ids() {
         assert_eq!(skill_name(1), Some("Red Light Counter"));
+        assert_eq!(skill_name(2_203_110_103_u32 as i32), Some("Lucky Strike"));
+        assert_eq!(skill_name(11_007_300_102_u64 as i32), Some("Stunt! Frenzied Shot"));
         assert_eq!(buff_name(201), Some("Intellect Conversion"));
         assert_eq!(scene_name(7), Some("Asteria Plains"));
         assert_eq!(dungeon_name(1101), Some("Towering Ruin"));
@@ -180,7 +198,7 @@ mod tests {
     fn supplemental_catalog_counts_and_sort_order_are_stable() {
         let catalog = catalog();
         assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_485);
-        assert_eq!(catalog.skills.len(), 7_850);
+        assert_eq!(catalog.skills.len(), 8_457);
         assert_eq!(catalog.buffs.len(), 1_778);
         assert_eq!(catalog.scenes.len(), 586);
         assert_eq!(catalog.dungeons.len(), 572);
