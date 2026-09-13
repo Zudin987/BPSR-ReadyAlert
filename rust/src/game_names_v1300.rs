@@ -2,6 +2,17 @@
 
 use std::sync::OnceLock;
 
+const CATALOG_PARTS: [&[u8]; 8] = [
+    include_bytes!("../data/game_names_v1300.tsv.zst.001"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.002"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.003"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.004"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.005"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.006"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.007"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.008"),
+];
+
 #[derive(Default)]
 struct Catalog {
     skills: Vec<(i32, &'static str)>,
@@ -27,10 +38,13 @@ fn catalog() -> &'static Catalog {
 }
 
 fn load_catalog() -> Catalog {
-    let decoded = zstd::stream::decode_all(
-        include_bytes!("../data/game_names_v1300.tsv.zst").as_slice(),
-    )
-    .expect("decode embedded BPSR supplemental id catalog");
+    let compressed_len: usize = CATALOG_PARTS.iter().map(|part| part.len()).sum();
+    let mut compressed = Vec::with_capacity(compressed_len);
+    for part in CATALOG_PARTS {
+        compressed.extend_from_slice(part);
+    }
+    let decoded = zstd::stream::decode_all(compressed.as_slice())
+        .expect("decode embedded BPSR supplemental id catalog");
     let text = String::from_utf8(decoded).expect("supplemental id catalog is UTF-8");
     let text: &'static str = Box::leak(text.into_boxed_str());
 
@@ -66,6 +80,22 @@ fn load_catalog() -> Catalog {
             _ => {}
         }
     }
+
+    out.skills.sort_by_key(|entry| entry.0);
+    out.buffs.sort_by_key(|entry| entry.0);
+    out.scenes.sort_by_key(|entry| entry.0);
+    out.dungeons.sort_by_key(|entry| entry.0);
+    out.monsters.sort_by_key(|entry| entry.0);
+    out.talents.sort_by_key(|entry| entry.0);
+    out.factors.sort_by_key(|entry| entry.0);
+    out.factor_grade_items.sort_by_key(|entry| entry.0);
+    out.specs.sort_by_key(|entry| entry.0);
+    out.classes.sort_by_key(|entry| entry.0);
+    out.modifier_effects.sort_by_key(|entry| entry.0);
+    out.attributes.sort_by_key(|entry| entry.0);
+    out.objectives.sort_by_key(|entry| entry.0);
+    out.recount_rows.sort_by_key(|entry| entry.0);
+
     out
 }
 
@@ -95,6 +125,13 @@ pub fn recount_name(id: i32) -> Option<&'static str> { lookup(&catalog().recount
 mod tests {
     use super::*;
 
+    fn assert_strictly_sorted(entries: &[(i32, &'static str)]) {
+        assert!(
+            entries.windows(2).all(|pair| pair[0].0 < pair[1].0),
+            "supplemental catalog contains an unsorted or duplicate id"
+        );
+    }
+
     #[test]
     fn supplemental_catalog_decodes_and_resolves_representative_ids() {
         assert_eq!(skill_name(1), Some("Red Light Counter"));
@@ -109,7 +146,43 @@ mod tests {
         assert_eq!(class_name(5), Some("Verdant Oracle"));
         assert_eq!(modifier_effect_name(1), Some("Strength Boost"));
         assert_eq!(attribute_name(10030), Some("Ability Score"));
+        assert_eq!(objective_name(1033), Some("Defeat the final boss"));
         assert_eq!(recount_name(1), Some("Red Light Counter"));
+    }
+
+    #[test]
+    fn supplemental_catalog_counts_and_sort_order_are_stable() {
+        let catalog = catalog();
+        assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_485);
+        assert_eq!(catalog.skills.len(), 8_457);
+        assert_eq!(catalog.buffs.len(), 1_778);
+        assert_eq!(catalog.scenes.len(), 598);
+        assert_eq!(catalog.dungeons.len(), 583);
+        assert_eq!(catalog.monsters.len(), 3_038);
+        assert_eq!(catalog.talents.len(), 648);
+        assert_eq!(catalog.factors.len(), 456);
+        assert_eq!(catalog.factor_grade_items.len(), 2_280);
+        assert_eq!(catalog.specs.len(), 18);
+        assert_eq!(catalog.classes.len(), 9);
+        assert_eq!(catalog.modifier_effects.len(), 147);
+        assert_eq!(catalog.attributes.len(), 161);
+        assert_eq!(catalog.objectives.len(), 756);
+        assert_eq!(catalog.recount_rows.len(), 344);
+
+        assert_strictly_sorted(&catalog.skills);
+        assert_strictly_sorted(&catalog.buffs);
+        assert_strictly_sorted(&catalog.scenes);
+        assert_strictly_sorted(&catalog.dungeons);
+        assert_strictly_sorted(&catalog.monsters);
+        assert_strictly_sorted(&catalog.talents);
+        assert_strictly_sorted(&catalog.factors);
+        assert_strictly_sorted(&catalog.factor_grade_items);
+        assert_strictly_sorted(&catalog.specs);
+        assert_strictly_sorted(&catalog.classes);
+        assert_strictly_sorted(&catalog.modifier_effects);
+        assert_strictly_sorted(&catalog.attributes);
+        assert_strictly_sorted(&catalog.objectives);
+        assert_strictly_sorted(&catalog.recount_rows);
     }
 
     #[test]
@@ -117,5 +190,6 @@ mod tests {
         assert_eq!(skill_name(i32::MAX), None);
         assert_eq!(buff_name(i32::MAX), None);
         assert_eq!(monster_name(i32::MAX), None);
+        assert_eq!(objective_name(i32::MAX), None);
     }
 }

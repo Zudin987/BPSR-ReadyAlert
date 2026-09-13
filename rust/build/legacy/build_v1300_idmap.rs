@@ -24,6 +24,12 @@ fn main() {
         "        _ => crate::telemetry::game_names_v1300::skill_name(id)\n            .map(str::to_owned)\n            .unwrap_or_else(|| format!(\"Skill {id}\")),\n",
         "base telemetry skill fallback",
     );
+    replace_once(
+        &mut telemetry,
+        "            if meta.monster_id > 0 {\n                return format!(\"Monster {}\", meta.monster_id);\n            }\n",
+        "            if meta.monster_id > 0 {\n                if let Some(name) = crate::telemetry::game_names_v1300::monster_name(meta.monster_id) {\n                    return name.to_owned();\n                }\n                return format!(\"Monster {}\", meta.monster_id);\n            }\n",
+        "monster template fallback",
+    );
     fs::write(&telemetry_path, telemetry)
         .expect("write generated telemetry with supplemental id mapping");
 
@@ -46,6 +52,8 @@ fn main() {
         .expect("write generated analysis names with supplemental id mapping");
 
     println!("cargo:rerun-if-changed=build/legacy/build_v1300_idmap.rs");
-    println!("cargo:rerun-if-changed=data/game_names_v1300.tsv.zst");
+    for suffix in ["001", "002", "003", "004", "005", "006", "007", "008"] {
+        println!("cargo:rerun-if-changed=data/game_names_v1300.tsv.zst.{suffix}");
+    }
     println!("cargo:rerun-if-changed=src/game_names_v1300.rs");
 }
