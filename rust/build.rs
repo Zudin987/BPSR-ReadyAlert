@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_pixel_strict_qa_regression.rs");
+    include!("build/legacy/build_v1311_party_tracker_meter.rs");
     pub fn run() { main(); }
 }
 
