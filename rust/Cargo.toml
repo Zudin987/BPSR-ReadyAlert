@@ -1,7 +1,7 @@
 [package]
 name = "bpsr-readyalert"
-version = "1.31.3"
-# Patch release for single-row built-in tracker buffs and inline Tracker & Mech countdown presentation.
+version = "1.31.4"
+# Audit hardening: party-only meter correctness, scroll recovery, transactional updater, and settings persistence safety.
 edition = "2021"
 build = "build.rs"
 description = "Native Rust Ready Check, queue, party, chat, DPS and dungeon mechanics companion for Blue Protocol: Star Resonance"
