@@ -185,7 +185,15 @@ mod tests {
     }
 
     #[test]
-    fn benchmark_uses_modeless_dialog_keyboard_routing() {
-        assert!(modeless_dialog_class("BPSRReadyAlertBenchmarkV1271"));
+    fn all_modeless_forms_use_dialog_keyboard_routing() {
+        for class in [
+            "BPSRReadyAlertRustSettingsV151",
+            "BPSRReadyAlertEventTrackerV114",
+            "BPSRReadyAlertFeatureSettingsV180",
+            "BPSRReadyAlertBenchmarkV1271",
+        ] {
+            assert!(modeless_dialog_class(class), "missing dialog routing for {class}");
+        }
+        assert!(!modeless_dialog_class("BPSRReadyAlertUnknownWindow"));
     }
 }
