@@ -151,14 +151,24 @@ mod tests {
     }
 
     #[test]
+    fn explicit_development_placeholders_are_excluded() {
+        assert_eq!(scene_name(5000), None);
+        assert_eq!(dungeon_name(10030), None);
+        assert_eq!(monster_name(11016), None);
+        assert_eq!(objective_name(20), None);
+        assert_eq!(monster_name(114), Some("Enemy Training Dummy"));
+        assert_eq!(monster_name(116), Some("Wooden Dummy"));
+    }
+
+    #[test]
     fn supplemental_catalog_counts_and_sort_order_are_stable() {
         let catalog = catalog();
-        assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_485);
+        assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_045);
         assert_eq!(catalog.skills.len(), 8_457);
         assert_eq!(catalog.buffs.len(), 1_778);
-        assert_eq!(catalog.scenes.len(), 598);
-        assert_eq!(catalog.dungeons.len(), 583);
-        assert_eq!(catalog.monsters.len(), 3_038);
+        assert_eq!(catalog.scenes.len(), 586);
+        assert_eq!(catalog.dungeons.len(), 572);
+        assert_eq!(catalog.monsters.len(), 3_020);
         assert_eq!(catalog.talents.len(), 648);
         assert_eq!(catalog.factors.len(), 456);
         assert_eq!(catalog.factor_grade_items.len(), 2_280);
@@ -166,7 +176,7 @@ mod tests {
         assert_eq!(catalog.classes.len(), 9);
         assert_eq!(catalog.modifier_effects.len(), 147);
         assert_eq!(catalog.attributes.len(), 161);
-        assert_eq!(catalog.objectives.len(), 756);
+        assert_eq!(catalog.objectives.len(), 755);
         assert_eq!(catalog.recount_rows.len(), 344);
 
         assert_strictly_sorted(&catalog.skills);
