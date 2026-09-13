@@ -1,0 +1,121 @@
+#![allow(dead_code)]
+
+use std::sync::OnceLock;
+
+#[derive(Default)]
+struct Catalog {
+    skills: Vec<(i32, &'static str)>,
+    buffs: Vec<(i32, &'static str)>,
+    scenes: Vec<(i32, &'static str)>,
+    dungeons: Vec<(i32, &'static str)>,
+    monsters: Vec<(i32, &'static str)>,
+    talents: Vec<(i32, &'static str)>,
+    factors: Vec<(i32, &'static str)>,
+    factor_grade_items: Vec<(i32, &'static str)>,
+    specs: Vec<(i32, &'static str)>,
+    classes: Vec<(i32, &'static str)>,
+    modifier_effects: Vec<(i32, &'static str)>,
+    attributes: Vec<(i32, &'static str)>,
+    objectives: Vec<(i32, &'static str)>,
+    recount_rows: Vec<(i32, &'static str)>,
+}
+
+static CATALOG: OnceLock<Catalog> = OnceLock::new();
+
+fn catalog() -> &'static Catalog {
+    CATALOG.get_or_init(load_catalog)
+}
+
+fn load_catalog() -> Catalog {
+    let decoded = zstd::stream::decode_all(
+        include_bytes!("../data/game_names_v1300.tsv.zst").as_slice(),
+    )
+    .expect("decode embedded BPSR supplemental id catalog");
+    let text = String::from_utf8(decoded).expect("supplemental id catalog is UTF-8");
+    let text: &'static str = Box::leak(text.into_boxed_str());
+
+    let mut out = Catalog::default();
+    for line in text.lines() {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut parts = line.splitn(3, '\t');
+        let Some(kind) = parts.next() else { continue };
+        let Some(raw_id) = parts.next() else { continue };
+        let Some(name) = parts.next() else { continue };
+        let Ok(id) = raw_id.parse::<i32>() else { continue };
+        if name.is_empty() {
+            continue;
+        }
+        let entry = (id, name);
+        match kind {
+            "S" => out.skills.push(entry),
+            "B" => out.buffs.push(entry),
+            "E" => out.scenes.push(entry),
+            "D" => out.dungeons.push(entry),
+            "M" => out.monsters.push(entry),
+            "T" => out.talents.push(entry),
+            "F" => out.factors.push(entry),
+            "G" => out.factor_grade_items.push(entry),
+            "P" => out.specs.push(entry),
+            "C" => out.classes.push(entry),
+            "X" => out.modifier_effects.push(entry),
+            "A" => out.attributes.push(entry),
+            "O" => out.objectives.push(entry),
+            "R" => out.recount_rows.push(entry),
+            _ => {}
+        }
+    }
+    out
+}
+
+fn lookup(entries: &[(i32, &'static str)], id: i32) -> Option<&'static str> {
+    entries
+        .binary_search_by_key(&id, |entry| entry.0)
+        .ok()
+        .map(|index| entries[index].1)
+}
+
+pub fn skill_name(id: i32) -> Option<&'static str> { lookup(&catalog().skills, id) }
+pub fn buff_name(id: i32) -> Option<&'static str> { lookup(&catalog().buffs, id) }
+pub fn scene_name(id: i32) -> Option<&'static str> { lookup(&catalog().scenes, id) }
+pub fn dungeon_name(id: i32) -> Option<&'static str> { lookup(&catalog().dungeons, id) }
+pub fn monster_name(id: i32) -> Option<&'static str> { lookup(&catalog().monsters, id) }
+pub fn talent_name(id: i32) -> Option<&'static str> { lookup(&catalog().talents, id) }
+pub fn factor_name(id: i32) -> Option<&'static str> { lookup(&catalog().factors, id) }
+pub fn factor_grade_item_name(id: i32) -> Option<&'static str> { lookup(&catalog().factor_grade_items, id) }
+pub fn spec_name(id: i32) -> Option<&'static str> { lookup(&catalog().specs, id) }
+pub fn class_name(id: i32) -> Option<&'static str> { lookup(&catalog().classes, id) }
+pub fn modifier_effect_name(id: i32) -> Option<&'static str> { lookup(&catalog().modifier_effects, id) }
+pub fn attribute_name(id: i32) -> Option<&'static str> { lookup(&catalog().attributes, id) }
+pub fn objective_name(id: i32) -> Option<&'static str> { lookup(&catalog().objectives, id) }
+pub fn recount_name(id: i32) -> Option<&'static str> { lookup(&catalog().recount_rows, id) }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supplemental_catalog_decodes_and_resolves_representative_ids() {
+        assert_eq!(skill_name(1), Some("Red Light Counter"));
+        assert_eq!(buff_name(201), Some("Intellect Conversion"));
+        assert_eq!(scene_name(7), Some("Asteria Plains"));
+        assert_eq!(dungeon_name(1101), Some("Towering Ruin"));
+        assert_eq!(monster_name(103), Some("Ignisor"));
+        assert_eq!(talent_name(1), Some("Strength"));
+        assert_eq!(factor_name(202101), Some("Stormblade X1"));
+        assert_eq!(factor_grade_item_name(20020001), Some("Stormblade X1 - G1"));
+        assert_eq!(spec_name(130), Some("Iaido"));
+        assert_eq!(class_name(5), Some("Verdant Oracle"));
+        assert_eq!(modifier_effect_name(1), Some("Strength Boost"));
+        assert_eq!(attribute_name(10030), Some("Ability Score"));
+        assert_eq!(recount_name(1), Some("Red Light Counter"));
+    }
+
+    #[test]
+    fn unknown_ids_stay_unknown() {
+        assert_eq!(skill_name(i32::MAX), None);
+        assert_eq!(buff_name(i32::MAX), None);
+        assert_eq!(monster_name(i32::MAX), None);
+    }
+}
