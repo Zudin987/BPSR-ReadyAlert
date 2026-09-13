@@ -46,7 +46,12 @@ fn main() {
         .expect("write generated analysis names with supplemental id mapping");
 
     println!("cargo:rerun-if-changed=build/legacy/build_v1300_idmap.rs");
-    for suffix in ["001", "002", "003", "004", "005", "006", "007", "008"] {
+    for suffix in [
+        "001", "002", "003", "004",
+        "005a", "005b", "005c", "005d",
+        "006", "007",
+        "008a", "008b", "008c", "008d",
+    ] {
         println!("cargo:rerun-if-changed=data/game_names_v1300.tsv.zst.{suffix}");
     }
     println!("cargo:rerun-if-changed=src/game_names_v1300.rs");
