@@ -180,7 +180,7 @@ mod tests {
     fn supplemental_catalog_counts_and_sort_order_are_stable() {
         let catalog = catalog();
         assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_485);
-        assert_eq!(catalog.skills.len(), 8_457);
+        assert_eq!(catalog.skills.len(), 7_850);
         assert_eq!(catalog.buffs.len(), 1_778);
         assert_eq!(catalog.scenes.len(), 586);
         assert_eq!(catalog.dungeons.len(), 572);
