@@ -83,7 +83,7 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
     }
     match msg {
         WM_CREATE => {
-            crate::ui_modern::mist_titlebar(hwnd);
+            crate::telemetry::ui_audit_v1302::mist_titlebar(hwnd);
             build_form(hwnd);
             0
         }
@@ -168,7 +168,7 @@ unsafe fn start(hwnd: HWND) {
     let Some(seconds) = seconds_text.trim().parse::<u32>().ok().filter(|value| (1..=3_600).contains(value)) else {
         let title = wide("ReadyAlert Benchmark");
         let body = wide("Duration must be a whole number from 1 to 3600 seconds.");
-        crate::ui_modern::message_box_w(hwnd, body.as_ptr(), title.as_ptr(), MB_OK | MB_ICONWARNING);
+        crate::telemetry::ui_audit_v1302::message_box_w(hwnd, body.as_ptr(), title.as_ptr(), MB_OK | MB_ICONWARNING);
         return;
     };
     crate::telemetry::arm_benchmark(name, seconds);
