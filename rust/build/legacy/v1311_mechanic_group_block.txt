@@ -15,9 +15,38 @@ enum MechanicDisplayRow{
     Mechanic(GroupedMechanicRow),
 }
 fn special_tracker_name(id:i32)->Option<(&'static str,usize)>{Some(match id{55226=>("DeterShot",0),2_110_049=>("KARTGRIFF",1),2_110_050=>("BASIL",2),2_110_055=>("TATTA",3),2_110_056=>("TINA",4),2_110_065=>("BL",5),_=>return None})}
+fn special_tracker_label(label:&str)->Option<(&'static str,usize)>{
+    let normalized=label.chars().filter(|c|c.is_ascii_alphanumeric()).map(|c|c.to_ascii_uppercase()).collect::<String>();
+    Some(match normalized.as_str(){"DETERSHOT"=>("DeterShot",0),"KARTGRIFF"=>("KARTGRIFF",1),"BASIL"=>("BASIL",2),"TATTA"=>("TATTA",3),"TINA"=>("TINA",4),"BL"=>("BL",5),_=>return None})
+}
+fn mechanic_tracking_key(key:&str,label:&str)->String{
+    let mut parts=key.split(':');
+    match parts.next(){
+        Some("buff")=>{if let Some(id)=key.rsplit(':').next(){return format!("buff:{id}");}},
+        Some("skill")=>{let _=parts.next();if let Some(id)=parts.next(){return format!("skill:{id}");}},
+        _=>{}
+    }
+    format!("label:{}",label.trim())
+}
 fn mechanic_timer_matches(group:&GroupedMechanicRow,row:&crate::model::MechanicRow)->bool{
     if group.persistent||row.persistent{return group.persistent==row.persistent;}
-    match(group.expires_unix_ms>0,row.expires_unix_ms>0){(false,false)=>true,(true,true)=>group.expires_unix_ms.abs_diff(row.expires_unix_ms)<=150,_=>false}
+    match(group.expires_unix_ms>0,row.expires_unix_ms>0){(false,false)=>true,(true,true)=>group.expires_unix_ms.abs_diff(row.expires_unix_ms)<=350,_=>false}
+}
+fn mechanic_tracking_matches(group:&GroupedMechanicRow,row:&crate::model::MechanicRow)->bool{
+    mechanic_tracking_key(&group.key,&group.label)==mechanic_tracking_key(&row.key,&row.label)
+}
+fn mechanic_owner_name_slot()->&'static RwLock<String>{
+    static OWNER:std::sync::OnceLock<RwLock<String>>=std::sync::OnceLock::new();
+    OWNER.get_or_init(||RwLock::new(String::new()))
+}
+fn remember_mechanic_owner(snapshot:&DpsSnapshot){
+    if let Some(row)=snapshot.rows.iter().find(|row|row.is_local){let name=row.name.trim();if !name.is_empty(){if let Ok(mut owner)=mechanic_owner_name_slot().write(){*owner=name.to_string();}}}
+}
+fn mechanic_identity_key(value:&str)->String{
+    value.trim().chars().filter(|c|c.is_alphanumeric()).flat_map(|c|c.to_lowercase()).collect()
+}
+fn mechanic_target_is_owner(target:&str)->bool{
+    let target_key=mechanic_identity_key(target);if target_key.is_empty(){return false;}mechanic_owner_name_slot().read().map(|owner|mechanic_identity_key(&owner)==target_key).unwrap_or(false)
 }
 fn group_mechanics(mut mechanics:Vec<crate::model::MechanicRow>,now:i64)->Vec<GroupedMechanicRow>{
     mechanics.retain(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now);
@@ -26,7 +55,7 @@ fn group_mechanics(mut mechanics:Vec<crate::model::MechanicRow>,now:i64)->Vec<Gr
     for row in mechanics{
         let target=row.target.as_deref().map(str::trim).filter(|value|!value.is_empty()).map(str::to_string);
         if let Some(target)=target.as_ref(){
-            if let Some(existing)=grouped.iter_mut().find(|item|item.label==row.label&&item.priority==row.priority&&mechanic_timer_matches(item,&row)){
+            if let Some(existing)=grouped.iter_mut().find(|item|item.label==row.label&&item.priority==row.priority&&mechanic_tracking_matches(item,&row)&&mechanic_timer_matches(item,&row)){
                 if !existing.targets.iter().any(|name|name==target){existing.targets.push(target.clone());}
                 existing.expires_unix_ms=existing.expires_unix_ms.max(row.expires_unix_ms);
                 existing.created_unix_ms=existing.created_unix_ms.max(row.created_unix_ms);
@@ -43,19 +72,19 @@ fn compose_mechanic_rows(mechanics:Vec<crate::model::MechanicRow>,tracker:Vec<cr
     let urgent=mechanics.iter().take_while(|row|row.priority>=3).count();
     let normal=mechanics.split_off(urgent);
     let tracker_settings=crate::event_tracker::current_settings();
-    let mut special:Vec<(i32,usize,String,crate::event_tracker::TrackerDisplayRow)>=Vec::new();
+    let mut special:Vec<(usize,String,crate::event_tracker::TrackerDisplayRow)>=Vec::new();
     let mut ordinary=Vec::new();
     for row in tracker{
         let event_id=tracker_settings.rules.iter().find(|rule|rule.rule_id==row.rule_id).map(|rule|rule.event_id).unwrap_or(0);
-        if let Some((name,order))=special_tracker_name(event_id){
-            if let Some(existing)=special.iter_mut().find(|item|item.0==event_id){if row.last_seen_unix_ms>=existing.3.last_seen_unix_ms{*existing=(event_id,order,name.into(),row);}}
-            else{special.push((event_id,order,name.into(),row));}
+        if let Some((name,order))=special_tracker_name(event_id).or_else(||special_tracker_label(&row.label)){
+            if let Some(existing)=special.iter_mut().find(|item|item.0==order){if row.last_seen_unix_ms>=existing.2.last_seen_unix_ms{*existing=(order,name.into(),row);}}
+            else{special.push((order,name.into(),row));}
         }else{ordinary.push(row);}
     }
-    special.sort_by_key(|item|item.1);
+    special.sort_by_key(|item|item.0);
     let mut rows=Vec::with_capacity(mechanics.len().saturating_add(ordinary.len()).saturating_add(normal.len()).saturating_add(if special.is_empty(){0}else{1}));
     rows.extend(mechanics.into_iter().map(MechanicDisplayRow::Mechanic));
-    if !special.is_empty(){rows.push(MechanicDisplayRow::TrackerGroup(special.into_iter().map(|(_,_,name,row)|(name,row)).collect()));}
+    if !special.is_empty(){rows.push(MechanicDisplayRow::TrackerGroup(special.into_iter().map(|(_,name,row)|(name,row)).collect()));}
     rows.extend(ordinary.into_iter().map(MechanicDisplayRow::Tracker));
     rows.extend(normal.into_iter().map(MechanicDisplayRow::Mechanic));
     rows
