@@ -58,7 +58,7 @@ fn load_catalog() -> Catalog {
         let Some(raw_id) = parts.next() else { continue };
         let Some(name) = parts.next() else { continue };
         let Ok(id) = raw_id.parse::<i32>() else { continue };
-        if name.is_empty() {
+        if name.is_empty() || is_excluded_development_record(kind, id) {
             continue;
         }
         let entry = (id, name);
@@ -97,6 +97,16 @@ fn load_catalog() -> Catalog {
     out.recount_rows.sort_by_key(|entry| entry.0);
 
     out
+}
+
+fn is_excluded_development_record(kind: &str, id: i32) -> bool {
+    match kind {
+        "E" => matches!(id, 1399 | 5000 | 6001 | 10003 | 10004 | 10005 | 10010 | 10020 | 10021 | 10030 | 16005 | 16006),
+        "D" => matches!(id, 1399 | 5000 | 6001 | 10003 | 10004 | 10005 | 10020 | 10021 | 10030 | 16005 | 16006),
+        "M" => matches!(id, 101 | 102 | 105 | 106 | 1365 | 9999 | 11016 | 11017 | 11018 | 11019 | 33923 | 69010 | 69011 | 69012 | 69104 | 101273 | 210102 | 604002),
+        "O" => id == 20,
+        _ => false,
+    }
 }
 
 fn lookup(entries: &[(i32, &'static str)], id: i32) -> Option<&'static str> {
@@ -163,7 +173,7 @@ mod tests {
     #[test]
     fn supplemental_catalog_counts_and_sort_order_are_stable() {
         let catalog = catalog();
-        assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_045);
+        assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_485);
         assert_eq!(catalog.skills.len(), 8_457);
         assert_eq!(catalog.buffs.len(), 1_778);
         assert_eq!(catalog.scenes.len(), 586);
