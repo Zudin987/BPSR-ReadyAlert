@@ -24,6 +24,12 @@ fn main() {
         "_ => crate::telemetry::game_names_v1300::skill_name(id)\n    .map(str::to_owned)\n    .unwrap_or_else(|| format!(\"Skill {id}\")),\n",
         "base telemetry skill fallback",
     );
+    replace_once(
+        &mut telemetry,
+        "            name: exact_monster_name(meta.monster_id)\n                .map(str::to_string)\n                .or_else(|| (!meta.name.trim().is_empty()).then(|| meta.name.clone()))\n                .unwrap_or_else(|| \"Unknown Target\".into()),\n",
+        "            name: exact_monster_name(meta.monster_id)\n                .map(str::to_string)\n                .or_else(|| (!meta.name.trim().is_empty()).then(|| meta.name.clone()))\n                .or_else(|| {\n                    crate::telemetry::game_names_v1300::monster_name(meta.monster_id)\n                        .map(str::to_owned)\n                })\n                .unwrap_or_else(|| \"Unknown Target\".into()),\n",
+        "base telemetry monster target fallback",
+    );
     fs::write(&telemetry_path, telemetry)
         .expect("write generated telemetry with supplemental id mapping");
 
