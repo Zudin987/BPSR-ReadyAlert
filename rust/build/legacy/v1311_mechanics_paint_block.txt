@@ -6,8 +6,20 @@ unsafe fn paint_grouped_mechanic_label(hdc:HDC,state:&State,row:&GroupedMechanic
     SelectObject(hdc,old);
 }
 unsafe fn paint_special_tracker_group(hdc:HDC,state:&State,items:&[(String,crate::event_tracker::TrackerDisplayRow)],r:RECT){
-    if items.is_empty(){return;}fill(hdc,&RECT{left:r.left,top:r.top,right:r.left+3,bottom:r.bottom},crate::ui_modern::BPSR_WARNING);let usable_left=r.left+5;let usable_right=r.right-4;let count=items.len()as i32;let width=((usable_right-usable_left)/count.max(1)).max(1);let regular=if state.font.is_null(){GetStockObject(DEFAULT_GUI_FONT)}else{state.font};let bold={let font=dps_cached_font(state.scale_percent,true);if font.is_null(){regular}else{font}};let old=SelectObject(hdc,bold);
-    for(index,(name,row))in items.iter().enumerate(){let left=usable_left+index as i32*width;let right=if index+1==items.len(){usable_right}else{left+width};if index>0{fill(hdc,&RECT{left,top:r.top+4,right:left+1,bottom:r.bottom-4},crate::ui_modern::DARK_BORDER);}let mid=r.top+(r.bottom-r.top)/2;SetTextColor(hdc,crate::ui_modern::BPSR_TEXT);draw(hdc,name,RECT{left:left+2,top:r.top,right:right-2,bottom:mid+2},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);SelectObject(hdc,regular);let(timer,color)=match row.remaining_ms{Some(ms)=>(format!("{:.1}s",ms.max(0)as f64/1000.0),timer_urgency_color(ms)),None=>("ACTIVE".into(),crate::ui_modern::BPSR_ACCENT)};SetTextColor(hdc,color);draw(hdc,&timer,RECT{left:left+2,top:mid-1,right:right-2,bottom:r.bottom},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);SelectObject(hdc,bold);}
+    if items.is_empty(){return;}
+    fill(hdc,&RECT{left:r.left,top:r.top,right:r.left+3,bottom:r.bottom},crate::ui_modern::BPSR_WARNING);
+    let usable_left=r.left+7;let usable_right=r.right-5;let count=items.len()as i32;let width=((usable_right-usable_left)/count.max(1)).max(1);
+    let regular=if state.font.is_null(){GetStockObject(DEFAULT_GUI_FONT)}else{state.font};let bold={let font=dps_cached_font(state.scale_percent,true);if font.is_null(){regular}else{font}};let old=SelectObject(hdc,regular);
+    for(index,(name,row))in items.iter().enumerate(){
+        let left=usable_left+index as i32*width;let right=if index+1==items.len(){usable_right}else{left+width};
+        let display_name=if items.len()>=5{match name.as_str(){"KARTGRIFF"=>"KART","DeterShot"=>"Deter",_=>name.as_str()}}else{name.as_str()};
+        let(timer,color)=match row.remaining_ms{Some(ms)=>{let seconds=ms.max(0)as f64/1000.0;(if ms>=10_000{format!("{seconds:.0}s")}else{format!("{seconds:.1}s")},timer_urgency_color(ms))},None=>("ACTIVE".into(),crate::ui_modern::BPSR_ACCENT)};
+        SelectObject(hdc,bold);let name_w=dps_text_width(hdc,display_name,identity_text_px(display_name,true));
+        SelectObject(hdc,regular);let timer_w=dps_text_width(hdc,&timer,28);let gap=4;let inner=(right-left-6).max(1);let total=(name_w+gap+timer_w).min(inner);let mut x=left+3+((inner-total).max(0)/2);
+        SelectObject(hdc,bold);SetTextColor(hdc,crate::ui_modern::BPSR_TEXT);let nr=(x+name_w).min(right-3);draw(hdc,display_name,RECT{left:x,top:r.top,right:nr,bottom:r.bottom},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);x=nr+gap;
+        SelectObject(hdc,regular);SetTextColor(hdc,color);if x<right-2{draw(hdc,&timer,RECT{left:x,top:r.top,right:right-3,bottom:r.bottom},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);}
+        if index+1<items.len(){SetTextColor(hdc,crate::ui_modern::BPSR_TEXT_SECONDARY);draw(hdc,"|",RECT{left:right-4,top:r.top,right:right+4,bottom:r.bottom},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);}
+    }
     SelectObject(hdc,old);
 }
 unsafe fn paint_mechanics(hdc:HDC,rc:RECT,state:&State){
