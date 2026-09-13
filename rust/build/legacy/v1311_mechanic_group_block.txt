@@ -1,0 +1,66 @@
+#[derive(Clone)]
+struct GroupedMechanicRow{
+    key:String,
+    label:String,
+    targets:Vec<String>,
+    expires_unix_ms:i64,
+    persistent:bool,
+    priority:u8,
+    created_unix_ms:i64,
+}
+#[derive(Clone)]
+enum MechanicDisplayRow{
+    Tracker(crate::event_tracker::TrackerDisplayRow),
+    TrackerGroup(Vec<(String,crate::event_tracker::TrackerDisplayRow)>),
+    Mechanic(GroupedMechanicRow),
+}
+fn special_tracker_name(id:i32)->Option<(&'static str,usize)>{Some(match id{55226=>("DeterShot",0),2_110_049=>("KARTGRIFF",1),2_110_050=>("BASIL",2),2_110_055=>("TATTA",3),2_110_056=>("TINA",4),2_110_065=>("BL",5),_=>return None})}
+fn mechanic_timer_matches(group:&GroupedMechanicRow,row:&crate::model::MechanicRow)->bool{
+    if group.persistent||row.persistent{return group.persistent==row.persistent;}
+    match(group.expires_unix_ms>0,row.expires_unix_ms>0){(false,false)=>true,(true,true)=>group.expires_unix_ms.abs_diff(row.expires_unix_ms)<=150,_=>false}
+}
+fn group_mechanics(mut mechanics:Vec<crate::model::MechanicRow>,now:i64)->Vec<GroupedMechanicRow>{
+    mechanics.retain(|row|row.persistent||row.expires_unix_ms<=0||row.expires_unix_ms>now);
+    mechanics.sort_by(|a,b|{let a_timed=!a.persistent&&a.expires_unix_ms>now;let b_timed=!b.persistent&&b.expires_unix_ms>now;let ae=if a_timed{a.expires_unix_ms}else{i64::MAX};let be=if b_timed{b.expires_unix_ms}else{i64::MAX};b.priority.cmp(&a.priority).then_with(||b_timed.cmp(&a_timed)).then_with(||ae.cmp(&be)).then_with(||b.created_unix_ms.cmp(&a.created_unix_ms)).then_with(||a.key.cmp(&b.key))});
+    let mut grouped:Vec<GroupedMechanicRow>=Vec::new();
+    for row in mechanics{
+        let target=row.target.as_deref().map(str::trim).filter(|value|!value.is_empty()).map(str::to_string);
+        if let Some(target)=target.as_ref(){
+            if let Some(existing)=grouped.iter_mut().find(|item|item.label==row.label&&item.priority==row.priority&&mechanic_timer_matches(item,&row)){
+                if !existing.targets.iter().any(|name|name==target){existing.targets.push(target.clone());}
+                existing.expires_unix_ms=existing.expires_unix_ms.max(row.expires_unix_ms);
+                existing.created_unix_ms=existing.created_unix_ms.max(row.created_unix_ms);
+                continue;
+            }
+        }
+        grouped.push(GroupedMechanicRow{key:row.key,label:row.label,targets:target.into_iter().collect(),expires_unix_ms:row.expires_unix_ms,persistent:row.persistent,priority:row.priority,created_unix_ms:row.created_unix_ms});
+    }
+    grouped.sort_by(|a,b|{let a_timed=!a.persistent&&a.expires_unix_ms>now;let b_timed=!b.persistent&&b.expires_unix_ms>now;let ae=if a_timed{a.expires_unix_ms}else{i64::MAX};let be=if b_timed{b.expires_unix_ms}else{i64::MAX};b.priority.cmp(&a.priority).then_with(||b_timed.cmp(&a_timed)).then_with(||ae.cmp(&be)).then_with(||b.created_unix_ms.cmp(&a.created_unix_ms)).then_with(||a.key.cmp(&b.key))});
+    grouped
+}
+fn compose_mechanic_rows(mechanics:Vec<crate::model::MechanicRow>,tracker:Vec<crate::event_tracker::TrackerDisplayRow>,now:i64)->Vec<MechanicDisplayRow>{
+    let mut mechanics=group_mechanics(mechanics,now);
+    let urgent=mechanics.iter().take_while(|row|row.priority>=3).count();
+    let normal=mechanics.split_off(urgent);
+    let tracker_settings=crate::event_tracker::current_settings();
+    let mut special:Vec<(i32,usize,String,crate::event_tracker::TrackerDisplayRow)>=Vec::new();
+    let mut ordinary=Vec::new();
+    for row in tracker{
+        let event_id=tracker_settings.rules.iter().find(|rule|rule.rule_id==row.rule_id).map(|rule|rule.event_id).unwrap_or(0);
+        if let Some((name,order))=special_tracker_name(event_id){
+            if let Some(existing)=special.iter_mut().find(|item|item.0==event_id){if row.last_seen_unix_ms>=existing.3.last_seen_unix_ms{*existing=(event_id,order,name.into(),row);}}
+            else{special.push((event_id,order,name.into(),row));}
+        }else{ordinary.push(row);}
+    }
+    special.sort_by_key(|item|item.1);
+    let mut rows=Vec::with_capacity(mechanics.len().saturating_add(ordinary.len()).saturating_add(normal.len()).saturating_add(if special.is_empty(){0}else{1}));
+    rows.extend(mechanics.into_iter().map(MechanicDisplayRow::Mechanic));
+    if !special.is_empty(){rows.push(MechanicDisplayRow::TrackerGroup(special.into_iter().map(|(_,_,name,row)|(name,row)).collect()));}
+    rows.extend(ordinary.into_iter().map(MechanicDisplayRow::Tracker));
+    rows.extend(normal.into_iter().map(MechanicDisplayRow::Mechanic));
+    rows
+}
+fn ordered_mechanic_rows(state:&State,now:i64)->Vec<MechanicDisplayRow>{
+    compose_mechanic_rows(state.mechanics.rows.clone(),crate::event_tracker::rows(),now)
+}
+

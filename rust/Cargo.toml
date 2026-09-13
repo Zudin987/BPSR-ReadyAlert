@@ -1,7 +1,7 @@
 [package]
 name = "bpsr-readyalert"
-version = "1.31.0"
-# Minor release shipping the completed native Pixel/Material visual-system redesign and QA hardening.
+version = "1.31.1"
+# Patch release for party-safe meter lifetime, nearby-player filtering, grouped Tracker & Mech rows, and meter color/readability fixes.
 edition = "2021"
 build = "build.rs"
 description = "Native Rust Ready Check, queue, party, chat, DPS and dungeon mechanics companion for Blue Protocol: Star Resonance"
