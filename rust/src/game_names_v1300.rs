@@ -2,15 +2,21 @@
 
 use std::sync::OnceLock;
 
-const CATALOG_PARTS: [&[u8]; 8] = [
+const CATALOG_PARTS: [&[u8]; 14] = [
     include_bytes!("../data/game_names_v1300.tsv.zst.001"),
     include_bytes!("../data/game_names_v1300.tsv.zst.002"),
     include_bytes!("../data/game_names_v1300.tsv.zst.003"),
     include_bytes!("../data/game_names_v1300.tsv.zst.004"),
-    include_bytes!("../data/game_names_v1300.tsv.zst.005"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.005a"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.005b"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.005c"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.005d"),
     include_bytes!("../data/game_names_v1300.tsv.zst.006"),
     include_bytes!("../data/game_names_v1300.tsv.zst.007"),
-    include_bytes!("../data/game_names_v1300.tsv.zst.008"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.008a"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.008b"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.008c"),
+    include_bytes!("../data/game_names_v1300.tsv.zst.008d"),
 ];
 
 #[derive(Default)]
