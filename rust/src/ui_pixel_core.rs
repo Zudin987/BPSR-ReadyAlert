@@ -1,8 +1,8 @@
-//! Pixel-inspired native rendering primitives for ReadyAlert.
-//!
-//! This layer is presentation-only: existing HWNDs, commands, geometry, shortcuts,
-//! data flow and interaction behavior stay intact.  It deliberately keeps the app
-//! on lightweight Win32/GDI/DWM rather than introducing a web or retained GUI runtime.
+// Pixel-inspired native rendering primitives for ReadyAlert.
+//
+// This layer is presentation-only: existing HWNDs, commands, geometry, shortcuts,
+// data flow and interaction behavior stay intact.  It deliberately keeps the app
+// on lightweight Win32/GDI/DWM rather than introducing a web or retained GUI runtime.
 use std::{
     ffi::c_void,
     ptr::{null, null_mut},
@@ -23,8 +23,8 @@ use windows_sys::Win32::{
         Controls::DRAWITEMSTRUCT,
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClassNameW,
-            GetClientRect, GetFocus, GetMessageW, GetWindowLongPtrW, GetWindowTextLengthW,
-            GetWindowTextW, IsWindow, IsWindowEnabled, LoadCursorW, MessageBoxW, PostQuitMessage,
+            GetClientRect, GetMessageW, GetWindowLongPtrW, GetWindowTextLengthW,
+            GetWindowTextW, IsWindow, LoadCursorW, MessageBoxW, PostQuitMessage,
             RegisterClassW, SendMessageW, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos,
             ShowWindow, TranslateMessage, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, IDC_ARROW,
             MSG, SW_SHOW, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_CTLCOLORSTATIC, WM_DRAWITEM,
