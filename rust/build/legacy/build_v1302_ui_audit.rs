@@ -55,14 +55,20 @@ fn patch_feature_toolbar(out: &Path) {
 fn generate_benchmark(out: &Path) {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let source_path = manifest.join("src/benchmark_ui.rs");
-    let mut source = fs::read_to_string(&source_path).expect("read benchmark UI source").replace("\r\n", "\n");
-    replace_once(&mut source,"            crate::ui_modern::mist_titlebar(hwnd);","            crate::telemetry::ui_audit_v1302::mist_titlebar(hwnd);","Benchmark small-rounded titlebar");
-    replace_once(&mut source,"        crate::ui_modern::message_box_w(hwnd, body.as_ptr(), title.as_ptr(), MB_OK | MB_ICONWARNING);","        crate::telemetry::ui_audit_v1302::message_box_w(hwnd, body.as_ptr(), title.as_ptr(), MB_OK | MB_ICONWARNING);","Benchmark warning dialog");
-    replace_once(
-        &mut source,
-        "    ShowWindow(hwnd, SW_SHOW);\n    SetForegroundWindow(hwnd);\n}",
-        "    ShowWindow(hwnd, SW_SHOW);\n    SetForegroundWindow(hwnd);\n    crate::telemetry::ui_audit_v1302::run_modal_window(hwnd, owner);\n}",
-        "Benchmark dialog keyboard/modal loop",
+    let source = fs::read_to_string(&source_path).expect("read benchmark UI source").replace("\r\n", "\n");
+    assert_eq!(
+        source.matches("crate::telemetry::ui_audit_v1302::mist_titlebar(hwnd);").count(),
+        1,
+        "v1.30.2 Benchmark source must use the audited small-rounded titlebar exactly once",
+    );
+    assert_eq!(
+        source.matches("crate::telemetry::ui_audit_v1302::message_box_w(hwnd, body.as_ptr(), title.as_ptr(), MB_OK | MB_ICONWARNING);").count(),
+        1,
+        "v1.30.2 Benchmark source must use the audited warning dialog exactly once",
+    );
+    assert!(
+        !source.contains("run_modal_window"),
+        "v1.30.2 Benchmark must remain modeless; keyboard routing belongs in ui::dialog_message",
     );
     fs::write(out.join("benchmark_ui_v1302.rs"), source).expect("write generated benchmark UI audit");
 }
