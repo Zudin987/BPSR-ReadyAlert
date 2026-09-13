@@ -1,5 +1,8 @@
+#[path = "ui_audit_v1302.rs"]
+pub(crate) mod ui_audit_v1302;
+
 pub mod benchmark_ui {
-    include!("benchmark_ui.rs");
+    include!(concat!(env!("OUT_DIR"), "/benchmark_ui_v1302.rs"));
 }
 
 #[path = "game_names_v1300.rs"]
