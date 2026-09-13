@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "bpsr-readyalert"
-version = "1.31.0"
+version = "1.31.1"
 dependencies = [
  "libloading",
  "regex",
@@ -155,7 +155,7 @@ dependencies = [
 name = "getrandom"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
+checksum = "ff2abc00be7c5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 dependencies = [
  "cfg-if",
  "libc",
