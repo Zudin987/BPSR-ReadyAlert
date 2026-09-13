@@ -20,15 +20,9 @@ fn main() {
         .expect("read generated telemetry for supplemental id mapping");
     replace_once(
         &mut telemetry,
-        "        _ => format!(\"Skill {id}\"),\n",
-        "        _ => crate::telemetry::game_names_v1300::skill_name(id)\n            .map(str::to_owned)\n            .unwrap_or_else(|| format!(\"Skill {id}\")),\n",
+        "_ => format!(\"Skill {id}\"),\n",
+        "_ => crate::telemetry::game_names_v1300::skill_name(id)\n    .map(str::to_owned)\n    .unwrap_or_else(|| format!(\"Skill {id}\")),\n",
         "base telemetry skill fallback",
-    );
-    replace_once(
-        &mut telemetry,
-        "            if meta.monster_id > 0 {\n                return format!(\"Monster {}\", meta.monster_id);\n            }\n",
-        "            if meta.monster_id > 0 {\n                if let Some(name) = crate::telemetry::game_names_v1300::monster_name(meta.monster_id) {\n                    return name.to_owned();\n                }\n                return format!(\"Monster {}\", meta.monster_id);\n            }\n",
-        "monster template fallback",
     );
     fs::write(&telemetry_path, telemetry)
         .expect("write generated telemetry with supplemental id mapping");
