@@ -88,7 +88,16 @@ pub fn save(paths: &AppPaths, settings: &AppSettings) -> io::Result<()> {
         fs::remove_file(primary)?;
     }
 
-    fs::rename(&pending, primary)?;
+    if let Err(err) = fs::rename(&pending, primary) {
+        // Do not leave the canonical settings path missing when antivirus, disk,
+        // or filesystem errors interrupt the final rename. Recovery on next
+        // startup is useful, but the current process should also retain a valid
+        // on-disk primary whenever a known-good backup exists.
+        if !primary.exists() && backup.exists() {
+            let _ = fs::copy(&backup, primary);
+        }
+        return Err(err);
+    }
     Ok(())
 }
 
