@@ -13,8 +13,8 @@ fn main() {
         .unwrap_or_else(|e| panic!("read grouped mechanic overlay for tooltip fix: {e}"))
         .replace("\r\n", "\n");
 
-    let old = "MechanicDisplayRow::Mechanic(row)=>format!(\"{} {}\",row.label,row.target.as_deref().unwrap_or(\"\"))";
-    let new = "MechanicDisplayRow::Mechanic(row)=>format!(\"{} {}\",row.label,row.targets.join(\", \"))";
+    let old = "MechanicDisplayRow::Tracker(row)=>format!(\"{} • {}\",row.label,row.detail),MechanicDisplayRow::Mechanic(row)=>format!(\"{} {}\",row.label,row.target.as_deref().unwrap_or(\"\"))";
+    let new = "MechanicDisplayRow::Tracker(row)=>format!(\"{} • {}\",row.label,row.detail),MechanicDisplayRow::TrackerGroup(items)=>format!(\"Tracker • {}\",items.iter().map(|(name,_)|name.as_str()).collect::<Vec<_>>().join(\", \")),MechanicDisplayRow::Mechanic(row)=>format!(\"{} {}\",row.label,row.targets.join(\", \"))";
     let count = source.matches(old).count();
     assert_eq!(count, 1, "v1.31.1 grouped mechanic tooltip target expected once, found {count}");
     source = source.replacen(old, new, 1);
