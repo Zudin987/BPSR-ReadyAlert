@@ -1,12 +1,11 @@
 mod current {
-    include!("build/legacy/build_v1302_ui_audit.rs");
+    include!("build/legacy/build_v1310_true_pixel.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
-    // Keep the historical generated-source compatibility chain assertion-guarded.
-    // The final pass preserves the BPSR native design system, fixes audited UI
-    // interaction/visual defects, and leaves combat/telemetry algorithms unchanged.
+    // Final stage is presentation-only and deliberately runs after the v1.30.2
+    // behavior/keyboard/dialog audit so visual work cannot regress those fixes.
     println!("cargo:rerun-if-changed=build/legacy");
 }
