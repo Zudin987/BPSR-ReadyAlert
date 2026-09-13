@@ -6,9 +6,13 @@ mod previous {
 }
 
 fn replace_required(source: &mut String, from: &str, to: &str, label: &str) {
+    replace_count(source, from, to, 1, label);
+}
+
+fn replace_count(source: &mut String, from: &str, to: &str, expected: usize, label: &str) {
     let count = source.matches(from).count();
-    assert_eq!(count, 1, "strict UI QA target {label:?} expected once, found {count}");
-    *source = source.replacen(from, to, 1);
+    assert_eq!(count, expected, "strict UI QA target {label:?} expected {expected}, found {count}");
+    *source = source.replace(from, to);
 }
 
 fn replace_if_present(source: &mut String, from: &str, to: &str) {
@@ -16,6 +20,8 @@ fn replace_if_present(source: &mut String, from: &str, to: &str) {
 }
 
 fn patch_common(source: &mut String) {
+    // Keep the Win32 menu manager and command IDs; replace only menu row painting.
+    replace_if_present(source, "TrackPopupMenu(", "crate::ui_modern::qa_track_popup_menu(");
     // Route compatibility messages to the responsive QA modal. This keeps result IDs
     // and command semantics intact while fixing sizing, action spacing and destructive emphasis.
     replace_if_present(
@@ -83,6 +89,8 @@ fn patch_settings(source: &mut String) {
 }
 
 fn patch_event_tracker(source: &mut String) {
+    replace_required(source, "\"RULES\"", "\"Rules\"", "rules capitalization");
+    replace_required(source, "\"RULE DETAILS\"", "\"Rule details\"", "rule details capitalization");
     replace_required(
         source,
         "create_static(hwnd,\"Scope\",314,272,90,20);create_combo(hwnd,ID_SCOPE,408,266,150,120);",
@@ -116,6 +124,19 @@ fn patch_event_tracker(source: &mut String) {
 }
 
 fn patch_feature_overlays(source: &mut String) {
+    replace_required(source, "mod v1290_compact_meter_tests{", "mod v1290_compact_meter_tests{include!(concat!(env!(\"CARGO_MANIFEST_DIR\"),\"/src/ui_meter_qa_tests.rs\"));", "native meter QA regressions");
+    replace_required(source,
+        "let tier=dps_layout_tier(right.max(1),scale);let button=dps_toolbar_button_w(right,scale);let gap=",
+        "let button=dps_toolbar_button_w(right,scale);let available=right-button*toolbar_system_count(state);let tier=if available>=512{DpsLayoutTier::Comfortable}else if available>=300{DpsLayoutTier::Compact}else if available>=274{DpsLayoutTier::Dense}else{DpsLayoutTier::Minimum};let gap=",
+        "toolbar actions fit the actual available width");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,if state.history_index.is_some(){"No rows match the current meter filters."}else{"Waiting for party / combat data..."},RECT{left:10,top:top+18,right:rc.right-10,bottom:top+58},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},if state.history_index.is_some(){"No matching players"}else{"Waiting for combat data"},if state.history_index.is_some(){"Check the current meter filters for this encounter."}else{"Players and combat totals appear here when data is received."});"#, "meter empty state");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,"Waiting for raid / combat data...",RECT{left:10,top:top+18,right:rc.right-10,bottom:top+58},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},"Waiting for raid data","Raid players appear here when their combat data is received.");"#, "raid empty state");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,if state.history_index.is_some(){"No rows match the current meter filters."}else{"Waiting for party / combat data..."},RECT{left:10,top:top+12,right:rc.right-10,bottom:top+48},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},if state.history_index.is_some(){"No matching players"}else{"Waiting for combat data"},if state.history_index.is_some(){"Check the current meter filters for this encounter."}else{"Players and combat totals appear here when data is received."});"#, "compact meter empty state");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,"Waiting for raid / combat data...",RECT{left:10,top:top+12,right:rc.right-10,bottom:top+48},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},"Waiting for raid data","Raid players appear here when their combat data is received.");"#, "compact raid empty state");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,"No active mechanic or custom tracker event",RECT{left:10,top:top+18,right:rc.right-10,bottom:top+58},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},"No active mechanics","Mechanics and tracker events appear here when detected.");"#, "mechanics empty state");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,"No incoming HP/shield events recorded yet.",RECT{left:10,top:top+20,right:rc.right-10,bottom:top+55},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},"No incoming events","No incoming HP/shield events recorded yet.");"#, "No incoming events");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,"No named player buffs recorded in this encounter.",RECT{left:10,top:top+20,right:rc.right-10,bottom:top+55},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},"No recorded buffs","No named player buffs recorded in this encounter.");"#, "No recorded buffs");
+    replace_required(source, r#"SetTextColor(hdc,crate::ui_modern::BPSR_MUTED);draw(hdc,"No deaths recorded in this encounter.",RECT{left:10,top:top+20,right:rc.right-10,bottom:top+55},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);"#, r#"crate::ui_modern::qa_draw_empty_state(hdc,RECT{left:6,top,right:rc.right-6,bottom:rc.bottom},"No recorded deaths","No deaths recorded in this encounter.");"#, "No recorded deaths");
     replace_required(
         source,
         "let status_w=if row.is_dead{dps_adaptive_logical_px(76,scale)}else{0};",
@@ -182,10 +203,12 @@ fn patch_feature_overlays(source: &mut String) {
         "let half=(w/2).max(1);if food!=crate::ui_modern::BPSR_MUTED{SetTextColor(hdc,food);draw(hdc,\"F\",RECT{left:x,top:y,right:x+half,bottom:y+h},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);}if serum!=crate::ui_modern::BPSR_MUTED{SetTextColor(hdc,serum);draw(hdc,\"S\",RECT{left:x+half,top:y,right:x+w,bottom:y+h},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);}SelectObject(hdc,old);",
         "raid consumable noise",
     );
-    replace_required(
+    // Both normal and compact Raid renderers own a center gutter.
+    replace_count(
         source,
         "fill(hdc,&RECT{left:mid,top:top+2,right:mid+1,bottom:(top+RAID_ROWS_PER_COLUMN as i32*row_h).min(rc.bottom)},crate::ui_modern::DARK_RAISED);",
         "let gutter_bottom=(top+RAID_ROWS_PER_COLUMN as i32*row_h).min(rc.bottom);crate::ui_modern::fill_round_rect(hdc,RECT{left:mid-gap/2,top:top+2,right:mid+gap/2,bottom:gutter_bottom},crate::ui_modern::DARK_SURFACE,crate::ui_modern::RADIUS_SMALL);fill(hdc,&RECT{left:mid,top:top+4,right:mid+1,bottom:gutter_bottom-2},crate::ui_modern::DARK_BORDER);",
+        2,
         "raid center gutter",
     );
     replace_required(
@@ -197,7 +220,7 @@ fn patch_feature_overlays(source: &mut String) {
     replace_required(
         source,
         "DpsLayoutTier::Compact=>(24,24,24,30,28,28,28,28,\"Ra\",\"L\",\"Cp\",\"B\",\"Rs\"),DpsLayoutTier::Dense=>(22,22,20,28,26,26,26,26,\"Ra\",\"L\",\"Cp\",\"B\",\"Rs\"),DpsLayoutTier::Minimum=>(22,22,18,26,24,24,24,24,\"Ra\",\"L\",\"Cp\",\"B\",\"Rs\")",
-        "DpsLayoutTier::Compact=>(28,28,28,36,32,32,32,32,\"20\",\"L\",\"Cp\",\"B\",\"Rs\"),DpsLayoutTier::Dense=>(26,26,26,34,30,30,30,30,\"20\",\"L\",\"Cp\",\"B\",\"Rs\"),DpsLayoutTier::Minimum=>(24,24,24,32,28,28,28,28,\"20\",\"L\",\"Cp\",\"B\",\"Rs\")",
+        "DpsLayoutTier::Compact=>(28,28,28,36,32,32,32,32,\"20\",\"L\",\"Cp\",\"B\",\"Rs\"),DpsLayoutTier::Dense=>(26,26,26,34,30,30,30,30,\"20\",\"L\",\"Cp\",\"B\",\"Rs\"),DpsLayoutTier::Minimum=>(22,22,18,26,24,24,24,24,\"20\",\"L\",\"Cp\",\"B\",\"Rs\")",
         "meter compact toolbar grammar",
     );
     replace_required(
@@ -256,4 +279,6 @@ fn main() {
     patch_file(&out, "updater_v1241.rs", "common");
     println!("cargo:rerun-if-changed=build/legacy/build_pixel_strict_qa.rs");
     println!("cargo:rerun-if-changed=src/ui_pixel_qa.rs");
+    println!("cargo:rerun-if-changed=src/ui_pixel_menu.rs");
+    println!("cargo:rerun-if-changed=src/ui_meter_qa_tests.rs");
 }

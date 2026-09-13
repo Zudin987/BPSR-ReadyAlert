@@ -17,3 +17,4 @@ include!("ui_pixel_controls.rs");
 include!("ui_pixel_dialog.rs");
 include!("ui_pixel_phase2.rs");
 include!("ui_pixel_qa.rs");
+include!("ui_pixel_menu.rs");

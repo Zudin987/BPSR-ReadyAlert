@@ -157,7 +157,7 @@ pub unsafe fn show(hwnd: HWND, settings: &AppSettings, api: &PcapApi) -> TrayAct
     let mut p: POINT = std::mem::zeroed();
     GetCursorPos(&mut p);
     SetForegroundWindow(hwnd);
-    let command = TrackPopupMenu(
+    let command = crate::ui_modern::qa_track_popup_menu(
         menu,
         TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD,
         p.x,

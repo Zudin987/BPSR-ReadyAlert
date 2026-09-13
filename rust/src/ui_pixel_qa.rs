@@ -7,6 +7,8 @@ const QA_LIST_SUBCLASS_ID: usize = 0x5241_514c;
 const QA_TBM_GETPOS: u32 = 0x0400;
 const QA_TBM_GETRANGEMIN: u32 = 0x0401;
 const QA_TBM_GETRANGEMAX: u32 = 0x0402;
+const QA_TBM_GETTHUMBRECT: u32 = 0x0419;
+const QA_TBM_GETCHANNELRECT: u32 = 0x041a;
 
 fn qa_family_bg(family: SurfaceFamily) -> u32 {
     match family { SurfaceFamily::Mist => MIST_BG, SurfaceFamily::Dark => DARK_BG }
@@ -119,21 +121,35 @@ unsafe fn qa_paint_combo_overlay(hwnd: HWND, family: SurfaceFamily) {
     if hdc.is_null() { return; }
     let mut rc: RECT = std::mem::zeroed();
     GetClientRect(hwnd, &mut rc);
-    let arrow_w = 26.min((rc.right - rc.left).max(1));
-    let arrow = RECT { left: rc.right - arrow_w, top: rc.top + 1, right: rc.right - 1, bottom: rc.bottom - 1 };
-    qa_fill_rect(hdc, &arrow, family_input(family));
+    let mut info: windows_sys::Win32::UI::Controls::COMBOBOXINFO = std::mem::zeroed();
+    info.cbSize = std::mem::size_of_val(&info) as u32;
+    if windows_sys::Win32::UI::Controls::GetComboBoxInfo(hwnd, &mut info) == 0 {
+        ReleaseDC(hwnd, hdc);
+        return;
+    }
+    let enabled = IsWindowEnabled(hwnd) != 0;
+    let focused = enabled && GetFocus() == hwnd;
+    let dropped = SendMessageW(hwnd, 0x0157, 0, 0) != 0; // CB_GETDROPPEDSTATE
+    let hovered = enabled && HOVERED_CONTROL.load(Ordering::Acquire) == hwnd as isize;
+    let arrow = info.rcButton;
+    qa_fill_rect(hdc, &rc, qa_family_bg(family));
+    fill_round_rect(hdc, rc, if enabled { family_input(family) } else { family_surface(family) }, RADIUS_SMALL);
+    if enabled && (hovered || dropped) { fill_round_rect(hdc, arrow, family_hover(family), RADIUS_SMALL); }
+    let text = get_control_text(hwnd);
+    let mut text_rect = RECT { left: rc.left + 11, top: rc.top, right: arrow.left - 4, bottom: rc.bottom };
     SetBkMode(hdc, TRANSPARENT as i32);
-    SetTextColor(hdc, BPSR_TEXT_SECONDARY);
+    SetTextColor(hdc, if enabled { BPSR_TEXT } else { BPSR_DISABLED });
     SelectObject(hdc, body_font());
+    DrawTextW(hdc, text.as_ptr(), text.len() as i32, &mut text_rect, 0x0004 | 0x0020 | 0x0800 | 0x8000);
     let glyph = wide("▾");
     let mut gr = arrow;
     DrawTextW(hdc, glyph.as_ptr(), 1, &mut gr, 0x0001 | 0x0004 | 0x0020 | 0x0800);
     stroke_round_rect(
         hdc,
         RECT { left: rc.left, top: rc.top, right: rc.right, bottom: rc.bottom },
-        if GetFocus() == hwnd { BPSR_ACCENT } else { family_border(family) },
+        if focused { BPSR_ACCENT } else { family_border(family) },
         RADIUS_SMALL,
-        if GetFocus() == hwnd { 2 } else { 1 },
+        if focused { 2 } else { 1 },
     );
     ReleaseDC(hwnd, hdc);
 }
@@ -146,7 +162,7 @@ unsafe extern "system" fn qa_combo_subclass_proc(hwnd: HWND, msg: u32, wparam: W
             qa_paint_combo_overlay(hwnd, family);
             return result;
         }
-        WM_SETFOCUS_ | WM_KILLFOCUS_ | WM_ENABLE_ => {
+        WM_SETFOCUS_ | WM_KILLFOCUS_ | WM_ENABLE_ | 0x014e | 0x014f => {
             let result = DefSubclassProc(hwnd, msg, wparam, lparam);
             InvalidateRect(hwnd, null(), 0);
             return result;
@@ -160,6 +176,7 @@ unsafe fn qa_theme_combo(hwnd: HWND, family: SurfaceFamily) {
     if hwnd.is_null() { return; }
     theme_combo(hwnd);
     let data = if family == SurfaceFamily::Dark { 1 } else { 0 };
+    install_button_tracking(hwnd);
     let _ = SetWindowSubclass(hwnd, Some(qa_combo_subclass_proc), QA_COMBO_SUBCLASS_ID, data);
     InvalidateRect(hwnd, null(), 0);
 }
@@ -175,20 +192,26 @@ unsafe fn qa_paint_trackbar(hwnd: HWND, family: SurfaceFamily) -> LRESULT {
     GetClientRect(hwnd, &mut rc);
     qa_fill_rect(hdc, &rc, qa_family_bg(family));
 
-    let min = SendMessageW(hwnd, QA_TBM_GETRANGEMIN, 0, 0) as i32;
-    let max = SendMessageW(hwnd, QA_TBM_GETRANGEMAX, 0, 0) as i32;
-    let pos = SendMessageW(hwnd, QA_TBM_GETPOS, 0, 0) as i32;
-    let left = rc.left + 8;
-    let right = (rc.right - 8).max(left + 1);
+    // Use the native channel and thumb bounds so paint matches keyboard, mouse,
+    // range and DPI behavior instead of inventing a second slider geometry.
+    let mut native_thumb: RECT = std::mem::zeroed();
+    let mut channel: RECT = std::mem::zeroed();
+    SendMessageW(hwnd, QA_TBM_GETTHUMBRECT, 0, (&mut native_thumb as *mut RECT) as LPARAM);
+    SendMessageW(hwnd, QA_TBM_GETCHANNELRECT, 0, (&mut channel as *mut RECT) as LPARAM);
+    let left = channel.left;
+    let right = channel.right.max(left + 1);
     let cy = (rc.top + rc.bottom) / 2;
-    let span = (max - min).max(1) as i64;
-    let x = left + (((right - left) as i64 * (pos - min).clamp(0, max - min) as i64) / span) as i32;
+    let x = (native_thumb.left + native_thumb.right) / 2;
+    let enabled = IsWindowEnabled(hwnd) != 0;
+    let accent = if enabled { BPSR_ACCENT } else { BPSR_DISABLED };
     let track = RECT { left, top: cy - 2, right, bottom: cy + 2 };
     fill_round_rect(hdc, track, family_raised(family), 2);
-    if x > left { fill_round_rect(hdc, RECT { left, top: cy - 2, right: x, bottom: cy + 2 }, BPSR_ACCENT, 2); }
+    if x > left { fill_round_rect(hdc, RECT { left, top: cy - 2, right: x.min(right), bottom: cy + 2 }, accent, 2); }
     let thumb = RECT { left: x - 7, top: cy - 7, right: x + 7, bottom: cy + 7 };
-    fill_round_rect(hdc, thumb, BPSR_ACCENT, 7);
-    if GetFocus() == hwnd { stroke_round_rect(hdc, thumb, BPSR_ACCENT_HOVER, 7, 2); }
+    fill_round_rect(hdc, thumb, accent, 7);
+    if enabled && (GetFocus() == hwnd || HOVERED_CONTROL.load(Ordering::Acquire) == hwnd as isize) {
+        stroke_round_rect(hdc, thumb, BPSR_ACCENT_HOVER, 7, 2);
+    }
     EndPaint(hwnd, &ps);
     0
 }
@@ -210,6 +233,7 @@ unsafe extern "system" fn qa_track_subclass_proc(hwnd: HWND, msg: u32, wparam: W
 pub unsafe fn qa_theme_dark_trackbar(hwnd: HWND) {
     if hwnd.is_null() { return; }
     dark_common_control(hwnd);
+    install_button_tracking(hwnd);
     let _ = SetWindowSubclass(hwnd, Some(qa_track_subclass_proc), QA_TRACK_SUBCLASS_ID, 1);
     InvalidateRect(hwnd, null(), 0);
 }
@@ -221,6 +245,30 @@ unsafe fn qa_empty_copy(kind: usize) -> (&'static str, &'static str) {
         3 => ("No tracker rules yet", "Add a rule to show a buff or skill event."),
         _ => ("Nothing here yet", ""),
     }
+}
+
+pub unsafe fn qa_draw_empty_state(hdc: HDC, bounds: RECT, title: &str, body: &str) {
+    if bounds.right - bounds.left < 24 || bounds.bottom - bounds.top < 24 { return; }
+    let old = windows_sys::Win32::Graphics::Gdi::SaveDC(hdc);
+    windows_sys::Win32::Graphics::Gdi::IntersectClipRect(hdc, bounds.left, bounds.top, bounds.right, bounds.bottom);
+    let width = (bounds.right - bounds.left - 20).min(460);
+    let left = bounds.left + (bounds.right - bounds.left - width) / 2;
+    let height = bounds.bottom - bounds.top;
+    let top = bounds.top + ((height - 70) / 3).clamp(4, 48);
+    SetBkMode(hdc, TRANSPARENT as i32);
+    SetTextColor(hdc, BPSR_TEXT_SECONDARY);
+    SelectObject(hdc, medium_font());
+    let mut tr = RECT { left, top, right: left + width, bottom: (top + 24).min(bounds.bottom) };
+    let title = wide(title);
+    DrawTextW(hdc, title.as_ptr(), -1, &mut tr, 0x0001 | 0x0004 | 0x0020 | 0x0800 | 0x8000);
+    if height >= 62 && !body.is_empty() {
+        SelectObject(hdc, caption_font());
+        SetTextColor(hdc, BPSR_MUTED);
+        let mut br = RECT { left, top: top + 28, right: left + width, bottom: bounds.bottom - 6 };
+        let body = wide(body);
+        DrawTextW(hdc, body.as_ptr(), -1, &mut br, 0x0001 | 0x0010 | 0x0800 | 0x8000);
+    }
+    if old != 0 { windows_sys::Win32::Graphics::Gdi::RestoreDC(hdc, old); }
 }
 
 unsafe fn qa_paint_empty_list(hwnd: HWND, kind: usize) -> LRESULT {
@@ -306,6 +354,7 @@ struct QaDialogState {
     severity: QaSeverity,
     buttons: Vec<QaDialogButton>,
     body_h: i32,
+    body_scroll: bool,
 }
 
 fn qa_flavor(flags: u32) -> QaFlavor {
@@ -370,16 +419,16 @@ unsafe fn qa_decode_wide(ptr: *const u16) -> String {
     String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len))
 }
 
-unsafe fn qa_measure_body(body: &str) -> i32 {
+unsafe fn qa_measure_body(body: &str, width: i32) -> i32 {
     let hdc = GetDC(null_mut());
     if hdc.is_null() { return 44; }
     let old = SelectObject(hdc, body_font());
     let text = wide(body);
-    let mut r = RECT { left: 0, top: 0, right: 382, bottom: 0 };
+    let mut r = RECT { left: 0, top: 0, right: width.max(1), bottom: 0 };
     DrawTextW(hdc, text.as_ptr(), -1, &mut r, QA_DT_CALCRECT | QA_DT_WORDBREAK | QA_DT_NOPREFIX);
     SelectObject(hdc, old);
     ReleaseDC(null_mut(), hdc);
-    (r.bottom - r.top + 8).clamp(40, 128)
+    (r.bottom - r.top + 8).max(40)
 }
 
 unsafe fn qa_register_dialog() -> bool {
@@ -403,6 +452,7 @@ unsafe fn qa_dialog_child(parent: HWND, class: &str, text: &str, id: i32, x: i32
         x, y, w, h, parent, id as usize as _, GetModuleHandleW(null()), null_mut(),
     );
     if class.eq_ignore_ascii_case("BUTTON") { theme_control(hwnd); qa_prepare_owner_button(hwnd); }
+    else if class.eq_ignore_ascii_case("EDIT") { theme_control(hwnd); }
     else if class.eq_ignore_ascii_case("STATIC") && !hwnd.is_null() { set_control_font(hwnd, body_font()); }
     hwnd
 }
@@ -419,10 +469,19 @@ unsafe extern "system" fn qa_dialog_proc(hwnd: HWND, msg: u32, wparam: WPARAM, l
             if !ptr.is_null() {
                 let state = &*ptr;
                 let mut rc: RECT = std::mem::zeroed(); GetClientRect(hwnd, &mut rc);
-                qa_dialog_child(hwnd, "STATIC", &state.body, 0, 56, 18, (rc.right - 78).max(220), state.body_h, QA_SS_LEFT);
+                let body_w = (rc.right - 78).max(1);
+                if state.body_scroll {
+                    // Long diagnostics stay readable on small work areas. The
+                    // ordinary short confirmation remains a static text label.
+                    qa_dialog_child(hwnd, "EDIT", &state.body, 0, 56, 18, body_w, state.body_h, 0x0004 | 0x0040 | 0x0800 | 0x0020_0000);
+                } else {
+                    qa_dialog_child(hwnd, "STATIC", &state.body, 0, 56, 18, body_w, state.body_h, QA_SS_LEFT | 0x0080);
+                }
                 let button_y = 18 + state.body_h + 18;
-                let button_w = if state.buttons.len() >= 3 { 98 } else { 116 };
                 let gap = 10;
+                let button_w = (if state.buttons.len() >= 3 { 98 } else { 116 }).min(
+                    (rc.right - 40 - gap * state.buttons.len().saturating_sub(1) as i32) / state.buttons.len() as i32,
+                );
                 let total = button_w * state.buttons.len() as i32 + gap * state.buttons.len().saturating_sub(1) as i32;
                 let mut x = (rc.right - 20 - total).max(20);
                 let mut first: HWND = null_mut();
@@ -454,6 +513,11 @@ unsafe extern "system" fn qa_dialog_proc(hwnd: HWND, msg: u32, wparam: WPARAM, l
         }
         WM_CTLCOLORSTATIC => {
             let hdc = wparam as HDC;
+            if class_name(lparam as HWND).eq_ignore_ascii_case("EDIT") {
+                windows_sys::Win32::Graphics::Gdi::SetBkColor(hdc, MIST_INPUT);
+                SetTextColor(hdc, BPSR_TEXT_SECONDARY);
+                return mist_input_brush() as LRESULT;
+            }
             SetBkMode(hdc, TRANSPARENT as i32);
             SetTextColor(hdc, BPSR_TEXT_SECONDARY);
             GetStockObject(QA_NULL_BRUSH) as LRESULT
@@ -471,10 +535,21 @@ unsafe extern "system" fn qa_dialog_proc(hwnd: HWND, msg: u32, wparam: WPARAM, l
         }
         WM_COMMAND => {
             let id = (wparam & 0xffff) as i32;
-            if !ptr.is_null() && (*ptr).buttons.iter().any(|button| button.id == id) {
-                if !(*ptr).result.is_null() { *(*ptr).result = id; }
-                DestroyWindow(hwnd);
-                return 0;
+            if !ptr.is_null() {
+                // IsDialogMessage sends IDCANCEL for Escape even when the visual
+                // actions are OK or Yes/No. Preserve the audited close result.
+                let result = if (*ptr).buttons.iter().any(|button| button.id == id) {
+                    Some(id)
+                } else if id == QA_IDCANCEL {
+                    Some(qa_close_result((*ptr).flavor))
+                } else if id == QA_IDOK {
+                    (*ptr).buttons.first().map(|button| button.id)
+                } else { None };
+                if let Some(result) = result {
+                    if !(*ptr).result.is_null() { *(*ptr).result = result; }
+                    DestroyWindow(hwnd);
+                    return 0;
+                }
             }
             0
         }
@@ -485,7 +560,8 @@ unsafe extern "system" fn qa_dialog_proc(hwnd: HWND, msg: u32, wparam: WPARAM, l
         }
         WM_NCDESTROY => {
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-            if !ptr.is_null() { drop(Box::from_raw(ptr)); }
+            // The synchronous caller owns state through creation and destruction,
+            // including CreateWindowEx failure and interrupted message loops.
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
@@ -498,34 +574,47 @@ pub unsafe fn qa_message_box_w(owner: HWND, text: *const u16, title: *const u16,
     let title_text = qa_decode_wide(title);
     let flavor = qa_flavor(flags);
     let severity = qa_severity(flags);
-    let body_h = qa_measure_body(&body);
+    let work = crate::ui::work_area(owner);
+    let style = WS_POPUP | WS_CAPTION | WS_SYSMENU;
+    let mut chrome: RECT = std::mem::zeroed();
+    windows_sys::Win32::UI::WindowsAndMessaging::AdjustWindowRectEx(&mut chrome, style, 0, 0);
+    let chrome_w = chrome.right - chrome.left;
+    let chrome_h = chrome.bottom - chrome.top;
+    let client_w = 470.min((work.right - work.left - chrome_w - 16).max(160));
+    let measured = qa_measure_body(&body, client_w - 78);
+    let max_body = (work.bottom - work.top - chrome_h - 104).max(40);
+    let body_h = measured.min(max_body);
     let mut result = qa_close_result(flavor);
-    let state = Box::new(QaDialogState {
+    let mut state = Box::new(QaDialogState {
         buttons: qa_dialog_buttons(flavor, &title_text, &body), body,
-        result: &mut result, flavor, severity, body_h,
+        result: &mut result, flavor, severity, body_h, body_scroll: measured > body_h,
     });
-    let ptr = Box::into_raw(state);
-    let outer_h = (body_h + 132).clamp(170, 270);
+    let ptr = &mut *state as *mut QaDialogState;
+    let outer_h = body_h + 88 + chrome_h;
     let hwnd = CreateWindowExW(
         0, wide(QA_DIALOG_CLASS).as_ptr(), wide(&title_text).as_ptr(),
-        WS_POPUP | WS_CAPTION | WS_SYSMENU,
-        CW_USEDEFAULT, CW_USEDEFAULT, 486, outer_h,
+        style,
+        CW_USEDEFAULT, CW_USEDEFAULT, client_w + chrome_w, outer_h,
         owner, null_mut(), GetModuleHandleW(null()), ptr.cast::<c_void>(),
     );
     if hwnd.is_null() {
-        drop(Box::from_raw(ptr));
         return MessageBoxW(owner, text, title, flags);
     }
     crate::ui::fit_window(hwnd, owner, true);
-    if !owner.is_null() { EnableWindow(owner, 0); }
+    let restore_owner = !owner.is_null() && IsWindowEnabled(owner) != 0;
+    if restore_owner { EnableWindow(owner, 0); }
     ShowWindow(hwnd, SW_SHOW); SetForegroundWindow(hwnd);
     let mut msg: MSG = std::mem::zeroed();
     while IsWindow(hwnd) != 0 {
         let got = GetMessageW(&mut msg, null_mut(), 0, 0);
-        if got <= 0 { if got == 0 { PostQuitMessage(0); } break; }
+        if got <= 0 {
+            if IsWindow(hwnd) != 0 { DestroyWindow(hwnd); }
+            if got == 0 { PostQuitMessage(msg.wParam as i32); }
+            break;
+        }
         if IsDialogMessageW(hwnd, &msg) == 0 { TranslateMessage(&msg); DispatchMessageW(&msg); }
     }
-    if !owner.is_null() { EnableWindow(owner, 1); SetForegroundWindow(owner); }
+    if restore_owner { EnableWindow(owner, 1); SetForegroundWindow(owner); }
     result
 }
 
@@ -549,17 +638,53 @@ mod strict_qa_tests {
         assert_eq!(buttons[2].id, QA_IDCANCEL);
     }
 
+    #[cfg(windows)]
     #[test]
-    fn dpi_matrix_keeps_core_logical_targets_large_enough() {
-        // Logical sizes must remain usable before Windows applies the process DPI transform.
-        // This catches accidental regressions in the 100/125/150/175/200% QA matrix.
-        for percent in [100, 125, 150, 175, 200] {
-            let button_h = 30 * percent / 100;
-            let field_h = 26 * percent / 100;
-            let checkbox = 18 * percent / 100;
-            assert!(button_h >= 30);
-            assert!(field_h >= 26);
-            assert!(checkbox >= 18);
+    fn native_dialog_preserves_escape_and_action_result_ids() {
+        unsafe {
+            assert!(qa_register_dialog());
+            for (flavor, command, expected) in [
+                (QaFlavor::Ok, QA_IDCANCEL, QA_IDOK),
+                (QaFlavor::YesNo, QA_IDCANCEL, QA_IDNO),
+                (QaFlavor::YesNoCancel, QA_IDCANCEL, QA_IDCANCEL),
+                (QaFlavor::YesNoCancel, QA_IDYES, QA_IDYES),
+                (QaFlavor::YesNo, QA_IDNO, QA_IDNO),
+            ] {
+                let mut result = 0;
+                let mut state = Box::new(QaDialogState {
+                    body: "Save changes before closing?".into(), result: &mut result,
+                    flavor, severity: QaSeverity::Warning,
+                    buttons: qa_dialog_buttons(flavor, "Unsaved settings", "Save changes?"),
+                    body_h: 44, body_scroll: false,
+                });
+                let hwnd = CreateWindowExW(0, wide(QA_DIALOG_CLASS).as_ptr(), wide("QA").as_ptr(), WS_POPUP | WS_CAPTION,
+                    0, 0, 486, 220, null_mut(), null_mut(), GetModuleHandleW(null()), (&mut *state as *mut QaDialogState).cast());
+                assert!(!hwnd.is_null());
+                SendMessageW(hwnd, WM_COMMAND, command as usize, 0);
+                assert_eq!(result, expected);
+                assert_eq!(IsWindow(hwnd), 0);
+            }
+            assert!(qa_measure_body(&"Long translated diagnostic text. ".repeat(80), 382) > 128);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn hidden_and_destroyed_controls_cannot_retain_hover() {
+        unsafe {
+            let parent = CreateWindowExW(0, wide("STATIC").as_ptr(), wide("").as_ptr(), WS_POPUP,
+                0, 0, 300, 100, null_mut(), null_mut(), GetModuleHandleW(null()), null_mut());
+            assert!(!parent.is_null());
+            let child = qa_dialog_child(parent, "BUTTON", "Apply", 42, 10, 10, 80, 30, QA_BS_OWNERDRAW);
+            assert!(!child.is_null());
+            SendMessageW(child, WM_MOUSEMOVE_, 0, 0);
+            assert_eq!(HOVERED_CONTROL.load(Ordering::Acquire), child as isize);
+            ShowWindow(child, 0);
+            assert_ne!(HOVERED_CONTROL.load(Ordering::Acquire), child as isize);
+            SendMessageW(child, WM_MOUSEMOVE_, 0, 0);
+            DestroyWindow(child);
+            assert_ne!(HOVERED_CONTROL.load(Ordering::Acquire), child as isize);
+            DestroyWindow(parent);
         }
     }
 }
