@@ -1,12 +1,13 @@
 mod current {
-    include!("build/legacy/build_v1300_idmap.rs");
+    include!("build/legacy/build_v1310_pixel_material.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
-    // Keep the historical generated-source compatibility chain assertion-guarded.
-    // The final pass preserves the BPSR native design system and supplements
-    // player-facing game-data names without changing meter algorithms.
+    // Keep every behavior-producing historical stage intact, then apply one
+    // presentation-only Pixel/Material finish to the generated native surfaces.
+    // The visual pass does not alter telemetry, commands, layout algorithms,
+    // shortcuts, navigation, compact/raid behavior or the Win32 architecture.
     println!("cargo:rerun-if-changed=build/legacy");
 }
