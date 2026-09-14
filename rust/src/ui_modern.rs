@@ -13,8 +13,11 @@ extern "system" {
     fn IsWindowEnabled(hwnd: windows_sys::Win32::Foundation::HWND) -> i32;
 }
 
-include!("ui_pixel_controls.rs");
+// The build-stage copies contain only presentation fixes and are generated from the
+// checked-in Pixel sources with strict replacement assertions. This keeps all native
+// dropdowns and checkbox renderers on one verified implementation.
+include!(concat!(env!("OUT_DIR"), "/ui_pixel_controls_v1316.rs"));
 include!("ui_pixel_dialog.rs");
 include!("ui_pixel_phase2.rs");
-include!("ui_pixel_qa.rs");
+include!(concat!(env!("OUT_DIR"), "/ui_pixel_qa_v1316.rs"));
 include!("ui_pixel_menu.rs");
