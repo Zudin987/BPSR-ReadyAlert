@@ -19,6 +19,8 @@ const CATALOG_PARTS: [&[u8]; 14] = [
     include_bytes!("../data/game_names_v1300.tsv.zst.008d"),
 ];
 
+const SEASON4_CN_SUPPLEMENT: &str = include_str!("../data/game_names_season4_cn.tsv");
+
 #[derive(Default)]
 struct Catalog {
     skills: Vec<(i32, &'static str)>,
@@ -59,18 +61,27 @@ fn parse_catalog_id(kind: &str, raw_id: &str) -> Option<i32> {
     None
 }
 
-fn load_catalog() -> Catalog {
-    let compressed_len: usize = CATALOG_PARTS.iter().map(|part| part.len()).sum();
-    let mut compressed = Vec::with_capacity(compressed_len);
-    for part in CATALOG_PARTS {
-        compressed.extend_from_slice(part);
+fn entries_for_kind<'a>(catalog: &'a mut Catalog, kind: &str) -> Option<&'a mut Vec<(i32, &'static str)>> {
+    match kind {
+        "S" => Some(&mut catalog.skills),
+        "B" => Some(&mut catalog.buffs),
+        "E" => Some(&mut catalog.scenes),
+        "D" => Some(&mut catalog.dungeons),
+        "M" => Some(&mut catalog.monsters),
+        "T" => Some(&mut catalog.talents),
+        "F" => Some(&mut catalog.factors),
+        "G" => Some(&mut catalog.factor_grade_items),
+        "P" => Some(&mut catalog.specs),
+        "C" => Some(&mut catalog.classes),
+        "X" => Some(&mut catalog.modifier_effects),
+        "A" => Some(&mut catalog.attributes),
+        "O" => Some(&mut catalog.objectives),
+        "R" => Some(&mut catalog.recount_rows),
+        _ => None,
     }
-    let decoded = zstd::stream::decode_all(compressed.as_slice())
-        .expect("decode embedded BPSR supplemental id catalog");
-    let text = String::from_utf8(decoded).expect("supplemental id catalog is UTF-8");
-    let text: &'static str = Box::leak(text.into_boxed_str());
+}
 
-    let mut out = Catalog::default();
+fn ingest_catalog_text(catalog: &mut Catalog, text: &'static str, fallback_only: bool) {
     for line in text.lines() {
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -83,42 +94,55 @@ fn load_catalog() -> Catalog {
         if name.is_empty() || is_excluded_development_record(kind, id) {
             continue;
         }
-        let entry = (id, name);
-        match kind {
-            "S" => out.skills.push(entry),
-            "B" => out.buffs.push(entry),
-            "E" => out.scenes.push(entry),
-            "D" => out.dungeons.push(entry),
-            "M" => out.monsters.push(entry),
-            "T" => out.talents.push(entry),
-            "F" => out.factors.push(entry),
-            "G" => out.factor_grade_items.push(entry),
-            "P" => out.specs.push(entry),
-            "C" => out.classes.push(entry),
-            "X" => out.modifier_effects.push(entry),
-            "A" => out.attributes.push(entry),
-            "O" => out.objectives.push(entry),
-            "R" => out.recount_rows.push(entry),
-            _ => {}
+        let Some(entries) = entries_for_kind(catalog, kind) else { continue };
+        if fallback_only && entries.iter().any(|entry| entry.0 == id) {
+            continue;
         }
+        entries.push((id, name));
     }
+}
 
-    out.skills.sort_by_key(|entry| entry.0);
-    out.buffs.sort_by_key(|entry| entry.0);
-    out.scenes.sort_by_key(|entry| entry.0);
-    out.dungeons.sort_by_key(|entry| entry.0);
-    out.monsters.sort_by_key(|entry| entry.0);
-    out.talents.sort_by_key(|entry| entry.0);
-    out.factors.sort_by_key(|entry| entry.0);
-    out.factor_grade_items.sort_by_key(|entry| entry.0);
-    out.specs.sort_by_key(|entry| entry.0);
-    out.classes.sort_by_key(|entry| entry.0);
-    out.modifier_effects.sort_by_key(|entry| entry.0);
-    out.attributes.sort_by_key(|entry| entry.0);
-    out.objectives.sort_by_key(|entry| entry.0);
-    out.recount_rows.sort_by_key(|entry| entry.0);
+fn sort_catalog(catalog: &mut Catalog) {
+    catalog.skills.sort_by_key(|entry| entry.0);
+    catalog.buffs.sort_by_key(|entry| entry.0);
+    catalog.scenes.sort_by_key(|entry| entry.0);
+    catalog.dungeons.sort_by_key(|entry| entry.0);
+    catalog.monsters.sort_by_key(|entry| entry.0);
+    catalog.talents.sort_by_key(|entry| entry.0);
+    catalog.factors.sort_by_key(|entry| entry.0);
+    catalog.factor_grade_items.sort_by_key(|entry| entry.0);
+    catalog.specs.sort_by_key(|entry| entry.0);
+    catalog.classes.sort_by_key(|entry| entry.0);
+    catalog.modifier_effects.sort_by_key(|entry| entry.0);
+    catalog.attributes.sort_by_key(|entry| entry.0);
+    catalog.objectives.sort_by_key(|entry| entry.0);
+    catalog.recount_rows.sort_by_key(|entry| entry.0);
+}
 
+fn load_catalog_from_sources(include_season4: bool) -> Catalog {
+    let compressed_len: usize = CATALOG_PARTS.iter().map(|part| part.len()).sum();
+    let mut compressed = Vec::with_capacity(compressed_len);
+    for part in CATALOG_PARTS {
+        compressed.extend_from_slice(part);
+    }
+    let decoded = zstd::stream::decode_all(compressed.as_slice())
+        .expect("decode embedded BPSR supplemental id catalog");
+    let text = String::from_utf8(decoded).expect("supplemental id catalog is UTF-8");
+    let text: &'static str = Box::leak(text.into_boxed_str());
+
+    let mut out = Catalog::default();
+    ingest_catalog_text(&mut out, text, false);
+    if include_season4 {
+        // CN Season 4 rows are deliberately fallback-only. Existing v1.30
+        // global/ZDPS mappings always win when both catalogs know the same ID.
+        ingest_catalog_text(&mut out, SEASON4_CN_SUPPLEMENT, true);
+    }
+    sort_catalog(&mut out);
     out
+}
+
+fn load_catalog() -> Catalog {
+    load_catalog_from_sources(true)
 }
 
 fn is_excluded_development_record(kind: &str, id: i32) -> bool {
@@ -185,6 +209,46 @@ mod tests {
     }
 
     #[test]
+    fn season4_cn_supplement_resolves_new_content_in_english() {
+        assert_eq!(scene_name(6594), Some("Master - Judgment in the Mirror"));
+        assert_eq!(scene_name(6615), Some("Master - Desolate Court"));
+        assert_eq!(scene_name(1932), Some("Master - Divine Threshold of the Distant Sky"));
+        assert_eq!(scene_name(13033), Some("Final Battle - Above the Sky, End of Day and Night"));
+        assert_eq!(scene_name(60004), Some("Finale of the Raging Waves"));
+        assert_eq!(scene_name(14001), Some("Wingwhale Survey Area I"));
+
+        assert_eq!(monster_name(34000), Some("Anti-Fantasy: Boyce"));
+        assert_eq!(monster_name(103600), Some("Lapsis - Phase 3"));
+        assert_eq!(monster_name(6611017), Some("Vilda"));
+        assert_eq!(monster_name(73071), Some("Valley Crossbowman"));
+        assert_eq!(monster_name(884640), Some("Vilda Energy Orb"));
+
+        assert_eq!(skill_name(3400018), Some("Nine-Ring Combo"));
+        assert_eq!(skill_name(10350016), Some("Lapsis 02 Celestial Admonition"));
+        assert_eq!(skill_name(470112), Some("Vilda - Near Circle"));
+        assert_eq!(buff_name(884614), Some("Wheel of Fate"));
+    }
+
+    #[test]
+    fn season4_supplement_is_english_and_free_of_development_placeholders() {
+        for line in SEASON4_CN_SUPPLEMENT.lines() {
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut fields = line.splitn(3, '\t');
+            let _kind = fields.next().expect("kind");
+            let _id = fields.next().expect("id");
+            let name = fields.next().expect("name");
+            assert!(!name.contains("(AI)"), "AI suffix leaked into runtime name: {name}");
+            assert!(!name.to_ascii_lowercase().contains("deprecated"), "deprecated placeholder leaked: {name}");
+            assert!(
+                !name.chars().any(|ch| ('\u{3400}'..='\u{9fff}').contains(&ch) || ('\u{f900}'..='\u{faff}').contains(&ch)),
+                "untranslated CJK leaked into runtime name: {name}"
+            );
+        }
+    }
+
+    #[test]
     fn explicit_development_placeholders_are_excluded() {
         assert_eq!(scene_name(5000), None);
         assert_eq!(dungeon_name(10030), None);
@@ -195,8 +259,8 @@ mod tests {
     }
 
     #[test]
-    fn supplemental_catalog_counts_and_sort_order_are_stable() {
-        let catalog = catalog();
+    fn base_catalog_counts_remain_stable() {
+        let catalog = load_catalog_from_sources(false);
         assert_eq!(CATALOG_PARTS.iter().map(|part| part.len()).sum::<usize>(), 78_485);
         assert_eq!(catalog.skills.len(), 8_457);
         assert_eq!(catalog.buffs.len(), 1_778);
@@ -212,7 +276,11 @@ mod tests {
         assert_eq!(catalog.attributes.len(), 161);
         assert_eq!(catalog.objectives.len(), 755);
         assert_eq!(catalog.recount_rows.len(), 344);
+    }
 
+    #[test]
+    fn merged_catalog_sort_order_is_stable() {
+        let catalog = catalog();
         assert_strictly_sorted(&catalog.skills);
         assert_strictly_sorted(&catalog.buffs);
         assert_strictly_sorted(&catalog.scenes);
