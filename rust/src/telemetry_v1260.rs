@@ -8,4 +8,4 @@ pub mod benchmark_ui {
 #[path = "game_names_future.rs"]
 pub(crate) mod game_names_v1300;
 
-include!("telemetry_v1321.rs");
+include!("telemetry_v1321_fix.rs");
