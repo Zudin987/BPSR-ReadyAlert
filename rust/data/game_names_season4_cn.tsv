@@ -1,0 +1,291 @@
+# BPSR Season 4 CN supplemental fallback IDs.
+# Curated from CN meter/game-data sources; loaded only when the base v1.30 catalog has no mapping.
+# Source details and translation notes: docs/season4-cn-id-sources.md
+S	100593	Vilda Route Golden Phantom Elite Goblin Fireball
+S	170402	Omen Self-Destruct (Vilda Boss Fight)
+S	302524	Basic Attack - Boyce Dungeon
+S	400341	Vilda Route Mysterious Stranger Summons Clone
+S	400344	Vilda Route Black-Clad Malice Release
+S	400347	Vilda Route Black-Clad Backstep Five-Way Knives Player Snipe
+S	400350	Sanctum Slate Dialogue Cutscene
+S	470103	Vilda Basic Attack Shot
+S	470104	Vilda Blood Pressure
+S	470105	Vilda Pursuit Reposition
+S	470106	Vilda Lethal
+S	470108	Vilda Stack Share
+S	470111	Vilda Chained Near-Far Circles
+S	470112	Vilda - Near Circle
+S	470113	Vilda - Far Circle
+S	470114	Vilda Calls and Destroys (P3)
+S	470115	Vilda's Lost Name
+S	470116	Vilda Mark Diffusion Wave
+S	470117	Vilda AoE Mark Activation
+S	470118	Vilda Crypt Diffusion Wave
+S	470119	Shadow of Hrugash
+S	470123	Vilda Stack Split Then Spread
+S	470124	Shadow of Hrugash
+S	470125	Vilda Name Strike (Master)
+S	470132	Vilda Pairing Resolution (Master)
+S	470193	Vilda Basic Attack Shot
+S	1090512	Lapsis 02
+S	1090612	Lapsis 02 - Staff Phantom - Spinning Bullets
+S	1090712	Lapsis 02
+S	1090812	Lapsis 02 - Bow Phantom - Lock-On Arrow Rain
+S	1091312	Lapsis 02 - Dual-Axe Phantom - Pursuit Spin
+S	1122703	Valley Arrows Resuscitation
+S	1122705	Valley Vanguard Cleave Control
+S	1122706	Valley Shock Trooper Whirlwind Slash
+S	1122707	Valley Shock Trooper Blood Pressure
+S	2800106	Consecutive Basic Attack - Boyce Dungeon
+S	2801005	Basic Attack - Boyce Dungeon
+S	2801006	Arrow Rain - Boyce Dungeon
+S	2801306	Basic Attack - Boyce Dungeon
+S	2900701	Boyce Basic Attack Combo
+S	2900702	Boyce Cast Ice Spear
+S	2900703	Boyce Water Tornado
+S	2900705	Ice Beam for NPC Boyce
+S	2900711	Ice Spear Toss - Player Boyce Transform
+S	2900713	Forked Water Tornado - Player Boyce Transform
+S	2900714	Thousand Ice Spears - Player Boyce Transform
+S	2900716	Knocked to Knees - Player Boyce Transform Use
+S	2900717	Ice Dragon Entrance - Boyce's Father
+S	3340221	Deep Sea Speaker Spawn Reposition
+S	3400000	Basic Attack Bullets
+S	3400001	Basic Attack Ice Pillar
+S	3400002	Pursuit
+S	3400003	Death Sentence
+S	3400004	Ice Jade Echo
+S	3400005	Star Trail
+S	3400007	Star Orbiter
+S	3400009	Summon Normal Clone
+S	3400010	Spread Mark
+S	3400011	Stack Share Mark
+S	3400012	Ice Rhapsody
+S	3400013	Triple Gust
+S	3400016	Return To Center
+S	3400018	Nine-Ring Combo
+S	3400019	Summon Steel Clone (Steel Tornado)
+S	3400021	Lunar Ring
+S	3400022	Half-Field Knife
+S	3400023	Ground Fire Left/Right
+S	3400025	New Two-Year Journey
+S	3400026	Return to Center (Normal)
+S	3400048	Absolute Zero
+S	3400049	Mid-Dungeon Priest & Mage Basic Attack Bullets
+S	10340301	Clockwise Rotation (Triple Ring Generic)
+S	10340302	Counterclockwise Rotation (Triple Ring Generic)
+S	10340303	Roulette Stop
+S	10340304	Roulette Random Spin (Cast When Roulette Mechanic Starts)
+S	10350001	Lapsis 02 Basic Attack
+S	10350002	Lapsis 02 AoE
+S	10350003	Lapsis 02 Summon (Center Large Area)
+S	10350007	Lapsis 02 Pursuit Reposition
+S	10350010	Lapsis 02 Summon Line
+S	10350011	Lapsis 02 Dome Flare (Phase Transition - Firmament)
+S	10350014	Lapsis 02 Celestial Strike
+S	10350015	Firmament Awakening
+S	10350016	Lapsis 02 Celestial Admonition
+S	10350018	Lapsis 02 Ascent (Phase Transition - Judgment)
+S	10350022	Lapsis 02 Summon Orbiting Beams (Judgment)
+S	10350023	Lapsis 02 Summon (Judgment Mark)
+S	10350024	Lapsis 02 Ascent (Opening Initial Skill)
+S	10350025	Lapsis 02 Basic Attack Phase 1
+S	10350026	Lapsis 02 Weakness
+S	10350028	Lapsis 02 Execution
+S	10350030	Lapsis 02 Summon Magic Circle (Judgment Phase)
+S	10350032	Lapsis 02 AoE (Pizza)
+S	10350033	Lapsis 02 Remove Virtual Body (Judgment Phase)
+S	10360001	Left-Hand Attack
+S	10360002	Right-Hand Attack
+S	10360003	AoE
+S	10360004	Summon Black Hole
+S	10360005	Summon Pizza Slices
+S	10360010	Summon Orb
+S	10360011	Control Orb
+S	10360012	All Dark Light Orb Move
+S	10360013	Wicked Ritual
+S	10360014	Summon Owl Beast
+S	10360015	Side-to-Side Hops
+S	10360098	Lapsis III - Dark Orb
+S	10360099	Lapsis III - Light Orb
+B	883600	Deep Sea Nabo Native Marker
+B	884609	Void Mark - Iron
+B	884610	Void Mark - Moon Ring
+B	884614	Wheel of Fate
+B	884615	Wheel of Misery
+B	884616	Wheel of Despair
+B	884618	Black Void Mark Target
+B	884619	White Void Mark Target
+B	884641	Vilda Energy Orb Target
+B	884659	Master Void Mark Target
+B	884660	Void Mark Color-Mix Resolution
+B	884661	Void Mark Color-Mix Penalty
+B	884664	Pair-Matching Resolution
+E	1231	Unstable Space - Dragon Claw Valley
+E	1232	Unstable Space - Dragon Claw Valley
+E	1233	Extreme - Dragon Claw Valley
+E	1234	Hard - Delusion: Dragon Claw Valley
+E	1235	Master - Delusion: Dragon Claw Valley
+E	1341	Unstable Space - Dark Mist Fortress
+E	1342	Unstable Space - Dark Mist Fortress
+E	1343	Extreme - Dark Mist Fortress
+E	1344	Extreme - Dark Mist Fortress
+E	1711	Unstable Space - Moonlit Phantasm Wilds
+E	1712	Unstable Space - Moonlit Phantasm Wilds
+E	1722	Hard - Delusion: Moonlit Phantasm Wilds
+E	1723	Master - Delusion: Moonlit Phantasm Wilds
+E	1901	Divine Threshold of the Distant Sky
+E	1911	Unstable Space - Divine Threshold of the Distant Sky
+E	1912	Unstable Space - Divine Threshold of the Distant Sky
+E	1931	Hard - Divine Threshold of the Distant Sky
+E	1932	Master - Divine Threshold of the Distant Sky
+E	6591	Unstable Space - Judgment in the Mirror
+E	6592	Unstable Space - Judgment in the Mirror
+E	6593	Hard - Judgment in the Mirror
+E	6594	Master - Judgment in the Mirror
+E	6610	Desolate Court
+E	6611	Unstable Space - Desolate Court
+E	6612	Unstable Space - Desolate Court
+E	6613	Hard - Desolate Court
+E	6614	Extreme - Desolate Court
+E	6615	Master - Desolate Court
+E	13031	Fierce Battle - Above the Sky, End of Day and Night
+E	13032	Blood Battle - Above the Sky, End of Day and Night
+E	13033	Final Battle - Above the Sky, End of Day and Night
+E	14001	Wingwhale Survey Area I
+E	14002	Wingwhale Survey Area II
+E	60000	Pursuit! Shadow in the Deep Sea
+E	60001	First Whitecaps
+E	60002	Trail Through the Misty Sea
+E	60003	Deep Tide Disturbance
+E	60004	Finale of the Raging Waves
+M	4701	Vilda
+M	4702	Vilda's Phantom
+M	4711	Vilda
+M	33951	Lapsis
+M	33952	Lightformed Kin
+M	33953	Lightformed Kin (Healing)
+M	33954	Lightformed Kin
+M	33960	Lapsis
+M	33961	Lightformed Kin
+M	34000	Anti-Fantasy: Boyce
+M	34001	Anti-Fantasy: Boyce
+M	34002	Anti-Fantasy: Boyce
+M	34003	Anti-Fantasy: Boyce
+M	34004	Anti-Fantasy: Boyce
+M	34005	Boyce DD Arena-Edge Large AoE
+M	34007	Boyce DD Mirror
+M	34008	Boyce Standard Mirror
+M	34009	Anti-Fantasy: Boyce
+M	34010	Triple Knockback 1
+M	34011	Triple Knockback 2
+M	34012	Triple Knockback 3
+M	34013	Anti-Fantasy: Boyce
+M	34014	Groundfire Marker
+M	34015	Ice Spike
+M	34016	Anti-Fantasy: Boyce
+M	34017	Memory Form: Guilt
+M	34018	Memory Form: Culpability
+M	34019	Memory Form: Qualification
+M	34020	Manifestation: Forest Whisperer
+M	34021	Manifestation: Berserker
+M	34022	Manifestation: Azurewind Knight
+M	34023	Manifestation: Marksman
+M	34024	Manifestation: Guardian
+M	34025	Manifestation: Magus
+M	34026	Manifestation: Priest
+M	34027	Manifestation: Priest
+M	34028	Manifestation: Priest
+M	34029	Manifestation: Mercenary
+M	34030	Boyce DD Master Repeat Mirror
+M	34031	Anti-Fantasy: Boyce
+M	34032	Manifestation: Priest
+M	34033	Manifestation: Priest
+M	34034	Manifestation: Priest
+M	34035	Boyce Nine-Ring Center Large AoE
+M	34036	Vertical Direction Marker
+M	73030	Wasteland Arachnocrab
+M	73056	Wasteland Foxen
+M	73059	Elite: Paralyzing Shrimp Shroom
+M	73060	Elite: Valley Gladiator
+M	73061	Elite: Goblin Sage
+M	73062	Elite: Valley Ranger
+M	73063	Elite: Darkriver Fin
+M	73064	Shrimp Mushroom
+M	73065	Venomous Shrimp Shroom
+M	73066	Valley Brave
+M	73067	Valley Vanguard
+M	73068	Azurefoam Goblin
+M	73069	Violetfoam Goblin
+M	73070	Valley Scout
+M	73071	Valley Crossbowman
+M	73072	Deep Valley Merman
+M	73073	Creekside Merman
+M	103400	Lapsis - Phase 1
+M	103500	Lapsis - Phase 2
+M	103501	Light Shaping
+M	103502	Light Shaping
+M	103503	Light Shaping
+M	103504	Light Shaping
+M	103600	Lapsis - Phase 3
+M	470131	Pair-Matching Orb
+M	512031	Foxen
+M	512032	Wasteland Foxen
+M	512033	Airona
+M	660304	Airona
+M	660305	Slate
+M	660306	Triban
+M	660307	Fafala
+M	660308	Vilda
+M	660309	Azurefoam Goblin
+M	660310	Thunderfoam Goblin
+M	660311	Goblin Sage
+M	660312	Illusory Bloom
+M	884606	Void Mark - Black
+M	884607	Void Mark - White
+M	884640	Vilda Energy Orb
+M	884642	Star Pool
+M	884668	Vilda Energy Orb - Master Color
+M	884669	Vilda Energy Orb 2
+M	884670	Vilda Energy Orb 3
+M	884671	Vilda Energy Orb 4
+M	3000088	Valley Shock Trooper
+M	3000094	Valley Ranger
+M	3000095	Valley Gladiator
+M	5100302	Boyce
+M	6611001	Echo
+M	6611002	Unheard Prayer
+M	6611003	Phantom
+M	6611004	Phantom
+M	6611005	Phantom
+M	6611006	Calling
+M	6611007	Unheard Belief
+M	6611008	Unheard Belief
+M	6611009	Unheard Courage
+M	6611010	Trial
+M	6611011	Unheard Justice
+M	6611014	Unheard Obsession
+M	6611015	Trial
+M	6611017	Vilda
+M	6611018	Dreambound Goblin
+M	6611020	Immature Illusory Bloom
+M	6611021	Illusory Bloom
+M	6611022	Vilda
+M	6611023	Trial
+M	6611024	Trial: Elite
+M	6611025	Dreambound Deep Valley Merman
+M	6611026	Dreambound Creekside Merman
+M	6611027	Dreambound Darkriver Fin
+M	6611028	Echo
+M	6611029	Echo
+M	6611030	Echo: Elite
+M	6611031	Unheard Prayer
+M	6611032	Unheard Obsession
+M	6611034	Immature Illusory Bloom
+M	6611035	Dreambound Goblin Sage
+M	6611036	Unheard Belief
+M	6611037	Unheard Justice
+M	6611038	Unheard Courage
+M	6611039	Immature Illusory Bloom
+M	6620001	Valley Crossbowman
+M	6621001	Valley Crossbowman
