@@ -2,6 +2,7 @@
 
 mod audio;
 mod archive_hub;
+#[path = "chat_archive_safe.rs"]
 mod chat_archive;
 mod encounter_archive;
 mod encounter_context;
@@ -31,6 +32,7 @@ mod chat {
         false
     }
 }
+#[path = "event_tracker_safe.rs"]
 mod event_tracker;
 mod event_tracker_ui {
     include!(concat!(env!("OUT_DIR"), "/event_tracker_ui_v1160_fixed.rs"));

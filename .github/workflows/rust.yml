@@ -7,6 +7,7 @@ on:
       - 'rust/**'
       - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
+      - 'scripts/prepare-build-assets-ci.ps1'
       - '.github/workflows/rust.yml'
       - '.github/workflows/release.yml'
       - 'rust-toolchain.toml'
@@ -15,6 +16,7 @@ on:
       - 'rust/**'
       - 'assets/source/**'
       - 'scripts/prepare-build-assets.ps1'
+      - 'scripts/prepare-build-assets-ci.ps1'
       - '.github/workflows/rust.yml'
       - '.github/workflows/release.yml'
       - 'rust-toolchain.toml'
@@ -42,7 +44,7 @@ jobs:
 
       - name: Prepare embedded assets
         shell: pwsh
-        run: ./scripts/prepare-build-assets.ps1
+        run: ./scripts/prepare-build-assets-ci.ps1
 
       - name: Unit and regression tests
         shell: pwsh
@@ -57,7 +59,9 @@ jobs:
         with:
           name: rust-test-output
           path: rust-test-output.txt
-          if-no-files-found: error
+          # Earlier setup failures may occur before tests create this file. Do not
+          # mask the real failure with a second red artifact-upload error.
+          if-no-files-found: warn
           retention-days: 3
 
       - name: Clippy analysis
