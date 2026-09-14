@@ -1,7 +1,7 @@
 [package]
 name = "bpsr-readyalert"
-version = "1.31.5"
-# Season 4 ID release: curated CN/global fallback mappings for new scenes, monsters, skills, buffs, and mechanics.
+version = "1.32.0"
+# Development-freeze release: Season 4 future-proofing, runtime name overrides, unknown-ID diagnostics, and generic Season Strength handling.
 edition = "2021"
 build = "build.rs"
 description = "Native Rust Ready Check, queue, party, chat, DPS and dungeon mechanics companion for Blue Protocol: Star Resonance"
