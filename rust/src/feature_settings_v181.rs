@@ -137,7 +137,14 @@ pub fn save(paths: &AppPaths, settings: &FeatureSettings) -> io::Result<()> {
         }
         fs::remove_file(&primary)?;
     }
-    fs::rename(&temp, &primary)?;
+    if let Err(err) = fs::rename(&temp, &primary) {
+        // Keep a valid canonical file in place even when the final filesystem
+        // commit is interrupted. The backup remains the last known-good state.
+        if !primary.exists() && backup.exists() {
+            let _ = fs::copy(&backup, &primary);
+        }
+        return Err(err);
+    }
     Ok(())
 }
 
