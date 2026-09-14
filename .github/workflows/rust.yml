@@ -6,8 +6,7 @@ on:
     paths:
       - 'rust/**'
       - 'assets/source/**'
-      - 'scripts/prepare-build-assets.ps1'
-      - 'scripts/prepare-build-assets-ci.ps1'
+      - 'scripts/**'
       - '.github/workflows/rust.yml'
       - '.github/workflows/release.yml'
       - 'rust-toolchain.toml'
@@ -15,8 +14,7 @@ on:
     paths:
       - 'rust/**'
       - 'assets/source/**'
-      - 'scripts/prepare-build-assets.ps1'
-      - 'scripts/prepare-build-assets-ci.ps1'
+      - 'scripts/**'
       - '.github/workflows/rust.yml'
       - '.github/workflows/release.yml'
       - 'rust-toolchain.toml'
