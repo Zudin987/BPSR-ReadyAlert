@@ -1,0 +1,51 @@
+name: Sync v1.32.1 version
+
+on:
+  push:
+    branches: [feat/v1321-freeze-hardening]
+    paths:
+      - '.github/workflows/sync-v1321-version.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/v1321-freeze-hardening
+
+      - name: Bump Cargo package and lockfile
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          manifest = Path('rust/Cargo.toml')
+          text = manifest.read_text()
+          old = 'version = "1.32.0"'
+          new = 'version = "1.32.1"'
+          if text.count(old) != 1:
+              raise SystemExit(f'Cargo.toml expected exactly one {old!r}, found {text.count(old)}')
+          manifest.write_text(text.replace(old, new, 1))
+
+          lock = Path('rust/Cargo.lock')
+          text = lock.read_text()
+          old = '[[package]]\nname = "bpsr-readyalert"\nversion = "1.32.0"'
+          new = '[[package]]\nname = "bpsr-readyalert"\nversion = "1.32.1"'
+          if text.count(old) != 1:
+              raise SystemExit(f'Cargo.lock expected exactly one root package entry, found {text.count(old)}')
+          lock.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit synchronized version
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rust/Cargo.toml rust/Cargo.lock
+          git diff --cached --check
+          git commit -m "Bump ReadyAlert to v1.32.1"
+          git push origin HEAD:feat/v1321-freeze-hardening
