@@ -12,6 +12,10 @@ mod ux_v1330 {
     include!("chat_archive_ux_v1330.rs");
 }
 
+mod polish_v1332 {
+    include!("chat_archive_polish_v1332.rs");
+}
+
 fn replace_once(source: &mut String, from: &str, to: &str, label: &str) -> Result<(), String> {
     let count = source.matches(from).count();
     if count != 1 {
@@ -66,6 +70,7 @@ pub fn generate(dir: &Path) -> Result<PathBuf, String> {
         .and_then(|path| {
             upgrade_archive_navigation(&path)?;
             ux_v1330::upgrade(&path)?;
+            polish_v1332::upgrade(&path)?;
             Ok(path)
         });
 
@@ -109,7 +114,7 @@ mod tests {
     }
 
     #[test]
-    fn generated_chat_archive_has_navigation_and_advanced_filters() {
+    fn generated_chat_archive_has_navigation_filters_and_matching_sidebar() {
         let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
         let dir = std::env::temp_dir().join(format!("readyalert-chat-archive-nav-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
@@ -122,6 +127,10 @@ mod tests {
         assert!(html.contains("Exact phrase"));
         assert!(html.contains("Has image"));
         assert!(html.contains("bpsr-readyalert.chat-archive.filters.v2"));
+        assert!(html.contains(".app{grid-template-columns:350px minmax(0,1fr)}"));
+        assert!(html.contains(".brand{padding:17px 16px 12px;border-bottom:1px solid var(--line)}"));
+        assert!(html.contains("background:#080f14"));
+        assert!(html.contains("background:#1b313a"));
         fs::remove_dir_all(dir).unwrap();
     }
 }
