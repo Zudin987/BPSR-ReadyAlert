@@ -171,7 +171,7 @@ mod v1333_consumable_control_tests {
 
     #[test]
     fn old_meter_json_without_consumable_key_preserves_visible_fs() {
-        let meter:feature_settings::MeterSettings=serde_json::from_str(r#"{"showImagines":false}"#).unwrap();
+        let meter:feature_settings::MeterSettings=serde_json::from_str("{\"showImagines\":false}").unwrap();
         assert!(!meter.show_imagines);
         assert!(meter.show_consumables);
     }
