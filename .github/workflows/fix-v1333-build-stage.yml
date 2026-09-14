@@ -22,8 +22,8 @@ jobs:
           from pathlib import Path
           path = Path('rust/build/legacy/build_v1333_consumable_controls.rs')
           text = path.read_text(encoding='utf-8')
-          old = 'serde_json::from_str(r#"{\\"showImagines\\":false}"#).unwrap()'
-          new = 'serde_json::from_str("{\\\\\\"showImagines\\\\\\":false}").unwrap()'
+          old = '''r#"{"showImagines":false}"#'''
+          new = '''"{\\"showImagines\\":false}"'''
           count = text.count(old)
           if count != 1:
               raise SystemExit(f'expected one nested raw JSON test literal, found {count}')
