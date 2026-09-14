@@ -64,7 +64,8 @@ impl TelemetryRuntime {
 
         mechanics_changed |= self.future.observe_notify(service, method, body);
         if mechanics_changed {
-            let _ = self.tx.send(AppEvent::Mechanics(self.merged_mechanics()));
+            let merged = self.merged_mechanics();
+            let _ = self.tx.send(AppEvent::Mechanics(merged));
         }
     }
 
