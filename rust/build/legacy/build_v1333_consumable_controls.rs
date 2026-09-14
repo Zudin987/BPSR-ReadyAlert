@@ -123,7 +123,7 @@ unsafe fn paint_raid_fs(hdc:HDC,state:&State,row:Option<&&DpsRow>,x:i32,y:i32,w:
     replace_once(
         &mut source,
         r#"unsafe fn overlay_help(hwnd:HWND,state:&State,x:i32,y:i32)->Option<String>{"#,
-        r#"fn consumable_hover_text(kind:&str,status:Option<&ConsumableStatus>,now:i64)->String{match active_consumable(status,now){Some(status)=>{let name=if status.name.trim().is_empty(){"Active"}else{status.name.trim()};format!("{kind}: {name} • {}",consumable_remaining_text(status,now))},None=>format!("{kind}: not detected")}}
+        r#"fn consumable_hover_text(kind:&str,status:Option<&ConsumableStatus>,now:i64)->String{match active_consumable(status,now){Some(status)=>{let name=if status.name.trim().is_empty(){"Active"}else{status.name.trim()};format!("{kind}: {name} - {}",consumable_remaining_text(status,now))},None=>format!("{kind}: not detected")}}
 unsafe fn consumable_hover_at(hwnd:HWND,state:&State,x:i32,y:i32)->Option<String>{
     if state.kind!=Kind::Dps||state.collapsed||state.compact_mode{return None;}let settings=state.features.read().map(|v|v.clone()).unwrap_or_default();if !settings.meter.show_consumables{return None;}let rc=logical_client_rect(hwnd,state.scale_percent);let scale=dps_layout_scale(state);let now=now_ms();
     if raid_active(state){let top=dps_rows_top_for(state);let row_h=dps_row_h_for(state,scale).max(1);if y<top||y>=rc.bottom{return None;}let slot=((y-top)/row_h)as usize;if slot>=RAID_ROWS_PER_COLUMN{return None;}let rows=meter_rows(state);let gap=dps_adaptive_logical_px(RAID_CENTER_GAP,scale).max(56);let mid=rc.right/2;let pair_w=((gap/2)-8).max(24);let(left_x,index)=if x>=mid-gap/2+2&&x<mid-gap/2+2+pair_w{(mid-gap/2+2,slot)}else if x>=mid+6&&x<mid+6+pair_w{(mid+6,slot+RAID_ROWS_PER_COLUMN)}else{return None;};let row=*rows.get(index)?;let half=(pair_w/2).max(1);return Some(if x<left_x+half{consumable_hover_text("Food",row.food.as_ref(),now)}else{consumable_hover_text("Serum",row.serum.as_ref(),now)});}
@@ -201,7 +201,7 @@ mod v1333_consumable_control_tests {
     fn hover_text_reports_name_timer_and_missing_state() {
         let now=1_000;
         let active=ConsumableStatus{buff_id:7,name:"Feast".into(),expires_unix_ms:61_000,duration_ms:60_000};
-        assert_eq!(consumable_hover_text("Food",Some(&active),now),"Food: Feast • 1:00 left");
+        assert_eq!(consumable_hover_text("Food",Some(&active),now),"Food: Feast - 1:00 left");
         assert_eq!(consumable_hover_text("Serum",None,now),"Serum: not detected");
     }
 }
