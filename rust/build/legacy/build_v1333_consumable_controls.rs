@@ -48,6 +48,14 @@ fn main() {
 
     replace_once(
         &mut source,
+        r#"const RAID_FS_YELLOW_MS:i64=120_000;
+const RAID_FS_RED_MS:i64=30_000;"#,
+        "",
+        "obsolete consumable threshold constants",
+    );
+
+    replace_once(
+        &mut source,
         r#"fn raid_consumable_color(status:Option<&ConsumableStatus>,now:i64)->u32{
     let Some(status)=active_consumable(status,now)else{return crate::ui_modern::BPSR_MUTED;};
     if status.expires_unix_ms<=0{return rgb(72,226,116);}let left=status.expires_unix_ms.saturating_sub(now);
