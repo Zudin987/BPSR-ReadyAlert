@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1320_season4_future_proof.rs");
+    include!("build/legacy/build_v1320_season4_future_proof_fix.rs");
     pub fn run() { main(); }
 }
 
