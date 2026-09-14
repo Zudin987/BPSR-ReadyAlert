@@ -1,0 +1,40 @@
+name: Sync v1.32.3 version
+
+on:
+  push:
+    branches:
+      - feat/v1323-archive-filter-navigation
+
+permissions:
+  contents: write
+
+jobs:
+  sync-version:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/v1323-archive-filter-navigation
+      - name: Sync package version
+        shell: pwsh
+        run: |
+          $toml = Get-Content rust/Cargo.toml -Raw
+          $toml = $toml -replace 'version = "1\.32\.2"', 'version = "1.32.3"'
+          Set-Content rust/Cargo.toml $toml -NoNewline
+
+          $lock = Get-Content rust/Cargo.lock -Raw
+          $old = "name = `"bpsr-readyalert`"`nversion = `"1.32.2`""
+          $new = "name = `"bpsr-readyalert`"`nversion = `"1.32.3`""
+          if (-not $lock.Contains($old)) { throw 'bpsr-readyalert 1.32.2 lock entry not found' }
+          $lock = $lock.Replace($old, $new)
+          Set-Content rust/Cargo.lock $lock -NoNewline
+      - name: Commit synchronized version
+        shell: pwsh
+        run: |
+          if (-not (git status --porcelain)) { exit 0 }
+          git config user.name "MrEz"
+          git config user.email "39240221+Zudin987@users.noreply.github.com"
+          git add rust/Cargo.toml rust/Cargo.lock
+          git commit -m "Bump ReadyAlert to v1.32.3"
+          git push origin HEAD:feat/v1323-archive-filter-navigation
