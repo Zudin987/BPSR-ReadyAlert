@@ -1,0 +1,39 @@
+name: Sync v1.32.0 Cargo lock
+
+on:
+  push:
+    branches: [fix/v1320-season4-future-proofing]
+    paths:
+      - 'rust/Cargo.toml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v1320-season4-future-proofing
+      - name: Update root package version in Cargo.lock
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('rust/Cargo.lock')
+          text = path.read_text(encoding='utf-8')
+          old = 'name = "bpsr-readyalert"\nversion = "1.31.5"'
+          new = 'name = "bpsr-readyalert"\nversion = "1.32.0"'
+          if old not in text:
+              raise SystemExit('expected v1.31.5 root package entry not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+      - name: Commit lockfile
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rust/Cargo.lock
+          git diff --cached --exit-code && exit 0
+          git commit -m "Sync Cargo.lock for v1.32.0"
+          git push origin HEAD:fix/v1320-season4-future-proofing
