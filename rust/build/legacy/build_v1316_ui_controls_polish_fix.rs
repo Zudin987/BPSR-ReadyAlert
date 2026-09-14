@@ -25,12 +25,6 @@ fn main() {
         "let side=collapse_edge_index(&layout.collapse_side);SendMessageW(fc(hwnd,7003),0x014e,side as usize,0);",
         "CB_SETCURSEL WPARAM type",
     );
-    replace_once(
-        &mut source,
-        "assert_eq!(collapse_edge_index(edge),index as isize);",
-        "assert_eq!(collapse_edge_index(edge),index);",
-        "collapse regression expected-index type",
-    );
 
     fs::write(path, source).expect("write feature overlay v1.31.6 type follow-up");
     println!("cargo:rerun-if-changed=build/legacy/build_v1316_ui_controls_polish_fix.rs");
