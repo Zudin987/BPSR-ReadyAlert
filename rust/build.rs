@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1331_normal_meter_consumables.rs");
+    include!("build/legacy/build_v1332_meter_alignment.rs");
     pub fn run() { main(); }
 }
 
