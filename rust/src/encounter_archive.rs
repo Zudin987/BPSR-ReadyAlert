@@ -61,7 +61,7 @@ fn upgrade_archive_ui(path: &Path) -> Result<(), String> {
     )?;
 
     let old_apply_search = r#"function applySearch(){const q=(search.value||'').trim().toLocaleLowerCase();filtered=DATA.filter(e=>{if(!q)return true;const rows=e.snapshot?.rows||[];return [encounterTitle(e),e.target_name,e.context?.difficulty,e.context?.benchmark_name,...rows.map(r=>r.name),...rows.map(r=>r.subprofession_name)].join(' ').toLocaleLowerCase().includes(q)});if(!filtered.some(e=>e.id===selectedId))selectedId=filtered[0]?.id??null;selectedPlayer=0;tab='overview';compareMode=false;renderList();renderDetail();}"#;
-    let new_apply_search = r#"function isMainContent(e){if(isBenchmark(e))return true;const playType=Number(e.context?.play_type)||0;return [2,8,9,17,18,19].includes(playType);}
+    let new_apply_search = r#"function isMainContent(e){if(isBenchmark(e))return true;const playType=Number(e.context?.play_type)||0;return [2,9,17,18,19].includes(playType);}
 function applySearch(){const q=(search.value||'').trim().toLocaleLowerCase(),hideMisc=$('#hide-misc')?.getAttribute('aria-pressed')==='true';filtered=DATA.filter(e=>{if(hideMisc&&!isMainContent(e))return false;if(!q)return true;const rows=e.snapshot?.rows||[];return [encounterTitle(e),e.target_name,e.context?.difficulty,e.context?.benchmark_name,...rows.map(r=>r.name),...rows.map(r=>r.subprofession_name)].join(' ').toLocaleLowerCase().includes(q)});compareIds=compareIds.filter(id=>filtered.some(e=>e.id===id));if(!filtered.some(e=>e.id===selectedId))selectedId=filtered[0]?.id??null;selectedPlayer=0;tab='overview';compareMode=false;renderList();renderDetail();}"#;
     replace_once(
         &mut html,
@@ -200,7 +200,8 @@ mod v1315_archive_guard_tests {
         assert!(html.contains("id=\"hide-misc\""));
         assert!(html.contains("../ChatLogs/index.html"));
         assert!(html.contains("bpsr-readyalert.encounter-history.hide-misc"));
-        assert!(html.contains("[2,8,9,17,18,19].includes(playType)"));
+        assert!(html.contains("[2,9,17,18,19].includes(playType)"));
+        assert!(!html.contains("[2,8,9,17,18,19].includes(playType)"));
         assert!(html.contains("No saved encounter matches the current filters."));
         fs::remove_dir_all(root).unwrap();
     }

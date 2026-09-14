@@ -134,6 +134,11 @@ fn main() {
 
     logging::init(paths.log.clone());
     logging::write(format!("startup: native-rust version={}", env!("CARGO_PKG_VERSION")));
+    match archive_hub::refresh_if_version_changed(&paths.chat_logs) {
+        Ok(true) => logging::write(format!("startup: refreshed local archive pages for version={}", env!("CARGO_PKG_VERSION"))),
+        Ok(false) => {}
+        Err(err) => logging::write(format!("startup: archive UI refresh failed: {err}")),
+    }
     event_tracker::init(&paths.root);
 
     let mut loaded = settings::load(&paths);

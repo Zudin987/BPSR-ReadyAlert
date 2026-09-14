@@ -1,5 +1,7 @@
 use std::{fs, path::{Path, PathBuf}};
 
+const ARCHIVE_UI_VERSION_FILE: &str = ".archive-ui-version";
+
 fn install_with_last_good(pending: &Path, target: &Path) -> Result<(), String> {
     let guard = target.with_file_name("index.html.last-good");
     let had_target = target.is_file();
@@ -33,6 +35,27 @@ fn install_with_last_good(pending: &Path, target: &Path) -> Result<(), String> {
 
     let _ = fs::remove_file(&guard);
     Ok(())
+}
+
+/// Regenerate the local archive pages once after each ReadyAlert version change.
+/// The HTML archives are static files, so without this migration an already-open
+/// or bookmarked ChatLogs/index.html can keep an older UI until the user manually
+/// triggers archive generation again.
+pub fn refresh_if_version_changed(chat_logs: &Path) -> Result<bool, String> {
+    let root = chat_logs.parent().ok_or_else(|| "chat log folder has no app-data parent".to_string())?;
+    let marker = root.join(ARCHIVE_UI_VERSION_FILE);
+    let version = env!("CARGO_PKG_VERSION");
+    if fs::read_to_string(&marker)
+        .ok()
+        .is_some_and(|saved| saved.trim() == version)
+    {
+        return Ok(false);
+    }
+
+    generate(chat_logs)?;
+    fs::write(&marker, version.as_bytes())
+        .map_err(|e| format!("write archive UI version marker: {e}"))?;
+    Ok(true)
 }
 
 pub fn generate(chat_logs: &Path) -> Result<PathBuf, String> {
@@ -80,5 +103,24 @@ mod tests {
         assert_eq!(fs::read_to_string(&target).unwrap(), "new");
         assert!(!dir.join("index.html.last-good").exists());
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn version_refresh_upgrades_chat_and_encounter_pages_once() {
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("readyalert-archive-version-{}-{nonce}", std::process::id()));
+        let chat_logs = root.join("ChatLogs");
+        fs::create_dir_all(&chat_logs).unwrap();
+        fs::write(chat_logs.join("chat-2026-09-14.txt"), "2026-09-14 00:00:00\t1\tAlice\tHello\n").unwrap();
+
+        assert!(refresh_if_version_changed(&chat_logs).unwrap());
+        let chat_html = fs::read_to_string(chat_logs.join("index.html")).unwrap();
+        let encounter_html = fs::read_to_string(root.join("EncounterHistory").join("index.html")).unwrap();
+        assert!(chat_html.contains("../EncounterHistory/index.html"));
+        assert!(encounter_html.contains("[2,9,17,18,19].includes(playType)"));
+        assert_eq!(fs::read_to_string(root.join(ARCHIVE_UI_VERSION_FILE)).unwrap(), env!("CARGO_PKG_VERSION"));
+        assert!(!refresh_if_version_changed(&chat_logs).unwrap());
+
+        fs::remove_dir_all(root).unwrap();
     }
 }
