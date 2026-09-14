@@ -43,7 +43,6 @@ fn patch_telemetry(out: &PathBuf) {
                 }
             }
             crate::event_tracker::set_party(&self.team);
-            self.retain_team_rows();
             self.emit_dps();
             return;
         }"#;
@@ -105,7 +104,6 @@ mod v1315_team_leave_tests {
         "let leaving_uid = team_leave_uid(body);",
         "self.team.remove(&leaving_uid);",
         "fn team_leave_uid(data:&[u8])->i64",
-        "self.retain_team_rows();",
     ] {
         assert!(source.contains(required), "v1.31.5 team leave contract missing {required}");
     }
