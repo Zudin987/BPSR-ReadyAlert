@@ -71,13 +71,31 @@ const NON_WIPE_RESET_BUFF_BASE_ID: i32 = 900_122;"#,
 
     replace_once(
         &mut source,
-        r#"        self.encounter_started = None;
+        r#"    fn reset_encounter_keep_roster(&mut self) {
+        self.combat.clear();
+        for uid in self.team.clone() {
+            self.combat.entry(uid).or_default();
+        }
+        if self.local_uid > 0 {
+            self.combat.entry(self.local_uid).or_default();
+        }
+        self.encounter_started = None;
         self.pending_boundary = None;
-        self.last_target = 0;"#,
-        r#"        self.encounter_started = None;
+        self.last_target = 0;
+    }"#,
+        r#"    fn reset_encounter_keep_roster(&mut self) {
+        self.combat.clear();
+        for uid in self.team.clone() {
+            self.combat.entry(uid).or_default();
+        }
+        if self.local_uid > 0 {
+            self.combat.entry(self.local_uid).or_default();
+        }
+        self.encounter_started = None;
         self.pending_boundary = None;
         self.wipe_death_markers.clear();
-        self.last_target = 0;"#,
+        self.last_target = 0;
+    }"#,
         "encounter reset wipe marker cleanup",
     );
 
