@@ -6,6 +6,10 @@ mod archive_impl {
     }
 }
 
+mod ux_v1330 {
+    include!("encounter_archive_ux_v1330.rs");
+}
+
 use crate::encounter_store;
 use std::{fs, os::windows::ffi::OsStrExt, path::{Path, PathBuf}, ptr::null};
 use windows_sys::Win32::{
@@ -107,6 +111,7 @@ pub fn generate(root: &Path) -> Result<PathBuf, String> {
     let generated = archive_impl::generate_inner(root)
         .and_then(|path| {
             upgrade_archive_ui(&path)?;
+            ux_v1330::upgrade(&path)?;
             Ok(path)
         });
 
@@ -191,7 +196,7 @@ mod v1315_archive_guard_tests {
     }
 
     #[test]
-    fn archive_has_misc_filter_and_chat_navigation() {
+    fn archive_has_filters_compare_insights_and_chat_navigation() {
         let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
         let root = std::env::temp_dir().join(format!("readyalert-encounter-archive-nav-{}-{nonce}", std::process::id()));
         fs::create_dir_all(encounter_store::dir(&root)).unwrap();
@@ -199,9 +204,15 @@ mod v1315_archive_guard_tests {
         let html = fs::read_to_string(path).unwrap();
         assert!(html.contains("id=\"hide-misc\""));
         assert!(html.contains("../ChatLogs/index.html"));
+        assert!(html.contains("archive-tabs"));
         assert!(html.contains("bpsr-readyalert.encounter-history.hide-misc"));
+        assert!(html.contains("bpsr-readyalert.encounter-history.filters.v2"));
         assert!(html.contains("[2,9,17,18,19].includes(playType)"));
         assert!(!html.contains("[2,8,9,17,18,19].includes(playType)"));
+        assert!(html.contains("Benchmark only"));
+        assert!(html.contains("Same player only"));
+        assert!(html.contains("Largest skill damage changes"));
+        assert!(html.contains("raid-roster"));
         assert!(html.contains("No saved encounter matches the current filters."));
         fs::remove_dir_all(root).unwrap();
     }

@@ -8,6 +8,10 @@ mod legacy {
     }
 }
 
+mod ux_v1330 {
+    include!("chat_archive_ux_v1330.rs");
+}
+
 fn replace_once(source: &mut String, from: &str, to: &str, label: &str) -> Result<(), String> {
     let count = source.matches(from).count();
     if count != 1 {
@@ -61,6 +65,7 @@ pub fn generate(dir: &Path) -> Result<PathBuf, String> {
     let generated = legacy::generate_legacy(dir)
         .and_then(|path| {
             upgrade_archive_navigation(&path)?;
+            ux_v1330::upgrade(&path)?;
             Ok(path)
         });
 
@@ -104,16 +109,19 @@ mod tests {
     }
 
     #[test]
-    fn generated_chat_archive_links_back_to_encounter_history() {
+    fn generated_chat_archive_has_navigation_and_advanced_filters() {
         let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
         let dir = std::env::temp_dir().join(format!("readyalert-chat-archive-nav-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("chat-2026-09-14.txt"), "2026-09-14 00:00:00\t1\tAlice\tHello\n").unwrap();
+        fs::write(dir.join("chat-2026-09-14.txt"), "2026-09-14 00:00:00\t1\tAlice\t[Image(11016)] Hello\n").unwrap();
         let path = generate(&dir).unwrap();
         let html = fs::read_to_string(path).unwrap();
         assert!(html.contains("../EncounterHistory/index.html"));
-        assert!(html.contains("Open Encounter History"));
-        assert!(html.contains("archive-switch"));
+        assert!(html.contains("archive-tabs"));
+        assert!(html.contains("advanced-filter-panel"));
+        assert!(html.contains("Exact phrase"));
+        assert!(html.contains("Has image"));
+        assert!(html.contains("bpsr-readyalert.chat-archive.filters.v2"));
         fs::remove_dir_all(dir).unwrap();
     }
 }
