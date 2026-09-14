@@ -1,12 +1,12 @@
 use std::{fs, io, path::{Path, PathBuf}, sync::OnceLock};
 
 mod legacy {
-    include!("event_tracker.rs");
+    include!(concat!(env!("OUT_DIR"), "/event_tracker_v1321_generated.rs"));
 }
 
 pub use legacy::{
     TrackerDisplayRow, TrackerKind, TrackerRule, TrackerScope, TrackerSettings,
-    clear_scene, clear_session, current_settings, observe_buff, observe_skill,
+    clear_scene, clear_session, current_settings, observe_attribute, observe_buff, observe_skill,
     remove_entity, reset_counts, rows, rule_label, set_local_uid, set_party,
     sync_buff_instances,
 };
@@ -18,10 +18,10 @@ pub fn init(root: &Path) {
     legacy::init(root);
 }
 
-/// `event_tracker.rs` already validates a pending JSON file and maintains a
-/// `.bak`, but its final replacement still removes the canonical file before
-/// renaming the pending file. Keep one outer last-known-good copy so an AV/disk/
-/// permission failure in that final rename cannot leave event_tracker.json gone.
+/// The generated tracker still validates a pending JSON file and maintains a
+/// `.bak`, but its final replacement removes the canonical file before renaming
+/// the pending file. Keep one outer last-known-good copy so an AV/disk/permission
+/// failure in that final rename cannot leave event_tracker.json gone.
 pub fn replace_settings(settings: TrackerSettings) -> io::Result<()> {
     let path = SETTINGS_PATH
         .get()
@@ -69,5 +69,6 @@ mod tests {
         assert_eq!(settings.max_visible, 12);
         let rule = TrackerRule::default();
         assert_eq!(rule.rule_id, 1);
+        assert_eq!(TrackerKind::Attribute.label(), "Attribute ID");
     }
 }
