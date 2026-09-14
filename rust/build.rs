@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1322_final_hardening.rs");
+    include!("build/legacy/build_v1322_regression_fix.rs");
     pub fn run() { main(); }
 }
 
