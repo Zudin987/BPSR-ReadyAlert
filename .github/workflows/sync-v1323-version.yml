@@ -24,10 +24,9 @@ jobs:
           Set-Content rust/Cargo.toml $toml -NoNewline
 
           $lock = Get-Content rust/Cargo.lock -Raw
-          $old = "name = `"bpsr-readyalert`"`nversion = `"1.32.2`""
-          $new = "name = `"bpsr-readyalert`"`nversion = `"1.32.3`""
-          if (-not $lock.Contains($old)) { throw 'bpsr-readyalert 1.32.2 lock entry not found' }
-          $lock = $lock.Replace($old, $new)
+          $pattern = 'name = "bpsr-readyalert"\r?\nversion = "1\.32\.2"'
+          if ($lock -notmatch $pattern) { throw 'bpsr-readyalert 1.32.2 lock entry not found' }
+          $lock = $lock -replace $pattern, "name = `"bpsr-readyalert`"`r`nversion = `"1.32.3`""
           Set-Content rust/Cargo.lock $lock -NoNewline
       - name: Commit synchronized version
         shell: pwsh
