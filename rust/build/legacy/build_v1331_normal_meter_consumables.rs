@@ -86,11 +86,38 @@ mod v1331_normal_meter_consumable_tests {
     #[test]
     fn normal_meter_reuses_raid_food_and_serum_colors() {
         let now = 100_000;
-        let food = ConsumableStatus { buff_id: 1, name: "Food".into(), expires_unix_ms: now + 180_000, duration_ms: 300_000 };
+        let food = ConsumableStatus { buff_id: 1, name: "Food".into(), expires_unix_ms: now + 180_001, duration_ms: 300_000 };
         let serum = ConsumableStatus { buff_id: 2, name: "Serum".into(), expires_unix_ms: now + 20_000, duration_ms: 300_000 };
         assert_eq!(raid_consumable_color(Some(&food), now), rgb(72,226,116));
         assert_eq!(raid_consumable_color(Some(&serum), now), crate::ui_modern::BPSR_DANGER);
         assert_eq!(raid_consumable_color(None, now), crate::ui_modern::BPSR_MUTED);
+    }
+
+    #[test]
+    fn consumable_indicator_boundary_semantics_are_stable() {
+        let color = |left: i64, now: i64| {
+            let status = ConsumableStatus {
+                buff_id: 3,
+                name: "Boundary".into(),
+                expires_unix_ms: now + left,
+                duration_ms: 300_000,
+            };
+            raid_consumable_color(Some(&status), now)
+        };
+        let even_blink = 400_000;
+        let odd_blink = even_blink + 400;
+
+        assert_eq!(color(180_001, even_blink), rgb(72,226,116));
+        assert_eq!(color(180_000, even_blink), rgb(245,190,55));
+        assert_eq!(color(179_999, even_blink), rgb(245,190,55));
+        assert_eq!(color(60_001, even_blink), rgb(245,190,55));
+        assert_eq!(color(60_000, even_blink), crate::ui_modern::BPSR_DANGER);
+        assert_eq!(color(59_999, even_blink), crate::ui_modern::BPSR_DANGER);
+        assert_eq!(color(30_001, even_blink), crate::ui_modern::BPSR_DANGER);
+        assert_eq!(color(30_000, even_blink), crate::ui_modern::BPSR_DANGER);
+        assert_eq!(color(29_999, even_blink), crate::ui_modern::BPSR_DANGER);
+        assert_eq!(color(30_000, odd_blink), rgb(108,34,34));
+        assert_eq!(color(29_999, odd_blink), rgb(108,34,34));
     }
 }
 "#);

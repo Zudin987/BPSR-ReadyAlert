@@ -219,6 +219,8 @@ pub struct MeterSettings {
     pub show_tank_share: bool,
     pub show_deaths: bool,
     pub show_imagines: bool,
+    /// Show per-player Food / Serum status indicators in normal and Raid meter views.
+    pub show_consumables: bool,
     pub show_target: bool,
     pub remember_scroll: bool,
     /// Show active rate first and encounter rate second (A/E) in live/history rows.
@@ -237,11 +239,12 @@ pub struct MeterSettings {
 impl Default for MeterSettings {
     fn default() -> Self {
         Self {
-            show_damage_share: true,
-            show_healing_share: true,
-            show_tank_share: true,
-            show_deaths: true,
+            show_damage_share: false,
+            show_healing_share: false,
+            show_tank_share: false,
+            show_deaths: false,
             show_imagines: true,
+            show_consumables: true,
             show_target: true,
             remember_scroll: false,
             show_active_rates: true,
