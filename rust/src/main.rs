@@ -2,6 +2,7 @@
 
 mod audio;
 mod archive_hub;
+#[path = "chat_archive_safe.rs"]
 mod chat_archive;
 mod encounter_archive;
 mod encounter_context;
