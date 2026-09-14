@@ -1,60 +1,79 @@
 # BPSR ReadyAlert
 
-A lightweight native Windows companion for **Blue Protocol: Star Resonance** with combat meters, encounter tools, alerts and chat overlays.
+A lightweight Windows companion for **Blue Protocol: Star Resonance**. Track fights, get ready alerts, and keep game chat on screen.
+
+**[Download for Windows](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest/download/BPSR-ReadyAlert.exe)** · [Release notes](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [Report an issue](https://github.com/Zudin987/BPSR-ReadyAlert/issues)
 
 <p align="center">
-  <img src="docs/images/meter-raid.webp" alt="BPSR ReadyAlert DPS Meter in Raid mode" width="900">
+  <img src="docs/images/meter-normal.png" alt="DPS meter in Normal mode with player damage, classes and Imagines" width="679">
+  <br>
+  <em>DPS meter - Normal mode</em>
 </p>
 
-**[Download ReadyAlert](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest/download/BPSR-ReadyAlert.exe)** · [Latest release](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest) · [Report an issue](https://github.com/Zudin987/BPSR-ReadyAlert/issues)
+## Main features
 
-## Highlights
+- **Combat meter** - See damage, healing and tank stats in Normal, Compact or 20-player Raid layouts.
+- **Tracker & Mechanics** - Keep key stats, food and serum durations, and mechanic timers visible.
+- **Encounter History** - Review past fights in a local archive and share HTML reports.
+- **Ready & Queue alerts** - Get notified about ready checks and matchmaking queues.
+- **Chat Overlay** - Read game chat in custom tabs, with optional translation and text-to-speech (TTS).
 
-- **DPS Meter** — Damage, Heal and Tank views with Normal, Compact and Raid layouts.
-- **Tracker & Mechanics** — target/boss timers, mechanics, consumables and event tracking.
-- **Encounter History** — keeps local encounter records with an HTML archive for review and sharing.
-- **Ready & Queue alerts** — native alerts for ready checks and queue events.
-- **Chat Overlay** — view-only game chat with tabs plus optional translation and TTS.
-- **Native & lightweight** — Rust + Win32, no browser runtime, with automatic updates built in.
+## Get started
 
-## Tracker & Mechanics
-
-<p align="center">
-  <img src="docs/images/tracker-mechanics.webp" alt="BPSR ReadyAlert Tracker and Mechanics overlay" width="700">
-</p>
-
-## Install
-
-**Requirements:** 64-bit Windows and [Npcap](https://npcap.com/#download).
+**Requires:** 64-bit Windows and [Npcap](https://npcap.com/#download).
 
 1. Install Npcap.
-2. Download and run `BPSR-ReadyAlert.exe` from the latest release.
-3. Open BPSR. If no data appears, select the network adapter carrying the game connection in **Settings**.
-4. Enable the overlays and alerts you want.
+2. [Download ReadyAlert](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest/download/BPSR-ReadyAlert.exe) and run `BPSR-ReadyAlert.exe`.
+3. Open BPSR, then enable the overlays and alerts you want in **Settings**.
+4. If no game data appears, select the network adapter used by your game connection in **Settings**.
 
-ReadyAlert can stay in the system tray while you play. **Ctrl+Shift+F10** toggles the DPS and Mechanics overlays.
+Press **Ctrl+Shift+F10** to show or hide the combat and mechanics overlays. ReadyAlert can stay in the system tray and update itself when a new release is available.
 
-## Updates
-
-ReadyAlert checks for published updates and can update itself. Release downloads and SHA-256 checksums remain available on the Releases page if you prefer to update manually.
-
-## Notes
-
-ReadyAlert reads game network traffic through Npcap. It does **not** inject into the game or automate gameplay. Game updates and regional differences can occasionally require a ReadyAlert update.
-
-Unofficial community project, not affiliated with BPSR's developers or publishers.
+## Screenshots
 
 <details>
-<summary><strong>Build from source</strong></summary>
+<summary><strong>More meter layouts - Raid, Compact and Compact Raid</strong></summary>
 
-```powershell
-scripts\prepare-build-assets.ps1
-cargo test --manifest-path rust/Cargo.toml --all-targets --locked
-cargo build --manifest-path rust/Cargo.toml --release --locked
-```
+**Raid - 20 players in two columns**
 
-See [Development](docs/DEVELOPMENT.md) for the source layout and full native validation workflow.
+<p align="center">
+  <img src="docs/images/meter-raid.png" alt="Raid meter showing 20 players in two columns with damage and revive status" width="668">
+</p>
+
+**Compact - a smaller view of the essentials**
+
+<p align="center">
+  <img src="docs/images/meter-compact.png" alt="Compact meter with a single player list and damage values" width="402">
+</p>
+
+**Compact Raid - the raid list in less space**
+
+<p align="center">
+  <img src="docs/images/meter-compact-raid.png" alt="Compact Raid meter showing 20 players in a smaller two-column layout" width="509">
+</p>
 
 </details>
 
-[License](LICENSE) · [Third-party notices and credits](THIRD_PARTY_NOTICES.md)
+<details>
+<summary><strong>Tracker & Mechanics</strong></summary>
+
+<p align="center">
+  <img src="docs/images/tracker-mechanics.png" alt="Tracker and Mechanics overlay showing key stats, food and serum durations, and mechanic timers" width="387">
+</p>
+
+</details>
+
+<details>
+<summary><strong>Chat Overlay</strong></summary>
+
+<p align="center">
+  <img src="docs/images/chat-overlay.png" alt="Chat Overlay with channel tabs, game messages and a text-to-speech control" width="617">
+</p>
+
+</details>
+
+## About
+
+ReadyAlert reads game network traffic through Npcap. It does not inject into the game or automate gameplay. This is an unofficial community project.
+
+[Build from source](docs/DEVELOPMENT.md) · [License](LICENSE) · [Third-party notices and credits](THIRD_PARTY_NOTICES.md)
