@@ -2,12 +2,12 @@
 
 A lightweight Windows companion for **Blue Protocol: Star Resonance**. Track fights, get ready alerts, and keep game chat on screen.
 
-**[Download for Windows](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest/download/BPSR-ReadyAlert.exe)** · [Release notes](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest))
+**[Download for Windows](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest/download/BPSR-ReadyAlert.exe)** · [Release notes](https://github.com/Zudin987/BPSR-ReadyAlert/releases/latest)
 
 <p align="center">
   <img src="docs/images/meter-normal.png" alt="DPS meter in Normal mode with player damage, classes and Imagines" width="679">
   <br>
-  <em>DPS meter - Normal mode</em>
+  <em>DPS meter - Normal mode (more screenshots below)</em>
 </p>
 
 ## Main features
