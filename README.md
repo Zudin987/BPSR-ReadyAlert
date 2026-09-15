@@ -64,6 +64,23 @@ Press **Ctrl+Shift+F10** to show or hide the combat and mechanics overlays. Read
 </details>
 
 <details>
+<summary><strong>Encounter History</strong></summary>
+
+<p align="center">
+  <img src="docs/images/archive-encounter-1.png" alt="BPSR ReadyAlert Encounter History archive showing a saved combat encounter" width="900">
+  <br>
+  <em>Encounter History - archive overview</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/archive-encounter-2.png" alt="BPSR ReadyAlert Encounter History archive showing encounter details and report actions" width="900">
+  <br>
+  <em>Encounter History - encounter details</em>
+</p>
+
+</details>
+
+<details>
 <summary><strong>Chat Overlay</strong></summary>
 
 <p align="center">
