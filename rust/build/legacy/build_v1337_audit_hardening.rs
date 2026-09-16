@@ -42,5 +42,31 @@ mod audit_capture_decoder_tests {
 }
 "#);
     fs::write(path, source).expect("write capture decompression regression test");
+
+    // Keep the original updater source untouched, as older build stages
+    // generate and transform the active implementation in OUT_DIR.
+    let updater_path = out.join("updater_v1241.rs");
+    let mut updater = fs::read_to_string(&updater_path)
+        .expect("read generated updater for automatic download consent")
+        .replace("\r\n", "\n");
+    let from = "auto_download: true,";
+    assert_eq!(updater.matches(from).count(), 1,
+        "expected one updater auto-download default; review consent behavior");
+    updater = updater.replacen(from, "auto_download: false,", 1);
+    updater.push_str(r#"
+
+#[cfg(test)]
+mod audit_updater_privacy_tests {
+    use super::*;
+
+    #[test]
+    fn new_installations_do_not_download_updates_without_consent() {
+        let prefs = UpdatePreferences::default();
+        assert!(prefs.auto_check);
+        assert!(!prefs.auto_download);
+    }
+}
+"#);
+    fs::write(updater_path, updater).expect("write safer updater default and regression test");
     println!("cargo:rerun-if-changed=build/legacy/build_v1337_audit_hardening.rs");
 }
