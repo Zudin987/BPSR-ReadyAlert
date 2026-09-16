@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1338_encounter_boundary.rs");
+    include!("build/legacy/build_v1338_dungeon_flow.rs");
     pub fn run() { main(); }
 }
 
