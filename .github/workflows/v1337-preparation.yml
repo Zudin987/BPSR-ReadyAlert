@@ -1,0 +1,53 @@
+name: One-time v1.33.7 release preparation
+
+on:
+  push:
+    branches: [fix/audit-hardening-v1337]
+    paths:
+      - '.github/workflows/v1337-preparation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Apply guarded release migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/prepare-v1337-release.py
+          python3 scripts/prepare-v1337-release.py
+          # The test's JSON byte literal contains Rust raw-string delimiters.
+          # Use two hashes for the outer append literal to keep them distinct.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('rust/build/legacy/build_v1337_audit_hardening.rs')
+          t = p.read_text()
+          a = 'updater.push_str(r#"\n\n#[cfg(test)]\nmod audit_updater_migration_tests'
+          b = 'updater.push_str(r##"\n\n#[cfg(test)]\nmod audit_updater_migration_tests'
+          assert t.count(a) == 1
+          t = t.replace(a, b, 1)
+          a = '\n"#);\n    fs::write(updater_path, updater).expect("write updater consent migration");'
+          b = '\n"##);\n    fs::write(updater_path, updater).expect("write updater consent migration");'
+          assert t.count(a) == 1
+          p.write_text(t.replace(a, b, 1))
+          PY
+          git diff --check
+          grep -F 'version = "1.33.7"' rust/Cargo.toml
+          grep -F 'version = "1.33.7"' rust/Cargo.lock
+      - name: Commit tested preparation to the PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rust/Cargo.toml rust/Cargo.lock rust/src/settings_v181.rs rust/src/history.rs rust/src/sharing.rs rust/build/legacy/build_v1337_audit_hardening.rs docs/releases/v1.33.7.md
+          git diff --cached --check
+          git commit -m 'fix(release): enforce privacy migrations and contextual PB; bump v1.33.7'
+          git push origin HEAD:fix/audit-hardening-v1337
