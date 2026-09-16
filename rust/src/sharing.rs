@@ -403,14 +403,27 @@ fn format_duration(ms: u64) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
 }
 
+/// Escape CSV syntax and force untrusted text to remain text in spreadsheets.
+/// Numeric CSV columns deliberately bypass this function, preserving negatives.
 fn csv_escape(value: &str) -> String {
-    if value
+    let first_non_space = value
+        .trim_start_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}')
         .chars()
-        .any(|ch| matches!(ch, ',' | '"' | '\r' | '\n'))
-    {
-        format!("\"{}\"", value.replace('"', "\"\""))
+        .next();
+    let dangerous = value
+        .chars()
+        .next()
+        .is_some_and(|ch| matches!(ch, '\t' | '\r' | '\n'))
+        || first_non_space.is_some_and(|ch| matches!(ch, '=' | '+' | '-' | '@'));
+    let safe = if dangerous {
+        format!("'{value}")
     } else {
         value.to_string()
+    };
+    if safe.chars().any(|ch| matches!(ch, ',' | '"' | '\r' | '\n')) {
+        format!("\"{}\"", safe.replace('"', "\"\""))
+    } else {
+        safe
     }
 }
 
@@ -543,6 +556,22 @@ mod tests {
         assert!(csv.starts_with('\u{feff}'));
         assert!(csv.contains("\"Boss, Prime\""));
         assert!(csv.contains("\"A \"\"Name\"\"\""));
+    }
+
+    #[test]
+    fn csv_untrusted_names_cannot_become_spreadsheet_formulas() {
+        let mut snap = snapshot("=HYPERLINK(\"https://example.test\")", 10_000, -1000, 4, 41);
+        snap.rows[0].name = " \t+SUM(1,2)".into();
+        snap.rows[0].subprofession_name = "@SUM(1,2)".into();
+        let csv = encounter_csv(&snap);
+        assert!(csv.contains("\"'=HYPERLINK(\"\"https://example.test\"\")\""));
+        assert!(csv.contains("\"' \t+SUM(1,2)\""));
+        assert!(csv.contains("\"'@SUM(1,2)\""));
+        assert_eq!(csv_escape("-2"), "'-2");
+        assert_eq!(csv_escape("ordinary"), "ordinary");
+        assert_eq!(csv_escape("\t=1+1"), "'\t=1+1");
+        assert_eq!(csv_escape("\n=1+1"), "\"'\n=1+1\"");
+        assert!(csv.contains(",-1000,"));
     }
 
     #[test]
