@@ -48,7 +48,7 @@ mod feature_overlays {
     use windows_sys::Win32::{Foundation::HWND, Graphics::Gdi::InvalidateRect, UI::WindowsAndMessaging::IsWindowVisible};
 
     thread_local! {
-        static LAST_TICK_PAINT: RefCell<HashMap<isize, Instant>> = RefCell::new(HashMap::new);
+        static LAST_TICK_PAINT: RefCell<HashMap<isize, Instant>> = RefCell::new(HashMap::new());
     }
 
     /// Time-based overlay labels still need periodic refresh, but the native UI
