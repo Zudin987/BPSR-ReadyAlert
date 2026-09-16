@@ -13,6 +13,21 @@ mod future_mechanics {
     include!(concat!(env!("OUT_DIR"), "/future_mechanics_v1321_fixed.rs"));
 }
 
+/// Placeholder rows are useful for diagnostics, but they are not actionable in
+/// the Tracker & Mechanics overlay. Keep them out of the final UI stream while
+/// the underlying name probes continue recording their numeric IDs for mapping.
+fn unresolved_mechanic_label(label: &str) -> bool {
+    let label = label.trim();
+    if label.is_empty() {
+        return true;
+    }
+    let normalized = label.to_ascii_lowercase();
+    normalized == "unknown"
+        || normalized.starts_with("unknown mech")
+        || normalized.starts_with("unknown mechanic")
+        || normalized.starts_with("boss mechanic #")
+}
+
 /// Final freeze wrapper. Existing combat telemetry remains authoritative; this
 /// layer only merges generic, future-facing mechanic observations into the same
 /// Mechanics stream consumed by the native overlay.
@@ -71,7 +86,11 @@ impl TelemetryRuntime {
 
     fn merged_mechanics(&mut self) -> MechanicSnapshot {
         let mut merged = self.base_mechanics.clone();
+        merged.rows.retain(|row| !unresolved_mechanic_label(&row.label));
         for row in self.future.rows() {
+            if unresolved_mechanic_label(&row.label) {
+                continue;
+            }
             merged.rows.retain(|existing| existing.key != row.key);
             merged.rows.push(row);
         }
@@ -87,5 +106,15 @@ mod tests {
     fn final_wrapper_keeps_previous_benchmark_exports() {
         assert!(default_benchmark_seconds() > 0);
         let _ = benchmark_status();
+    }
+
+    #[test]
+    fn unresolved_mechanic_placeholders_are_hidden() {
+        for label in ["", "Unknown", "Unknown Mech", "Unknown Mechanic", "Boss mechanic #123456"] {
+            assert!(unresolved_mechanic_label(label), "expected placeholder to be hidden: {label}");
+        }
+        for label in ["Correct portal", "Pizza danger - FAST", "Move away", "Skill ID 123456"] {
+            assert!(!unresolved_mechanic_label(label), "expected real label to remain visible: {label}");
+        }
     }
 }
