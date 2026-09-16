@@ -9,6 +9,7 @@ use std::{
 
 const HISTORY_SCHEMA: u32 = 1;
 const MAX_DECODED_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_COMPRESSED_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HistoryEncounter {
@@ -70,7 +71,13 @@ pub fn archive(root: &Path, snapshot: &DpsSnapshot, limit: usize) -> io::Result<
     };
 
     let json = serde_json::to_vec(&record).map_err(io::Error::other)?;
+    if json.len() as u64 > MAX_DECODED_BYTES {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "history payload too large"));
+    }
     let compressed = zstd::stream::encode_all(Cursor::new(json), 3)?;
+    if compressed.len() > MAX_COMPRESSED_BYTES {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "history file too large"));
+    }
     let final_path = dir.join(format!("encounter-{id:020}.json.zst"));
     let pending = final_path.with_extension("zst.new");
     fs::write(&pending, compressed)?;
@@ -83,10 +90,13 @@ pub fn load_recent(root: &Path, limit: usize) -> Vec<HistoryEncounter> {
     let dir = history_dir(root);
     let mut paths = history_files(&dir);
     paths.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-    paths.truncate(limit.clamp(1, 200));
+    let wanted = limit.clamp(1, 200);
 
-    let mut out = Vec::with_capacity(paths.len());
+    let mut out = Vec::with_capacity(wanted);
     for path in paths {
+        if out.len() >= wanted {
+            break;
+        }
         match load_one(&path) {
             Ok(record) if record.schema == HISTORY_SCHEMA && has_combat_data(&record.snapshot) => out.push(record),
             Ok(_) => logging::write(format!("history: ignored incompatible/empty {}", path.display())),
@@ -98,7 +108,7 @@ pub fn load_recent(root: &Path, limit: usize) -> Vec<HistoryEncounter> {
 
 fn load_one(path: &Path) -> io::Result<HistoryEncounter> {
     let compressed = fs::read(path)?;
-    if compressed.len() > 8 * 1024 * 1024 {
+    if compressed.len() > MAX_COMPRESSED_BYTES {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "history file too large"));
     }
     let decoder = zstd::stream::read::Decoder::new(Cursor::new(compressed))?;
@@ -179,6 +189,18 @@ mod tests {
         assert_eq!(records.len(), 3);
         assert_eq!(records[0].target_name, "Test Boss");
         assert_eq!(records[0].snapshot.rows[0].uid, 42);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn corrupt_newest_history_does_not_hide_valid_older_record() {
+        let root = temp_root("corrupt-newest");
+        archive(&root, &sample(10_000, 100), 10).unwrap();
+        let newest = history_dir(&root).join("encounter-99999999999999999999.json.zst");
+        fs::write(&newest, b"not a zstd archive").unwrap();
+        let records = load_recent(&root, 1);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].snapshot.total_damage, 100);
         fs::remove_dir_all(root).unwrap();
     }
 }
