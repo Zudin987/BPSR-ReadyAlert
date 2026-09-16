@@ -13,7 +13,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering as AtomicOrdering},
-        mpsc::{self, SyncSender, TrySendError},
+        mpsc::{self, RecvTimeoutError, SyncSender, TrySendError},
         Arc, Mutex, OnceLock, RwLock,
     },
     thread,
@@ -95,9 +95,16 @@ impl ChatRuntime {
             cleanup_old_logs(&log_dir, &log_settings);
             let mut writer = ChatLogWriter::default();
             let mut next_cleanup = SystemTime::now() + Duration::from_secs(300);
-            while let Ok(message) = log_rx.recv() {
-                let enabled = log_settings.read().map(|s| s.chat.keep_local_chat_logs24_hours).unwrap_or(false);
-                if enabled { writer.write(&log_dir, &message); }
+            loop {
+                match log_rx.recv_timeout(Duration::from_secs(60)) {
+                    Ok(message) => {
+                        let enabled = log_settings.read().map(|s| s.chat.keep_local_chat_logs24_hours).unwrap_or(false);
+                        if enabled { writer.write(&log_dir, &message); }
+                    }
+                    Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => break,
+                }
+                // The retention clock must keep running when no new chat arrives.
                 if SystemTime::now() >= next_cleanup {
                     cleanup_old_logs(&log_dir, &log_settings);
                     next_cleanup = SystemTime::now() + Duration::from_secs(300);
@@ -157,10 +164,7 @@ impl ChatRuntime {
 
                 let source = clean_text(&message.text, 1000);
                 if source.is_empty() { continue; }
-                let translated = translate(&agent, &source).unwrap_or_else(|err| {
-                    logging::write(format!("translate: {err}"));
-                    Translation { text: source.clone(), source_language: String::new(), translated: false }
-                });
+                let translated = prepare_translation(&agent, &source, wants_translation);
                 if wants_translation && translated.translated {
                     let _ = ui_tx.send(AppEvent::Translation {
                         sequence_id: message.sequence_id,
@@ -345,6 +349,16 @@ fn skip_speech(message: &ChatMessage) -> bool {
 
 struct Translation { text: String, source_language: String, translated: bool }
 
+fn prepare_translation(agent: &ureq::Agent, source: &str, enabled: bool) -> Translation {
+    if !enabled {
+        return Translation { text: source.to_owned(), source_language: String::new(), translated: false };
+    }
+    translate(agent, source).unwrap_or_else(|err| {
+        logging::write(format!("translate: {err}"));
+        Translation { text: source.to_owned(), source_language: String::new(), translated: false }
+    })
+}
+
 fn translate(agent: &ureq::Agent, text: &str) -> Result<Translation, String> {
     let url = format!("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q={}", urlencoding::encode(text));
     let response = agent.get(&url).set("Referer", "https://translate.google.com/").call().map_err(|e| e.to_string())?;
@@ -454,6 +468,13 @@ mod tests {
     #[test] fn empty_plain_text_is_hidden() {
         let settings = AppSettings::default();
         assert!(should_hide_globally(&settings, &message(1, "   ")));
+    }
+    #[test] fn tts_only_does_not_contact_translation() {
+        let agent = ureq::AgentBuilder::new().build();
+        let result = prepare_translation(&agent, "Private party chat", false);
+        assert_eq!(result.text, "Private party chat");
+        assert!(!result.translated);
+        assert!(result.source_language.is_empty());
     }
     #[test] fn friendly_or_and_regex_filters_match_v136_semantics() {
         assert!(matches_expression("serum raid", "serum AND raid"));

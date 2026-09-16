@@ -37,8 +37,20 @@ pub fn load(paths: &AppPaths) -> AppSettings {
         let Ok(text) = fs::read_to_string(candidate) else { continue; };
         match serde_json::from_str::<AppSettings>(&text) {
             Ok(mut settings) => {
+                let consent = serde_json::from_str::<serde_json::Value>(&text)
+                    .ok()
+                    .and_then(|value| value.get("privacyConsentV1337")
+                        .and_then(serde_json::Value::as_bool))
+                    .unwrap_or(false);
+                if !consent {
+                    // Earlier releases enabled cloud speech by default; do not
+                    // treat a stored `true` as informed consent to send chat to Google.
+                    settings.speech_translation.translation_enabled = false;
+                    settings.speech_translation.tts_enabled = false;
+                    logging::write("settings: cloud speech disabled pending explicit v1.33.7 consent");
+                }
                 normalize_v1140(&mut settings);
-                if label != "primary" {
+                if label != "primary" || !consent {
                     logging::write(format!("settings: recovered from {label}"));
                     if let Err(err) = save(paths, &settings) {
                         logging::write(format!("settings: recovery save failed: {err}"));
@@ -68,7 +80,11 @@ pub fn save(paths: &AppPaths, settings: &AppSettings) -> io::Result<()> {
     let primary = &paths.settings;
     let backup = paths.settings.with_extension("json.bak");
     let pending = paths.settings.with_extension("json.new");
-    let json = serde_json::to_string_pretty(&normalized).map_err(io::Error::other)?;
+    let mut document = serde_json::to_value(&normalized).map_err(io::Error::other)?;
+    // Only post-migration settings writes contain this versioned marker.
+    // The UI asks for confirmation before enabling either cloud feature.
+    document["privacyConsentV1337"] = serde_json::Value::Bool(true);
+    let json = serde_json::to_string_pretty(&document).map_err(io::Error::other)?;
 
     fs::write(&pending, json.as_bytes())?;
     // Validate the exact bytes written before touching the last known-good copy.
@@ -125,6 +141,25 @@ mod tests {
             chat_logs: root.join("ChatLogs"),
             root,
         }
+    }
+
+    #[test]
+    fn legacy_cloud_speech_is_disabled_until_user_opts_in_again() {
+        let paths = temp_paths("privacy-consent");
+        let mut legacy = AppSettings::default();
+        legacy.speech_translation.translation_enabled = true;
+        legacy.speech_translation.tts_enabled = true;
+        fs::write(&paths.settings, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
+        let mut migrated = load(&paths);
+        assert!(!migrated.speech_translation.translation_enabled);
+        assert!(!migrated.speech_translation.tts_enabled);
+        let on_disk: serde_json::Value =
+            serde_json::from_slice(&fs::read(&paths.settings).unwrap()).unwrap();
+        assert_eq!(on_disk["privacyConsentV1337"], true);
+        migrated.speech_translation.translation_enabled = true;
+        save(&paths, &migrated).unwrap();
+        assert!(load(&paths).speech_translation.translation_enabled);
+        fs::remove_dir_all(&paths.root).unwrap();
     }
 
     #[test]

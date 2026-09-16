@@ -94,7 +94,13 @@ pub fn archive(
         snapshot: snapshot.clone(),
     };
     let json = serde_json::to_vec(&record).map_err(io::Error::other)?;
+    if json.len() as u64 > MAX_DECODED_BYTES {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "encounter history payload exceeds the readable size limit"));
+    }
     let compressed = zstd::stream::encode_all(Cursor::new(json), 3)?;
+    if compressed.len() > MAX_COMPRESSED_BYTES {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "encounter history file exceeds the readable size limit"));
+    }
     let final_path = dir.join(format!("encounter-{id:020}.json.zst"));
     let pending = final_path.with_extension("zst.new");
     fs::write(&pending, compressed)?;
@@ -107,14 +113,17 @@ pub fn load_recent(root: &Path, limit: usize) -> Vec<StoredEncounter> {
     let dir = dir(root);
     let mut paths = encounter_files(&dir);
     paths.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-    paths.truncate(limit.clamp(1, 250));
-    let mut out = Vec::with_capacity(paths.len());
+    let wanted = limit.clamp(1, 250);
+    let mut out = Vec::with_capacity(wanted.min(paths.len()));
+    // Count successfully decoded records, not just filenames. A corrupt newest
+    // file must not hide valid older encounters when the history limit is small.
     for path in paths {
         match load_one(&path) {
             Ok(record) if record.schema == SCHEMA && has_combat_data(&record.snapshot) => out.push(record),
             Ok(_) => logging::write(format!("encounter-history: ignored incompatible/empty {}", path.display())),
             Err(err) => logging::write(format!("encounter-history: failed to load {}: {err}", path.display())),
         }
+        if out.len() >= wanted { break; }
     }
     out
 }
@@ -195,6 +204,18 @@ mod tests {
         assert_eq!(records.len(), 3);
         assert_eq!(records[0].context.scene_name, "Void - Towering Ruin");
         assert_eq!(records[0].snapshot.rows[0].uid, 42);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn corrupt_newest_record_does_not_hide_valid_history() {
+        let root = temp_root("corrupt-latest");
+        let context = EncounterContextSnapshot::default();
+        archive(&root, &sample(1_000, 100), &context, 10).unwrap();
+        archive(&root, &sample(2_000, 200), &context, 10).unwrap();
+        fs::write(dir(&root).join("encounter-99999999999999999999.json.zst"), b"broken").unwrap();
+        let records = load_recent(&root, 2);
+        assert_eq!(records.len(), 2);
         fs::remove_dir_all(root).unwrap();
     }
 }

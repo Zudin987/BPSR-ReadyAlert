@@ -195,6 +195,9 @@ fn smoke_test() -> Result<(), String> {
     let mut settings = settings::AppSettings::default();
     settings.normalize();
     if settings.chat.tabs.len() < 4 || settings.chat.local_chat_log_retention_hours != 168 { return Err("settings defaults failed".into()); }
+    if settings.speech_translation.translation_enabled || settings.speech_translation.tts_enabled || settings.speech_translation.tts_for(3) {
+        return Err("cloud speech privacy defaults failed".into());
+    }
     let mut features = feature_settings::FeatureSettings::default();
     features.normalize();
     if !features.dps_overlay_enabled || !features.mechanics_overlay_enabled { return Err("feature overlay defaults failed".into()); }
@@ -214,6 +217,7 @@ fn smoke_test() -> Result<(), String> {
     tracker.normalize();
     if tracker.max_visible != 12 || !tracker.rules.is_empty() { return Err("v1.14 tracker defaults failed".into()); }
     if model::imagine_tier_label(0) != "T0" || model::imagine_tier_label(5) != "T5" { return Err("v1.15 Imagine tier display failed".into()); }
+    settings.speech_translation.tts_enabled = true;
     if !settings.speech_translation.tts_for(3) || settings.speech_translation.tts_for(1) { return Err("TTS channel defaults failed".into()); }
     if ui_theme::SETTINGS_W > 820 || ui_theme::SETTINGS_H > 450 || ui_theme::EVENT_H > 450 || ui_theme::MECH_SETTINGS_H > 450 { return Err("v1.17 fixed settings work-area budget failed".into()); }
     std::thread::sleep(Duration::from_millis(1));

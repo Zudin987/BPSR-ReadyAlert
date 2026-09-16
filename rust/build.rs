@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1335_stronger_wipe_detection.rs");
+    include!("build/legacy/build_v1337_audit_hardening.rs");
     pub fn run() { main(); }
 }
 

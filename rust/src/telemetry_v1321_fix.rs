@@ -13,19 +13,24 @@ mod future_mechanics {
     include!(concat!(env!("OUT_DIR"), "/future_mechanics_v1321_fixed.rs"));
 }
 
-/// Placeholder rows are useful for diagnostics, but they are not actionable in
-/// the Tracker & Mechanics overlay. Keep them out of the final UI stream while
-/// the underlying name probes continue recording their numeric IDs for mapping.
+/// Hide unresolved diagnostic placeholders while retaining mechanic labels that
+/// only happen to begin with similar words (for example, a user-defined name).
 fn unresolved_mechanic_label(label: &str) -> bool {
-    let label = label.trim();
-    if label.is_empty() {
+    let normalized = label.trim().to_ascii_lowercase();
+    if normalized.is_empty() || matches!(normalized.as_str(), "unknown" | "unknown mech" | "unknown mechanic") {
         return true;
     }
-    let normalized = label.to_ascii_lowercase();
-    normalized == "unknown"
-        || normalized.starts_with("unknown mech")
-        || normalized.starts_with("unknown mechanic")
-        || normalized.starts_with("boss mechanic #")
+    // The tracker prints unresolved numeric mechanic IDs in this format.
+    // Do not use starts_with("unknown mech") or starts_with("boss mechanic #"):
+    // either would hide a meaningful label such as "Boss mechanic #1 - dodge".
+    for prefix in ["unknown mech #", "unknown mechanic #", "boss mechanic #"] {
+        if let Some(id) = normalized.strip_prefix(prefix) {
+            if !id.is_empty() && id.chars().all(|ch| ch.is_ascii_digit()) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Final freeze wrapper. Existing combat telemetry remains authoritative; this
@@ -109,11 +114,11 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_mechanic_placeholders_are_hidden() {
-        for label in ["", "Unknown", "Unknown Mech", "Unknown Mechanic", "Boss mechanic #123456"] {
+    fn unresolved_mechanic_placeholders_are_hidden_without_masking_real_labels() {
+        for label in ["", "Unknown", "Unknown Mech", "Unknown Mechanic", "Boss mechanic #123456", "Unknown mech #42", "Unknown mechanic #9"] {
             assert!(unresolved_mechanic_label(label), "expected placeholder to be hidden: {label}");
         }
-        for label in ["Correct portal", "Pizza danger - FAST", "Move away", "Skill ID 123456"] {
+        for label in ["Correct portal", "Pizza danger - FAST", "Move away", "Skill ID 123456", "Unknown Mechanics Training", "Boss mechanic #1 - dodge", "Unknown mech #42 - move"] {
             assert!(!unresolved_mechanic_label(label), "expected real label to remain visible: {label}");
         }
     }
