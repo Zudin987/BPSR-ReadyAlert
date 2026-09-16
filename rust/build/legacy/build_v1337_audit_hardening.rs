@@ -21,8 +21,9 @@ fn main() {
         "generated capture decoded packet limit changed: review decompression safety");
     assert_eq!(source.matches("fn decode_zstd_limited(").count(), 1,
         "expected exactly one bounded capture decoder");
-    assert_eq!(source.matches("decode_zstd_limited(").count(), 3,
-        "expected the bounded decoder and both compressed message call sites");
+    assert!(source.contains("decode_zstd_limited(&payload[4..])")
+        && source.contains("decode_zstd_limited(raw)"),
+        "both compressed message types must use the bounded decoder");
     assert!(!source.contains("zstd::stream::decode_all("),
         "generated capture introduced unbounded zstd decompression");
 
