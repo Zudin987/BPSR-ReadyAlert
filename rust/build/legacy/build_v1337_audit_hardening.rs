@@ -60,7 +60,7 @@ mod audit_updater_privacy_tests {
     use super::*;
 
     #[test]
-    fn new_installations_do_not_download_updates_without_consent() {
+    fn new_installations_do_not_download_updates_without consent() {
         let prefs = UpdatePreferences::default();
         assert!(prefs.auto_check);
         assert!(!prefs.auto_download);
@@ -83,9 +83,9 @@ mod audit_updater_privacy_tests {
             }
             refresh_speech_enabled(hwnd);
         },"#, 1);
-    let from = "TTS is intentionally limited to Guild and Party / Team. World chat is never spoken. Translation/TTS run off the capture thread.";
+    let from = "TTS is limited to Guild and Party / Team; World chat is never spoken. Eligible Translation/TTS chat text is sent to Google services.";
     assert_eq!(ui.matches(from).count(), 1, "expected speech disclosure in generated UI");
-    ui = ui.replacen(from, "Translation and TTS send enabled chat text to Google. Both require consent. TTS speaks only Guild / Party / Team chat, never World chat.", 1);
+    ui = ui.replacen(from, "Translation/TTS send chat text to Google. Enable either only with consent. TTS: Guild / Party only; never World.", 1);
     fs::write(ui_path, ui).expect("write affirmative cloud chat consent UI");
 
     // Earlier updater versions saved autoDownload=true as a default. An old
