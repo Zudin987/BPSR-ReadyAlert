@@ -73,6 +73,16 @@ pub fn personal_best(
         return None;
     }
 
+    // The selected archived encounter supplies its own context; a live
+    // encounter reads the current scene. Unknown/legacy context is not a PB.
+    let live_context = crate::encounter_context::snapshot();
+    let current_context = match exclude_history_id {
+        Some(id) => &records.iter().find(|record| record.id == id)?.context,
+        None => &live_context,
+    };
+    if current_context.scene_id == 0 || current_context.difficulty.trim().is_empty() {
+        return None;
+    }
     let target = normalized_target(current)?;
     let current_row = current.rows.iter().find(|row| row.is_local)?;
     let current_rate = row_rate(current_row, current.encounter_ms, mode);
@@ -85,6 +95,8 @@ pub fn personal_best(
     for record in records {
         if exclude_history_id.is_some_and(|id| id == record.id)
             || record.snapshot.encounter_ms < MIN_PB_ENCOUNTER_MS
+            || record.context.scene_id != current_context.scene_id
+            || !record.context.difficulty.trim().eq_ignore_ascii_case(current_context.difficulty.trim())
             || normalized_target(&record.snapshot).as_deref() != Some(target.as_str())
         {
             continue;
@@ -509,6 +521,11 @@ mod tests {
             id,
             ended_unix_ms: id as i64,
             target_name: "Dummy".into(),
+            context: crate::encounter_context::EncounterContextSnapshot {
+                scene_id: 6593,
+                difficulty: "Hard".into(),
+                ..Default::default()
+            },
             snapshot: snap,
         }
     }
@@ -527,6 +544,23 @@ mod tests {
         assert!((pb.previous_best_rate - 100_000.0).abs() < 0.1);
         assert!((pb.current_rate - 130_000.0).abs() < 0.1);
         assert!(pb.is_new_record);
+    }
+
+    #[test]
+    fn pb_never_compares_different_scene_difficulty_or_legacy_context() {
+        let mut records = vec![
+            record(1, snapshot("Boss", 20_000, 2_000_000, 4, 41)),
+            record(2, snapshot("Boss", 20_000, 3_000_000, 4, 41)),
+        ];
+        records[0].context.scene_id = 6594;
+        assert!(personal_best(&records, &records[1].snapshot, Some(2), ViewMode::Damage).is_none());
+        records[0].context.scene_id = 6593;
+        records[0].context.difficulty = "Master".into();
+        assert!(personal_best(&records, &records[1].snapshot, Some(2), ViewMode::Damage).is_none());
+        records[0].context.difficulty = "Hard".into();
+        assert!(personal_best(&records, &records[1].snapshot, Some(2), ViewMode::Damage).is_some());
+        records[0].context = Default::default();
+        assert!(personal_best(&records, &records[1].snapshot, Some(2), ViewMode::Damage).is_none());
     }
 
     #[test]

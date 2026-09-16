@@ -17,6 +17,8 @@ pub struct HistoryEncounter {
     pub id: u64,
     pub ended_unix_ms: i64,
     pub target_name: String,
+    #[serde(default)]
+    pub context: crate::encounter_context::EncounterContextSnapshot,
     pub snapshot: DpsSnapshot,
 }
 
@@ -67,6 +69,7 @@ pub fn archive(root: &Path, snapshot: &DpsSnapshot, limit: usize) -> io::Result<
         id,
         ended_unix_ms,
         target_name,
+        context: crate::encounter_context::snapshot(),
         snapshot: snapshot.clone(),
     };
 
