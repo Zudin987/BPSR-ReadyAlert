@@ -77,7 +77,7 @@ mod audit_updater_privacy_tests {
             if get_check(hwnd, id) {
                 let service = if id == ID_TRANSLATE { "Translation" } else { "Text-to-speech" };
                 let notice = format!("{service} uses Google's online service and sends chat message text to Google. Text-to-speech may also include sender names if enabled.\r\n\r\nEnable this service and consent to sending this chat text?");
-                let choice = MessageBoxW(hwnd, wide(&notice).as_ptr(), wide("Cloud chat privacy consent").as_ptr(), windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO | MB_ICONINFORMATION);
+                let choice = windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(hwnd, wide(&notice).as_ptr(), wide("Cloud chat privacy consent").as_ptr(), windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO | MB_ICONINFORMATION);
                 if choice != windows_sys::Win32::UI::WindowsAndMessaging::IDYES {
                     set_check(hwnd, id, false);
                 }
