@@ -68,6 +68,7 @@ mod audit_updater_privacy_tests {
 }
 "#);
     fs::write(updater_path, updater).expect("write safer updater default and regression test");
+
     let ui_path = out.join("settings_ui_v1160_fixed.rs");
     let mut ui = fs::read_to_string(&ui_path).expect("read generated speech settings UI");
     let from = "ID_TTS | ID_TRANSLATE => refresh_speech_enabled(hwnd),";
@@ -88,21 +89,19 @@ mod audit_updater_privacy_tests {
     ui = ui.replacen(from, "Translation/TTS send chat text to Google. Enable either only with consent. TTS: Guild / Party only; never World.", 1);
     fs::write(ui_path, ui).expect("write affirmative cloud chat consent UI");
 
-    // Earlier updater versions saved autoDownload=true as a default. An old
-    // true value is not proof of opt-in. New settings saves stamp consent.
+    // Older updater versions saved autoDownload=true by default. Reset legacy
+    // values before recovering from backup, then mark new explicit saves.
     let updater_path = out.join("updater_v1241.rs");
     let mut updater = fs::read_to_string(&updater_path).expect("read generated updater migration");
-    let from = ".and_then(|text| serde_json::from_str::<UpdatePreferences>(&text).ok())";
-    assert_eq!(updater.matches(from).count(), 1, "expected updater preferences load");
-    updater = updater.replacen(from, r#".and_then(|text| {
-            let mut prefs = serde_json::from_str::<UpdatePreferences>(&text).ok()?;
-            let consent = serde_json::from_str::<serde_json::Value>(&text).ok()
-                .and_then(|value| value.get("autoDownloadConsentV1337")
-                    .and_then(serde_json::Value::as_bool))
-                .unwrap_or(false);
-            if !consent { prefs.auto_download = false; }
-            Some(prefs)
-        })"#, 1);
+    let from = "            Ok(prefs) => {\n                if label != \"primary\" {";
+    assert_eq!(updater.matches(from).count(), 1, "expected updater preferences recovery branch");
+    updater = updater.replacen(from, r#"            Ok(mut prefs) => {
+                let consent = serde_json::from_str::<serde_json::Value>(&text).ok()
+                    .and_then(|value| value.get("autoDownloadConsentV1337")
+                        .and_then(serde_json::Value::as_bool))
+                    .unwrap_or(false);
+                if !consent { prefs.auto_download = false; }
+                if label != "primary" {"#, 1);
     let from = "let data = serde_json::to_vec_pretty(prefs).map_err(|e| e.to_string())?;";
     assert_eq!(updater.matches(from).count(), 1, "expected updater preferences serialization");
     updater = updater.replacen(from, r#"let mut document = serde_json::to_value(prefs).map_err(|e| e.to_string())?;
