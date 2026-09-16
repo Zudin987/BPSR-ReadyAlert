@@ -257,12 +257,14 @@ pub struct SpeechSettings {
 impl Default for SpeechSettings {
     fn default() -> Self {
         Self {
-            translation_enabled: true,
+            // Cloud translation and cloud speech can transmit chat text to Google.
+            // A fresh profile must explicitly enable either service.
+            translation_enabled: false,
             translation_world: true,
             translation_guild: true,
             translation_party_team: true,
             show_translation_in_overlay: true,
-            tts_enabled: true,
+            tts_enabled: false,
             tts_guild: false,
             tts_party_team: true,
             read_sender_name: true,
@@ -346,7 +348,7 @@ impl AppSettings {
 
 fn default_tabs() -> Vec<ChatTabSettings> {
     vec![
-        ChatTabSettings { id: 639233255393111833, name: "All".into(), channels: vec![1,2,3,4,5,6,9], min_level: 50, show_if_matches: String::new(), hide_if_matches: String::new() },
+        ChatTabSettings { id: 639233255393111833, name: "All".into(), channels: vec![1,2,3,4,5,6,9], min_level: 1, show_if_matches: String::new(), hide_if_matches: String::new() },
         ChatTabSettings { id: 639233255393111900, name: "Guild&Team".into(), channels: vec![3,4,5,6], min_level: 1, show_if_matches: String::new(), hide_if_matches: String::new() },
         ChatTabSettings { id: 639233255393111918, name: "Guild".into(), channels: vec![4], min_level: 1, show_if_matches: String::new(), hide_if_matches: String::new() },
         ChatTabSettings { id: 639235625391474596, name: "Team".into(), channels: vec![3,6], min_level: 1, show_if_matches: String::new(), hide_if_matches: String::new() },
@@ -388,13 +390,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_match_existing_profile() {
+    fn new_profiles_opt_in_to_cloud_features_and_show_all_levels() {
         let s = AppSettings::default();
         assert!(s.queue_pop_alert && s.ready_check_alert && s.party_invite_alert && s.party_request_alert);
         assert!(s.chat_overlay_enabled);
         assert_eq!(s.chat.local_chat_log_retention_hours, 168);
         assert_eq!(s.chat.tabs.len(), 4);
-        assert!(s.speech_translation.translation_enabled);
-        assert!(s.speech_translation.tts_enabled);
+        assert_eq!(s.chat.tabs[0].min_level, 1);
+        assert!(!s.speech_translation.translation_enabled);
+        assert!(!s.speech_translation.tts_enabled);
+    }
+
+    #[test]
+    fn existing_explicit_speech_and_tab_settings_survive_deserialization() {
+        let mut saved = serde_json::to_value(AppSettings::default()).unwrap();
+        saved["speechTranslation"]["translationEnabled"] = serde_json::json!(true);
+        saved["speechTranslation"]["ttsEnabled"] = serde_json::json!(true);
+        saved["chat"]["tabs"][0]["minLevel"] = serde_json::json!(50);
+        let mut loaded: AppSettings = serde_json::from_value(saved).unwrap();
+        loaded.normalize();
+        assert!(loaded.speech_translation.translation_enabled);
+        assert!(loaded.speech_translation.tts_enabled);
+        assert_eq!(loaded.chat.tabs[0].min_level, 50);
     }
 }
