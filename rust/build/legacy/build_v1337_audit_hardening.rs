@@ -11,52 +11,35 @@ fn main() {
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     let path = out.join("capture_v185.rs");
     let mut source = fs::read_to_string(&path)
-        .expect("read generated capture for bounded decompression")
+        .expect("read generated capture for decompression safety regression")
         .replace("\r\n", "\n");
-    let unsafe_call = "zstd::stream::decode_all(Cursor::new(";
-    let count = source.matches(unsafe_call).count();
-    assert_eq!(count, 2, "expected two unbounded capture decompression sites, found {count}; inspect the generated capture before changing this patch");
-    source = source.replace(unsafe_call, "decode_zstd_bounded(Cursor::new(");
+
+    // Generated capture already has a bounded decoder, used by both compressed
+    // Notify bodies and nested bundles. Fail closed if a future upstream build
+    // step removes that protection rather than adding a duplicate decoder.
+    assert!(source.contains("const MAX_DECODED_PACKET: usize = 32 * 1024 * 1024;"),
+        "generated capture decoded packet limit changed: review decompression safety");
+    assert_eq!(source.matches("fn decode_zstd_limited(").count(), 1,
+        "expected exactly one bounded capture decoder");
+    assert_eq!(source.matches("decode_zstd_limited(").count(), 3,
+        "expected the bounded decoder and both compressed message call sites");
+    assert!(!source.contains("zstd::stream::decode_all("),
+        "generated capture introduced unbounded zstd decompression");
+
     source.push_str(r#"
 
-// This cap applies to BOTH compressed Notify bodies and recursively nested
-// bundled messages. The frame-size limit alone does not constrain expansion.
-const MAX_DECOMPRESSED_CAPTURE_BYTES: u64 = 16 * 1024 * 1024;
-
-fn decode_zstd_bounded<R: std::io::Read>(input: R) -> std::io::Result<Vec<u8>> {
-    use std::io::Read as _;
-    let decoder = zstd::stream::read::Decoder::new(input)?;
-    let mut limited = decoder.take(MAX_DECOMPRESSED_CAPTURE_BYTES + 1);
-    let mut output = Vec::new();
-    limited.read_to_end(&mut output)?;
-    if output.len() as u64 > MAX_DECOMPRESSED_CAPTURE_BYTES {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "compressed game message exceeded the 16 MiB decoded limit",
-        ));
-    }
-    Ok(output)
-}
-
 #[cfg(test)]
-mod audit_bounded_capture_tests {
+mod audit_capture_decoder_tests {
     use super::*;
 
     #[test]
-    fn accepts_ordinary_compressed_notify() {
-        let payload = b"ReadyAlert game message".repeat(100);
+    fn rejects_compressed_output_past_limit() {
+        let payload = vec![0u8; MAX_DECODED_PACKET + 1];
         let compressed = zstd::stream::encode_all(Cursor::new(&payload), 1).unwrap();
-        assert_eq!(decode_zstd_bounded(Cursor::new(&compressed)).unwrap(), payload);
-    }
-
-    #[test]
-    fn rejects_compressed_expansion_bomb() {
-        let payload = vec![0u8; MAX_DECOMPRESSED_CAPTURE_BYTES as usize + 1];
-        let compressed = zstd::stream::encode_all(Cursor::new(&payload), 1).unwrap();
-        assert!(decode_zstd_bounded(Cursor::new(&compressed)).is_err());
+        assert!(decode_zstd_limited(&compressed).is_err());
     }
 }
 "#);
-    fs::write(path, source).expect("write bounded generated capture");
+    fs::write(path, source).expect("write capture decompression regression test");
     println!("cargo:rerun-if-changed=build/legacy/build_v1337_audit_hardening.rs");
 }
