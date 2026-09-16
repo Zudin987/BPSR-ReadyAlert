@@ -60,7 +60,7 @@ mod audit_updater_privacy_tests {
     use super::*;
 
     #[test]
-    fn new_installations_do_not_download_updates_without consent() {
+    fn new_installations_do_not_download_updates_without_consent() {
         let prefs = UpdatePreferences::default();
         assert!(prefs.auto_check);
         assert!(!prefs.auto_download);
