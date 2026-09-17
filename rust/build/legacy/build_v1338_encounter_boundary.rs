@@ -11,28 +11,16 @@ fn main() {
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     let path = out.join("telemetry_v170_fixed.rs");
     let mut source = fs::read_to_string(&path)
-        .expect("read generated telemetry for encounter boundary fix")
+        .expect("read generated telemetry for encounter boundary regression")
         .replace("\r\n", "\n");
 
-    // Do not consume a pending death/disappear/wipe boundary until its grace
-    // period expires. Previously an attack within three seconds used take(),
-    // silently dropping the pending boundary forever. Subsequent attacks could
-    // then continue accumulating the previous attempt's damage.
-    let before = r#"        if let Some(boundary) = self.pending_boundary.take() {
-            if now.saturating_duration_since(boundary) >= SEGMENT_BOUNDARY_DELAY {
-                self.reset_encounter_keep_roster();
-            }
-        }"#;
-    let after = r#"        if let Some(boundary) = self.pending_boundary {
-            if now.saturating_duration_since(boundary) >= SEGMENT_BOUNDARY_DELAY {
-                self.reset_encounter_keep_roster();
-            }
-            // Keep a not-yet-expired boundary armed for the next eligible hit.
-            // reset_encounter_keep_roster clears it only once the grace expires.
-        }"#;
-    assert_eq!(source.matches(before).count(), 1,
-        "v1.33.8: review generated prepare_segment before applying boundary fix");
-    source = source.replacen(before, after, 1);
+    // v1.33.7 already fixed the early-take bug in generated telemetry. Assert
+    // the final production implementation instead of matching obsolete source.
+    let fixed = "if self.pending_boundary.is_some_and(|boundary| {\n            now.saturating_duration_since(boundary) >= SEGMENT_BOUNDARY_DELAY\n        })";
+    assert_eq!(source.matches(fixed).count(), 1,
+        "v1.33.8: generated telemetry must retain the safe boundary guard");
+    assert!(!source.contains("self.pending_boundary.take()"),
+        "v1.33.8: pending boundary must not be consumed on a fast repull");
 
     source.push_str(r#"
 
