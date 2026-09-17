@@ -1,4 +1,4 @@
-// Final visual-only pass: earlier stages own the behavior and hit boxes.
+// Final visual-only pass: the existing build stages own behavior and hit boxes.
 use std::{env, fs, path::PathBuf};
 
 mod previous {
@@ -6,38 +6,14 @@ mod previous {
     pub fn run() { main(); }
 }
 
+// The checked-in presentation is partly CRLF on Windows. Match each renderer's
+// actual line endings without weakening the exactly-one-anchor assertion.
 fn once(source: &mut String, from: &str, to: &str, label: &str) {
-    assert_eq!(source.matches(from).count(), 1, "white header icons: {label} anchor changed");
-    *source = source.replacen(from, to, 1);
-}
-
-// Insert at the end of a function's body, respecting quoted braces.
-fn append_to_function(source: &mut String, name: &str, insertion: &str) {
-    let signature = format!("unsafe fn {name}(");
-    assert_eq!(source.matches(&signature).count(), 1, "white header icons: {name} function");
-    let start = source.find(&signature).unwrap();
-    let opening = start + source[start..].find('{').expect("function body");
-    let mut depth = 0i32;
-    let mut quoted = false;
-    let mut escaped = false;
-    for (offset, ch) in source[opening..].char_indices() {
-        if quoted {
-            if escaped { escaped = false; }
-            else if ch == '\\' { escaped = true; }
-            else if ch == '"' { quoted = false; }
-            continue;
-        }
-        if ch == '"' { quoted = true; }
-        if ch == '{' { depth += 1; }
-        if ch == '}' {
-            depth -= 1;
-            if depth == 0 {
-                source.insert_str(opening + offset, insertion);
-                return;
-            }
-        }
-    }
-    panic!("white header icons: unterminated {name}");
+    let crlf = source.contains("\r\n");
+    let from = if crlf { from.replace('\n', "\r\n") } else { from.to_owned() };
+    let to = if crlf { to.replace('\n', "\r\n") } else { to.to_owned() };
+    assert_eq!(source.matches(&from).count(), 1, "white header icons: {label} anchor changed");
+    *source = source.replacen(&from, &to, 1);
 }
 
 fn main() {
@@ -46,21 +22,14 @@ fn main() {
     let feature_path = out.join("feature_overlays_v170_fixed.rs");
     let mut feature = fs::read_to_string(&feature_path).expect("feature renderer");
 
-    // Mechanics: overpaint just the old three glyphs; retain their hit boxes.
-    append_to_function(&mut feature, "reference_legacy_paint_toolbar", r#"
-if state.kind==Kind::Mechanics {
-    use white_header_icons::Icon;
-    let background=rgb(23,28,35);
-    let buttons=[
-        (RECT{left:rc.right-BUTTON_W*3,top:0,right:rc.right-BUTTON_W*2,bottom:TOOLBAR_H-2},Icon::Settings),
-        (RECT{left:rc.right-BUTTON_W*2,top:0,right:rc.right-BUTTON_W,bottom:TOOLBAR_H-2},white_header_icons::collapse_icon(&layout_side(state))),
-        (RECT{left:rc.right-BUTTON_W,top:0,right:rc.right,bottom:TOOLBAR_H-2},Icon::Close),
-    ];
-    for (rect,icon) in buttons { white_header_icons::paint_button(hdc,rect,icon,background); }
-}
-"#);
+    // Replace the real Mechanics glyph calls in place, preserving the existing
+    // rounded hover paint and original button rectangles and click handlers.
+    once(&mut feature,
+        "draw_toolbar_symbol(hdc,\"⚙\",gear,icon_scale);draw_toolbar_symbol(hdc,collapse_glyph(state),collapse,icon_scale);draw_toolbar_symbol(hdc,\"×\",hide,hide_scale);",
+        r#"white_header_icons::paint(hdc,gear,white_header_icons::Icon::Settings,if state.hover_y<TOOLBAR_H&&state.hover_x>=gear.left&&state.hover_x<gear.right{crate::ui_modern::DARK_HOVER}else{crate::ui_modern::DARK_RAISED});white_header_icons::paint(hdc,collapse,white_header_icons::collapse_icon(&layout_side(state)),crate::ui_modern::DARK_RAISED);white_header_icons::paint(hdc,hide,white_header_icons::Icon::Close,crate::ui_modern::DARK_RAISED);"#,
+        "Mechanics settings/collapse/close");
 
-    // DPS reference header owns the current rendering. Replace visuals only.
+    // DPS: leave the reference renderer's positioning and dispatch untouched.
     once(&mut feature,
         "    }\n    for index in 0..3 {\n        let r = reference_system_rect(rc.right, index);",
         r#"        if matches!(item.action, ToolbarAction::Copy | ToolbarAction::Reset) {
@@ -89,16 +58,22 @@ unsafe fn reference_set_layout("#,
     feature.push_str("\nmod white_header_icons { include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/src/white_header_icons.rs\")); }\n");
     fs::write(&feature_path, feature).expect("write feature icons");
 
+    // Chat's toolbar is a single-line function in the actual generated output.
+    // Swap its three draw calls for rounded backgrounds and native vector icons.
     let chat_path = out.join("overlay_v150_v1181.rs");
     let mut chat = fs::read_to_string(&chat_path).expect("chat renderer");
     once(&mut chat,
-        "    draw_toolbar_button(hdc, actions.hide, \"×\", rgb(26,30,36), rgb(239,243,247));",
-        r#"    draw_toolbar_button(hdc, actions.hide, "×", rgb(26,30,36), rgb(239,243,247));
-    let background=rgb(26,30,36);
-    white_header_icons::paint_button(hdc,actions.gear,white_header_icons::Icon::Settings,background);
-    white_header_icons::paint_button(hdc,actions.collapse,white_header_icons::collapse_icon(&snapshot.chat.collapse_side),background);
-    white_header_icons::paint_button(hdc,actions.hide,white_header_icons::Icon::Close,background);"#,
-        "chat settings/collapse/close");
+        "draw_toolbar_button(hdc,actions.gear,\"⚙\",crate::ui_modern::DARK_SURFACE,crate::ui_modern::BPSR_TEXT);",
+        "crate::ui_modern::fill_round_rect(hdc,actions.gear,crate::ui_modern::DARK_SURFACE,crate::ui_modern::RADIUS_SMALL);white_header_icons::paint(hdc,actions.gear,white_header_icons::Icon::Settings,crate::ui_modern::DARK_SURFACE);",
+        "chat settings");
+    once(&mut chat,
+        "let collapse=match snapshot.chat.collapse_side.to_ascii_lowercase().as_str(){\"left\"=>\"◀\",\"top\"=>\"▲\",\"bottom\"=>\"▼\",_=>\"▶\"};draw_toolbar_button(hdc,actions.collapse,collapse,crate::ui_modern::DARK_SURFACE,crate::ui_modern::BPSR_TEXT);",
+        "crate::ui_modern::fill_round_rect(hdc,actions.collapse,crate::ui_modern::DARK_SURFACE,crate::ui_modern::RADIUS_SMALL);white_header_icons::paint(hdc,actions.collapse,white_header_icons::collapse_icon(&snapshot.chat.collapse_side),crate::ui_modern::DARK_SURFACE);",
+        "chat collapse");
+    once(&mut chat,
+        "draw_toolbar_button_sized(hdc,actions.hide,\"×\",crate::ui_modern::DARK_SURFACE,crate::ui_modern::BPSR_TEXT,15);",
+        "crate::ui_modern::fill_round_rect(hdc,actions.hide,crate::ui_modern::DARK_SURFACE,crate::ui_modern::RADIUS_SMALL);white_header_icons::paint(hdc,actions.hide,white_header_icons::Icon::Close,crate::ui_modern::DARK_SURFACE);",
+        "chat close");
     chat.push_str("\nmod white_header_icons { include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/src/white_header_icons.rs\")); }\n");
     fs::write(&chat_path, chat).expect("write chat icons");
 
