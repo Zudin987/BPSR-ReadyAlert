@@ -8,6 +8,9 @@
 
 fn dungeon_full_flow_state(body: &[u8]) -> Option<i32> {
     let data = proto::get_len_field(body, 1)?;
+    // Full dungeon syncs must carry a nonzero run scene UUID. A flow-like
+    // submessage alone is insufficient evidence of an actual dungeon packet.
+    if proto::get_varint_field(data, 1)? == 0 { return None; }
     let flow = proto::get_len_field(data, 2)?;
     let state = i32::try_from(proto::get_varint_field(flow, 1)?).ok()?;
     (0..=6).contains(&state).then_some(state)
@@ -127,7 +130,10 @@ mod dungeon_end_v1339_tests {
         let mut runtime = TelemetryRuntime::new(tx);
         runtime.current_scene_id = 13023;
         runtime.local_uid = 42;
-        runtime.encounter_started = Some(Instant::now());
+        // History rejects a snapshot with encounter_ms == 0. Give the
+        // synthetic combat a deterministic elapsed duration, rather than
+        // relying on scheduler timing between creation and finalization.
+        runtime.encounter_started = Some(Instant::now() - std::time::Duration::from_secs(5));
         runtime.combat.entry(42).or_default().damage = 1234;
         (runtime, rx)
     }
@@ -140,10 +146,14 @@ mod dungeon_end_v1339_tests {
         }
         assert_eq!(dungeon_full_flow_state(&full_state(255)), None);
         assert_eq!(dungeon_dirty_flow_state(&dirty_state(255)), None);
+        // A full-sync envelope must actually contain a nonzero scene UUID;
+        // a stand-alone state field must never count as an authoritative run.
+        assert_eq!(dungeon_full_flow_state(&protobuf_field_one(&[0x12, 0x02, 0x08, 4])), None);
+        assert_eq!(dungeon_full_flow_state(&protobuf_field_one(&[0x08, 0, 0x12, 0x02, 0x08, 4])), None);
     }
 
     #[test]
-    fn live_mouse_unrelated_world_messages_and_bad_dirty_data_cannot_reset() {
+    fn unrelated_world_messages_and_bad_dirty_data_cannot_reset() {
         let (mut runtime, rx) = active();
         runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DATA, &full_state(3));
         let mut truncated = dirty_state(4);
@@ -161,6 +171,7 @@ mod dungeon_end_v1339_tests {
         let (mut runtime, rx) = active();
         runtime.emit_dps();
         let before = match rx.try_recv().unwrap() { AppEvent::Dps(snapshot) => snapshot, _ => panic!("Dps expected") };
+        assert!(before.encounter_ms > 0, "synthetic combat must have positive duration for history");
         runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DATA, &full_state(3));
         assert!(rx.try_recv().is_err(), "Playing must not end encounter");
         runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DIRTY, &dirty_state(4));
