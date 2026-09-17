@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1352_audit_rank_gap.rs");
+    include!("build/legacy/build_v1353_audit_raid_hit_alignment.rs");
     pub fn run() { main(); }
 }
 
