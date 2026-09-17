@@ -19,13 +19,13 @@ fn main() {
     src = src.replacen(old, new, 1);
     let anchor = "unsafe fn dps_cached_font(scale: i32, bold: bool) -> HFONT {";
     assert_eq!(src.matches(anchor).count(), 1, "DPS font function anchor changed");
-    src = src.replacen(anchor, r#"// Keep a readable physical em height as the app overlay scales down. This
-// runs in logical GDI coordinates, before the existing app transform; monitor
-// DPI is handled separately by Windows. Large user-selected scales are kept.
+    src = src.replacen(anchor, r#"// Keep 13px primary and 12px secondary em floors at 96 DPI while the
+// overlay is reduced. This is logical GDI geometry before the app transform;
+// monitor DPI is handled by the existing Windows DPI path. Larger scales stay.
 fn dps_readable_font_height(scale: i32, bold: bool) -> i32 {
     let app_scale = clamp_kind_scale(Kind::Dps, scale).max(1);
     let base = if bold { 14 } else { 12 };
-    let physical_floor = if bold { 12 } else { 11 };
+    let physical_floor = if bold { 13 } else { 12 };
     let logical_floor = (physical_floor * 100 + app_scale - 1) / app_scale;
     dps_adaptive_logical_px(base, scale).max(logical_floor)
 }
@@ -36,9 +36,9 @@ unsafe fn dps_cached_font(scale: i32, bold: bool) -> HFONT {"#, 1);
 mod audit_readable_font_floor_tests {
     use super::*;
     #[test]
-    fn primary_and_secondary_ems_do_not_shrink_below_readable_96_dpi_floors() {
+    fn primary_and_secondary_ems_meet_96_dpi_audit_floors() {
         for scale in [50, 60, 65, 75, 80, 100, 125, 150, 175, 200] {
-            for (bold, floor) in [(true, 12), (false, 11)] {
+            for (bold, floor) in [(true, 13), (false, 12)] {
                 let height = dps_readable_font_height(scale, bold);
                 let app = clamp_kind_scale(Kind::Dps, scale).max(1);
                 assert!(height * app >= floor * 100, "{scale}% bold={bold}");
