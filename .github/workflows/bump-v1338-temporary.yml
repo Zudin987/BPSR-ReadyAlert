@@ -1,0 +1,39 @@
+name: Temporary v1.33.8 version bump
+
+on:
+  push:
+    branches: [fix/encounter-lifecycle-v1338]
+    paths: ['.github/workflows/bump-v1338-temporary.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: github.repository == 'Zudin987/BPSR-ReadyAlert' && github.ref == 'refs/heads/fix/encounter-lifecycle-v1338'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Atomically update Cargo manifest and lockfile versions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path('rust/Cargo.toml')
+          source = manifest.read_text()
+          old = 'version = "1.33.7"'
+          assert source.count(old) == 1, 'unexpected Cargo.toml package version'
+          manifest.write_text(source.replace(old, 'version = "1.33.8"', 1))
+          lock = Path('rust/Cargo.lock')
+          source = lock.read_text()
+          old = '[[package]]\nname = "bpsr-readyalert"\nversion = "1.33.7"'
+          assert source.count(old) == 1, 'unexpected Cargo.lock package version'
+          lock.write_text(source.replace(old, old.replace('1.33.7', '1.33.8'), 1))
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rust/Cargo.toml rust/Cargo.lock
+          git commit -m 'chore: bump ReadyAlert package and lockfile to v1.33.8'
+          git push origin HEAD:refs/heads/fix/encounter-lifecycle-v1338
