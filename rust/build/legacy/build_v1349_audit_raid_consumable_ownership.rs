@@ -7,8 +7,9 @@ mod previous {
 
 fn once(src: &mut String, old: &str, new: &str, what: &str) {
     let n = src.matches(old).count();
-    assert_eq!(n, 1, "audit raid {what}: expected one anchor, found {n}");
-    *src = src.replacen(old, new, 1);
+    let expected = if what == "keep numeric metrics above F/S" { 2 } else { 1 };
+    assert_eq!(n, expected, "audit raid {what}: expected {expected} anchor(s), found {n}");
+    *src = src.replace(old, new);
 }
 fn section(src: &mut String, start: &str, end: &str, old: &str, new: &str, what: &str) {
     let a = src.find(start).expect("audit section start");
@@ -30,21 +31,22 @@ fn main() {
     section(&mut src, "unsafe fn paint_raid_rows(", "unsafe fn paint_raid_player(", "right: (mid - gap / 2 - 4).max(160),", "right: (mid - gap / 2).max(160),", "left row extent");
     section(&mut src, "unsafe fn paint_raid_rows(", "unsafe fn paint_raid_player(", "left: (mid + gap / 2 + 4).min(rc.right - 160),", "left: (mid + gap / 2).min(rc.right - 160),", "right row extent");
 
-    // Remove the former two F/S pairs from the central column headings.
+    // Remove the two F/S pairs from the central column headings.
     let a = src.find("unsafe fn paint_reference_raid_headers(").unwrap();
     let b = a + src[a..].find("#[cfg(test)]\nmod reference_meter_audit_tests").unwrap();
     let p = a + src[a..b].find("    if settings.meter.show_consumables {\n        let pair_w").expect("central F/S heading");
     let q = p + src[p..b].find("\n}\n\n").expect("raid headings end");
     src.replace_range(p..q, "");
 
-    // Remove the former gutter paint from each Raid row, without changing roster indexing.
+    // Remove gutter paint, keeping roster indexing and denominator unchanged.
     let a = src.find("unsafe fn paint_raid_rows(").unwrap();
     let b = a + src[a..].find("unsafe fn paint_raid_player(").unwrap();
     let p = a + src[a..b].find("        if settings.meter.show_consumables {\n            let pair_w").expect("central F/S painter");
     let q = p + src[p..b].find("\n    }\n}").expect("raid rows end");
     src.replace_range(p..q, "");
 
-    // Each food/serum pair belongs to its player's second line, not the gutter.
+    // Give rates/totals their original numeric widths but upper-line height;
+    // statuses reside on the second line inside the corresponding player row.
     section(&mut src, "unsafe fn paint_raid_player(", "mod white_header_icons {",
         "        paint_dps_secondary_colored(hdc, row, &text, detail);\n    }\n    SelectObject(hdc, primary);",
         "        paint_dps_secondary_colored(hdc, row, &text, detail);\n    }\n    if settings.meter.show_consumables {\n        paint_raid_fs(hdc, state, Some(&row), r.right - 44, middle, 40, (r.bottom - 4 - middle).max(1));\n    }\n    SelectObject(hdc, primary);", "place F/S in player row");
@@ -52,7 +54,7 @@ fn main() {
         "                    bottom: r.bottom - 3,\n                    ..r\n                },\n                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,",
         "                    top: r.top,\n                    bottom: if settings.meter.show_consumables { middle + 2 } else { r.bottom - 3 },\n                    ..r\n                },\n                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,", "keep numeric metrics above F/S");
 
-    // Pointer and paint use the same row-relative horizontal/vertical split.
+    // Hit regions use same second-line coordinates as painting and exclude gutter.
     let hover_start = "        let rows = meter_rows(state);\n        let gap = dps_adaptive_logical_px(RAID_CENTER_GAP, scale).max(56);";
     let hover_end = "\n    }\n    let top = dps_rows_top();";
     let h = src.find("unsafe fn consumable_hover_at(").expect("consumable hover function");
