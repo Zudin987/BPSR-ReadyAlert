@@ -1,7 +1,7 @@
 [package]
 name = "bpsr-readyalert"
-version = "1.33.8"
-# Patch release: redesign meter cards and restore Imagine/F/S hover details.
+version = "1.33.9"
+# Patch release: add diagnostic-only dungeon flow decoding for safe live validation.
 edition = "2021"
 build = "build.rs"
 description = "Native Rust Ready Check, queue, party, chat, DPS and dungeon mechanics companion for Blue Protocol: Star Resonance"
