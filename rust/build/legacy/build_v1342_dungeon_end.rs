@@ -47,7 +47,9 @@ fn main() {
         "flow reset on encounter boundary");
 
     source.push_str(include_str!("../../src/dungeon_end_v1339.rs"));
+    source.push_str(include_str!("../../src/dungeon_end_v1339_regressions.rs"));
     fs::write(path, source).expect("write dungeon lifecycle telemetry");
     println!("cargo:rerun-if-changed=build/legacy/build_v1342_dungeon_end.rs");
     println!("cargo:rerun-if-changed=src/dungeon_end_v1339.rs");
+    println!("cargo:rerun-if-changed=src/dungeon_end_v1339_regressions.rs");
 }
