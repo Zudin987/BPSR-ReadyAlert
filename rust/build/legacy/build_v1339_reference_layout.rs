@@ -22,7 +22,7 @@ fn main() {
     // Normal meter, raid, resize, hover and export derive from shared geometry.
     replace_exact(&mut source, "const DPS_CONTROL_H: i32 = 80;", "const DPS_CONTROL_H: i32 = 96;", 1, "header height");
     replace_exact(&mut source, "const DPS_ROW_H: i32 = 33;", "const DPS_ROW_H: i32 = 40;", 1, "card row height");
-    replace_exact(&mut source, "const BADGE_W: i32 = 25;", "const BADGE_W: i32 = 29;", 1, "Imagine icon width");
+    replace_exact(&mut source, "const BADGE_W: i32 = 25;", "const BADGE_W: i32 = 27;", 1, "Imagine icon width");
     replace_exact(&mut source, "const BADGE_GAP: i32 = 3;", "const BADGE_GAP: i32 = 4;", 1, "Imagine spacing");
     replace_exact(&mut source, "dps_adaptive_logical_px(23,scale)", "dps_adaptive_logical_px(27,scale)", 1, "Imagine icon height");
 

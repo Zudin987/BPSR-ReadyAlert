@@ -71,7 +71,7 @@ fn main() {
     source.push_str(include_str!("../../src/feature_meter_hover_qa.rs"));
     // Replace whole presentation functions once, after historical transforms.
     // Rendering and hit tests are maintained together in normal Rust source.
-    for name in ["paint_toolbar", "on_click", "overlay_help"] {
+    for name in ["paint_toolbar", "on_click", "overlay_help", "resize_hit_test"] {
         let signature = format!("unsafe fn {name}(");
         replace_exact(&mut source, &signature,
             &format!("unsafe fn reference_legacy_{name}("), 1, name);
@@ -80,7 +80,7 @@ fn main() {
         "show_meter_more_menu", "dispatch_toolbar_action", "dps_rows_top",
         "dps_rows_top_for", "dps_compact_row_h", "paint_compact_player",
         "paint_compact_raid_rows", "raid_row_at", "hover_badge_at", "consumable_hover_at",
-        "dps_primary_font", "dps_secondary_font", "paint_mode_tab", "overlay_min_height_mode", "dps_image_dimensions_for",
+        "dps_primary_font", "dps_secondary_font", "dps_cached_font", "paint_raid_rows", "paint_raid_player", "paint_mode_tab", "overlay_min_height_mode", "dps_image_dimensions_for",
         "dps_row_layout_responsive", "paint_dps_secondary_colored", "paint_dps", "paint_dps_with_raid"] {
         remove_presentation_function(&mut source, name);
     }

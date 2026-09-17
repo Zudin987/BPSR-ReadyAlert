@@ -191,7 +191,7 @@ unsafe fn render_meter_case(
         let x = scale_px(logical_x, scale).clamp(0, physical_width - 1);
         let y = scale_px(logical_y, scale).clamp(0, physical_height - 1);
         let offset = ((y * physical_width + x) * 4) as usize;
-        let bg = crate::ui_modern::DARK_BG;
+        let bg = REFERENCE_METER_BG;
         assert_ne!(
             &pixels[offset..offset + 3],
             &[(bg >> 16) as u8, (bg >> 8) as u8, bg as u8],
@@ -305,7 +305,7 @@ fn raid_image_export_keeps_both_columns() {
             let x = w - 12;
             let y = top + 9 * row_h + row_h / 2;
             let offset = ((y * w + x) * 4) as usize;
-            let bg = crate::ui_modern::DARK_BG;
+            let bg = REFERENCE_METER_BG;
             assert_ne!(
                 &pixels[offset..offset + 3],
                 &[(bg >> 16) as u8, (bg >> 8) as u8, bg as u8]
@@ -360,7 +360,14 @@ fn reference_toolbar_has_direct_icon_actions_and_bounded_history() {
         is_local: true,
         ..Default::default()
     }];
-    archive_live_snapshot(&mut s);
+    s.history.push(HistoryEncounter {
+        schema: 1,
+        id: 1,
+        ended_unix_ms: 0,
+        target_name: "Test encounter".into(),
+        context: Default::default(),
+        snapshot: s.dps.clone(),
+    });
     assert!(reference_action_enabled(&s, ToolbarAction::Older));
     history_older(&mut s);
     assert_eq!(s.history_index, Some(0));

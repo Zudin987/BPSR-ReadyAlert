@@ -328,24 +328,24 @@ unsafe fn paint_compact_player(
     } else {
         0
     };
-    let status_w = if row.is_dead {
+    let status_w = if row.is_dead && dps_effective_width(r.right - r.left, scale) >= 280 {
         dps_adaptive_logical_px(94, scale)
     } else {
         0
     };
     let gap = dps_adaptive_logical_px(3, scale);
     let right = r.right - 4;
-    let status_left = right - status_w;
-    let rate_right = if status_w > 0 {
-        status_left - gap
-    } else {
-        right
-    };
+    let rate_right = right;
     let rate_left = rate_right - rate_w;
     let total_right = rate_left - gap;
     let total_left = total_right - total_w;
-    let name_right =
-        (if total_w > 0 { total_left } else { rate_left } - gap).max(r.left + rank_w + 36);
+    let identity_right = (if total_w > 0 { total_left } else { rate_left }) - gap;
+    let status_left = (identity_right - status_w).max(r.left + rank_w + 36);
+    let name_right = if status_w > 0 {
+        status_left - gap
+    } else {
+        identity_right
+    };
     SelectObject(
         hdc,
         if row.is_local {
@@ -444,7 +444,7 @@ unsafe fn paint_compact_player(
             RECT {
                 left: status_left,
                 top: r.top,
-                right: right,
+                right: identity_right,
                 bottom: r.bottom,
             },
             DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS,
@@ -755,6 +755,7 @@ unsafe fn consumable_hover_at(hwnd: HWND, state: &State, x: i32, y: i32) -> Opti
     })
 }
 
+const REFERENCE_METER_BG: u32 = 0x001B1715; // Win32 COLORREF: #15171B
 const REFERENCE_ENCOUNTER_H: i32 = 34;
 const REFERENCE_TABS_H: i32 = 28;
 const REFERENCE_HEAD_H: i32 = 20;
@@ -964,10 +965,10 @@ unsafe fn paint_toolbar(hdc: HDC, rc: RECT, state: &State) {
                     cy - 6,
                     cx + 7,
                     cy + 7,
-                    cx + 6,
-                    cy - 3,
                     cx + 4,
                     cy - 6,
+                    cx + 6,
+                    cy - 3,
                 );
                 SelectObject(hdc, prev);
                 DeleteObject(pen);
@@ -1448,7 +1449,7 @@ unsafe fn dps_row_layout_responsive(
         cursor
     };
     let identity_width = (identity_right - name_left).max(0);
-    let class_width = if effective >= 600 {
+    let class_width = if effective >= 480 {
         (identity_width * 44 / 100).min(dps_adaptive_logical_px(150, scale))
     } else {
         0
@@ -1546,35 +1547,46 @@ unsafe fn paint_reference_headers(hdc: HDC, rc: RECT, state: &State, settings: &
             ];
         }
         for r in columns {
-            draw(
-                hdc,
-                "#",
-                RECT {
-                    right: r.left + 24,
-                    ..r
-                },
-                DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
-            );
-            draw(
-                hdc,
-                "Player",
-                RECT {
-                    left: r.left + 24,
-                    right: r.right - 90,
-                    ..r
-                },
-                DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
-            );
-            draw(
-                hdc,
-                reference_meter_rate_label(state.sort_mode),
-                RECT {
-                    left: r.right - 100,
-                    right: r.right - 4,
-                    ..r
-                },
-                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
-            );
+            let rate_right = r.right - 4;
+            let rate_left = rate_right - dps_adaptive_logical_px(64, scale);
+            let show_total = dps_effective_width(r.right - r.left, scale)
+                >= if reference_raid_columns(state, rc.right) {
+                    420
+                } else {
+                    460
+                };
+            let total_right = rate_left - dps_adaptive_logical_px(3, scale);
+            let total_left = total_right - dps_adaptive_logical_px(70, scale);
+            let name_right = if show_total { total_left } else { rate_left } - 4;
+            for (label, left, right, flags) in [
+                ("#", r.left + 3, r.left + 24, 0),
+                ("Player", r.left + 24, name_right, 0),
+                (
+                    reference_meter_rate_label(state.sort_mode),
+                    rate_left,
+                    rate_right,
+                    DT_RIGHT,
+                ),
+            ] {
+                draw(
+                    hdc,
+                    label,
+                    RECT { left, right, ..r },
+                    flags | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+                );
+            }
+            if show_total {
+                draw(
+                    hdc,
+                    "Total",
+                    RECT {
+                        left: total_left,
+                        right: total_right,
+                        ..r
+                    },
+                    DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+                );
+            }
         }
         return;
     }
@@ -1653,7 +1665,7 @@ unsafe fn paint_dps(hdc: HDC, rc: RECT, state: &State) {
             top: TOOLBAR_H,
             ..rc
         },
-        rgb(21, 23, 27),
+        REFERENCE_METER_BG,
     );
     paint_reference_encounter(hdc, rc, state, &settings);
     for (index, mode) in [SortMode::Damage, SortMode::Heal, SortMode::Tank]
@@ -1719,4 +1731,359 @@ fn dps_image_dimensions_for(state: &State, client_width: i32, row_count: usize) 
     };
     let height = dps_rows_top_for(state) + (rows as i32) * dps_row_h_for(state, 100) + 6;
     (width, height)
+}
+
+unsafe fn resize_hit_test(hwnd: HWND, lparam: LPARAM) -> LRESULT {
+    let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State;
+    if !ptr.is_null() && (*ptr).kind == Kind::Dps && !(*ptr).collapsed {
+        let state = &*ptr;
+        let mut wr: RECT = std::mem::zeroed();
+        GetWindowRect(hwnd, &mut wr);
+        let x = physical_to_logical(lo_signed(lparam) - wr.left, state.scale_percent);
+        let y = physical_to_logical(hi_signed(lparam) - wr.top, state.scale_percent);
+        let rc = logical_client_rect(hwnd, state.scale_percent);
+        if toolbar_items(state, rc.right)
+            .iter()
+            .any(|item| reference_contains(item.rect, x, y))
+            || (0..3).any(|i| reference_contains(reference_system_rect(rc.right, i), x, y))
+        {
+            return HTCLIENT as LRESULT;
+        }
+    }
+    reference_legacy_resize_hit_test(hwnd, lparam)
+}
+
+unsafe fn dps_cached_font(scale: i32, bold: bool) -> HFONT {
+    static FONTS: OnceLock<std::sync::Mutex<std::collections::HashMap<(i32, bool), usize>>> =
+        OnceLock::new();
+    let key = (clamp_kind_scale(Kind::Dps, scale), bold);
+    let fonts = FONTS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+    let mut fonts = match fonts.lock() {
+        Ok(value) => value,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if let Some(font) = fonts.get(&key) {
+        return *font as HFONT;
+    }
+    let base = if bold { 14 } else { 12 };
+    let height = dps_adaptive_logical_px(base, scale);
+    let face = wide("Segoe UI");
+    let font = CreateFontW(
+        -height,
+        0,
+        0,
+        0,
+        if bold { 600 } else { 400 },
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        5,
+        0,
+        face.as_ptr(),
+    );
+    if !font.is_null() {
+        fonts.insert(key, font as usize);
+    }
+    font
+}
+
+unsafe fn paint_raid_rows(hdc: HDC, rc: RECT, state: &State) {
+    let top = dps_rows_top();
+    if rc.bottom <= top {
+        return;
+    }
+    fill(
+        hdc,
+        &RECT {
+            left: 0,
+            top,
+            right: rc.right,
+            bottom: rc.bottom,
+        },
+        REFERENCE_METER_BG,
+    );
+    let rows = meter_rows(state);
+    if rows.is_empty() {
+        crate::ui_modern::qa_draw_empty_state(
+            hdc,
+            RECT {
+                left: 6,
+                top,
+                right: rc.right - 6,
+                bottom: rc.bottom,
+            },
+            "Waiting for raid data",
+            "Raid players appear here when their combat data is received.",
+        );
+        return;
+    }
+    let settings = state.features.read().map(|v| v.clone()).unwrap_or_default();
+    let snapshot = view_snapshot(state);
+    let scale = dps_layout_scale(state);
+    let row_h = dps_row_h(scale);
+    let gap = if settings.meter.show_consumables {
+        dps_adaptive_logical_px(RAID_CENTER_GAP, scale).max(56)
+    } else {
+        0
+    };
+    let mid = rc.right / 2;
+    let left = RECT {
+        left: 6,
+        top,
+        right: (mid - gap / 2 - 4).max(160),
+        bottom: rc.bottom,
+    };
+    let right = RECT {
+        left: (mid + gap / 2 + 4).min(rc.right - 160),
+        top,
+        right: rc.right - 8,
+        bottom: rc.bottom,
+    };
+    let leader = rows
+        .iter()
+        .take(RAID_MAX_ROWS)
+        .map(|r| mode_metric(r, state.sort_mode))
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    let gutter_bottom = (top + RAID_ROWS_PER_COLUMN as i32 * row_h).min(rc.bottom);
+    if settings.meter.show_consumables {
+        crate::ui_modern::fill_round_rect(
+            hdc,
+            RECT {
+                left: mid - gap / 2,
+                top: top + 2,
+                right: mid + gap / 2,
+                bottom: gutter_bottom,
+            },
+            crate::ui_modern::DARK_SURFACE,
+            crate::ui_modern::RADIUS_SMALL,
+        );
+    }
+    fill(
+        hdc,
+        &RECT {
+            left: mid,
+            top: top + 4,
+            right: mid + 1,
+            bottom: gutter_bottom - 2,
+        },
+        crate::ui_modern::DARK_BORDER,
+    );
+    for slot in 0..RAID_ROWS_PER_COLUMN {
+        let y = top + slot as i32 * row_h;
+        if y >= rc.bottom {
+            break;
+        }
+        let bottom = (y + row_h - 2).min(rc.bottom);
+        let li = slot;
+        let ri = slot + RAID_ROWS_PER_COLUMN;
+        if let Some(row) = rows.get(li) {
+            paint_raid_player(
+                hdc,
+                state,
+                row,
+                li + 1,
+                RECT {
+                    left: left.left,
+                    top: y,
+                    right: left.right,
+                    bottom,
+                },
+                leader,
+                snapshot,
+                &settings,
+            );
+        }
+        if let Some(row) = rows.get(ri) {
+            paint_raid_player(
+                hdc,
+                state,
+                row,
+                ri + 1,
+                RECT {
+                    left: right.left,
+                    top: y,
+                    right: right.right,
+                    bottom,
+                },
+                leader,
+                snapshot,
+                &settings,
+            );
+        }
+        if settings.meter.show_consumables {
+            let pair_w = ((gap / 2) - 8).max(24);
+            paint_raid_fs(
+                hdc,
+                state,
+                rows.get(li),
+                mid - gap / 2 + 2,
+                y,
+                pair_w,
+                bottom - y,
+            );
+            paint_raid_fs(hdc, state, rows.get(ri), mid + 6, y, pair_w, bottom - y);
+        }
+    }
+}
+
+unsafe fn paint_raid_player(
+    hdc: HDC,
+    state: &State,
+    row: &DpsRow,
+    rank: usize,
+    r: RECT,
+    leader: i64,
+    _snapshot: &DpsSnapshot,
+    settings: &FeatureSettings,
+) {
+    let scale = dps_layout_scale(state);
+    let primary = dps_primary_font(state);
+    let secondary = dps_secondary_font(state);
+    let layout = dps_row_layout_responsive(
+        hdc,
+        r,
+        scale,
+        false,
+        settings.meter.show_active_rates,
+        dps_mode_share_enabled(settings, state.sort_mode),
+        settings.meter.show_deaths,
+        row,
+        primary,
+        secondary,
+    );
+    crate::ui_modern::fill_round_rect(hdc, r, reference_meter_row_background(row), 5);
+    fill(
+        hdc,
+        &RECT {
+            right: r.left + 3,
+            bottom: r.bottom - 3,
+            ..r
+        },
+        spec_accent_color(row),
+    );
+    SelectObject(hdc, secondary);
+    SetTextColor(hdc, spec_accent_color(row));
+    draw(
+        hdc,
+        &rank.to_string(),
+        RECT {
+            left: r.left + 4,
+            right: r.left + 24,
+            bottom: r.bottom - 3,
+            ..r
+        },
+        DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+    );
+    SelectObject(hdc, primary);
+    SetTextColor(hdc, rgb(241, 243, 247));
+    let middle = r.top + (r.bottom - r.top - 3) / 2;
+    let identity = RECT {
+        left: layout.name_left,
+        top: r.top + 1,
+        right: layout.spec_right,
+        bottom: middle + 2,
+    };
+    draw(
+        hdc,
+        &row.name,
+        identity,
+        DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS,
+    );
+    SelectObject(hdc, secondary);
+    let detail = RECT {
+        top: middle,
+        bottom: r.bottom - 4,
+        ..identity
+    };
+    if row.is_dead {
+        let (text, color) = compact_dead_status(row, now_ms());
+        SetTextColor(hdc, color);
+        draw(
+            hdc,
+            &text,
+            detail,
+            DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS,
+        );
+    } else {
+        let text = dps_secondary_compact_measured(hdc, row, detail.right - detail.left);
+        paint_dps_secondary_colored(hdc, row, &text, detail);
+    }
+    SelectObject(hdc, primary);
+    SetTextColor(hdc, rgb(241, 243, 247));
+    for (text, left, right) in [
+        (
+            compact(mode_metric(row, state.sort_mode) as f64),
+            layout.total_left,
+            layout.total_right,
+        ),
+        (
+            compact(active_rate(row, state.sort_mode)),
+            layout.active_left,
+            layout.active_right,
+        ),
+    ] {
+        if right > left {
+            draw(
+                hdc,
+                &text,
+                RECT {
+                    left,
+                    right,
+                    bottom: r.bottom - 3,
+                    ..r
+                },
+                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+            );
+        }
+    }
+    if layout.share_right > layout.share_left {
+        if let Some((share, color)) = active_share(row, state.sort_mode, settings) {
+            SetTextColor(hdc, color);
+            draw(
+                hdc,
+                &format!("{share:.1}%"),
+                RECT {
+                    left: layout.share_left,
+                    right: layout.share_right,
+                    bottom: r.bottom - 3,
+                    ..r
+                },
+                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+            );
+        }
+    }
+    if layout.death_right > layout.death_left && row.deaths > 0 {
+        SetTextColor(hdc, crate::ui_modern::BPSR_DANGER);
+        draw(
+            hdc,
+            &row.deaths.to_string(),
+            RECT {
+                left: layout.death_left,
+                right: layout.death_right,
+                bottom: r.bottom - 3,
+                ..r
+            },
+            DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+        );
+    }
+    let width = (r.right - r.left - 2).max(0) as i64;
+    let total = mode_metric(row, state.sort_mode).clamp(0, leader.max(1));
+    fill(
+        hdc,
+        &RECT {
+            left: r.left + 1,
+            top: r.bottom - 3,
+            right: r.left + 1 + (width * total / leader.max(1)) as i32,
+            bottom: r.bottom - 1,
+        },
+        reference_meter_progress_color(state.sort_mode),
+    );
+    if row.is_local {
+        paint_pinned_self_frame(hdc, &r);
+    }
 }
