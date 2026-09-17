@@ -45,13 +45,13 @@ fn main() {
     replace_exact(&mut source,
         "if row.is_local&&forced_self_row(rows.len(),rank.saturating_sub(1),state.scroll,regular_page){paint_pinned_self_frame(hdc,&r);}",
         "if row.is_local{paint_pinned_self_frame(hdc,&r);}", 1, "frame every local row");
-    replace_exact(&mut source, "let regular_page=meter_regular_page_size(state,visible);", "", 1, "remove unused page size");
+    // Keep regular_page: it still determines the normal-mode scroll thumb size.
     replace_exact(&mut source,
         "crate::ui_modern::stroke_round_rect(hdc,r,crate::ui_modern::BPSR_ACCENT,crate::ui_modern::RADIUS_SMALL,1)",
         "crate::ui_modern::stroke_round_rect(hdc,r,rgb(104,224,183),crate::ui_modern::RADIUS_SMALL,1)", 2, "mint compact and raid local frames");
     replace_exact(&mut source,
         "SetTextColor(hdc,if row.is_local{crate::ui_modern::BPSR_DANGER}else{crate::ui_modern::BPSR_TEXT_SECONDARY});draw(hdc,&rank.to_string()",
-        "SetTextColor(hdc,if row.is_local{rgb(225,169,129)}else{crate::ui_modern::BPSR_TEXT_SECONDARY});draw(hdc,&rank.to_string()", 1, "warm local rank");
+        "SetTextColor(hdc,if row.is_local{rgb(225,169,129)}else{crate::ui_modern::BPSR_TEXT_SECONDARY});draw(hdc,&rank.to_string()", 2, "warm local ranks");
 
     replace_exact(&mut source,
         "let(total_head,active_head,share_head)=dps_header_labels(tier);",
