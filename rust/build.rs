@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1337_audit_hardening.rs");
+    include!("build/legacy/build_v1338_reference_meter.rs");
     pub fn run() { main(); }
 }
 
