@@ -25,7 +25,7 @@ fn reference_compact_status_width(width: i32, scale: i32, show_total: bool, dead
     let status = dps_adaptive_logical_px(94, scale);
     let reserve = 4 + dps_adaptive_logical_px(24, scale)
         + dps_adaptive_logical_px(64, scale) + gap
-        + if show_total { dps_adaptive_logical_px(70, scale) + gap } else { 0 }
+        + (if show_total { dps_adaptive_logical_px(70, scale) + gap } else { 0 })
         + status + gap + dps_adaptive_logical_px(88, scale);
     if width >= reserve { status } else { 0 }
 }
