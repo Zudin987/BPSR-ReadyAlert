@@ -1,10 +1,8 @@
 name: Release Rust
 
+# Release hold: publish only by explicit workflow dispatch until authorized.
+# Restore the workflow_run trigger in a separate reviewed change when ready.
 on:
-  workflow_run:
-    workflows: ["Rust CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 permissions:
