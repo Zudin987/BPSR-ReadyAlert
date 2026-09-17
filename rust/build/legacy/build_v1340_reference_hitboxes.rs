@@ -27,11 +27,11 @@ fn main() {
 mod reference_meter_hitbox_tests {
     use super::*;
     #[test]
-    fn expanded_target_strip_keeps_mode_tabs_in_control_area() {
-        let target_bottom = TOOLBAR_H + 4 + 43;
-        let tabs_top = target_bottom + 4;
-        assert_eq!(tabs_top, TOOLBAR_H + 51);
-        assert!(tabs_top + 23 < dps_rows_top());
+    fn single_target_strip_keeps_mode_tabs_in_control_area() {
+        let target_bottom = TOOLBAR_H + REFERENCE_ENCOUNTER_H;
+        assert_eq!(reference_tabs_top(), target_bottom);
+        assert_eq!(reference_tab_rect(0).top, target_bottom + 2);
+        assert!(reference_tab_rect(2).bottom < dps_rows_top());
     }
 }
 "#);

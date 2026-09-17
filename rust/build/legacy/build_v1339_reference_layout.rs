@@ -63,7 +63,7 @@ fn main() {
         "    let rows=meter_rows(state);let top=dps_rows_top();let row_h=dps_row_h(scale);",
         "    paint_reference_column_headers(hdc,hr,&layout,tier,scale,settings.meter.show_imagines);let rows=meter_rows(state);let top=dps_rows_top();let row_h=dps_row_h(scale);", 1, "class and Imagine headings");
 
-    source.push_str(include_str!("../../src/feature_meter_reference_layout.rs"));
+    // The final audit stage binds the maintained native presentation functions.
     fs::write(path, source).expect("write refined native meter layout");
     println!("cargo:rerun-if-changed=build/legacy/build_v1339_reference_layout.rs");
     println!("cargo:rerun-if-changed=src/feature_meter_reference_layout.rs");
