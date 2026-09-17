@@ -1,7 +1,7 @@
 [package]
 name = "bpsr-readyalert"
 version = "1.33.8"
-# Patch release: hide unresolved mechanic placeholders while retaining diagnostics.
+# Patch release: recognize explicit dungeon completion and retain boundary regression coverage.
 edition = "2021"
 build = "build.rs"
 description = "Native Rust Ready Check, queue, party, chat, DPS and dungeon mechanics companion for Blue Protocol: Star Resonance"
