@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1346_video_spacing.rs");
+    include!("build/legacy/build_v1347_video_spacing_badge_fix.rs");
     pub fn run() { main(); }
 }
 
