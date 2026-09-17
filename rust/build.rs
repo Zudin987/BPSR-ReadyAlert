@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1341_reference_audit.rs");
+    include!("build/legacy/build_v1342_dungeon_end.rs");
     pub fn run() { main(); }
 }
 
