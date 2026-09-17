@@ -175,9 +175,11 @@ mod dungeon_end_v1339_tests {
         runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DATA, &full_state(3));
         assert!(rx.try_recv().is_err(), "Playing must not end encounter");
         runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DIRTY, &dirty_state(4));
-        let after = match rx.try_recv().unwrap() { AppEvent::Dps(snapshot) => snapshot, _ => panic!("Dps expected") };
+        let final_snapshot = match rx.try_recv().unwrap() { AppEvent::Dps(snapshot) => snapshot, _ => panic!("final Dps expected") };
+        let after = match rx.try_recv().unwrap() { AppEvent::Dps(snapshot) => snapshot, _ => panic!("empty Dps expected") };
+        assert_eq!(final_snapshot.total_damage, before.total_damage);
         assert_eq!(after.total_damage, 0);
-        assert!(crate::history::encounter_rolled(&before, &after), "UI should archive the previous snapshot");
+        assert!(crate::history::encounter_rolled(&final_snapshot, &after), "UI should archive the final snapshot");
         assert!(runtime.encounter_started.is_none());
         runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DIRTY, &dirty_state(4));
         runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DATA, &full_state(5));
@@ -204,6 +206,7 @@ mod dungeon_end_v1339_tests {
             runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DIRTY, &dirty_state(3));
             runtime.handle_notify(proto::WORLD_SERVICE, SYNC_DUNGEON_DATA, &full_state(final_state));
             assert_eq!(runtime.combat.get(&42).map(|row| row.damage), Some(0));
+            assert!(matches!(rx.try_recv(), Ok(AppEvent::Dps(snapshot)) if snapshot.total_damage == 1234));
             assert!(matches!(rx.try_recv(), Ok(AppEvent::Dps(snapshot)) if snapshot.total_damage == 0));
             assert!(rx.try_recv().is_err());
         }
