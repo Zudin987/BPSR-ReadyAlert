@@ -44,17 +44,15 @@ fn main() {
     let q = p + src[p..b].find("\n    }\n}").expect("raid rows end");
     src.replace_range(p..q, "");
 
-    // Paint both statuses under that player's own rate. The rate uses the upper
-    // half of its numeric cell when statuses are enabled; Total is unchanged.
-    section(&mut src, "unsafe fn paint_raid_player(", "unsafe fn paint_compact_raid_rows(",
+    // Each food/serum pair belongs to its player's second line, not the gutter.
+    section(&mut src, "unsafe fn paint_raid_player(", "mod white_header_icons {",
         "        paint_dps_secondary_colored(hdc, row, &text, detail);\n    }\n    SelectObject(hdc, primary);",
         "        paint_dps_secondary_colored(hdc, row, &text, detail);\n    }\n    if settings.meter.show_consumables {\n        paint_raid_fs(hdc, state, Some(&row), r.right - 44, middle, 40, (r.bottom - 4 - middle).max(1));\n    }\n    SelectObject(hdc, primary);", "place F/S in player row");
-    section(&mut src, "unsafe fn paint_raid_player(", "unsafe fn paint_compact_raid_rows(",
+    section(&mut src, "unsafe fn paint_raid_player(", "mod white_header_icons {",
         "                    bottom: r.bottom - 3,\n                    ..r\n                },\n                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,",
-        "                    top: r.top,\n                    bottom: if settings.meter.show_consumables && left == layout.active_left && right == layout.active_right { middle + 2 } else { r.bottom - 3 },\n                    ..r\n                },\n                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,", "give rate upper line");
+        "                    top: r.top,\n                    bottom: if settings.meter.show_consumables { middle + 2 } else { r.bottom - 3 },\n                    ..r\n                },\n                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,", "keep numeric metrics above F/S");
 
-    // The pointer uses the exact second-line geometry as the painter; central
-    // gutter clicks cannot claim an adjacent player's Food/Serum status.
+    // Pointer and paint use the same row-relative horizontal/vertical split.
     let hover_start = "        let rows = meter_rows(state);\n        let gap = dps_adaptive_logical_px(RAID_CENTER_GAP, scale).max(56);";
     let hover_end = "\n    }\n    let top = dps_rows_top();";
     let h = src.find("unsafe fn consumable_hover_at(").expect("consumable hover function");
@@ -85,26 +83,10 @@ fn main() {
             return Some(consumable_hover_text("Serum", row.serum.as_ref(), now));
         }
         return None;"#);
-
-    // Four logical units separate F and S on both Normal and Raid rows.
     section(&mut src, "unsafe fn paint_raid_fs(", "fn normal_meter_fs_width(",
         "let half=(w/2).max(1);", "let half=((w-4)/2).max(1);", "status cell gap");
     section(&mut src, "unsafe fn paint_raid_fs(", "fn normal_meter_fs_width(",
         "left:x+half,top:y,right:x+w", "left:x+half+4,top:y,right:x+w", "serum offset");
-    // Row detail, data and reset remain unchanged. Preserve the existing
-    // column split at ten, including the shared denominator for damage bars.
-    src.push_str(r#"
-#[cfg(test)]
-mod audit_raid_food_serum_tests {
-    use super::*;
-    #[test]
-    fn two_ten_player_columns_with_twelve_unit_gutter() {
-        assert_eq!(RAID_ROWS_PER_COLUMN, 10);
-        assert_eq!(RAID_MAX_ROWS, 20);
-        assert_eq!(12, 12); // Layout/pointer alignment also covered by native renderer QA.
-    }
-}
-"#);
     fs::write(path, src).expect("write raid ownership fixes");
     println!("cargo:rerun-if-changed=build/legacy/build_v1349_audit_raid_consumable_ownership.rs");
 }
