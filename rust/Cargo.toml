@@ -1,6 +1,6 @@
 [package]
 name = "bpsr-readyalert"
-version = "1.33.7"
+version = "1.33.8"
 # Patch release: hide unresolved mechanic placeholders while retaining diagnostics.
 edition = "2021"
 build = "build.rs"
