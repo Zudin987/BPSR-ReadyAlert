@@ -1,5 +1,5 @@
 mod current {
-    include!("build/legacy/build_v1339_reference_layout.rs");
+    include!("build/legacy/build_v1340_reference_hitboxes.rs");
     pub fn run() { main(); }
 }
 
