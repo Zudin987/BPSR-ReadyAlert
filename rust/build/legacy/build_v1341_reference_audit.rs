@@ -68,7 +68,9 @@ fn main() {
         1, "raid row hover identity");
 
     source.push_str(include_str!("../../src/feature_meter_reference_audit.rs"));
+    source.push_str(include_str!("../../src/feature_meter_hover_qa.rs"));
     fs::write(path, source).expect("write corrected layouts, hovers and regression expectations");
     println!("cargo:rerun-if-changed=build/legacy/build_v1341_reference_audit.rs");
     println!("cargo:rerun-if-changed=src/feature_meter_reference_audit.rs");
+    println!("cargo:rerun-if-changed=src/feature_meter_hover_qa.rs");
 }
