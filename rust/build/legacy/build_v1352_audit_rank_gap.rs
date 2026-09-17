@@ -75,7 +75,7 @@ fn main() {
     section(
         &mut src,
         "unsafe fn paint_reference_headers(",
-        "unsafe fn paint_reference_encounter",
+        "unsafe fn paint_dps(",
         "        for r in columns {\n            let rate_right = r.right - 4;",
         "        for r in columns {\n            let rank_w = dps_adaptive_logical_px(24, scale);\n            let rank_gap = dps_adaptive_logical_px(4, scale);\n            let rate_right = r.right - 4;",
         "compact header rank metrics",
@@ -83,7 +83,7 @@ fn main() {
     section(
         &mut src,
         "unsafe fn paint_reference_headers(",
-        "unsafe fn paint_reference_encounter",
+        "unsafe fn paint_dps(",
         "                (\"#\", r.left + 3, r.left + 24, 0),\n                (\"Player\", r.left + 24, name_right, 0),",
         "                (\"#\", r.left + 3, r.left + rank_w, DT_RIGHT),\n                (\"Player\", r.left + rank_w + rank_gap, name_right, 0),",
         "compact header rank/name anchors",
