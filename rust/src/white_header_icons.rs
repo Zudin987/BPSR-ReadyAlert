@@ -1,15 +1,20 @@
-// Native Win32 GDI redraws of assets/header-icons/*.svg (24x24 viewBox).
-// The overlays cannot render SVG directly; this needs no new runtime dependency.
+// Exact, antialiased pixels rasterized from assets/header-icons/*.svg at 24px.
+// Four-bit alpha is RLE-packed in alpha-rle-24.txt; this keeps the native EXE
+// dependency-free and avoids inaccurate GDI line/polygon approximations.
 use windows_sys::Win32::{
-    Foundation::{POINT, RECT},
+    Foundation::RECT,
     Graphics::Gdi::{
-        CreatePen, CreateSolidBrush, DeleteObject, Ellipse, FillRect, GetStockObject,
-        LineTo, MoveToEx, Polygon, SelectObject, HDC, NULL_BRUSH, NULL_PEN, PS_SOLID,
+        CreateSolidBrush, DeleteObject, FillRect, StretchDIBits, BITMAPINFO,
+        BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC, SRCCOPY,
     },
 };
 
+const ICON_PIXELS: usize = 24 * 24;
+const MASKS: &str = include_str!("../assets/header-icons/alpha-rle-24.txt");
+
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(usize)]
 pub enum Icon {
     Copy, Reset, Settings, CollapseLeft, CollapseRight, CollapseTop, CollapseBottom, Close,
 }
@@ -23,129 +28,121 @@ pub fn collapse_icon(side: &str) -> Icon {
     }
 }
 
-struct Canvas { x: i32, y: i32, size: i32 }
-impl Canvas {
-    fn pt(&self, x: f32, y: f32) -> POINT {
-        POINT {
-            x: self.x + (x * self.size as f32 / 24.0).round() as i32,
-            y: self.y + (y * self.size as f32 / 24.0).round() as i32,
-        }
-    }
-    unsafe fn stroke(&self, hdc: HDC, points: &[(f32, f32)]) {
-        if let Some((&(x, y), rest)) = points.split_first() {
-            let start = self.pt(x, y);
-            MoveToEx(hdc, start.x, start.y, std::ptr::null_mut());
-            for &(x, y) in rest {
-                let p = self.pt(x, y);
-                LineTo(hdc, p.x, p.y);
-            }
-        }
-    }
-    unsafe fn polygon(&self, hdc: HDC, points: &[(f32, f32)]) {
-        let coords: Vec<POINT> = points.iter().map(|&(x, y)| self.pt(x, y)).collect();
-        Polygon(hdc, coords.as_ptr(), coords.len() as i32);
+fn hex(c: u8) -> Option<usize> {
+    match c {
+        b'0'..=b'9' => Some((c - b'0') as usize),
+        b'a'..=b'f' => Some((c - b'a' + 10) as usize),
+        _ => None,
     }
 }
 
-/// Paint one transparent white icon inside an existing button's hit rectangle.
+fn alpha_mask(icon: Icon) -> Option<[u8; ICON_PIXELS]> {
+    let src = MASKS.lines().nth(icon as usize)?.as_bytes();
+    let mut out = [0u8; ICON_PIXELS];
+    let (mut offset, mut cursor) = (0usize, 0usize);
+    while offset < src.len() {
+        let (count, value) = if src[offset] == b'~' {
+            if offset + 3 >= src.len() { return None; }
+            let count = (hex(src[offset + 1])? << 4) | hex(src[offset + 2])?;
+            let value = hex(src[offset + 3])? as u8 * 17;
+            offset += 4;
+            (count, value)
+        } else {
+            let value = hex(src[offset])? as u8 * 17;
+            offset += 1;
+            (1, value)
+        };
+        if count == 0 || cursor + count > ICON_PIXELS { return None; }
+        out[cursor..cursor + count].fill(value);
+        cursor += count;
+    }
+    (cursor == ICON_PIXELS).then_some(out)
+}
+
+fn colorref(r: u32, g: u32, b: u32) -> u32 { r | (g << 8) | (b << 16) }
+
+// Native GDI has no SVG or per-pixel alpha on a plain memory HDC. Composite
+// the real SVG raster over the actual button surface, then draw an opaque,
+// top-down 32-bit DIB. No halos, polygon artifacts or new dependencies.
 pub unsafe fn paint(hdc: HDC, rect: RECT, icon: Icon, background: u32) {
     let width = rect.right - rect.left;
     let height = rect.bottom - rect.top;
-    if width < 12 || height < 12 { return; }
-    let size = (width - 6).min(height - 6).min(22).max(12);
-    let canvas = Canvas {
-        x: rect.left + (width - size) / 2,
-        y: rect.top + (height - size) / 2,
-        size,
-    };
-    let white = 0x00ff_ffff;
-    let pen = CreatePen(PS_SOLID, (size / 11).max(2), white);
-    if pen.is_null() { return; }
-    let brush = CreateSolidBrush(white);
-    if brush.is_null() { DeleteObject(pen); return; }
-    let old_pen = SelectObject(hdc, pen);
-    let old_brush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
-    match icon {
-        Icon::Copy => {
-            canvas.stroke(hdc, &[(7.0,17.5),(4.5,17.5),(2.5,15.5),(2.5,4.5),(4.5,2.5),(13.5,2.5),(15.5,4.5),(15.5,7.0)]);
-            canvas.stroke(hdc, &[(9.0,7.0),(16.7,7.0),(21.0,11.3),(21.0,19.5),(19.0,21.5),(9.0,21.5),(7.0,19.5),(7.0,9.0),(9.0,7.0)]);
-            canvas.stroke(hdc, &[(16.7,7.0),(16.7,11.3),(21.0,11.3)]);
-            canvas.stroke(hdc, &[(10.5,14.7),(17.2,14.7)]);
-            canvas.stroke(hdc, &[(10.5,18.0),(17.2,18.0)]);
-        }
-        Icon::Reset => {
-            canvas.stroke(hdc, &[(19.2,8.2),(17.3,5.9),(14.0,4.0),(10.1,3.7),(6.4,5.3),(4.1,8.5),(3.7,12.5),(5.3,16.3),(8.4,19.1),(12.6,20.3),(16.3,19.0),(19.0,16.8),(20.1,15.3)]);
-            SelectObject(hdc, brush);
-            canvas.polygon(hdc, &[(20.7,4.3),(20.7,10.5),(14.6,9.2)]);
-            SelectObject(hdc, GetStockObject(NULL_BRUSH));
-        }
-        Icon::Settings => {
-            const GEAR: &[(f32,f32)] = &[
-                (9.03,4.84),(9.93,4.27),(9.98,1.8),(14.02,1.8),
-                (14.07,4.27),(14.97,4.84),(16.0,5.07),(17.79,3.36),
-                (20.64,6.21),(18.93,8.0),(19.16,9.03),(19.73,9.93),
-                (22.2,9.98),(22.2,14.02),(19.73,14.07),(19.16,14.97),
-                (18.93,16.0),(20.64,17.79),(17.79,20.64),(16.0,18.93),
-                (14.97,19.16),(14.07,19.73),(14.02,22.2),(9.98,22.2),
-                (9.93,19.73),(9.03,19.16),(8.0,18.93),(6.21,20.64),
-                (3.36,17.79),(5.07,16.0),(4.84,14.97),(4.27,14.07),
-                (1.8,14.02),(1.8,9.98),(4.27,9.93),(4.84,9.03),
-                (5.07,8.0),(3.36,6.21),(6.21,3.36),(8.0,5.07),
-            ];
-            SelectObject(hdc, brush);
-            canvas.polygon(hdc, GEAR);
-            let hole = CreateSolidBrush(background);
-            if !hole.is_null() {
-                SelectObject(hdc, GetStockObject(NULL_PEN));
-                SelectObject(hdc, hole);
-                let a=canvas.pt(8.45,8.45);
-                let b=canvas.pt(15.55,15.55);
-                Ellipse(hdc,a.x,a.y,b.x,b.y);
-                SelectObject(hdc, brush);
-                SelectObject(hdc, pen);
-                DeleteObject(hole);
-            }
-        }
-        Icon::CollapseLeft => {
-            canvas.stroke(hdc,&[(5.4,3.2),(5.4,20.8)]);
-            canvas.stroke(hdc,&[(17.6,6.3),(11.8,12.0),(17.6,17.7)]);
-        }
-        Icon::CollapseRight => {
-            canvas.stroke(hdc,&[(18.6,3.2),(18.6,20.8)]);
-            canvas.stroke(hdc,&[(6.4,6.3),(12.2,12.0),(6.4,17.7)]);
-        }
-        Icon::CollapseTop => {
-            canvas.stroke(hdc,&[(3.2,5.4),(20.8,5.4)]);
-            canvas.stroke(hdc,&[(6.3,17.6),(12.0,11.8),(17.7,17.6)]);
-        }
-        Icon::CollapseBottom => {
-            canvas.stroke(hdc,&[(3.2,18.6),(20.8,18.6)]);
-            canvas.stroke(hdc,&[(6.3,6.4),(12.0,12.2),(17.7,6.4)]);
-        }
-        Icon::Close => {
-            canvas.stroke(hdc,&[(5.0,5.0),(19.0,19.0)]);
-            canvas.stroke(hdc,&[(19.0,5.0),(5.0,19.0)]);
+    if width < 16 || height < 16 { return; }
+    let Some(mask) = alpha_mask(icon) else { return; };
+    let size = (width - 4).min(height - 4).min(22).max(12) as usize;
+    let bg_r = background & 255;
+    let bg_g = (background >> 8) & 255;
+    let bg_b = (background >> 16) & 255;
+    let mut pixels = vec![0u32; size * size];
+    for y in 0..size {
+        let fy = ((y as f32 + 0.5) * 24.0 / size as f32 - 0.5).clamp(0.0, 23.0);
+        let iy = fy as usize;
+        let jy = (iy + 1).min(23);
+        let dy = fy - iy as f32;
+        for x in 0..size {
+            let fx = ((x as f32 + 0.5) * 24.0 / size as f32 - 0.5).clamp(0.0, 23.0);
+            let ix = fx as usize;
+            let jx = (ix + 1).min(23);
+            let dx = fx - ix as f32;
+            let top = mask[iy * 24 + ix] as f32 * (1.0 - dx) + mask[iy * 24 + jx] as f32 * dx;
+            let bottom = mask[jy * 24 + ix] as f32 * (1.0 - dx) + mask[jy * 24 + jx] as f32 * dx;
+            let alpha = (top * (1.0 - dy) + bottom * dy).round() as u32;
+            let mix = |base: u32| (255 * alpha + base * (255 - alpha) + 127) / 255;
+            let r = mix(bg_r);
+            let g = mix(bg_g);
+            let b = mix(bg_b);
+            // BI_RGB 32-bit DIB uses B,G,R,unused in memory (not COLORREF).
+            pixels[y * size + x] = (r << 16) | (g << 8) | b;
         }
     }
-    SelectObject(hdc, old_brush);
-    SelectObject(hdc, old_pen);
-    DeleteObject(brush);
-    DeleteObject(pen);
+    let mut info: BITMAPINFO = std::mem::zeroed();
+    info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+    info.bmiHeader.biWidth = size as i32;
+    info.bmiHeader.biHeight = -(size as i32);
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    let left = rect.left + (width - size as i32) / 2;
+    let top = rect.top + (height - size as i32) / 2;
+    StretchDIBits(hdc, left, top, size as i32, size as i32, 0, 0,
+        size as i32, size as i32, pixels.as_ptr().cast(), &info,
+        DIB_RGB_COLORS, SRCCOPY);
 }
 
-/// Clear the old text glyph first, preserving header geometry and click actions.
-pub unsafe fn paint_button(hdc: HDC, rect: RECT, icon: Icon, background: u32) {
+/// Draw the same rounded dark icon tile used in the approved pack preview.
+/// The outer click target is unchanged, including for wide Mechanics buttons.
+pub unsafe fn paint_tile(hdc: HDC, rect: RECT, icon: Icon, hovered: bool) {
+    let width = rect.right - rect.left;
+    let height = rect.bottom - rect.top;
+    if width < 16 || height < 16 { return; }
+    let tile_width = (width - 2).min(30);
+    let tile_height = (height - 2).min(28);
+    let tile = RECT {
+        left: rect.left + (width - tile_width) / 2,
+        top: rect.top + (height - tile_height) / 2,
+        right: rect.left + (width - tile_width) / 2 + tile_width,
+        bottom: rect.top + (height - tile_height) / 2 + tile_height,
+    };
+    let surface = if hovered { colorref(52, 58, 68) } else { colorref(35, 39, 47) };
+    crate::ui_modern::fill_round_rect(hdc, tile, surface, 5);
+    paint(hdc, tile, icon, surface);
+}
+
+/// Clears an already-rendered text symbol before painting the proper icon.
+/// Only the visuals change; hit rectangles and handlers are not touched.
+pub unsafe fn paint_button(hdc: HDC, rect: RECT, icon: Icon, background: u32, hovered: bool) {
     let brush = CreateSolidBrush(background);
     if !brush.is_null() {
         FillRect(hdc, &rect, brush);
         DeleteObject(brush);
     }
-    paint(hdc, rect, icon, background);
+    paint_tile(hdc, rect, icon, hovered);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn collapse_icon_matches_edge() {
         assert_eq!(collapse_icon("LEFT"), Icon::CollapseLeft);
@@ -153,9 +150,10 @@ mod tests {
         assert_eq!(collapse_icon("TOP"), Icon::CollapseTop);
         assert_eq!(collapse_icon("bottom"), Icon::CollapseBottom);
     }
+
     #[test]
-    fn all_eight_svg_assets_are_available() {
-        for svg in [
+    fn all_eight_assets_match_raster_masks() {
+        let svgs = [
             include_str!("../assets/header-icons/copy.svg"),
             include_str!("../assets/header-icons/reset.svg"),
             include_str!("../assets/header-icons/settings.svg"),
@@ -164,9 +162,18 @@ mod tests {
             include_str!("../assets/header-icons/collapse-top.svg"),
             include_str!("../assets/header-icons/collapse-bottom.svg"),
             include_str!("../assets/header-icons/close.svg"),
-        ] {
+        ];
+        assert_eq!(MASKS.lines().count(), svgs.len());
+        for (i, svg) in svgs.iter().enumerate() {
             assert!(svg.contains("viewBox=\"0 0 24 24\""));
             assert!(svg.contains("#fff"));
+            let mask = alpha_mask(match i {
+                0 => Icon::Copy, 1 => Icon::Reset, 2 => Icon::Settings,
+                3 => Icon::CollapseLeft, 4 => Icon::CollapseRight,
+                5 => Icon::CollapseTop, 6 => Icon::CollapseBottom, _ => Icon::Close,
+            }).expect("valid approved raster mask");
+            assert!(mask.iter().any(|&a| a == 255));
+            assert!(mask.iter().any(|&a| a == 0));
         }
     }
 }
