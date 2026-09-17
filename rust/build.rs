@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 mod current {
     include!("build/legacy/build_v1344_meter_header_history_ux.rs");
     pub fn run() { main(); }
