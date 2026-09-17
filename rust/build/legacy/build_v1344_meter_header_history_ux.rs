@@ -96,18 +96,26 @@ fn toolbar_items(state: &State, right: i32) -> Vec<ToolbarItem> {
         "meter menu Settings label");
 
     // Reset is deliberately one click. Archive the current snapshot first, then
-    // clear only the live meter and request a telemetry reset.
-    between(
+    // clear only the live meter and request a telemetry reset. Match the complete
+    // dispatch block so the Reset icon-paint match arm cannot be mistaken for it.
+    once(
         &mut source,
-        "        ToolbarAction::Reset => {\n",
-        "        }\n    }\n}\nfn reference_tab_rect",
+        r#"        ToolbarAction::Reset => {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                MessageBoxW, IDYES, MB_DEFBUTTON2, MB_ICONQUESTION, MB_YESNO,
+            };
+            if MessageBoxW(hwnd,wide("Reset the live encounter? Its current results will remain in encounter history.").as_ptr(),wide("Reset encounter").as_ptr(),MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES {
+                archive_live_snapshot(state);crate::telemetry::request_manual_reset();
+                state.dps=DpsSnapshot::default();state.history_index=None;state.scroll=0;
+            }
+        }"#,
         r#"        ToolbarAction::Reset => {
             archive_live_snapshot(state);
             crate::telemetry::request_manual_reset();
             state.dps = DpsSnapshot::default();
             state.history_index = None;
             state.scroll = 0;
-"#,
+        }"#,
         "one-click reset",
     );
 
