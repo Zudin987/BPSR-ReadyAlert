@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1351_audit_identity_settings.rs");
+    include!("build/legacy/build_v1352_audit_rank_gap.rs");
     pub fn run() { main(); }
 }
 
