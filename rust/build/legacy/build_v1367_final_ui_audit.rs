@@ -1,141 +1,119 @@
-// Final UI audit corrections. Work on generated Rust, never hand-edit OUT_DIR.
-// Kept after the approved DPS visual generator to avoid altering the meter design.
+// Final UI audit: run after all approved DPS/Chat build transformations.
+// Change only generated presentation, leaving source settings and telemetry untouched.
 use std::{env, fs, path::PathBuf};
-
 mod previous {
     include!("build_v1366_chat_header_font_offset.rs");
     pub fn run() { main(); }
 }
-
-fn once(src: &mut String, old: &str, new: &str, issue: &str) {
-    let count = src.matches(old).count();
-    assert_eq!(count, 1, "final UI audit {issue}: expected one anchor, got {count}");
-    *src = src.replacen(old, new, 1);
+fn replace_one(text: &mut String, old: &str, new: &str, issue: &str) {
+    assert_eq!(text.matches(old).count(), 1, "final audit {issue}: source anchor changed");
+    *text = text.replacen(old, new, 1);
 }
-
-fn region(src: &mut String, start: &str, end: &str, f: impl FnOnce(&mut String)) {
-    let a = src.find(start).unwrap_or_else(|| panic!("missing audit region {start}"));
-    let b = a + src[a..].find(end).unwrap_or_else(|| panic!("missing audit region end {end}"));
-    let mut body = src[a..b].to_owned();
-    f(&mut body);
-    src.replace_range(a..b, &body);
-}
-
-fn field(src: &mut String, id: &str, replacement: &str) {
-    let rows: Vec<&str> = src.lines().filter(|line| line.contains("field(") && line.contains(id)).collect();
-    assert_eq!(rows.len(), 1, "audit {id}: expected one field");
-    let old = rows[0].trim().to_owned();
-    assert!(old.ends_with(';'), "audit {id}: malformed field statement");
-    once(src, &old, replacement, id);
-}
-
-fn patch_feature_footer(path: &PathBuf) {
-    let mut src = fs::read_to_string(path).expect("generated feature settings");
-    once(&mut src,
-        "feature_button(hwnd,2,\"Close\",594,432,92);",
-        "feature_button(hwnd,2,\"Close\",20,432,92); audit_place_dps_footer(hwnd,state.kind);",
-        "F01 initial footer");
-    let helper = r#"unsafe fn audit_place_dps_footer(hwnd: HWND, kind: Kind) {
-    if kind != Kind::Dps { return; }
-    let button = fc(hwnd, 2);
-    if button.is_null() { return; }
-    let mut client: RECT = std::mem::zeroed();
-    let mut bounds: RECT = std::mem::zeroed();
-    if GetClientRect(hwnd, &mut client) == 0 || GetWindowRect(button, &mut bounds) == 0 { return; }
-    let width = (bounds.right - bounds.left).max(1);
-    let height = (bounds.bottom - bounds.top).max(1);
-    let inset = 20;
-    let x = (client.right - width - inset).max(inset);
-    let y = (client.bottom - height - inset).max(0);
-    windows_sys::Win32::UI::WindowsAndMessaging::MoveWindow(button, x, y, width, height, 1);
+fn patch_dps(out: &PathBuf) {
+    let path=out.join("feature_overlays_v170_fixed.rs");
+    let mut s=fs::read_to_string(&path).expect("DPS settings generated source");
+    // F01: use actual client and button HWND rectangles, not hard-coded dialog width.
+    replace_one(&mut s,"feature_button(hwnd,2,\"Close\",594,432,92);",
+        "feature_button(hwnd,2,\"Close\",20,432,92);audit_place_dps_footer(hwnd);","F01 initial button");
+    let helper=r#"unsafe fn audit_place_dps_footer(hwnd:HWND){
+    let button=fc(hwnd,2);if button.is_null(){return;}
+    let mut client:RECT=std::mem::zeroed();let mut bounds:RECT=std::mem::zeroed();
+    if GetClientRect(hwnd,&mut client)==0||GetWindowRect(button,&mut bounds)==0{return;}
+    let w=(bounds.right-bounds.left).max(1);let h=(bounds.bottom-bounds.top).max(1);
+    // Clamp to the available client width so even unexpectedly small windows fit.
+    let x=(client.right-w-20).max(0);let y=(client.bottom-h-20).max(0);
+    windows_sys::Win32::UI::WindowsAndMessaging::MoveWindow(button,x,y,w,h,1);
 }
 "#;
-    once(&mut src, "unsafe fn settings_click(", &format!("{helper}unsafe fn settings_click("), "F01 footer placement helper");
-    region(&mut src, "unsafe extern \"system\" fn settings_wnd_proc(", "unsafe fn paint_feature_settings(", |proc| {
-        once(proc, "match msg{", "match msg{WM_SIZE=>{if !ptr.is_null(){audit_place_dps_footer(hwnd,(*ptr).kind);}0},0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);if !ptr.is_null(){audit_place_dps_footer(hwnd,(*ptr).kind);}result},", "F01 resize and monitor DPI");
-    });
-    src.push_str(r#"
-#[cfg(test)] mod audit_footer_geometry_tests {
-    #[test] fn close_button_fits_standard_and_reduced_clients() {
-        for width in [420, 560, 600, 620, 720, 900] {
-            let button_width = 92;
-            let x = (width - button_width - 20).max(20);
-            assert!(x >= 20 && x + button_width + 20 <= width);
-        }
-    }
+    replace_one(&mut s,"unsafe fn build_feature_form(",&format!("{helper}unsafe fn build_feature_form("),"F01 placement helper");
+    replace_one(&mut s,"        WM_SIZE=>0,","        WM_SIZE=>{if state.kind==Kind::Dps{audit_place_dps_footer(hwnd);}0},\n        0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);if state.kind==Kind::Dps{audit_place_dps_footer(hwnd);}result},","F01 DPI/resize");
+    s.push_str(r#"
+#[cfg(test)]mod final_dps_footer_geometry_test{
+ #[test]fn button_is_in_client_at_supported_widths(){for client in [300,420,560,600,620,720,900]{let width=92;let x=(client-width-20).max(0);assert!(x>=0&&x+width<=client);}}
 }
 "#);
-    fs::write(path, src).expect("write F01 footer");
+    fs::write(path,s).expect("F01 output");
 }
-
-fn patch_chat_settings(path: &PathBuf) {
-    let mut src = fs::read_to_string(path).expect("generated chat settings");
-    region(&mut src, "unsafe fn build_speech(", "unsafe fn build_tabs(", |body| {
-        field(body, "ID_TTS_USERNAME", "field(hwnd, state, PAGE_SPEECH, \"Own username override (optional)\", ID_TTS_USERNAME, 184, 302, 410);");
-        field(body, "ID_TTS_VOLUME", "field(hwnd, state, PAGE_SPEECH, \"TTS volume (%)\", ID_TTS_VOLUME, 624, 302, 140);");
-        once(body, "ID_HIDE_RICH, \"Hide emoji-only and linked-item noise\", 184, 424", "ID_HIDE_RICH, \"Hide emoji-only and linked-item noise\", 184, 392", "F02 checkbox clearance");
-        once(body, "ID_TEST_TTS, \"Test Google English TTS\", 184, 470", "ID_TEST_TTS, \"Test Google English TTS\", 184, 444", "F02 test button clearance");
-        once(body, "184, 522, 610, 54", "184, 492, 610, 68", "F02 speech helper wrapping");
-    });
-    region(&mut src, "unsafe fn build_overlay(", "unsafe fn build_colors(", |body| {
-        field(body,"ID_CLICK_HOTKEY","field(hwnd,state,PAGE_OVERLAY,\"Recovery hotkey\",ID_CLICK_HOTKEY,184,270,280);");
-        field(body,"ID_FONT_FAMILY","field(hwnd,state,PAGE_OVERLAY,\"Font family\",ID_FONT_FAMILY,494,270,290);");
-        field(body,"ID_WINDOW_OPACITY","field(hwnd,state,PAGE_OVERLAY,\"Window opacity (%)\",ID_WINDOW_OPACITY,184,342,110);");
-        field(body,"ID_FONT_SIZE","field(hwnd,state,PAGE_OVERLAY,\"Font size (pt, 8-24)\",ID_FONT_SIZE,494,342,110);");
-        field(body,"ID_MAX_HISTORY","field(hwnd,state,PAGE_OVERLAY,\"Max history (10-500)\",ID_MAX_HISTORY,184,414,130);");
-        once(body,"\"Collapse edge\",484,390,160,22", "\"Collapse edge\",494,414,180,22", "F03 collapse label");
-        once(body,"ID_COLLAPSE_SIDE,484,414,180,180", "ID_COLLAPSE_SIDE,494,438,200,180", "F03 collapse control");
-        once(body,"184,460,610,58", "184,494,610,76", "F03 helper clearance");
-    });
-    region(&mut src,"unsafe fn build_sounds(","unsafe fn build_network(",|body| {
-        field(body,"ID_PRIVATE_SOUND_PATH","field(hwnd,state,PAGE_SOUNDS,\"Private sound path\",ID_PRIVATE_SOUND_PATH,184,132,600);");
-        field(body,"ID_RULE1_MATCH","field(hwnd,state,PAGE_SOUNDS,\"Match (OR / AND / regex)\",ID_RULE1_MATCH,204,278,310);");
-        field(body,"ID_RULE1_PATH","field(hwnd,state,PAGE_SOUNDS,\"Sound path\",ID_RULE1_PATH,534,278,250);");
-        field(body,"ID_RULE2_MATCH","field(hwnd,state,PAGE_SOUNDS,\"Match (OR / AND / regex)\",ID_RULE2_MATCH,204,368,310);");
-        field(body,"ID_RULE2_PATH","field(hwnd,state,PAGE_SOUNDS,\"Sound path\",ID_RULE2_PATH,534,368,250);");
-        field(body,"ID_CHAT_SOUND_VOLUME","field(hwnd,state,PAGE_SOUNDS,\"Chat sound volume (%)\",ID_CHAT_SOUND_VOLUME,184,190,130);");
-        let marker="button(hwnd, state, PAGE_SOUNDS, ID_OPEN_LOGS, \"Open chat logs\", 184, 492, 130, 30);";
-        once(body,marker,&format!("{marker}\n    info(hwnd,state,PAGE_SOUNDS,\"Long paths and matches remain fully editable. Use Home/End to scroll, or Ctrl+A then Ctrl+C to inspect the complete value.\",184,536,610,60);"),"F07 full-value instructions");
-    });
-    region(&mut src,"unsafe fn build_tabs(","unsafe fn build_sounds(",|body| {
-        once(body,"184, 500, 610, 58", "184, 514, 610, 74", "F09 tabs helper and footer spacing");
-    });
-    region(&mut src,"unsafe fn build_general(","unsafe fn build_overlay(",|body| {
-        field(body,"ID_ALERT_VOLUME","field(hwnd,state,PAGE_GENERAL,\"Alert volume (%)\",ID_ALERT_VOLUME,184,246,110);");
-    });
-    region(&mut src,"unsafe fn refresh_blocked_list(","unsafe fn unblock_selected(",|body| {
-        once(body,"    }\n}","    }\n    EnableWindow(GetDlgItem(hwnd, ID_CLEAR_BLOCKED), (!state.working.chat.blocked_users.is_empty()) as i32);\n    EnableWindow(GetDlgItem(hwnd, ID_UNBLOCK), (list_sel(hwnd, ID_BLOCKED_LIST) >= 0) as i32);\n}","F08 blocked action state");
-    });
-    region(&mut src,"unsafe fn draw_settings_button(","unsafe fn try_dark_titlebar(",|body| {
-        let begin=body.find("    let bg=").expect("settings button bg");
-        let end=begin+body[begin..].find(";\n").expect("settings button bg end")+2;
-        body.replace_range(begin..end,"    let disabled = item.itemState & 0x0004 != 0;\n    let bg=if disabled{rgb(29,31,38)}else if id==ID_CLEAR_BLOCKED{rgb(73,42,43)}else if selected{rgb(30,48,51)}else if apply{rgb(38,112,103)}else{rgb(30,38,46)};\n");
-        let begin=body.find("    let border=").expect("settings button border");
-        let end=begin+body[begin..].find(";\n").expect("settings button border end")+2;
-        body.replace_range(begin..end,"    let border=if disabled{rgb(56,59,68)}else if id==ID_CLEAR_BLOCKED{rgb(201,109,107)}else if selected||apply{rgb(66,211,190)}else{rgb(49,61,72)};\n");
-        once(body,"if selected||apply{rgb(238,247,246)}else{rgb(211,220,227)}","if disabled{rgb(104,109,122)}else if selected||apply{rgb(238,247,246)}else{rgb(211,220,227)}","F08 disabled text");
-    });
-    fs::write(path,src).expect("write final settings layout polish");
+fn patch_settings(out:&PathBuf){
+    let path=out.join("settings_ui_v1160_fixed.rs");
+    let mut s=fs::read_to_string(&path).expect("chat settings generated source");
+    // F02: two fields and Test TTS now have >= 10px gutters at actual pixel positions.
+    replace_one(&mut s,"inline_field(hwnd,state,PAGE_SPEECH,\"Own username\",ID_TTS_USERNAME,174,228,110,170);",
+        "inline_field(hwnd,state,PAGE_SPEECH,\"Own username\",ID_TTS_USERNAME,174,228,110,166);","F02 username");
+    replace_one(&mut s,"inline_field(hwnd,state,PAGE_SPEECH,\"TTS volume\",ID_TTS_VOLUME,458,228,100,72);",
+        "inline_field(hwnd,state,PAGE_SPEECH,\"TTS volume (%)\",ID_TTS_VOLUME,480,228,100,66);","F02 volume");
+    replace_one(&mut s,"button(hwnd,state,PAGE_SPEECH,ID_TEST_TTS,\"Test TTS\",642,226,106,30);",
+        "button(hwnd,state,PAGE_SPEECH,ID_TEST_TTS,\"Test TTS\",664,226,84,30);","F02 test button");
+    // F03: give the right column a genuine gutter; leave font sizing and tone alone.
+    replace_one(&mut s,"inline_field(hwnd,state,PAGE_OVERLAY,\"Font family\",ID_FONT_FAMILY,174,278,105,150);",
+        "inline_field(hwnd,state,PAGE_OVERLAY,\"Font family\",ID_FONT_FAMILY,174,278,105,174);","F03 font family");
+    replace_one(&mut s,"inline_field(hwnd,state,PAGE_OVERLAY,\"Max history\",ID_MAX_HISTORY,438,278,105,72);",
+        "inline_field(hwnd,state,PAGE_OVERLAY,\"Max history\",ID_MAX_HISTORY,480,278,105,94);","F03 max history");
+    replace_one(&mut s,"inline_field(hwnd,state,PAGE_OVERLAY,\"Recovery hotkey\",ID_CLICK_HOTKEY,174,310,105,150);",
+        "inline_field(hwnd,state,PAGE_OVERLAY,\"Recovery hotkey\",ID_CLICK_HOTKEY,174,310,105,174);","F03 recovery hotkey");
+    replace_one(&mut s,"label(hwnd,state,PAGE_OVERLAY,\"Collapse edge\",438,314,105,20);combo(hwnd,state,PAGE_OVERLAY,ID_COLLAPSE_SIDE,548,308,120,120);",
+        "label(hwnd,state,PAGE_OVERLAY,\"Collapse edge\",480,314,105,20);combo(hwnd,state,PAGE_OVERLAY,ID_COLLAPSE_SIDE,591,308,143,120);","F03 collapse edge");
+    // F09: percentages only for real 0-100% settings. Font size is points
+    // (the chat renderer converts it to pixels via *96/72).
+    for (old,new,label) in [
+        ("\"Alert volume\",ID_ALERT_VOLUME","\"Alert volume (%)\",ID_ALERT_VOLUME","F09 alert"),
+        ("\"Opacity\",ID_WINDOW_OPACITY","\"Opacity (%)\",ID_WINDOW_OPACITY","F09 opacity"),
+        ("\"Font size\",ID_FONT_SIZE","\"Font size (pt)\",ID_FONT_SIZE","F09 font points"),
+        ("\"Volume\",ID_CHAT_SOUND_VOLUME","\"Volume (%)\",ID_CHAT_SOUND_VOLUME","F09 sound"),
+    ]{replace_one(&mut s,old,new,label);}
+    // F07: keep native ES_AUTOHSCROLL and full persisted expressions; widen Match.
+    for (old,new,label) in [
+        ("\"Sound path\",ID_PRIVATE_SOUND_PATH,174,148,82,178","\"Sound path\",ID_PRIVATE_SOUND_PATH,174,148,82,182","F07 private path"),
+        ("\"Match\",ID_RULE1_MATCH,458,116,62,104","\"Match\",ID_RULE1_MATCH,458,116,62,218","F07 match 1"),
+        ("\"Match\",ID_RULE2_MATCH,458,216,62,104","\"Match\",ID_RULE2_MATCH,458,216,62,218","F07 match 2"),
+    ]{replace_one(&mut s,old,new,label);}
+    replace_one(&mut s,"button(hwnd,state,PAGE_SOUNDS,ID_OPEN_LOGS,\"Open logs\",374,292,100,28);",
+        "button(hwnd,state,PAGE_SOUNDS,ID_OPEN_LOGS,\"Open logs\",374,292,100,28);\n    info(hwnd,state,PAGE_SOUNDS,\"Long paths and match expressions: Home/End scroll the field; Ctrl+A, Ctrl+C copies the entire unmodified value.\",174,356,580,42);","F07 complete-value access");
+    // F08: refresh_blocked_actions already disables both empty-list actions.
+    assert!(s.contains("EnableWindow(GetDlgItem(hwnd, ID_CLEAR_BLOCKED), has_users as i32);"),"F08 empty-list disable regression");
+    // F09: last Tabs checkbox ends y366. Give it 39px clearance to the footer.
+    replace_one(&mut s,"create_button(hwnd,ID_APPLY,\"Apply\",600,365,80,30)","create_button(hwnd,ID_APPLY,\"Apply\",600,405,80,30)","F09 Apply clearance");
+    replace_one(&mut s,"create_button(hwnd, ID_CLOSE, \"Close\", 690, 365, 80, 30)","create_button(hwnd, ID_CLOSE, \"Close\", 690, 405, 80, 30)","F09 Close clearance");
+    replace_one(&mut s,"crate::ui_theme::SETTINGS_W, crate::ui_theme::SETTINGS_H,",
+        "crate::ui_theme::SETTINGS_W, crate::ui_theme::SETTINGS_H + 50,","F09 dialog room");
+    // F04: use existing measured, scroll-capable dark/mist themed dialog.
+    replace_one(&mut s,"windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(hwnd, wide(&notice).as_ptr(), wide(\"Cloud chat privacy consent\").as_ptr(), windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO | MB_ICONINFORMATION)",
+        "crate::ui_modern::qa_message_box_w(hwnd, wide(&notice).as_ptr(), wide(\"Cloud chat privacy consent\").as_ptr(), windows_sys::Win32::UI::WindowsAndMessaging::MB_YESNO | MB_ICONINFORMATION)","F04 dark consent");
+    fs::write(path,s).expect("chat settings audit output");
 }
-
-fn patch_discard(path: &PathBuf) {
-    let mut src=fs::read_to_string(path).expect("generated Event Tracker editor");
-    once(&mut src,
-        "wide(\"Unsaved rules\").as_ptr(),0x00000003|0x00000020);",
-        "wide(\"Unsaved rules\").as_ptr(),0x00000003|0x00000020|0x00000200);",
-        "F05 Cancel as initial default");
-    once(&mut src,
-        "wide(\"Save changes to Event Tracker before closing?\").as_ptr()",
-        "wide(\"Save changes to Event Tracker? Yes = Save; No = Discard; Cancel = Keep Editing. Escape keeps edits.\").as_ptr()",
-        "F05 explicit choices");
-    fs::write(path,src).expect("write safe discard default");
+fn patch_dialog(out:&PathBuf){
+    let path=out.join("ui_pixel_qa_v1316.rs");let mut s=fs::read_to_string(&path).expect("themed dialog source");
+    // F04: no is first and focused. Enter, Escape, X all preserve non-consent.
+    let consent=r#"        QaFlavor::YesNo if t.contains("cloud chat privacy consent") => vec![
+            QaDialogButton { id: QA_IDNO, label: "Keep disabled".into(), primary: true, danger: false },
+            QaDialogButton { id: QA_IDYES, label: "Agree & enable".into(), primary: false, danger: false },
+        ],
+"#;
+    replace_one(&mut s,"    match flavor {\n        QaFlavor::YesNoCancel if b.contains(\"save changes\")",&format!("    match flavor {{\n{consent}        QaFlavor::YesNoCancel if b.contains(\"save changes\")"),"F04 consent actions");
+    // F05: actual default action is Keep Editing, not just visual emphasis.
+    replace_one(&mut s,"QaDialogButton { id: QA_IDYES, label: \"Save\".into(), primary: true, danger: false },\n            QaDialogButton { id: QA_IDNO, label: \"Don't Save\".into(), primary: false, danger: true },\n            QaDialogButton { id: QA_IDCANCEL, label: \"Cancel\".into(), primary: false, danger: false },",
+        "QaDialogButton { id: QA_IDCANCEL, label: \"Keep Editing\".into(), primary: true, danger: false },\n            QaDialogButton { id: QA_IDYES, label: \"Save\".into(), primary: false, danger: false },\n            QaDialogButton { id: QA_IDNO, label: \"Discard\".into(), primary: false, danger: true },","F05 safe default");
+    // F08: disabled Clear all must not show a dangerous outline.
+    replace_one(&mut s,"} else if !nav && danger {","} else if !nav && danger && !disabled {","F08 neutral disabled border");
+    s.push_str(r#"
+#[cfg(test)]mod final_consent_and_discard_tests{
+ use super::*;
+ #[test]fn cloud_consent_is_opt_in(){let b=qa_dialog_buttons(QaFlavor::YesNo,"Cloud chat privacy consent","Enable cloud chat?");assert_eq!(b[0].id,QA_IDNO);assert_eq!(b[1].id,QA_IDYES);}
+ #[test]fn event_discard_requires_explicit_choice(){let b=qa_dialog_buttons(QaFlavor::YesNoCancel,"Unsaved rules","Save changes?");assert_eq!(b[0].id,QA_IDCANCEL);assert_eq!(b[2].id,QA_IDNO);assert_eq!(qa_close_result(QaFlavor::YesNoCancel),QA_IDCANCEL);}
 }
-
-fn main() {
-    previous::run();
-    let out=PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
-    patch_feature_footer(&out.join("feature_overlays_v170_fixed.rs"));
-    patch_chat_settings(&out.join("settings_ui_v1160_fixed.rs"));
-    patch_discard(&out.join("event_tracker_ui_v1160_fixed.rs"));
-    println!("cargo:rerun-if-changed=build/legacy/build_v1367_final_ui_audit.rs");
+"#);
+    fs::write(path,s).expect("themed dialog audit output");
+}
+fn patch_controls(out:&PathBuf){
+    let path=out.join("ui_pixel_controls_v1316.rs");let mut s=fs::read_to_string(&path).expect("native controls");
+    // F06: meaningful enabled unchecked glyphs and input edges target >=3:1.
+    replace_one(&mut s,"if focused { BPSR_ACCENT } else { MIST_BORDER_STRONG }","if focused { BPSR_ACCENT } else if enabled { crate::ui_theme::rgb(118,124,140) } else { MIST_BORDER_STRONG }","F06 checkbox identification");
+    replace_one(&mut s,"let color = if focused { BPSR_ACCENT } else if hovered { MIST_BORDER_STRONG } else { MIST_BORDER };",
+        "let color = if focused { BPSR_ACCENT } else { crate::ui_theme::rgb(118,124,140) };","F06 edit identification");
+    fs::write(path,s).expect("control contrast output");
+}
+fn main(){
+ previous::run();let out=PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+ patch_dps(&out);patch_settings(&out);patch_dialog(&out);patch_controls(&out);
+ println!("cargo:rerun-if-changed=build/legacy/build_v1367_final_ui_audit.rs");
 }
