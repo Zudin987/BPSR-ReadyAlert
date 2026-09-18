@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1370_benchmark_lifecycle.rs");
+    include!("build/legacy/build_v1371_identity_bootstrap.rs");
     pub fn run() { main(); }
 }
 
