@@ -5,10 +5,10 @@ mod previous {
     pub fn run() { main(); }
 }
 
-fn replace_twice(src: &mut String, old: &str, new: &str, label: &str) {
+fn replace_once(src: &mut String, old: &str, new: &str, label: &str) {
     let count = src.matches(old).count();
-    assert_eq!(count, 2, "small-scale raid {label}: expected two generated instances, got {count}");
-    *src = src.replace(old, new);
+    assert_eq!(count, 1, "small-scale raid {label}: expected one generated instance, got {count}");
+    *src = src.replacen(old, new, 1);
 }
 
 fn main() {
@@ -20,11 +20,11 @@ fn main() {
     // Increase row pitch together with the already established small-scale
     // font floor. Paint, row hit-testing, scrolling and auto-sizing share
     // these helpers, so all four remain in sync. Preserve normal-size pitch.
-    replace_twice(&mut src,
+    replace_once(&mut src,
         "fn dps_row_h(scale:i32)->i32{dps_adaptive_logical_px(DPS_ROW_H,scale)}",
         "fn dps_row_h(scale:i32)->i32{dps_adaptive_logical_px(if scale <= 80 { DPS_ROW_H.max(44) } else { DPS_ROW_H },scale)}",
         "normal/Raid pitch");
-    replace_twice(&mut src,
+    replace_once(&mut src,
         "fn dps_compact_row_h(scale: i32) -> i32 {\n    dps_adaptive_logical_px(26, scale)\n}",
         "fn dps_compact_row_h(scale: i32) -> i32 {\n    dps_adaptive_logical_px(if scale <= 80 { 30 } else { 26 }, scale)\n}",
         "Compact/Compact Raid pitch");
@@ -32,7 +32,7 @@ fn main() {
     // The second line of each Raid player card is shared with the 40-unit
     // Food/Serum pair. Previously class/status text extended underneath it.
     // Clip the detail to a separate region rather than obscuring either item.
-    replace_twice(&mut src,
+    replace_once(&mut src,
         "    let detail = RECT {\n        top: middle,\n        bottom: r.bottom - 4,\n        ..identity\n    };",
         "    let detail = RECT {\n        top: middle,\n        bottom: r.bottom - 4,\n        right: if settings.meter.show_consumables { identity.right.min(r.right - 48) } else { identity.right },\n        ..identity\n    };",
         "Raid secondary text and consumable separation");
