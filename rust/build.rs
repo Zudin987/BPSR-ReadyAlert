@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1356_death_priority_owner_frame.rs");
+    include!("build/legacy/build_v1357_narrow_revive_labels.rs");
     pub fn run() { main(); }
 }
 
