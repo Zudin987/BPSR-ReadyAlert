@@ -13,6 +13,16 @@ fn main(){
     let old="assert_eq!(buttons[2].id, QA_IDCANCEL);";
     assert_eq!(source.matches(old).count(),1,"legacy default-action assertion moved");
     source=source.replacen(old,"assert_eq!(buttons[0].id, QA_IDCANCEL);",1);
+    // Rust infers an i32 literal inside these closure bit masks unless the
+    // integer type is explicit. Keep test-only arithmetic type-correct.
+    for (before,after) in [
+        ("((color >> shift) & 255)","((color >> shift) & 255u32)"),
+        ("((foreground>>shift)&255)","((foreground>>shift)&255u32)"),
+        ("((background>>shift)&255)","((background>>shift)&255u32)"),
+    ] {
+        assert_eq!(source.matches(before).count(),1,"contrast regression mask changed");
+        source=source.replacen(before,after,1);
+    }
     fs::write(path,source).expect("write QA regression");
     println!("cargo:rerun-if-changed=build/legacy/build_v1368_audit_test_alignment.rs");
 }
