@@ -30,16 +30,17 @@ fn main() {
         "        left: identity.left,\n        top: middle,",
         "raid second-line revive width");
 
-    // Compact cards have a single line. Measure the actual text with the
-    // selected native font, then use short but unambiguous labels if needed:
-    // green READY means revive now; amber countdown means revive blocked.
+    // Compact cards have a single line. Measure the actual drawable status
+    // rectangle (which can be smaller than its preferred width if the player
+    // name needs protection), not merely the preferred width. Green READY
+    // means revive now; amber countdown means revive blocked.
     once(&mut src,
         "fn compact_dead_status(row:&DpsRow,now:i64)->(String,u32){revive_status_text(row,now)}",
         "fn compact_dead_status(row:&DpsRow,now:i64)->(String,u32){revive_status_text(row,now)}\nfn reference_short_revive_text(row:&DpsRow,now:i64)->String{if row.revive_blocked_until_ms<0{\"WAIT\".into()}else if row.revive_blocked_until_ms>now{format_countdown(row.revive_blocked_until_ms.saturating_sub(now)as u64)}else{\"READY\".into()}}",
         "measured narrow label fallback");
     section(&mut src, "unsafe fn paint_compact_player(", "unsafe fn paint_compact_raid_rows(",
         "        let (status, color) = compact_dead_status(row, now_ms());\n        SetTextColor(hdc, color);",
-        "        let now = now_ms();\n        let (mut status, color) = compact_dead_status(row, now);\n        if dps_text_width(hdc, &status, status_w) > status_w {\n            status = reference_short_revive_text(row, now);\n        }\n        SetTextColor(hdc, color);",
+        "        let now = now_ms();\n        let (mut status, color) = compact_dead_status(row, now);\n        if dps_text_width(hdc, &status, status_w) > (identity_right - status_left).max(0) {\n            status = reference_short_revive_text(row, now);\n        }\n        SetTextColor(hdc, color);",
         "compact measured revive label");
 
     src.push_str(r#"
