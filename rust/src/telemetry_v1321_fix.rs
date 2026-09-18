@@ -6,7 +6,7 @@ mod previous {
 }
 
 pub use previous::{
-    arm_benchmark, benchmark_status, default_benchmark_seconds, request_manual_reset, BenchmarkStatus,
+    arm_benchmark, benchmark_status, benchmark_completion_pending, default_benchmark_seconds, request_manual_reset, BenchmarkStatus,
 };
 
 mod future_mechanics {
