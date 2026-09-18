@@ -1,12 +1,13 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1358_rank_death_header_alignment.rs");
+    include!("build/legacy/build_v1359_non_meter_layout_fixes.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
-    // Final audit pass runs after the current header/layout/history generators.
+    // Final layout fixes run after approved DPS generators; generated outputs
+    // are never edited directly without a checked-in source transformation.
     println!("cargo:rerun-if-changed=build/legacy");
 }
