@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1362_enrage_header.rs");
+    include!("build/legacy/build_v1363_chat_header_style.rs");
     pub fn run() { main(); }
 }
 
