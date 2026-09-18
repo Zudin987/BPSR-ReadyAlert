@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1360_mode_height_rules.rs");
+    include!("build/legacy/build_v1361_hit_test_type_fix.rs");
     pub fn run() { main(); }
 }
 
