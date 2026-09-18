@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1365_chat_dynamic_action_offset.rs");
+    include!("build/legacy/build_v1366_chat_header_font_offset.rs");
     pub fn run() { main(); }
 }
 
