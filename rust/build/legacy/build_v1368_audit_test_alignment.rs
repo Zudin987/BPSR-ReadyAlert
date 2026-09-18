@@ -1,8 +1,9 @@
 // Keep legacy regression assertions consistent with the intentionally safer
-// default selection introduced by the final UI audit.
+// default selection introduced by the final UI audit. The contrast pass
+// operates on generated source and preserves all approved DPS geometry.
 use std::{env,fs,path::PathBuf};
 mod previous {
-    include!("build_v1367_final_ui_audit.rs");
+    include!("build_v1368_audit_contrast.rs");
     pub fn run(){main();}
 }
 fn main(){
