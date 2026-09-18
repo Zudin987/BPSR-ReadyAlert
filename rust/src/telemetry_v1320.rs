@@ -2,11 +2,11 @@ use crate::{model::AppEvent, proto};
 use std::sync::mpsc::Sender;
 
 mod previous {
-    include!("telemetry_v1270.rs");
+    include!(concat!(env!("OUT_DIR"), "/telemetry_v1270_lifecycle.rs"));
 }
 
 pub use previous::{
-    arm_benchmark, benchmark_status, default_benchmark_seconds, request_manual_reset, BenchmarkStatus,
+    arm_benchmark, benchmark_status, benchmark_completion_pending, default_benchmark_seconds, request_manual_reset, BenchmarkStatus,
 };
 
 const SYNC_NEAR_ENTITIES: u32 = 0x06;
