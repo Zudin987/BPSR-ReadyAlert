@@ -1,0 +1,57 @@
+use std::{env, fs, path::PathBuf};
+
+mod previous {
+    include!("build_v1354_audit_font_floors.rs");
+    pub fn run() { main(); }
+}
+
+fn replace_twice(src: &mut String, old: &str, new: &str, label: &str) {
+    let count = src.matches(old).count();
+    assert_eq!(count, 2, "small-scale raid {label}: expected two generated instances, got {count}");
+    *src = src.replace(old, new);
+}
+
+fn main() {
+    previous::run();
+    let path = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"))
+        .join("feature_overlays_v170_fixed.rs");
+    let mut src = fs::read_to_string(&path).expect("generated overlay source");
+
+    // Increase row pitch together with the already established small-scale
+    // font floor. Paint, row hit-testing, scrolling and auto-sizing share
+    // these helpers, so all four remain in sync. Preserve normal-size pitch.
+    replace_twice(&mut src,
+        "fn dps_row_h(scale:i32)->i32{dps_adaptive_logical_px(DPS_ROW_H,scale)}",
+        "fn dps_row_h(scale:i32)->i32{dps_adaptive_logical_px(if scale <= 80 { DPS_ROW_H.max(44) } else { DPS_ROW_H },scale)}",
+        "normal/Raid pitch");
+    replace_twice(&mut src,
+        "fn dps_compact_row_h(scale: i32) -> i32 {\n    dps_adaptive_logical_px(26, scale)\n}",
+        "fn dps_compact_row_h(scale: i32) -> i32 {\n    dps_adaptive_logical_px(if scale <= 80 { 30 } else { 26 }, scale)\n}",
+        "Compact/Compact Raid pitch");
+
+    // The second line of each Raid player card is shared with the 40-unit
+    // Food/Serum pair. Previously class/status text extended underneath it.
+    // Clip the detail to a separate region rather than obscuring either item.
+    replace_twice(&mut src,
+        "    let detail = RECT {\n        top: middle,\n        bottom: r.bottom - 4,\n        ..identity\n    };",
+        "    let detail = RECT {\n        top: middle,\n        bottom: r.bottom - 4,\n        right: if settings.meter.show_consumables { identity.right.min(r.right - 48) } else { identity.right },\n        ..identity\n    };",
+        "Raid secondary text and consumable separation");
+
+    src.push_str(r#"
+#[cfg(test)]
+mod audit_small_raid_spacing_tests {
+    use super::*;
+    #[test]
+    fn reduced_scale_rows_have_two_readable_lines_and_match_shared_geometry() {
+        for scale in [60, 80] {
+            assert!(dps_row_h(scale) >= dps_adaptive_logical_px(44, scale));
+            assert!(dps_compact_row_h(scale) >= dps_adaptive_logical_px(30, scale));
+        }
+        assert_eq!(dps_row_h(100), dps_adaptive_logical_px(DPS_ROW_H, 100));
+        assert_eq!(dps_compact_row_h(100), dps_adaptive_logical_px(26, 100));
+    }
+}
+"#);
+    fs::write(path, src).expect("write reduced-scale Raid spacing");
+    println!("cargo:rerun-if-changed=build/legacy/build_v1355_raid_small_scale_spacing.rs");
+}
