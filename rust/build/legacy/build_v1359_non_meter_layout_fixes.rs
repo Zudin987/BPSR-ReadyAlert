@@ -24,7 +24,7 @@ fn control(source: &mut String, start: &str, replacement: &str, label: &str) {
 fn patch_mechanics(path: &PathBuf) {
     let mut source = fs::read_to_string(path).expect("read active generated overlays");
     // v1351 moves shared opacity/scale/collapse controls down, but moves only
-    // DPS fields to match. The mechanics grid still starts at y=144 beneath
+    // DPS fields to match. The mechanics grid still starts at y=156 beneath
     // those controls. Scope replacements to the mechanics ELSE branch: DPS
     // presentation, calculations and all its stored user options remain intact.
     let begin_anchor = "feature_label(hwnd,7020,";
@@ -77,10 +77,11 @@ fn patch_event_editor(path: &PathBuf) {
     control(&mut source, "create_button(hwnd,ID_CLOSE,",
         "create_button(hwnd,ID_CLOSE,\"Close\",600,422,82,30);",
         "Close below helper");
-    // Preserve danger semantics for enabled Remove; neutral when disabled.
+    // The final native QA owner-draw helper owns all buttons; preserve its
+    // danger styling for actionable Remove but not for a disabled control.
     once(&mut source,
-        "crate::ui_theme::draw_button(item,false,id==ID_APPLY,id==ID_REMOVE,false)",
-        "crate::ui_theme::draw_button(item,false,id==ID_APPLY,id==ID_REMOVE && windows_sys::Win32::UI::WindowsAndMessaging::IsWindowEnabled((*item).hwndItem)!=0,false)",
+        "crate::ui_modern::qa_draw_button(item,false,id==ID_APPLY,id==ID_REMOVE,false)",
+        "crate::ui_modern::qa_draw_button(item,false,id==ID_APPLY,id==ID_REMOVE && windows_sys::Win32::UI::WindowsAndMessaging::IsWindowEnabled((*item).hwndItem)!=0,false)",
         "disabled Remove semantics");
     fs::write(path, source).expect("write isolated Event Tracker footer geometry");
 }
