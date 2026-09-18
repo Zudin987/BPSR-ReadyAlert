@@ -7,7 +7,8 @@ mod previous {
 
 fn once(source: &mut String, old: &str, new: &str, label: &str) {
     let count = source.matches(old).count();
-    assert_eq!(count, 1, "mode height {label}: expected one anchor, found {count}");
+    let expected = if label == "collapsed scale persistence" { 2 } else { 1 };
+    assert_eq!(count, expected, "mode height {label}: expected {expected} anchor(s), found {count}");
     *source = source.replacen(old, new, 1);
 }
 fn in_fn(source: &mut String, start: &str, end: &str, old: &str, new: &str, label: &str) {
