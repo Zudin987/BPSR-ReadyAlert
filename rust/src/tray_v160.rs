@@ -68,7 +68,7 @@ pub unsafe fn show(hwnd:HWND,settings:&AppSettings,features:&FeatureSettings,api
     match command as u32{
         CMD_SOUND_ALERTS=>TrayAction::ToggleSoundAlerts,CMD_DESKTOP=>TrayAction::ToggleDesktop,CMD_CHAT=>TrayAction::ToggleChat,CMD_DPS=>TrayAction::ToggleDps,CMD_MECH=>TrayAction::ToggleMechanics,CMD_EVENT_TRACKER=>TrayAction::OpenEventTracker,
         CMD_SETTINGS=>TrayAction::OpenSettings,CMD_CHAT_LOGS=>TrayAction::OpenChatLogs,CMD_APP_FOLDER=>TrayAction::OpenAppFolder,CMD_LOG_FILE=>TrayAction::OpenLogFile,CMD_EXIT=>TrayAction::Exit,CMD_ADAPTER_AUTO=>TrayAction::SelectAdapter(None),
-        id if id>=CMD_ADAPTER_BASE&&id<CMD_ADAPTER_BASE+MAX_ADAPTERS as u32=>devices.get((id-CMD_ADAPTER_BASE)as usize).map(|d|TrayAction::SelectAdapter(Some(d.name.clone())).unwrap_or(TrayAction::None),
+        id if id>=CMD_ADAPTER_BASE&&id<CMD_ADAPTER_BASE+MAX_ADAPTERS as u32=>devices.get((id-CMD_ADAPTER_BASE)as usize).map(|d|TrayAction::SelectAdapter(Some(d.name.clone()))).unwrap_or(TrayAction::None),
         id if id>=CMD_VOLUME_BASE&&id<=CMD_VOLUME_BASE+10=>TrayAction::SetAlertVolume(((id-CMD_VOLUME_BASE)*10)as i32),_=>TrayAction::None,
     }
 }
