@@ -11,8 +11,8 @@ fn once(source: &mut String, from: &str, to: &str, label: &str) {
     *source = source.replacen(from, to, 1);
 }
 
-// Replace one complete native-control creation statement, without depending on
-// its old coordinates or overwriting any adjacent state/persistence operations.
+// Replace a complete native-control statement without changing its adjacent
+// state, event routing, or persistence logic.
 fn control(source: &mut String, start: &str, replacement: &str, label: &str) {
     let count = source.matches(start).count();
     assert_eq!(count, 1, "non-meter control {label}: expected one anchor, found {count}");
@@ -23,11 +23,10 @@ fn control(source: &mut String, start: &str, replacement: &str, label: &str) {
 
 fn patch_mechanics(path: &PathBuf) {
     let mut source = fs::read_to_string(path).expect("read active generated overlays");
-    // v1351 moves the shared opacity/scale/collapse controls down but moves only
-    // the DPS fields to match. The mechanics attribute grid was still starting
-    // at y=144, directly underneath the newly relocated scale/collapse controls.
-    // Limit all form changes to the mechanics branch: the approved DPS branch,
-    // including its geometry, typefaces and calculations, must remain byte-for-byte.
+    // v1351 moves shared opacity/scale/collapse controls down, but moves only
+    // DPS fields to match. The mechanics grid still starts at y=144 beneath
+    // those controls. Scope replacements to the mechanics ELSE branch: DPS
+    // presentation, calculations and all its stored user options remain intact.
     let begin_anchor = "feature_label(hwnd,7020,";
     assert_eq!(source.matches(begin_anchor).count(), 1, "mechanics form start");
     let begin = source.find(begin_anchor).unwrap();
@@ -36,7 +35,12 @@ fn patch_mechanics(path: &PathBuf) {
     let mut form = source[begin..finish].to_string();
     control(&mut form, "feature_label(hwnd,7020,", "feature_label(hwnd,7020,\"\",20,184,260,24);", "tracked count");
     control(&mut form, "feature_button(hwnd,7021,", "feature_button(hwnd,7021,\"Event Tracker\",534,180,150);", "tracker action");
-    control(&mut form, "feature_label(hwnd,0,", "feature_label(hwnd,0,\"COMBAT ATTRIBUTES\",20,224,300,20);", "grid heading");
+    // Identify the section heading by its position BEFORE the rows declaration;
+    // the later guidance is also a feature_label(hwnd,0,...) and must survive.
+    let grid_marker = form.find("let rows=").expect("mechanics grid row declaration");
+    let heading = form[..grid_marker].rfind("feature_label(hwnd,0,").expect("mechanics section heading");
+    let heading_end = heading + form[heading..].find(';').unwrap() + 1;
+    form.replace_range(heading..heading_end, "feature_label(hwnd,0,\"COMBAT ATTRIBUTES\",20,224,300,20);");
     control(&mut form, "feature_check(hwnd,7200+i as i32,label,",
         "feature_check(hwnd,7200+i as i32,label,20+(i/rows)as i32*224,250+(i%rows)as i32*28,216);",
         "attribute rows");
@@ -58,9 +62,8 @@ fn patch_mechanics(path: &PathBuf) {
 
 fn patch_event_editor(path: &PathBuf) {
     let mut source = fs::read_to_string(path).expect("read active generated Event Tracker editor");
-    // The old single-line, 470px-wide note at y=370 is truncated. Reserve a
-    // separate full-width, two-line helper ABOVE the actions, instead of laying
-    // the helper and buttons out in the same footer row.
+    // Previously the 470-wide, 20-high helper shared the footer region with
+    // buttons. Reserve a full-width two-line region above separate actions.
     once(&mut source,
         "const HEIGHT: i32 = crate::ui_theme::EVENT_H;",
         "const HEIGHT: i32 = crate::ui_theme::EVENT_H + 92;",
@@ -74,7 +77,7 @@ fn patch_event_editor(path: &PathBuf) {
     control(&mut source, "create_button(hwnd,ID_CLOSE,",
         "create_button(hwnd,ID_CLOSE,\"Close\",600,422,82,30);",
         "Close below helper");
-    // Disabled Remove is neutral. Actionable Remove retains the danger role.
+    // Preserve danger semantics for enabled Remove; neutral when disabled.
     once(&mut source,
         "crate::ui_theme::draw_button(item,false,id==ID_APPLY,id==ID_REMOVE,false)",
         "crate::ui_theme::draw_button(item,false,id==ID_APPLY,id==ID_REMOVE && windows_sys::Win32::UI::WindowsAndMessaging::IsWindowEnabled((*item).hwndItem)!=0,false)",
