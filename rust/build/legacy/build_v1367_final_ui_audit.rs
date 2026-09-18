@@ -1,5 +1,5 @@
-//! Final UI audit corrections. Work on generated Rust, never hand-edit OUT_DIR.
-//! Kept after the approved DPS visual generator to avoid altering the meter design.
+// Final UI audit corrections. Work on generated Rust, never hand-edit OUT_DIR.
+// Kept after the approved DPS visual generator to avoid altering the meter design.
 use std::{env, fs, path::PathBuf};
 
 mod previous {
@@ -21,20 +21,16 @@ fn region(src: &mut String, start: &str, end: &str, f: impl FnOnce(&mut String))
     src.replace_range(a..b, &body);
 }
 
-// Replace one whole creation statement based on its stable Win32 control ID.
-// This also tolerates the earlier audit passes changing the displayed label.
 fn field(src: &mut String, id: &str, replacement: &str) {
     let rows: Vec<&str> = src.lines().filter(|line| line.contains("field(") && line.contains(id)).collect();
     assert_eq!(rows.len(), 1, "audit {id}: expected one field");
-    let old = rows[0].trim();
+    let old = rows[0].trim().to_owned();
     assert!(old.ends_with(';'), "audit {id}: malformed field statement");
-    once(src, old, replacement, id);
+    once(src, &old, replacement, id);
 }
 
 fn patch_feature_footer(path: &PathBuf) {
     let mut src = fs::read_to_string(path).expect("generated feature settings");
-    // F01: the previous 594 + 92 button extended beyond the 620px popup.
-    // Always work in actual *client* pixels, measuring the HWND on each resize.
     once(&mut src,
         "feature_button(hwnd,2,\"Close\",594,432,92);",
         "feature_button(hwnd,2,\"Close\",20,432,92); audit_place_dps_footer(hwnd,state.kind);",
@@ -74,8 +70,6 @@ fn patch_feature_footer(path: &PathBuf) {
 
 fn patch_chat_settings(path: &PathBuf) {
     let mut src = fs::read_to_string(path).expect("generated chat settings");
-    // F02: use the same two measured columns and 30px horizontal gutter for
-    // username/volume. Labels and edits now share rows without intersecting.
     region(&mut src, "unsafe fn build_speech(", "unsafe fn build_tabs(", |body| {
         field(body, "ID_TTS_USERNAME", "field(hwnd, state, PAGE_SPEECH, \"Own username override (optional)\", ID_TTS_USERNAME, 184, 302, 410);");
         field(body, "ID_TTS_VOLUME", "field(hwnd, state, PAGE_SPEECH, \"TTS volume (%)\", ID_TTS_VOLUME, 624, 302, 140);");
@@ -83,20 +77,16 @@ fn patch_chat_settings(path: &PathBuf) {
         once(body, "ID_TEST_TTS, \"Test Google English TTS\", 184, 470", "ID_TEST_TTS, \"Test Google English TTS\", 184, 444", "F02 test button clearance");
         once(body, "184, 522, 610, 54", "184, 492, 610, 68", "F02 speech helper wrapping");
     });
-    // F03: consistent 30px column gutter and 14px vertical group spacing.
     region(&mut src, "unsafe fn build_overlay(", "unsafe fn build_colors(", |body| {
         field(body,"ID_CLICK_HOTKEY","field(hwnd,state,PAGE_OVERLAY,\"Recovery hotkey\",ID_CLICK_HOTKEY,184,270,280);");
         field(body,"ID_FONT_FAMILY","field(hwnd,state,PAGE_OVERLAY,\"Font family\",ID_FONT_FAMILY,494,270,290);");
         field(body,"ID_WINDOW_OPACITY","field(hwnd,state,PAGE_OVERLAY,\"Window opacity (%)\",ID_WINDOW_OPACITY,184,342,110);");
-        field(body,"ID_FONT_SIZE","field(hwnd,state,PAGE_OVERLAY,\"Font size (pt, 8-24)\",ID_FONT_SIZE,494,342,110);
-");
+        field(body,"ID_FONT_SIZE","field(hwnd,state,PAGE_OVERLAY,\"Font size (pt, 8-24)\",ID_FONT_SIZE,494,342,110);");
         field(body,"ID_MAX_HISTORY","field(hwnd,state,PAGE_OVERLAY,\"Max history (10-500)\",ID_MAX_HISTORY,184,414,130);");
         once(body,"\"Collapse edge\",484,390,160,22", "\"Collapse edge\",494,414,180,22", "F03 collapse label");
         once(body,"ID_COLLAPSE_SIDE,484,414,180,180", "ID_COLLAPSE_SIDE,494,438,200,180", "F03 collapse control");
         once(body,"184,460,610,58", "184,494,610,76", "F03 helper clearance");
     });
-    // F07: editable expressions get extra width; values are not ellipsized.
-    // Users can scroll native ES_AUTOHSCROLL edits and Ctrl+A/Ctrl+C complete paths.
     region(&mut src,"unsafe fn build_sounds(","unsafe fn build_network(",|body| {
         field(body,"ID_PRIVATE_SOUND_PATH","field(hwnd,state,PAGE_SOUNDS,\"Private sound path\",ID_PRIVATE_SOUND_PATH,184,132,600);");
         field(body,"ID_RULE1_MATCH","field(hwnd,state,PAGE_SOUNDS,\"Match (OR / AND / regex)\",ID_RULE1_MATCH,204,278,310);");
@@ -107,21 +97,16 @@ fn patch_chat_settings(path: &PathBuf) {
         let marker="button(hwnd, state, PAGE_SOUNDS, ID_OPEN_LOGS, \"Open chat logs\", 184, 492, 130, 30);";
         once(body,marker,&format!("{marker}\n    info(hwnd,state,PAGE_SOUNDS,\"Long paths and matches remain fully editable. Use Home/End to scroll, or Ctrl+A then Ctrl+C to inspect the complete value.\",184,536,610,60);"),"F07 full-value instructions");
     });
-    // F09: the final channel row, wrapping note and footer have distinct bands.
     region(&mut src,"unsafe fn build_tabs(","unsafe fn build_sounds(",|body| {
         once(body,"184, 500, 610, 58", "184, 514, 610, 74", "F09 tabs helper and footer spacing");
     });
     region(&mut src,"unsafe fn build_general(","unsafe fn build_overlay(",|body| {
         field(body,"ID_ALERT_VOLUME","field(hwnd,state,PAGE_GENERAL,\"Alert volume (%)\",ID_ALERT_VOLUME,184,246,110);");
     });
-    // F08: do not advertise an unavailable destructive action.
     region(&mut src,"unsafe fn refresh_blocked_list(","unsafe fn unblock_selected(",|body| {
         once(body,"    }\n}","    }\n    EnableWindow(GetDlgItem(hwnd, ID_CLEAR_BLOCKED), (!state.working.chat.blocked_users.is_empty()) as i32);\n    EnableWindow(GetDlgItem(hwnd, ID_UNBLOCK), (list_sel(hwnd, ID_BLOCKED_LIST) >= 0) as i32);\n}","F08 blocked action state");
     });
-    // The owner-drawn disabled control must not retain the destructive border.
     region(&mut src,"unsafe fn draw_settings_button(","unsafe fn try_dark_titlebar(",|body| {
-        // Keep the current navigation/Apply styling, but make Clear all clearly
-        // destructive only while enabled. Disabled appearance is neutral.
         let begin=body.find("    let bg=").expect("settings button bg");
         let end=begin+body[begin..].find(";\n").expect("settings button bg end")+2;
         body.replace_range(begin..end,"    let disabled = item.itemState & 0x0004 != 0;\n    let bg=if disabled{rgb(29,31,38)}else if id==ID_CLEAR_BLOCKED{rgb(73,42,43)}else if selected{rgb(30,48,51)}else if apply{rgb(38,112,103)}else{rgb(30,38,46)};\n");
@@ -135,8 +120,6 @@ fn patch_chat_settings(path: &PathBuf) {
 
 fn patch_discard(path: &PathBuf) {
     let mut src=fs::read_to_string(path).expect("generated Event Tracker editor");
-    // F05: standard Yes=Save, No=Discard, Cancel=Keep Editing. Make Cancel
-    // the true Windows default (not only a visually highlighted control).
     once(&mut src,
         "wide(\"Unsaved rules\").as_ptr(),0x00000003|0x00000020);",
         "wide(\"Unsaved rules\").as_ptr(),0x00000003|0x00000020|0x00000200);",
