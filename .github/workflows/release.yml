@@ -24,7 +24,7 @@ jobs:
     env:
       TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TARGET_SHA }}
 

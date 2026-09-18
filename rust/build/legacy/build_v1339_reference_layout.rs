@@ -22,7 +22,7 @@ fn main() {
     // Normal meter, raid, resize, hover and export derive from shared geometry.
     replace_exact(&mut source, "const DPS_CONTROL_H: i32 = 80;", "const DPS_CONTROL_H: i32 = 96;", 1, "header height");
     replace_exact(&mut source, "const DPS_ROW_H: i32 = 33;", "const DPS_ROW_H: i32 = 40;", 1, "card row height");
-    replace_exact(&mut source, "const BADGE_W: i32 = 25;", "const BADGE_W: i32 = 29;", 1, "Imagine icon width");
+    replace_exact(&mut source, "const BADGE_W: i32 = 25;", "const BADGE_W: i32 = 27;", 1, "Imagine icon width");
     replace_exact(&mut source, "const BADGE_GAP: i32 = 3;", "const BADGE_GAP: i32 = 4;", 1, "Imagine spacing");
     replace_exact(&mut source, "dps_adaptive_logical_px(23,scale)", "dps_adaptive_logical_px(27,scale)", 1, "Imagine icon height");
 
@@ -63,7 +63,7 @@ fn main() {
         "    let rows=meter_rows(state);let top=dps_rows_top();let row_h=dps_row_h(scale);",
         "    paint_reference_column_headers(hdc,hr,&layout,tier,scale,settings.meter.show_imagines);let rows=meter_rows(state);let top=dps_rows_top();let row_h=dps_row_h(scale);", 1, "class and Imagine headings");
 
-    source.push_str(include_str!("../../src/feature_meter_reference_layout.rs"));
+    // The final audit stage binds the maintained native presentation functions.
     fs::write(path, source).expect("write refined native meter layout");
     println!("cargo:rerun-if-changed=build/legacy/build_v1339_reference_layout.rs");
     println!("cargo:rerun-if-changed=src/feature_meter_reference_layout.rs");

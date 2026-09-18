@@ -21,7 +21,7 @@ fn main() {
     // 50% scale, where text readability makes logical row height larger.
     replace_exact(&mut source,
         "fn overlay_min_height(kind:Kind,scale:i32)->i32{scale_px(if kind==Kind::Dps{200}else{260},clamp_kind_scale(kind,scale))}",
-        "fn overlay_min_height(kind:Kind,scale:i32)->i32{let logical=if kind==Kind::Dps{(dps_rows_top()+2*dps_row_h(scale)+4).max(220)}else{260};scale_px(logical,clamp_kind_scale(kind,scale))}",
+        "fn overlay_min_height(kind:Kind,scale:i32)->i32{let logical=if kind==Kind::Dps{(dps_rows_top().max(133)+2*dps_row_h(scale)+4).max(220)}else{260};scale_px(logical,clamp_kind_scale(kind,scale))}",
         1, "two-row minimum height");
 
     // Older regression tests asserted the previous 200px-high meter. Preserve
@@ -69,8 +69,54 @@ fn main() {
 
     source.push_str(include_str!("../../src/feature_meter_reference_audit.rs"));
     source.push_str(include_str!("../../src/feature_meter_hover_qa.rs"));
+    // Replace whole presentation functions once, after historical transforms.
+    // Rendering and hit tests are maintained together in normal Rust source.
+    for name in ["paint_toolbar", "on_click", "overlay_help", "resize_hit_test"] {
+        let signature = format!("unsafe fn {name}(");
+        replace_exact(&mut source, &signature,
+            &format!("unsafe fn reference_legacy_{name}("), 1, name);
+    }
+    for name in ["toolbar_system_count", "toolbar_items", "toolbar_action_help",
+        "show_meter_more_menu", "dispatch_toolbar_action", "dps_rows_top",
+        "dps_rows_top_for", "dps_compact_row_h", "paint_compact_player",
+        "paint_compact_raid_rows", "raid_row_at", "hover_badge_at", "consumable_hover_at",
+        "dps_primary_font", "dps_secondary_font", "dps_cached_font", "paint_raid_rows", "paint_raid_player", "paint_mode_tab", "overlay_min_height_mode", "dps_image_dimensions_for",
+        "dps_row_layout_responsive", "paint_dps_secondary_colored", "paint_dps", "paint_dps_with_raid"] {
+        remove_presentation_function(&mut source, name);
+    }
+    source.push_str(include_str!("../../src/feature_meter_reference_layout.rs"));
+    println!("cargo:rerun-if-changed=src/feature_meter_reference_layout.rs");
     fs::write(path, source).expect("write corrected layouts, hovers and regression expectations");
     println!("cargo:rerun-if-changed=build/legacy/build_v1341_reference_audit.rs");
     println!("cargo:rerun-if-changed=src/feature_meter_reference_audit.rs");
     println!("cargo:rerun-if-changed=src/feature_meter_hover_qa.rs");
+}
+
+// All selected definitions are ordinary Rust functions (no raw string literals).
+// Skip quoted strings and line comments so format strings cannot affect depth.
+fn remove_presentation_function(source: &mut String, name: &str) {
+    let plain = format!("\nfn {name}(");
+    let unsafe_fn = format!("\nunsafe fn {name}(");
+    let matches: Vec<_> = source.match_indices(&plain).chain(source.match_indices(&unsafe_fn)).collect();
+    assert_eq!(matches.len(), 1, "reference presentation function {name}");
+    let start = matches[0].0 + 1;
+    let body = start + source[start..].find('{').expect("function body");
+    let bytes = source.as_bytes();
+    let (mut depth, mut quoted, mut escaped, mut comment) = (0, false, false, false);
+    let mut end = None;
+    for i in body..bytes.len() {
+        let c = bytes[i];
+        if comment { if c == b'\n' { comment = false; } continue; }
+        if quoted {
+            if escaped { escaped = false; }
+            else if c == b'\\' { escaped = true; }
+            else if c == b'"' { quoted = false; }
+            continue;
+        }
+        if c == b'"' { quoted = true; }
+        else if c == b'/' && bytes.get(i + 1) == Some(&b'/') { comment = true; }
+        else if c == b'{' { depth += 1; }
+        else if c == b'}' { depth -= 1; if depth == 0 { end = Some(i + 1); break; } }
+    }
+    source.replace_range(start..end.expect("closed presentation function"), "");
 }

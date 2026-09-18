@@ -1,13 +1,13 @@
+#![recursion_limit = "256"]
+
 mod current {
-    include!("build/legacy/build_v1342_dungeon_flow_diag.rs");
+    include!("build/legacy/build_v1368_audit_test_alignment.rs");
     pub fn run() { main(); }
 }
 
 fn main() {
     current::run();
-    // Presentation and compatibility QA stages deliberately run after the
-    // behavior/keyboard/dialog audit so future-season fallbacks cannot regress
-    // existing ReadyAlert workflows. The dungeon-flow stage is diagnostic-only:
-    // it must not mutate encounter lifecycle state.
+    // Final layout fixes run after approved DPS generators; generated outputs
+    // are never edited directly without a checked-in source transformation.
     println!("cargo:rerun-if-changed=build/legacy");
 }
