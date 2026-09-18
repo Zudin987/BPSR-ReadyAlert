@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1363_chat_header_style.rs");
+    include!("build/legacy/build_v1364_chat_icon_tiles.rs");
     pub fn run() { main(); }
 }
 
