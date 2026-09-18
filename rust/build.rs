@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1371_identity_bootstrap.rs");
+    include!("build/legacy/build_v1372_capture_reconnect.rs");
     pub fn run() { main(); }
 }
 
