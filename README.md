@@ -10,14 +10,14 @@ Lightweight Windows combat companion for **Blue Protocol: Star Resonance**. See 
 
 ## What it does
 
-- **Combat meter:** Damage, DPS, healing, tank statistics and damage received, with Normal, Compact and Raid layouts.
+- **Combat meter:** Damage, DPS, healing, tank statistics and damage received, with Normal, Compact, Raid and Compact Raid layouts.
 - **Party status:** Food and Serum activity, revive availability and Imagine tiers.
 - **Encounter helpers:** Enrage countdown, supported boss mechanics and Imagine timing trackers.
 - **History:** Save encounters locally, open HTML reports and compare two fights side by side.
 - **Optional chat tools:** View game chat, translate supported non-English messages to English and read Guild/Party messages aloud.
 - **Alerts:** See queue and party notifications alongside the combat tools.
 
-[More screenshots](docs/images/) · [Encounter history details](https://zudin987.github.io/projects/readyalert/)
+[More screenshots](docs/images/) · [Encounter History details and screenshots](https://zudin987.github.io/projects/readyalert/#history)
 
 ## Requirements
 
