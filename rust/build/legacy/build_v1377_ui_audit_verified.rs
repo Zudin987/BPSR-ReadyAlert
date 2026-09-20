@@ -13,6 +13,22 @@ fn change(out: &std::path::Path, name: &str, old: &str, new: &str, count: usize,
     fs::write(path, text).unwrap_or_else(|e| panic!("{name}: {e}"));
     println!("cargo:warning=UI audit {issue}: verified {count} generated-source edit(s)");
 }
+fn update_history_test(out: &std::path::Path) {
+    let name = "ui_meter_qa_tests_raid_v1345.rs";
+    let path = out.join(name);
+    let mut src = fs::read_to_string(&path).expect("history regression test generated source");
+    let start = src.find("fn reference_toolbar_has_direct_icon_actions_and_bounded_history()")
+        .expect("M01: history test function missing");
+    let next = src[start..].find("fn reference_single_row_headers_and_totals_follow_the_mode()")
+        .map(|n| start + n).expect("M01: history test section end missing");
+    let section = &src[start..next];
+    assert_eq!(section.matches("\"Live\"").count(), 1,
+        "M01: expected exactly one old Live assertion within history regression test");
+    let relative = section.find("\"Live\"").unwrap();
+    src.replace_range(start + relative..start + relative + "\"Live\"".len(), "\"↩ Live\"");
+    fs::write(path, src).expect("write M01 regression test");
+    println!("cargo:warning=UI audit M01: updated the history assertion in its named test");
+}
 fn main() {
     previous::run();
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
@@ -37,13 +53,9 @@ fn main() {
         "if settings.meter.show_imagines && badge_header_span >= dps_badge_w(scale) {",
         "if settings.meter.show_imagines && layout.badge_left > layout.spec_right && badge_header_span >= dps_badge_w(scale) {",
         1, "M07 hide imaginary badge column heading when there is no column");
-    // M01: the history mode intentionally labels its return action "↩ Live".
-    // Update the existing behavior regression test to reflect that user-visible
-    // differentiation instead of reverting a legitimate improvement.
-    change(&out, "ui_meter_qa_tests_raid_v1345.rs",
-        "            .label,\n        \"Live\"\n    );\n    history_newer(&mut s);",
-        "            .label,\n        \"↩ Live\"\n    );\n    history_newer(&mut s);",
-        1, "M01 history return label regression");
+    // Change only the assertion in the named history test. Generated sources
+    // do not guarantee a particular whitespace layout surrounding the assert.
+    update_history_test(&out);
     // H01: original always remains. A translated line that differs only in
     // case/spacing/punctuation or is equivalent repeated 'ha' laughter wastes
     // space and wrongly implies useful translation. Preserve all other short,
