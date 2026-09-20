@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1386_followup_test_contract.rs");
+    include!("build/legacy/build_v1389_resize_compact_corrected.rs");
     pub fn run() { main(); }
 }
 
