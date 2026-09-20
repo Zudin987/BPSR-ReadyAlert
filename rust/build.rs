@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1374_benchmark_arm_boundary.rs");
+    include!("build/legacy/build_v1375_ui_ux_audit.rs");
     pub fn run() { main(); }
 }
 
