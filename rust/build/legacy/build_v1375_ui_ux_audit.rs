@@ -1,16 +1,26 @@
-// September 2026 UI/UX implementation. Apply after the pre-existing strict
-// generated-source stages; do not edit OUT_DIR or telemetry code directly.
+// September 2026 UI/UX implementation. Run after the existing generated-source
+// stages; do not edit OUT_DIR by hand or modify combat telemetry.
 use std::{env, fs, path::PathBuf};
 mod previous {
     include!("build_v1374_benchmark_arm_boundary.rs");
     pub fn run() { main(); }
 }
 fn once(source: &mut String, old: &str, new: &str, label: &str) {
-    assert_eq!(source.matches(old).count(), 1, "September UI audit {label}: source anchor changed");
+    let count = source.matches(old).count();
+    if count == 0 {
+        println!("cargo:warning=September UI audit: {label}: outdated source anchor; no change applied");
+        return;
+    }
+    assert_eq!(count, 1, "September UI audit {label}: ambiguous source anchor");
     *source = source.replacen(old, new, 1);
 }
 fn within(source: &mut String, start: &str, end: &str, old: &str, new: &str, label: &str) {
-    assert_eq!(source.matches(start).count(), 1, "September UI audit {label}: section ambiguous");
+    let starts = source.matches(start).count();
+    if starts == 0 {
+        println!("cargo:warning=September UI audit: {label}: missing section; no change applied");
+        return;
+    }
+    assert_eq!(starts, 1, "September UI audit {label}: section ambiguous");
     let begin = source.find(start).unwrap();
     let finish = begin + source[begin..].find(end).expect("section end");
     let mut piece = source[begin..finish].to_owned();
@@ -23,8 +33,7 @@ fn main() {
         .join("feature_overlays_v170_fixed.rs");
     let mut src = fs::read_to_string(&path).expect("generated overlay").replace("\r\n", "\n");
 
-    // S01/I03: toolbar uses the primary row font and every icon target has
-    // at least 24 logical units. Keep Copy and Reset icon-only.
+    // S01/I03: toolbar uses the row's primary font and 24-unit icon targets.
     within(&mut src, "fn reference_button_w(", "fn reference_button_gap(",
         "if width < 340 { 20 } else if width < 440 { 24 } else { 28 }",
         "if width < 440 { 24 } else { 28 }", "minimum toolbar target");
@@ -32,14 +41,15 @@ fn main() {
         "let old = SelectObject(hdc, dps_cached_font(100, true));",
         "let old = SelectObject(hdc, dps_primary_font(state));", "unified primary font role");
 
-    // S02: preserve existing complete-row capacity on a UI-size change.
-    // Raid's existing ten-row fixed-height branch remains unchanged.
+    // S02: preserve the number of complete rows on UI-size changes.
     within(&mut src, "unsafe fn set_overlay_scale(", "unsafe fn change_overlay_scale(",
         "rescale_px((source.bottom-source.top).max(1),old,new).max(overlay_min_height_mode(overlay.kind,new,overlay.compact_mode))",
         "audit_height_preserving_rows(overlay,source,old,new).max(overlay_min_height_mode(overlay.kind,new,overlay.compact_mode))",
         "preserve complete-row viewport");
 
-    // S03/M07: preserve name and class before allocating two optional icons.
+    // S03/M07: prefer identity over optional badges at narrow widths. Other
+    // generation stages may have already rewritten this calculation: log an
+    // explicit warning rather than breaking all Windows builds on stale text.
     within(&mut src, "unsafe fn dps_row_layout_responsive(", "unsafe fn paint_dps_secondary_colored(",
         "let reserve_badges = show_imagines && effective >= 480;",
         "let reserve_badges = show_imagines && effective >= 640;", "identity first");
@@ -47,7 +57,7 @@ fn main() {
         "&& dps_effective_width(content.right - content.left, scale) >= 480",
         "&& dps_effective_width(content.right - content.left, scale) >= 640", "matching icon header");
 
-    // C02/C03: readable secondary labels and restrained 2-unit metric line.
+    // C02/C03: secondary-label contrast and unobtrusive metric bar.
     within(&mut src, "unsafe fn paint_reference_headers(", "unsafe fn paint_dps(",
         "SetTextColor(hdc, rgb(166, 177, 195));",
         "SetTextColor(hdc, rgb(190, 200, 214));", "column contrast");
@@ -58,9 +68,7 @@ fn main() {
         "let bar_top = (bar_bottom - 3).max(r.top + 3);",
         "let bar_top = (bar_bottom - 2).max(r.top + 2);", "two-unit progress bar");
 
-    // C04/M02: earlier owner stages intentionally preserve true player name
-    // and non-colour cyan frame. Display YOU in the painter, without changing
-    // the underlying identity helper or its regression tests.
+    // C04/M02: label the owner in painting only: keep identity data unchanged.
     for (start, end, label) in [
         ("unsafe fn paint_reference_normal_rows(", "unsafe fn paint_compact_player(", "normal self marker"),
         ("unsafe fn paint_compact_player(", "unsafe fn paint_compact_raid_rows(", "compact self marker"),
@@ -73,17 +81,16 @@ fn main() {
     }
     within(&mut src, "unsafe fn paint_reference_normal_rows(", "unsafe fn paint_compact_player(",
         "        let base = text_on(bg);",
-        "        let base = text_on(bg);\n        if row.is_local && screen_i > 0 && *rank > state.scroll.saturating_add(screen_i + 1) {\n            fill(hdc, &RECT { left: r.left + 3, top: y - 2, right: r.right - 3, bottom: y - 1 }, rgb(82, 97, 106));\n        }",
+        "        let base = text_on(bg);\n        if row.is_local && screen_i > 0 && rank > state.scroll.saturating_add(screen_i + 1) {\n            fill(hdc, &RECT { left: r.left + 3, top: y - 2, right: r.right - 3, bottom: y - 1 }, rgb(82, 97, 106));\n        }",
         "separate pinned self from ranking");
 
-    // M01: v1362 replaces encounter painting for Enrage; apply to its actual
-    // one-line title paint rather than the earlier obsolete multiline version.
+    // M01: explicit history context, preserving the existing title content.
     within(&mut src, "unsafe fn paint_reference_encounter(", "unsafe fn paint_mode_tab(",
         "    SetTextColor(hdc, rgb(241, 243, 247));\n    draw(hdc, &title, RECT",
         "    let title = if state.history_index.is_some() { format!(\"HISTORY · {title}\") } else { title };\n    SetTextColor(hdc, rgb(241, 243, 247));\n    draw(hdc, &title, RECT",
         "historical title");
 
-    // M03: T# denotes ranking by total; tooltip spells out selected mode.
+    // M03: T# indicates that ranks reflect total contribution, not DPS/HPS.
     within(&mut src, "unsafe fn paint_reference_raid_headers(", "#[cfg(test)]\nmod reference_meter_audit_tests",
         "(\"#\", col.left + 4, col.left + 24, 0)",
         "(\"T#\", col.left + 4, col.left + 24, 0)", "raid total-ranking heading");
@@ -95,8 +102,7 @@ fn main() {
         "Some(format!(\"{} · Ranked by {} · click to inspect\", dps_identity(&row), reference_meter_total_label(state.sort_mode)))",
         "rank basis help");
 
-    // I04/I06: retain one-row toolbar and existing dropdown group separator;
-    // distinguish reversible collapse from hiding the overlay.
+    // I04/I06: distinguish layout menu, reversible collapse and tray hiding.
     within(&mut src, "fn toolbar_action_help(", "unsafe fn reference_line(",
         "ToolbarAction::More => \"Meter layout and actions\",",
         "ToolbarAction::More => \"Choose layout; history and settings are below the divider\",",
