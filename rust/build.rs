@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1382_ui_audit_raid_navigation.rs");
+    include!("build/legacy/build_v1385_followup_settings.rs");
     pub fn run() { main(); }
 }
 
