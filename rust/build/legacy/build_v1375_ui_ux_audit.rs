@@ -1,5 +1,8 @@
-// September 2026 UI/UX implementation. Run after the existing generated-source
-// stages; do not edit OUT_DIR by hand or modify combat telemetry.
+// September 2026 audit: strictly checked native generated-source transformations.
+// The retired S03/M07 literal anchors were superseded by the measured planner
+// in v1377, whose exact final output is asserted again by v1380. Do not silently
+// skip any remaining required transformation: a changed upstream builder must
+// fail CI until its native patch is reviewed and updated.
 use std::{env, fs, path::PathBuf};
 mod previous {
     include!("build_v1374_benchmark_arm_boundary.rs");
@@ -7,33 +10,26 @@ mod previous {
 }
 fn once(source: &mut String, old: &str, new: &str, label: &str) {
     let count = source.matches(old).count();
-    if count == 0 {
-        println!("cargo:warning=September UI audit: {label}: outdated source anchor; no change applied");
-        return;
-    }
-    assert_eq!(count, 1, "September UI audit {label}: ambiguous source anchor");
+    assert_eq!(count, 1, "September UI audit {label}: expected exactly one native source anchor; found {count}");
     *source = source.replacen(old, new, 1);
+    assert!(source.contains(new), "September UI audit {label}: missing compiled replacement");
+    println!("cargo:warning=September UI audit {label}: verified one generated-source edit");
 }
 fn within(source: &mut String, start: &str, end: &str, old: &str, new: &str, label: &str) {
     let starts = source.matches(start).count();
-    if starts == 0 {
-        println!("cargo:warning=September UI audit: {label}: missing section; no change applied");
-        return;
-    }
-    assert_eq!(starts, 1, "September UI audit {label}: section ambiguous");
-    let begin = source.find(start).unwrap();
-    let finish = begin + source[begin..].find(end).expect("section end");
+    assert_eq!(starts, 1, "September UI audit {label}: expected exactly one native section; found {starts}");
+    let begin = source.find(start).expect("verified native section start");
+    let finish = begin + source[begin..].find(end).unwrap_or_else(|| panic!("September UI audit {label}: section end absent"));
     let mut piece = source[begin..finish].to_owned();
     once(&mut piece, old, new, label);
     source.replace_range(begin..finish, &piece);
 }
 fn main() {
     previous::run();
-    let path = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"))
-        .join("feature_overlays_v170_fixed.rs");
-    let mut src = fs::read_to_string(&path).expect("generated overlay").replace("\r\n", "\n");
+    let path = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR")).join("feature_overlays_v170_fixed.rs");
+    let mut src = fs::read_to_string(&path).expect("generated native overlay").replace("\r\n", "\n");
 
-    // S01/I03: toolbar uses the row's primary font and 24-unit icon targets.
+    // S01/I03: toolbar font and actual 24-unit pointer targets.
     within(&mut src, "fn reference_button_w(", "fn reference_button_gap(",
         "if width < 340 { 20 } else if width < 440 { 24 } else { 28 }",
         "if width < 440 { 24 } else { 28 }", "minimum toolbar target");
@@ -41,23 +37,16 @@ fn main() {
         "let old = SelectObject(hdc, dps_cached_font(100, true));",
         "let old = SelectObject(hdc, dps_primary_font(state));", "unified primary font role");
 
-    // S02: preserve the number of complete rows on UI-size changes.
+    // S02: preserve complete visible rows when UI-size alone changes.
     within(&mut src, "unsafe fn set_overlay_scale(", "unsafe fn change_overlay_scale(",
         "rescale_px((source.bottom-source.top).max(1),old,new).max(overlay_min_height_mode(overlay.kind,new,overlay.compact_mode))",
         "audit_height_preserving_rows(overlay,source,old,new).max(overlay_min_height_mode(overlay.kind,new,overlay.compact_mode))",
         "preserve complete-row viewport");
 
-    // S03/M07: prefer identity over optional badges at narrow widths. Other
-    // generation stages may have already rewritten this calculation: log an
-    // explicit warning rather than breaking all Windows builds on stale text.
-    within(&mut src, "unsafe fn dps_row_layout_responsive(", "unsafe fn paint_dps_secondary_colored(",
-        "let reserve_badges = show_imagines && effective >= 480;",
-        "let reserve_badges = show_imagines && effective >= 640;", "identity first");
-    within(&mut src, "unsafe fn paint_reference_headers(", "unsafe fn paint_dps(",
-        "&& dps_effective_width(content.right - content.left, scale) >= 480",
-        "&& dps_effective_width(content.right - content.left, scale) >= 640", "matching icon header");
+    // S03/M07 obsolete thresholds intentionally removed. The final name-first
+    // layout and matching header must be present (v1377/v1380 hard assertions).
 
-    // C02/C03: secondary-label contrast and unobtrusive metric bar.
+    // C02/C03: bright secondary information and restrained metric bars.
     within(&mut src, "unsafe fn paint_reference_headers(", "unsafe fn paint_dps(",
         "SetTextColor(hdc, rgb(166, 177, 195));",
         "SetTextColor(hdc, rgb(190, 200, 214));", "column contrast");
@@ -68,7 +57,7 @@ fn main() {
         "let bar_top = (bar_bottom - 3).max(r.top + 3);",
         "let bar_top = (bar_bottom - 2).max(r.top + 2);", "two-unit progress bar");
 
-    // C04/M02: label the owner in painting only: keep identity data unchanged.
+    // C04/M02: paint-only owner marker, stable self rank and divider.
     for (start, end, label) in [
         ("unsafe fn paint_reference_normal_rows(", "unsafe fn paint_compact_player(", "normal self marker"),
         ("unsafe fn paint_compact_player(", "unsafe fn paint_compact_raid_rows(", "compact self marker"),
@@ -84,13 +73,13 @@ fn main() {
         "        let base = text_on(bg);\n        if row.is_local && screen_i > 0 && rank > state.scroll.saturating_add(screen_i + 1) {\n            fill(hdc, &RECT { left: r.left + 3, top: y - 2, right: r.right - 3, bottom: y - 1 }, rgb(82, 97, 106));\n        }",
         "separate pinned self from ranking");
 
-    // M01: explicit history context, preserving the existing title content.
+    // M01: visible HISTORY prefix while retaining encounter title.
     within(&mut src, "unsafe fn paint_reference_encounter(", "unsafe fn paint_mode_tab(",
         "    SetTextColor(hdc, rgb(241, 243, 247));\n    draw(hdc, &title, RECT",
         "    let title = if state.history_index.is_some() { format!(\"HISTORY · {title}\") } else { title };\n    SetTextColor(hdc, rgb(241, 243, 247));\n    draw(hdc, &title, RECT",
         "historical title");
 
-    // M03: T# indicates that ranks reflect total contribution, not DPS/HPS.
+    // M03: rank is sorted by total contribution, not active rate.
     within(&mut src, "unsafe fn paint_reference_raid_headers(", "#[cfg(test)]\nmod reference_meter_audit_tests",
         "(\"#\", col.left + 4, col.left + 24, 0)",
         "(\"T#\", col.left + 4, col.left + 24, 0)", "raid total-ranking heading");
@@ -102,7 +91,7 @@ fn main() {
         "Some(format!(\"{} · Ranked by {} · click to inspect\", dps_identity(&row), reference_meter_total_label(state.sort_mode)))",
         "rank basis help");
 
-    // I04/I06: distinguish layout menu, reversible collapse and tray hiding.
+    // I04/I06: layout menu and reversible hide/collapse semantics.
     within(&mut src, "fn toolbar_action_help(", "unsafe fn reference_line(",
         "ToolbarAction::More => \"Meter layout and actions\",",
         "ToolbarAction::More => \"Choose layout; history and settings are below the divider\",",
