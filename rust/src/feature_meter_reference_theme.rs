@@ -1,20 +1,21 @@
-// Screenshot-inspired DPS-meter surface treatment. The existing class hue is
-// still the source of truth; we lower its luminance rather than assigning a new
-// color to a specialization. This preserves class recognition while keeping the
-// player names and numbers readable on dark translucent overlays.
-//
-// This file is appended to the generated feature overlay by the final build
-// stage. It intentionally changes rendering only, never telemetry or sorting.
+// Shared DPS class-row treatment. Keep the original specialization colour as
+// the sole hue source; never assign new class colours or touch telemetry.
+// COLORREF is 0x00BBGGRR. Blend per channel in sRGB so the rendered surface
+// visibly communicates class identity while staying a dark overlay.
+const REFERENCE_ROW_TINT_PERCENT: u32 = 18;
+const REFERENCE_ROW_BASE: (u32, u32, u32) = (23, 27, 34);
+
 fn reference_meter_row_background(row: &DpsRow) -> u32 {
-    let original = spec_color(row);
-    // Win32 COLORREF packs RGB as 0x00BBGGRR.
-    let red = (original & 0xff) as u16;
-    let green = ((original >> 8) & 0xff) as u16;
-    let blue = ((original >> 16) & 0xff) as u16;
+    let accent = spec_color(row);
+    let blend = |base: u32, shift: u32| -> u8 {
+        let class = (accent >> shift) & 255;
+        ((base * (100 - REFERENCE_ROW_TINT_PERCENT)
+            + class * REFERENCE_ROW_TINT_PERCENT + 50) / 100) as u8
+    };
     rgb(
-        (23 + red * 9 / 100) as u8,
-        (24 + green * 9 / 100) as u8,
-        (29 + blue * 9 / 100) as u8,
+        blend(REFERENCE_ROW_BASE.0, 0),
+        blend(REFERENCE_ROW_BASE.1, 8),
+        blend(REFERENCE_ROW_BASE.2, 16),
     )
 }
 
@@ -22,30 +23,33 @@ fn reference_meter_row_background(row: &DpsRow) -> u32 {
 mod reference_meter_theme_tests {
     use super::*;
 
+    fn channel(color: u32, shift: u32) -> u32 { (color >> shift) & 255 }
+
     #[test]
-    fn cards_keep_a_dark_readable_surface_across_classes() {
+    fn card_tint_is_visible_but_dark_for_every_known_specialization() {
         for specialization in ["Moonstrike", "Wildpack", "Vanguard", "Falconry", "Smite", "Unknown"] {
             let row = DpsRow {
                 subprofession_name: specialization.into(),
                 ..DpsRow::default()
             };
             let color = reference_meter_row_background(&row);
-            for component in [color & 0xff, (color >> 8) & 0xff, (color >> 16) & 0xff] {
-                assert!((23..=52).contains(&component), "{specialization} produced an overly bright card channel: {component}");
+            let accent = spec_color(&row);
+            for (base, shift) in [(23, 0), (27, 8), (34, 16)] {
+                let expected = (base * 82 + channel(accent, shift) * 18 + 50) / 100;
+                assert_eq!(channel(color, shift), expected, "{specialization}: tint channel differs from contract");
+                assert!(channel(color, shift) <= 74, "{specialization}: class card is too bright");
             }
             assert_eq!(text_on(color), rgb(248, 250, 252));
         }
     }
 
     #[test]
-    fn class_hues_remain_distinguishable() {
-        let color = |name: &str| {
-            reference_meter_row_background(&DpsRow {
-                subprofession_name: name.into(),
-                ..DpsRow::default()
-            })
-        };
+    fn classes_keep_distinct_identity_without_a_global_pink_fill() {
+        let color = |name: &str| reference_meter_row_background(&DpsRow {
+            subprofession_name: name.into(), ..DpsRow::default()
+        });
         assert_ne!(color("Moonstrike"), color("Wildpack"));
         assert_ne!(color("Vanguard"), color("Falconry"));
+        assert_ne!(color("Smite"), color("Moonstrike"));
     }
 }
