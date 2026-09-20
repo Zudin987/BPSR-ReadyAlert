@@ -8,8 +8,6 @@ mod previous {
 
 fn replace_visible_label(src: &mut String, old: &str, new: &str, finding: &str) {
     let found = src.matches(old).count();
-    // A missing label is NOT evidence that the finding is implemented. Emit a
-    // searchable diagnostic for review, rather than reporting 36/36 complete.
     if found == 0 {
         println!("cargo:warning=UI audit {finding}: label not found ({old}); implementation NOT verified");
     } else {
@@ -24,22 +22,25 @@ fn main() {
         .join("feature_overlays_v170_fixed.rs");
     let mut src = fs::read_to_string(&path).expect("generated overlays");
 
-    // H03: keep capture-vs-filter distinction while shortening the explanatory
-    // sentence that wrapped underneath the chat overlay's empty-state heading.
-    replace_visible_label(&mut src,
-        "Recent chat exists, but none matches this tab's channels, level rule or filters",
-        "No recent messages match this tab.", "H03 concise chat empty state");
-    replace_visible_label(&mut src,
-        "Recent chat exists, but none matches this tab’s channels, level rule or filters",
-        "No recent messages match this tab.", "H03 curly-apostrophe fallback");
+    // H03: preserve the distinction between a capture failure and tab filter.
+    // Accept both apostrophe spellings; only warn if neither source anchor exists.
+    let simple = "Recent chat exists, but none matches this tab's channels, level rule or filters";
+    let curly = "Recent chat exists, but none matches this tab’s channels, level rule or filters";
+    if src.contains(simple) { replace_visible_label(&mut src, simple, "No recent messages match this tab.", "H03 concise chat empty state"); }
+    else if src.contains(curly) { replace_visible_label(&mut src, curly, "No recent messages match this tab.", "H03 concise chat empty state"); }
+    else { println!("cargo:warning=UI audit H03: neither chat empty-state anchor found; implementation NOT verified"); }
 
-    // T01: waiting for a mechanic is not the same thing as an empty or broken
-    // capture session. Keep the existing stats and fixed-size settings intact.
+    // T01: maintain the existing stat list and explicit disconnected state.
     replace_visible_label(&mut src, "No active mechanics", "Waiting for mechanics", "T01 idle tracker label");
 
-    // T04: align the visible window and settings titles. Event Tracker remains
-    // the distinct subfeature; this changes no persisted identifiers.
-    replace_visible_label(&mut src, "Tracker & Mech", "Tracker & Mechanics", "T04 tracker naming");
+    // T04: rename only the exact shortened title, not the prefix of an already
+    // expanded Tracker & Mechanics title (which would duplicate 'anics').
+    let short = "Tracker & Mech\"";
+    if src.contains(short) {
+        replace_visible_label(&mut src, short, "Tracker & Mechanics\"", "T04 overlay title");
+    } else {
+        println!("cargo:warning=UI audit T04: abbreviated tracker title not found; check canonical name directly");
+    }
     replace_visible_label(&mut src, "Dungeon Mechanics", "Tracker & Mechanics", "T04 settings naming");
 
     fs::write(&path, src).expect("write audited UI copy");
