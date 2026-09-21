@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1400_dead_identity_all_layouts.rs");
+    include!("build/legacy/build_v1401_late_load_wipe.rs");
     pub fn run() { main(); }
 }
 
