@@ -20,7 +20,6 @@ fn unresolved_mechanic_label(label: &str) -> bool {
     if normalized.is_empty() || matches!(normalized.as_str(), "unknown" | "unknown mech" | "unknown mechanic") {
         return true;
     }
-    // The tracker prints unresolved numeric mechanic IDs in this format.
     // Do not use starts_with("unknown mech") or starts_with("boss mechanic #"):
     // either would hide a meaningful label such as "Boss mechanic #1 - dodge".
     for prefix in ["unknown mech #", "unknown mechanic #", "boss mechanic #"] {
@@ -33,15 +32,29 @@ fn unresolved_mechanic_label(label: &str) -> bool {
     false
 }
 
-/// Final freeze wrapper. Existing combat telemetry remains authoritative; this
-/// layer only merges generic, future-facing mechanic observations into the same
-/// Mechanics stream consumed by the native overlay.
+fn incoming_scene_id(body: &[u8]) -> Option<i32> {
+    let info = proto::get_len_field(body, 1)?;
+    let attrs = proto::get_len_field(info, 1)?;
+    for attr in proto::len_fields(attrs, 2) {
+        if proto::get_varint_field(attr, 1) != Some(0x155) { continue; }
+        let data = proto::get_len_field(attr, 2)?;
+        let mut offset = 0;
+        return proto::read_varint(data, &mut offset)
+            .and_then(|id| i32::try_from(id).ok())
+            .filter(|id| *id > 0);
+    }
+    None
+}
+
+/// Merge future mechanic observations into the same stream as combat telemetry.
+/// Incomplete or repeated scene notifications must not blank the tracker.
 pub struct TelemetryRuntime {
     inner: previous::TelemetryRuntime,
     inner_rx: Receiver<AppEvent>,
     tx: Sender<AppEvent>,
     base_mechanics: MechanicSnapshot,
     future: future_mechanics::Runtime,
+    current_scene_id: i32,
 }
 
 impl TelemetryRuntime {
@@ -53,22 +66,25 @@ impl TelemetryRuntime {
             tx,
             base_mechanics: MechanicSnapshot::default(),
             future: future_mechanics::Runtime::new(),
+            current_scene_id: 0,
         }
     }
 
     pub fn handle_notify(&mut self, service: u64, method: u32, body: &[u8]) {
         let mut mechanics_changed = false;
         if service == proto::WORLD_SERVICE && method == proto::ENTER_SCENE_METHOD {
-            mechanics_changed |= !self.base_mechanics.rows.is_empty()
-                || !self.base_mechanics.tracked_attributes.is_empty()
-                || self.base_mechanics.food.is_some()
-                || self.base_mechanics.serum.is_some();
-            self.base_mechanics = MechanicSnapshot::default();
+            if let Some(scene) = incoming_scene_id(body) {
+                if scene != self.current_scene_id {
+                    mechanics_changed |= !self.base_mechanics.rows.is_empty()
+                        || !self.base_mechanics.tracked_attributes.is_empty()
+                        || self.base_mechanics.food.is_some()
+                        || self.base_mechanics.serum.is_some();
+                    self.base_mechanics = MechanicSnapshot::default();
+                    self.current_scene_id = scene;
+                }
+            }
         }
 
-        // Let the proven telemetry implementation consume the packet first. In
-        // particular, EnterScene clears its legacy tracker state before this
-        // wrapper seeds fresh Attribute observations from that same packet.
         self.inner.handle_notify(service, method, body);
         while let Ok(event) = self.inner_rx.try_recv() {
             match event {
