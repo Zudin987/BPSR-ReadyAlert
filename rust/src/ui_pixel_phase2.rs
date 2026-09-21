@@ -37,12 +37,10 @@ pub unsafe fn enable_dark_system_surfaces() {
     });
 }
 
-/// A captioned settings/dialog HWND and a COMBOBOX/LISTBOX HWND have different
-/// theme responsibilities. Applying a control theme (DarkMode_Explorer) to a
-/// captioned top-level window can force a classic/light non-client frame. Leave
-/// its window theme intact; DWM caption, border and text colours are configured
-/// separately and refreshed after ShowWindow. Only controls/popup lists receive
-/// the DarkMode_Explorer control theme. Preserve their real input semantics.
+/// Native listboxes and captioned top-level dialogs have separate styling.
+/// Keep OS input/hit testing and its real control-theme path. For app-owned
+/// captioned dialogs, install a supported Win32 non-client repaint subclass;
+/// DWM colour preferences alone are not enough on some supported Windows builds.
 pub unsafe fn finish_native_window(hwnd: HWND) {
     if hwnd.is_null() { return; }
     enable_dark_system_surfaces();
@@ -58,6 +56,7 @@ pub unsafe fn finish_native_window(hwnd: HWND) {
         let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
     }
     dark_titlebar(hwnd);
+    if is_captioned { shape_install_dark_caption(hwnd); }
 }
 
 pub fn mix_color(base: u32, tint: u32, tint_percent: u32) -> u32 {
