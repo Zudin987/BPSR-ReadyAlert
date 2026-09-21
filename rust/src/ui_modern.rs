@@ -5,7 +5,7 @@
 //! feature behavior remain in their existing modules.
 include!("ui_pixel_core.rs");
 
-// Keep these two basic User32 queries on the same lightweight raw-FFI path already
+// Keep these User32 queries on the same lightweight raw-FFI path already
 // used by the Pixel core instead of widening windows-sys feature dependencies.
 #[link(name = "user32")]
 extern "system" {
@@ -19,9 +19,9 @@ extern "system" {
     fn CreateRoundRectRgn(left: i32, top: i32, right: i32, bottom: i32, ellipse_width: i32, ellipse_height: i32) -> windows_sys::Win32::Graphics::Gdi::HRGN;
 }
 
-/// Outer window frame radius is a physical pixel specification, independent of
-/// the DPS/tracker text scale. Do not change individual tab/button radii here.
-pub const OVERLAY_FRAME_RADIUS_PX: i32 = 8;
+/// Shared outer-window radius in physical pixels, independent of the
+/// DPS/tracker text scale. Internal control radii are a separate design token.
+pub const OVERLAY_FRAME_RADIUS_PX: i32 = 6;
 
 fn overlay_frame_diameter(width: i32, height: i32) -> i32 {
     (OVERLAY_FRAME_RADIUS_PX * 2).min(width.max(1)).min(height.max(1))
@@ -32,10 +32,10 @@ pub fn overlay_frame_radius_logical(scale_percent: i32) -> i32 {
     ((OVERLAY_FRAME_RADIUS_PX * 100 + scale / 2) / scale).max(1)
 }
 
-/// A window region clips the *actual* layered HWND, not just its paint buffer:
-/// background, toolbar and hit area all have the same rounded outer boundary.
+/// Clip the actual HWND (and its hit area) using the same outer radius for the
+/// three overlays, their collapsed handles, and the native settings windows.
 /// SetWindowRgn owns the region on success; release it only if assignment fails.
-/// Call at creation and on WM_SIZE, including collapsed/expanded transitions.
+/// Apply at creation and when the window's size changes, including collapse.
 pub unsafe fn apply_overlay_frame_region(hwnd: windows_sys::Win32::Foundation::HWND) {
     if hwnd.is_null() { return; }
     let mut bounds: windows_sys::Win32::Foundation::RECT = std::mem::zeroed();
@@ -45,8 +45,8 @@ pub unsafe fn apply_overlay_frame_region(hwnd: windows_sys::Win32::Foundation::H
     if width <= 0 || height <= 0 { return; }
     let diameter = overlay_frame_diameter(width, height);
     // Region right/bottom are exclusive. Include the outer edge without shrinking
-    // the existing resizable client rectangle or its interactive controls.
-    let region = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
+    // the existing client rectangle or interactive controls.
+    let region = CreateRoundRectRgn(0, 0, width.saturating_add(1), height.saturating_add(1), diameter, diameter);
     if region.is_null() { return; }
     if SetWindowRgn(hwnd, region, 1) == 0 { DeleteObject(region); }
 }
@@ -56,11 +56,11 @@ mod unified_overlay_frame_tests {
     use super::*;
 
     #[test]
-    fn all_three_overlays_share_exactly_eight_physical_pixels() {
-        assert_eq!(OVERLAY_FRAME_RADIUS_PX, 8);
-        assert_eq!(overlay_frame_diameter(650, 300), 16);
-        assert_eq!(overlay_frame_diameter(420, 260), 16);
-        assert_eq!(overlay_frame_diameter(25, 25), 16);
+    fn overlays_collapsed_handles_and_settings_share_six_physical_pixels() {
+        assert_eq!(OVERLAY_FRAME_RADIUS_PX, 6);
+        assert_eq!(overlay_frame_diameter(650, 300), 12);
+        assert_eq!(overlay_frame_diameter(420, 260), 12);
+        assert_eq!(overlay_frame_diameter(24, 96), 12);
         assert_eq!(overlay_frame_diameter(10, 6), 6);
         for scale in [60, 70, 80, 90, 100, 125, 150, 175, 200] {
             let logical = overlay_frame_radius_logical(scale);
