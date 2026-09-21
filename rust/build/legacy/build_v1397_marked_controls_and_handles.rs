@@ -16,11 +16,11 @@ fn main(){
  once(&mut m,"feature_button(hwnd,2,\"Close\",598,bottom+62,92);",
   "feature_button(hwnd,2,\"Close\",598,bottom+62,92);audit_place_feature_footer(hwnd);",
   "mechanics close initial placement");
- once(&mut m,"WM_SIZE=>{if state.kind==Kind::Dps{audit_place_feature_footer(hwnd);}0},",
-  "WM_SIZE=>{audit_place_feature_footer(hwnd);0},","both footers on size");
+ once(&mut m,"WM_SIZE=>{crate::ui_modern::apply_overlay_frame_region(hwnd);if state.kind==Kind::Dps{audit_place_feature_footer(hwnd);}0},",
+  "WM_SIZE=>{crate::ui_modern::apply_overlay_frame_region(hwnd);audit_place_feature_footer(hwnd);0},","both footers on size, preserve shell clipping");
  once(&mut m,"0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);if state.kind==Kind::Dps{audit_place_feature_footer(hwnd);}result},",
-  "0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);audit_place_feature_footer(hwnd);result},",
-  "both footers on DPI");
+  "0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);crate::ui_modern::apply_overlay_frame_region(hwnd);audit_place_feature_footer(hwnd);result},",
+  "both footers on DPI and refresh shell clipping");
  once(&mut m,"encounter_ms: u64,\n}","encounter_ms: u64,\nclose_hover: bool,\n}","detail hover storage");
  once(&mut m,"mode:DetailMode::Damage,encounter_ms:view_snapshot(state).encounter_ms}",
   "mode:DetailMode::Damage,encounter_ms:view_snapshot(state).encounter_ms,close_hover:false}",
