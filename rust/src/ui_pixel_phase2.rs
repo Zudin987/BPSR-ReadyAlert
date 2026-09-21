@@ -37,20 +37,26 @@ pub unsafe fn enable_dark_system_surfaces() {
     });
 }
 
-/// Applies the real native theme, then the documented DWM dark-caption and
-/// border attributes from ui_pixel_core::style_titlebar. Applying DWM *last*
-/// avoids a theme change wiping out caption colours. The independent factory
-/// can subsequently choose mist_titlebar where the shell uses Mist colours.
+/// A captioned settings/dialog HWND and a COMBOBOX/LISTBOX HWND have different
+/// theme responsibilities. Applying a control theme (DarkMode_Explorer) to a
+/// captioned top-level window can force a classic/light non-client frame. Leave
+/// its window theme intact; DWM caption, border and text colours are configured
+/// separately and refreshed after ShowWindow. Only controls/popup lists receive
+/// the DarkMode_Explorer control theme. Preserve their real input semantics.
 pub unsafe fn finish_native_window(hwnd: HWND) {
     if hwnd.is_null() { return; }
     enable_dark_system_surfaces();
-    let allow = uxtheme_ordinal(133);
-    if !allow.is_null() {
-        let allow_dark: AllowDarkModeForWindowFn = std::mem::transmute(allow);
-        let _ = allow_dark(hwnd, 1);
+    let is_captioned = GetWindowLongPtrW(hwnd, GWL_STYLE_) & (WS_CAPTION as isize)
+        == WS_CAPTION as isize;
+    if !is_captioned {
+        let allow = uxtheme_ordinal(133);
+        if !allow.is_null() {
+            let allow_dark: AllowDarkModeForWindowFn = std::mem::transmute(allow);
+            let _ = allow_dark(hwnd, 1);
+        }
+        let theme = wide("DarkMode_Explorer");
+        let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
     }
-    let theme = wide("DarkMode_Explorer");
-    let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
     dark_titlebar(hwnd);
 }
 
@@ -76,6 +82,11 @@ pub fn tonal_danger_surface() -> u32 {
 #[cfg(test)]
 mod phase2_tests {
     use super::*;
+
+    #[test]
+    fn caption_detection_does_not_treat_combobox_as_a_titlebar() {
+        assert_eq!(WS_CAPTION as isize & 0x0021_0213, 0);
+    }
 
     #[test]
     fn class_surface_is_tonal_not_flat_class_color() {
