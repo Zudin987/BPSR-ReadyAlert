@@ -4,7 +4,26 @@ mod previous {
 
 pub use previous::EncounterContextSnapshot;
 
+// Context updates must obey the same non-destructive scene guard as telemetry.
+// A partial EnterScene is not evidence that the previous scene ended.
+fn incoming_scene_id(body: &[u8]) -> Option<i32> {
+    let info = crate::proto::get_len_field(body, 1)?;
+    let attrs = crate::proto::get_len_field(info, 1)?;
+    for attr in crate::proto::len_fields(attrs, 2) {
+        if crate::proto::get_varint_field(attr, 1) != Some(0x155) { continue; }
+        let raw = crate::proto::get_len_field(attr, 2)?;
+        let mut offset = 0;
+        let scene = crate::proto::read_varint(raw, &mut offset)?;
+        return i32::try_from(scene).ok().filter(|scene| *scene > 0);
+    }
+    None
+}
+
 pub fn observe_notify(service: u64, method: u32, body: &[u8]) {
+    if service == crate::proto::WORLD_SERVICE && method == crate::proto::ENTER_SCENE_METHOD {
+        let Some(scene) = incoming_scene_id(body) else { return; };
+        if previous::snapshot().scene_id == scene { return; }
+    }
     previous::observe_notify(service, method, body);
 }
 
