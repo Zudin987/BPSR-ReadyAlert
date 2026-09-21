@@ -1,35 +1,31 @@
-// Target the user-marked native controls without altering their command IDs or hit boxes.
+// Correct the user-marked native controls without changing their command IDs or hit areas.
 use std::{env,fs,path::PathBuf};
-mod previous { include!("build_v1396_combo_popup_workarea.rs"); pub fn run(){main();} }
+mod previous {include!("build_v1396_combo_popup_workarea.rs");pub fn run(){main();}}
 fn once(s:&mut String,a:&str,b:&str,id:&str){assert_eq!(s.matches(a).count(),1,"marked UI {id} anchor");*s=s.replacen(a,b,1);}
 fn main(){
- previous::run();
- let out=PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
- let meter=out.join("feature_overlays_v170_fixed.rs");
- let mut m=fs::read_to_string(&meter).expect("feature UI generated");
- once(&mut m,"unsafe fn audit_place_dps_footer(hwnd:HWND){","unsafe fn audit_place_feature_footer(hwnd:HWND){","both settings share footer anchoring");
- assert_eq!(m.matches("audit_place_dps_footer(hwnd);").count(),3,"initial/size/DPI footer use");
+ previous::run();let out=PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+ let meter=out.join("feature_overlays_v170_fixed.rs");let mut m=fs::read_to_string(&meter).expect("generated meter");
+ once(&mut m,"unsafe fn audit_place_dps_footer(hwnd:HWND){","unsafe fn audit_place_feature_footer(hwnd:HWND){","shared settings footer");
+ assert_eq!(m.matches("audit_place_dps_footer(hwnd);").count(),3,"initial, size, DPI footers");
  m=m.replace("audit_place_dps_footer(hwnd);","audit_place_feature_footer(hwnd);");
  once(&mut m,"let x=(client.right-w-20).max(0);let y=(client.bottom-h-20).max(0);",
-  "let inset=20;let x=(client.right-w-inset).max(0);let y=(client.bottom-h-inset).max(0);",
-  "consistent twenty-pixel safe footer inset");
+  "let inset=20;let x=(client.right-w-inset).max(0);let y=(client.bottom-h-inset).max(0);","safe footer inset");
  once(&mut m,"feature_button(hwnd,2,\"Close\",598,bottom+62,92);",
-  "feature_button(hwnd,2,\"Close\",598,bottom+62,92);audit_place_feature_footer(hwnd);",
-  "mechanics close initial placement");
+  "feature_button(hwnd,2,\"Close\",598,bottom+62,92);audit_place_feature_footer(hwnd);","tracker footer initial");
  once(&mut m,"WM_SIZE=>{crate::ui_modern::apply_overlay_frame_region(hwnd);if state.kind==Kind::Dps{audit_place_feature_footer(hwnd);}0},",
-  "WM_SIZE=>{crate::ui_modern::apply_overlay_frame_region(hwnd);audit_place_feature_footer(hwnd);0},","both footers on size, preserve shell clipping");
+  "WM_SIZE=>{crate::ui_modern::apply_overlay_frame_region(hwnd);audit_place_feature_footer(hwnd);0},","both footers on resize");
  once(&mut m,"0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);if state.kind==Kind::Dps{audit_place_feature_footer(hwnd);}result},",
-  "0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);crate::ui_modern::apply_overlay_frame_region(hwnd);audit_place_feature_footer(hwnd);result},",
-  "both footers on DPI and refresh shell clipping");
- once(&mut m,"encounter_ms: u64,\n}","encounter_ms: u64,\nclose_hover: bool,\n}","detail hover storage");
+  "0x02E0=>{let result=DefWindowProcW(hwnd,msg,wparam,lparam);crate::ui_modern::apply_overlay_frame_region(hwnd);audit_place_feature_footer(hwnd);result},","both footers on DPI");
+ once(&mut m,"encounter_ms: u64,\n}","encounter_ms: u64,\nclose_hover: bool,\n}","detail hover state");
  once(&mut m,"mode:DetailMode::Damage,encounter_ms:view_snapshot(state).encounter_ms}",
-  "mode:DetailMode::Damage,encounter_ms:view_snapshot(state).encounter_ms,close_hover:false}",
-  "detail hover initialization");
+  "mode:DetailMode::Damage,encounter_ms:view_snapshot(state).encounter_ms,close_hover:false}","hover initialization");
  once(&mut m,"let row=&state.row;paint_popup_toolbar(hdc,rc,&format!(\"Player details — {}\",row.name));",
-  "let row=&state.row;paint_popup_toolbar(hdc,rc,&format!(\"Player details — {}\",row.name),state.close_hover);",
-  "detail toolbar receives hover");
- once(&mut m,"unsafe fn paint_popup_toolbar(hdc:HDC,rc:RECT,title:&str){fill(hdc,&RECT{left:0,top:0,right:rc.right,bottom:TOOLBAR_H},crate::ui_modern::DARK_SURFACE);fill(hdc,&RECT{left:0,top:TOOLBAR_H-1,right:rc.right,bottom:TOOLBAR_H},crate::ui_modern::DARK_BORDER);SetTextColor(hdc,crate::ui_modern::BPSR_TEXT);draw(hdc,title,RECT{left:12,top:0,right:rc.right-BUTTON_W-4,bottom:TOOLBAR_H},DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX|DT_END_ELLIPSIS);draw(hdc,\"×\",RECT{left:rc.right-BUTTON_W,top:0,right:rc.right,bottom:TOOLBAR_H},DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);}",
- r#"unsafe fn paint_popup_toolbar(hdc:HDC,rc:RECT,title:&str,hovered:bool){
+  "let row=&state.row;paint_popup_toolbar(hdc,rc,&format!(\"Player details — {}\",row.name),state.close_hover);","hover to toolbar");
+ let start="unsafe fn paint_popup_toolbar(hdc:HDC,rc:RECT,title:&str){";
+ let end="unsafe fn paint_tab(hdc:HDC";
+ assert_eq!(m.matches(start).count(),1,"details toolbar start");
+ let a=m.find(start).unwrap();let b=a+m[a..].find(end).expect("details toolbar end");
+ m.replace_range(a..b,r#"unsafe fn paint_popup_toolbar(hdc:HDC,rc:RECT,title:&str,hovered:bool){
  fill(hdc,&RECT{left:0,top:0,right:rc.right,bottom:TOOLBAR_H},crate::ui_modern::DARK_SURFACE);
  fill(hdc,&RECT{left:0,top:TOOLBAR_H-1,right:rc.right,bottom:TOOLBAR_H},crate::ui_modern::DARK_BORDER);
  SetTextColor(hdc,crate::ui_modern::BPSR_TEXT);
@@ -40,9 +36,9 @@ fn main(){
  if hovered{crate::ui_modern::stroke_round_rect(hdc,tile,crate::ui_modern::DARK_BORDER_STRONG,crate::ui_modern::SHAPE_RADIUS_CONTROL,1);}
  SetTextColor(hdc,crate::ui_modern::BPSR_TEXT);
  draw(hdc,"×",hit,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-}"#,"details 2px close tile within original hit target");
- once(&mut m,"        WM_PAINT=>{paint_detail(hwnd,state);0}",
- r#"        WM_PAINT=>{paint_detail(hwnd,state);0}
+}
+"#);
+ once(&mut m,"        WM_PAINT=>{paint_detail(hwnd,state);0}",r#"        WM_PAINT=>{paint_detail(hwnd,state);0}
         WM_MOUSEMOVE=>{
             let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);
             let hover=hi_signed(lparam)>=0&&hi_signed(lparam)<TOOLBAR_H&&lo_signed(lparam)>=rc.right-BUTTON_W;
@@ -50,29 +46,22 @@ fn main(){
             if hover{detail_request_mouse_leave(hwnd);}
             0
         }
-        WM_MOUSELEAVE_=>{if state.close_hover{state.close_hover=false;InvalidateRect(hwnd,null(),0);}0}"#,
-  "hover and leave repaint");
+        WM_MOUSELEAVE_=>{if state.close_hover{state.close_hover=false;InvalidateRect(hwnd,null(),0);}0}"#,"detail hover and mouse leave");
  m.push_str(r#"
 #[repr(C)] struct DetailTrackMouse {size:u32,flags:u32,hwnd:HWND,hover_time:u32}
 #[link(name="user32")]
 extern "system" {#[link_name="TrackMouseEvent"] fn detail_track_mouse(event:*mut DetailTrackMouse)->i32;}
 unsafe fn detail_request_mouse_leave(hwnd:HWND){let mut event=DetailTrackMouse{size:std::mem::size_of::<DetailTrackMouse>() as u32,flags:2,hwnd,hover_time:0};let _=detail_track_mouse(&mut event);}
 #[cfg(test)] mod marked_native_shape_tests {
- #[test] fn details_close_tile_keeps_the_same_click_target(){
-  let button=36;let toolbar=36;
-  assert!(button-8>=24);assert!(toolbar-8>=24);
- }
+ #[test] fn close_tile_does_not_reduce_hit_region(){let button=36;let toolbar=36;assert!(button-8>=24&&toolbar-8>=24);}
 }
 "#);
- fs::write(meter,m).expect("feature control patch");
- let chat=out.join("overlay_v150_v1181.rs");
- let mut c=fs::read_to_string(&chat).expect("chat generated");
- once(&mut c,"SelectObject(hdc, stock_font);\n        fill(hdc, &client, crate::ui_modern::DARK_RAISED);",
- "SelectObject(hdc, crate::ui_modern::medium_font());\n        fill(hdc, &client, crate::ui_modern::DARK_BG);",
- "collapsed chat font and fill match meter");
- once(&mut c,"draw_text(hdc, glyph, client, crate::ui_modern::BPSR_TEXT_SECONDARY, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX, false);",
- "draw_text(hdc, glyph, client, crate::ui_modern::BPSR_ACCENT, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX, false);\n        crate::ui_modern::stroke_round_rect(hdc,RECT{left:0,top:0,right:client.right-1,bottom:client.bottom-1},crate::ui_modern::DARK_BORDER,crate::ui_modern::SHAPE_RADIUS_CONTAINER,1);",
- "collapsed chat accent glyph and same shell border");
- fs::write(chat,c).expect("chat handle patch");
+ fs::write(meter,m).expect("settings and details");
+ let chat=out.join("overlay_v150_v1181.rs");let mut c=fs::read_to_string(&chat).expect("chat");
+ // v1393 already normalized the chat handle's dark fill, border and accent.
+ // Only its stock-font glyph remains smaller than DPS and Tracker.
+ once(&mut c,"SelectObject(hdc, stock_font);\n        fill(hdc, &client, crate::ui_modern::DARK_BG);",
+  "SelectObject(hdc, crate::ui_modern::medium_font());\n        fill(hdc, &client, crate::ui_modern::DARK_BG);","collapsed chat glyph font");
+ fs::write(chat,c).expect("chat glyph");
  println!("cargo:rerun-if-changed=build/legacy/build_v1397_marked_controls_and_handles.rs");
 }
