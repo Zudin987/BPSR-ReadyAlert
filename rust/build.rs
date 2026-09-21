@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1391_normal_imagines_intrinsic_fit.rs");
+    include!("build/legacy/build_v1392_unified_overlay_frame.rs");
     pub fn run() { main(); }
 }
 
