@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "bpsr-readyalert"
-version = "1.33.13"
+version = "1.33.14"
 dependencies = [
  "libloading",
  "regex",
