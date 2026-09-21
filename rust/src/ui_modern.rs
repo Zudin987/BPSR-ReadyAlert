@@ -70,5 +70,6 @@ mod unified_overlay_frame_tests {
 include!(concat!(env!("OUT_DIR"), "/ui_pixel_controls_v1316.rs"));
 include!(concat!(env!("OUT_DIR"), "/ui_pixel_dialog_shape_v1394.rs"));
 include!("ui_pixel_phase2.rs");
+include!("ui_pixel_chrome.rs");
 include!(concat!(env!("OUT_DIR"), "/ui_pixel_qa_v1316.rs"));
 include!("ui_pixel_menu.rs");
