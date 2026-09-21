@@ -1,0 +1,32 @@
+name: PR169 version lock sync (temporary)
+on:
+  push:
+    branches: [fix/dps-dead-identity-color-all-layouts]
+    paths:
+      - rust/Cargo.toml
+permissions:
+  contents: write
+jobs:
+  sync-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dps-dead-identity-color-all-layouts
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+      - name: Update workspace lock version and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^version = "1.33.13"$' rust/Cargo.toml
+          cargo update --manifest-path rust/Cargo.toml --workspace
+          grep -A 1 '^name = "bpsr-readyalert"$' rust/Cargo.lock | grep -q '^version = "1.33.13"$'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rust/Cargo.lock
+          git commit -m 'chore(release): sync Cargo.lock for v1.33.13'
+          git push origin HEAD:fix/dps-dead-identity-color-all-layouts
