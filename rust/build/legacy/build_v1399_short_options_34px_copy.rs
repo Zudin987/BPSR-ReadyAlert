@@ -11,9 +11,12 @@ fn main(){
  assert_eq!(m.matches("0x00210213").count(),2,"two feature combo factories");
  m=m.replace("0x00210213","0x00010213"); // remove only WS_VSCROLL
  fs::write(&meter,m).expect("write meter");
- for name in ["settings_ui_v1160_fixed.rs","event_tracker_ui_v1160_fixed.rs"] {
+ for (name,from,to) in [
+   ("settings_ui_v1160_fixed.rs","WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWNLIST","WS_TABSTOP|CBS_DROPDOWNLIST"),
+   ("event_tracker_ui_v1160_fixed.rs","WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST","WS_TABSTOP | CBS_DROPDOWNLIST"),
+ ] {
   let p=out.join(name);let mut s=fs::read_to_string(&p).expect("settings/event");
-  once(&mut s,"WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWNLIST","WS_TABSTOP|CBS_DROPDOWNLIST","do not force combo scrollbar");
+  once(&mut s,from,to,"do not force combo scrollbar");
   fs::write(p,s).expect("write short combo factory");
  }
  let p=out.join("ui_pixel_controls_v1316.rs");let mut c=fs::read_to_string(&p).expect("combo controller");
@@ -30,8 +33,8 @@ fn main(){
     }
     combo_show_scroll_bar(info.hwndList,1,needs_scroll as i32);"#,"native actual scroll style switches with work-area fit");
  fs::write(p,c).expect("write popup");
- // Apply the requested punctuation only to generated native UI strings and
- // comments (not game glyphs, binary assets, mouse shapes or external data).
+ // Apply requested punctuation to generated native UI copy after all earlier
+ // checked build-time transforms have run. Never alter game icon glyph artwork.
  let mut changed=0usize;
  for entry in fs::read_dir(&out).expect("generated source directory") {
   let path=entry.expect("generated entry").path();if path.extension().and_then(|x|x.to_str())!=Some("rs"){continue;}
