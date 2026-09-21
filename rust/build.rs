@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1390_resize_compact_reuse.rs");
+    include!("build/legacy/build_v1391_normal_imagines_intrinsic_fit.rs");
     pub fn run() { main(); }
 }
 
