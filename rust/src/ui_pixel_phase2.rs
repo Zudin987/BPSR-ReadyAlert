@@ -1,5 +1,5 @@
-// Phase 2: finish the OS-owned/native surfaces that cannot be fixed by palette tokens alone.
-// This remains presentation-only and deliberately keeps ReadyAlert on lightweight Win32/GDI.
+// Phase 2: finish OS-owned/native surfaces independently of client palette tokens.
+// Retain the lightweight Win32/GDI window architecture and input semantics.
 
 #[link(name = "kernel32")]
 extern "system" {
@@ -14,13 +14,11 @@ unsafe fn uxtheme_ordinal(ordinal: usize) -> *mut c_void {
     let dll = wide("uxtheme.dll");
     let module = GetModuleHandleW(dll.as_ptr());
     if module.is_null() { return null_mut(); }
-    // GetProcAddress accepts MAKEINTRESOURCE-style low-word ordinals.
     GetProcAddress(module, ordinal as *const u8)
 }
 
-/// Enable dark rendering for Windows-owned popup menus once per process.
-/// These UxTheme exports are intentionally resolved at runtime and fail closed on
-/// unsupported Windows builds, so ReadyAlert keeps working even if the OS changes them.
+/// Opportunistic legacy UxTheme menu integration. Unsupported exports must
+/// never prevent using a window, combo, menu or scrollbar.
 pub unsafe fn enable_dark_system_surfaces() {
     static INIT: OnceLock<()> = OnceLock::new();
     INIT.get_or_init(|| {
@@ -28,7 +26,7 @@ pub unsafe fn enable_dark_system_surfaces() {
             let preferred = uxtheme_ordinal(135);
             if !preferred.is_null() {
                 let set_preferred: SetPreferredAppModeFn = std::mem::transmute(preferred);
-                let _ = set_preferred(2); // ForceDark on supported Windows 10/11 builds.
+                let _ = set_preferred(2);
             }
             let flush = uxtheme_ordinal(136);
             if !flush.is_null() {
@@ -39,19 +37,26 @@ pub unsafe fn enable_dark_system_surfaces() {
     });
 }
 
-/// Apply dark common-control/non-client theming to a real HWND. This specifically
-/// targets system-owned scrollbars, combo drop-downs and popup-menu integration while
-/// leaving the control/window's behavior, hit testing and geometry untouched.
+/// Native listboxes and captioned top-level dialogs have separate styling.
+/// Keep OS input/hit testing and its real control-theme path. For app-owned
+/// captioned dialogs, install a supported Win32 non-client repaint subclass;
+/// DWM colour preferences alone are not enough on some supported Windows builds.
 pub unsafe fn finish_native_window(hwnd: HWND) {
     if hwnd.is_null() { return; }
     enable_dark_system_surfaces();
-    let allow = uxtheme_ordinal(133);
-    if !allow.is_null() {
-        let allow_dark: AllowDarkModeForWindowFn = std::mem::transmute(allow);
-        let _ = allow_dark(hwnd, 1);
+    let is_captioned = GetWindowLongPtrW(hwnd, GWL_STYLE_) & (WS_CAPTION as isize)
+        == WS_CAPTION as isize;
+    if !is_captioned {
+        let allow = uxtheme_ordinal(133);
+        if !allow.is_null() {
+            let allow_dark: AllowDarkModeForWindowFn = std::mem::transmute(allow);
+            let _ = allow_dark(hwnd, 1);
+        }
+        let theme = wide("DarkMode_Explorer");
+        let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
     }
-    let theme = wide("DarkMode_Explorer");
-    let _ = SetWindowTheme(hwnd, theme.as_ptr(), null());
+    dark_titlebar(hwnd);
+    if is_captioned { shape_install_dark_caption(hwnd); }
 }
 
 pub fn mix_color(base: u32, tint: u32, tint_percent: u32) -> u32 {
@@ -65,7 +70,6 @@ pub fn mix_color(base: u32, tint: u32, tint_percent: u32) -> u32 {
     channel(0) | (channel(8) << 8) | (channel(16) << 16)
 }
 
-/// Keep class identity visible without painting the full DPS row at near-class saturation.
 pub fn tonal_class_surface(class_color: u32) -> u32 {
     mix_color(DARK_RAISED, class_color, 26)
 }
@@ -77,6 +81,11 @@ pub fn tonal_danger_surface() -> u32 {
 #[cfg(test)]
 mod phase2_tests {
     use super::*;
+
+    #[test]
+    fn caption_detection_does_not_treat_combobox_as_a_titlebar() {
+        assert_eq!(WS_CAPTION as isize & 0x0021_0213, 0);
+    }
 
     #[test]
     fn class_surface_is_tonal_not_flat_class_color() {
