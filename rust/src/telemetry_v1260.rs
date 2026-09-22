@@ -30,4 +30,5 @@ pub(crate) fn take_scene_replaced() -> bool { SCENE_REPLACED.swap(false, Orderin
 
 #[path = "attribute_history.rs"]
 mod attribute_history;
+pub(crate) use attribute_history::Recorder;
 pub use attribute_history::*;
