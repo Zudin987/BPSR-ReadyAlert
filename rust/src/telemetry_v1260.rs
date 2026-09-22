@@ -20,26 +20,15 @@ static WIPE_DISPLAY_HOLD: AtomicBool = AtomicBool::new(false);
 // late EnterScene packet without duplicating telemetry's run correlation logic.
 static SCENE_REPLACED: AtomicBool = AtomicBool::new(false);
 
-pub(crate) fn mark_capture_partial() {
-    CAPTURE_PARTIAL.store(true, Ordering::Release);
-}
-pub(crate) fn clear_capture_partial() {
-    CAPTURE_PARTIAL.store(false, Ordering::Release);
-}
-pub(crate) fn capture_partial() -> bool {
-    CAPTURE_PARTIAL.load(Ordering::Acquire)
-}
-pub(crate) fn mark_wipe_display_hold() {
-    WIPE_DISPLAY_HOLD.store(true, Ordering::Release);
-}
-pub(crate) fn take_wipe_display_hold() -> bool {
-    WIPE_DISPLAY_HOLD.swap(false, Ordering::AcqRel)
-}
-pub(crate) fn mark_scene_replaced() {
-    SCENE_REPLACED.store(true, Ordering::Release);
-}
-pub(crate) fn take_scene_replaced() -> bool {
-    SCENE_REPLACED.swap(false, Ordering::AcqRel)
-}
+pub(crate) fn mark_capture_partial() { CAPTURE_PARTIAL.store(true, Ordering::Release); }
+pub(crate) fn clear_capture_partial() { CAPTURE_PARTIAL.store(false, Ordering::Release); }
+pub(crate) fn capture_partial() -> bool { CAPTURE_PARTIAL.load(Ordering::Acquire) }
+pub(crate) fn mark_wipe_display_hold() { WIPE_DISPLAY_HOLD.store(true, Ordering::Release); }
+pub(crate) fn take_wipe_display_hold() -> bool { WIPE_DISPLAY_HOLD.swap(false, Ordering::AcqRel) }
+pub(crate) fn mark_scene_replaced() { SCENE_REPLACED.store(true, Ordering::Release); }
+pub(crate) fn take_scene_replaced() -> bool { SCENE_REPLACED.swap(false, Ordering::AcqRel) }
 
-include!("telemetry_v1321_fix.rs");
+#[path = "attribute_history.rs"]
+mod attribute_history;
+pub(crate) use attribute_history::Recorder;
+pub use attribute_history::*;

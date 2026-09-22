@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1407_ignore_finished_run_replays.rs");
+    include!("build/legacy/build_v1409_archive_attribute_before_save.rs");
     pub fn run() { main(); }
 }
 
