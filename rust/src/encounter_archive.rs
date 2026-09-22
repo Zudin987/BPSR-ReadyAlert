@@ -40,7 +40,7 @@ function applySearch(){const q=(search.value||'').trim().toLocaleLowerCase(),hid
     let old_init = r#"$('#refresh').onclick=()=>location.reload();compareBtn.onclick=()=>{if(compareIds.length===2){compareMode=true;renderDetail()}};search.addEventListener('input',applySearch);document.addEventListener('keydown',ev=>{if(ev.key==='/'&&document.activeElement!==search){ev.preventDefault();search.focus()}else if(ev.key==='Escape'&&search.value){search.value='';applySearch();search.focus()}});renderList();renderDetail();"#;
     let new_init = r#"const HIDE_MISC_STORAGE_KEY='bpsr-readyalert.encounter-history.hide-misc',hideMiscBtn=$('#hide-misc');
 function loadHideMisc(){try{return localStorage.getItem(HIDE_MISC_STORAGE_KEY)==='1'}catch{return false}}
-function saveHideMisc(value){try{localStorage.setItem(HIDE_MISC_STORAGE_KEY,value?'1':'0'}catch{}}
+function saveHideMisc(value){try{localStorage.setItem(HIDE_MISC_STORAGE_KEY,value?'1':'0')}catch{}}
 function setHideMisc(value){if(!hideMiscBtn)return;hideMiscBtn.setAttribute('aria-pressed',value?'true':'false');hideMiscBtn.classList.toggle('active',value)}
 setHideMisc(loadHideMisc());hideMiscBtn?.addEventListener('click',()=>{const next=hideMiscBtn.getAttribute('aria-pressed')!=='true';setHideMisc(next);saveHideMisc(next);applySearch()});$('#refresh').onclick=()=>location.reload();compareBtn.onclick=()=>{if(compareIds.length===2){compareMode=true;renderDetail()}};search.addEventListener('input',applySearch);document.addEventListener('keydown',ev=>{if(ev.key==='/'&&document.activeElement!==search){ev.preventDefault();search.focus()}else if(ev.key==='Escape'&&search.value){search.value='';applySearch();search.focus()}});applySearch();"#;
     replace_once(&mut html, old_init, new_init, "Hide Misc persistence")?;
@@ -119,6 +119,7 @@ mod v1315_archive_guard_tests {
             assert!(html.contains(text), "missing archive feature: {text}");
         }
         assert!(!html.contains("[2,8,9,17,18,19].includes(playType)"));
+        assert!(html.contains("value?'1':'0')"));
         fs::remove_dir_all(root).unwrap();
     }
 }
