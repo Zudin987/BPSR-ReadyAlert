@@ -1,5 +1,9 @@
 //! Per-encounter character-sheet stat sampling. No damage coefficients or
 //! season-specific build recommendations are involved.
+//!
+//! The encounter-history layer owns the Recorder: it must annotate a snapshot
+//! BEFORE observe_snapshot clones it for persistence. The outer telemetry layer
+//! only forwards the already-annotated event to the UI.
 use crate::{
     feature_settings,
     model::{AppEvent, DpsRow, DpsSnapshot, EncounterAttributeSummary, TrackedAttribute},
@@ -70,7 +74,7 @@ impl Sample {
 #[derive(Default)]
 struct Player { attrs: BTreeMap<i32, Sample> }
 #[derive(Default)]
-struct Recorder {
+pub(crate) struct Recorder {
     players: HashMap<i64, Player>,
     /// Attribute values observed in the waiting/empty state of this encounter.
     precombat: HashMap<i64, BTreeMap<i32, i64>>,
@@ -89,7 +93,7 @@ fn empty(snapshot: &DpsSnapshot) -> bool {
         && snapshot.total_healing == 0 && snapshot.total_damage_taken == 0
 }
 impl Recorder {
-    fn update(&mut self, snapshot: &mut DpsSnapshot, partial: bool) {
+    pub(crate) fn update(&mut self, snapshot: &mut DpsSnapshot, partial: bool) {
         if empty(snapshot) {
             self.players.clear();
             self.previous_totals = None;
@@ -112,7 +116,6 @@ impl Recorder {
             self.players.clear();
             self.precombat.clear();
         }
-        // Repeated final snapshots at the same timestamp are idempotent.
         self.previous_totals = Some(totals);
         for row in &mut snapshot.rows {
             if row.uid <= 0 { continue; }
@@ -127,9 +130,8 @@ impl Recorder {
                     }
                 }
             }
-            // If no trustworthy pre-pull value exists, an immediately observed
-            // first snapshot can supply an initial reading. A late or interrupted
-            // capture never pretends to know the true initial stat.
+            // Only an immediate, non-partial reading may substitute for a
+            // missing pre-pull snapshot. Never invent an initial value for late capture.
             for (&id, &value) in &observed {
                 player.attrs.entry(id).or_insert_with(|| {
                     let initial = (!partial && now <= 1_000).then_some(value);
@@ -145,8 +147,7 @@ impl Recorder {
                 .map(|(&id, sample)| sample.summary(id))
                 .collect();
         }
-        // A vanished roster member cannot be assumed to retain their last
-        // observed buff stats across later packets.
+        // A vanished roster member cannot be assumed to retain previous stats.
         for (&uid, player) in &mut self.players {
             if !snapshot.rows.iter().any(|row| row.uid == uid) {
                 for sample in player.attrs.values_mut() {
@@ -158,27 +159,21 @@ impl Recorder {
     }
 }
 
+/// The inner archive stage already decorates DPS events before cloning them.
+/// Forward the exact same snapshot to the overlay; never sample twice.
 pub struct TelemetryRuntime {
     inner: previous::TelemetryRuntime,
     rx: Receiver<AppEvent>,
     tx: Sender<AppEvent>,
-    recorder: Recorder,
 }
 impl TelemetryRuntime {
     pub fn new(tx: Sender<AppEvent>) -> Self {
         let (inner_tx, rx) = mpsc::channel();
-        Self { inner: previous::TelemetryRuntime::new(inner_tx), rx, tx, recorder: Recorder::default() }
+        Self { inner: previous::TelemetryRuntime::new(inner_tx), rx, tx }
     }
     pub fn handle_notify(&mut self, service: u64, method: u32, body: &[u8]) {
         self.inner.handle_notify(service, method, body);
         while let Ok(event) = self.rx.try_recv() {
-            let event = match event {
-                AppEvent::Dps(mut snapshot) => {
-                    self.recorder.update(&mut snapshot, crate::telemetry::capture_partial());
-                    AppEvent::Dps(snapshot)
-                }
-                other => other,
-            };
             let _ = self.tx.send(event);
         }
     }
@@ -204,7 +199,7 @@ mod tests {
         r.update(&mut first, false);
         let mut many = snapshot(200, 2, 2_000);
         r.update(&mut many, false);
-        r.update(&mut many, false); // duplicate must contribute no duration
+        r.update(&mut many, false);
         let mut last = snapshot(1_000, 3, 4_000);
         r.update(&mut last, false);
         assert_eq!(attr(&last).initial, Some(2_000));
