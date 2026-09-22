@@ -23,9 +23,11 @@ fn main() {
         "            last: None,",
         "            last: None,\n            attribute_recorder: crate::telemetry::Recorder::default(),",
         "archive recorder initializer");
+    // Match only the stable loop prefix: later benchmark logic between the
+    // Dps match and observe_snapshot must be preserved verbatim.
     patch(&mut source,
-        "        while let Ok(event) = self.inner_rx.try_recv() {\n            if let AppEvent::Dps(snapshot) = &event {\n                self.observe_snapshot(snapshot);\n            }\n            let _ = self.tx.send(event);\n        }",
-        "        while let Ok(mut event) = self.inner_rx.try_recv() {\n            // Archive and UI must receive exactly the same sampled data.\n            self.annotate_before_archive(&mut event);\n            if let AppEvent::Dps(snapshot) = &event {\n                self.observe_snapshot(snapshot);\n            }\n            let _ = self.tx.send(event);\n        }",
+        "        while let Ok(event) = self.inner_rx.try_recv() {\n            if let AppEvent::Dps(snapshot) = &event {",
+        "        while let Ok(mut event) = self.inner_rx.try_recv() {\n            // Archive and UI must receive exactly the same sampled data.\n            self.annotate_before_archive(&mut event);\n            if let AppEvent::Dps(snapshot) = &event {",
         "annotate before history copies snapshot");
     source.push_str(r#"
 impl TelemetryRuntime {
