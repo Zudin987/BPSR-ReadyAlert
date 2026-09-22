@@ -42,4 +42,4 @@ pub(crate) fn take_scene_replaced() -> bool {
     SCENE_REPLACED.swap(false, Ordering::AcqRel)
 }
 
-include!("telemetry_v1321_fix.rs");
+include!("attribute_history.rs");
