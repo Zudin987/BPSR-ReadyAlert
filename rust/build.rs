@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 mod current {
-    include!("build/legacy/build_v1407_ignore_finished_run_replays.rs");
+    include!("build/legacy/build_v1408_encounter_attribute_row.rs");
     pub fn run() { main(); }
 }
 
