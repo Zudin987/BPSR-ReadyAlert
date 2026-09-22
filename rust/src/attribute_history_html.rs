@@ -74,10 +74,13 @@ const STYLES_AND_SCRIPT: &str = r#"
   renderComparison=function(){
     originalComparison();const pair=compareIds.map(id=>DATA.find(e=>e.id===id)).filter(Boolean);
     compareStats(pair);
-    // The existing player selector updates its own analysis without rebuilding
-    // the whole comparison page. Keep the attributes panel synchronized too.
-    document.querySelector('#compare-player-select')?.addEventListener('change',()=>compareStats(pair));
   };
+  // The upstream selector replaces its own DOM node whenever the player
+  // changes. Delegate at document level so changes after the first still sync.
+  document.addEventListener('change',event=>{
+    if(event.target?.id!=='compare-player-select')return;
+    compareStats(compareIds.map(id=>DATA.find(e=>e.id===id)).filter(Boolean));
+  });
   if(!compareMode){const e=selectedEncounter();if(e){renderTabs();renderPane(e,byDamage(e)[selectedPlayer])}}
 })();
 </script>
@@ -96,6 +99,8 @@ mod tests {
         let text=fs::read_to_string(&path).unwrap();
         assert!(text.contains("Initial A → B"));
         assert!(text.contains("Coverage"));
+        assert!(text.contains("document.addEventListener('change',event=>"));
+        assert!(!text.contains("querySelector('#compare-player-select')?.addEventListener"));
         assert!(upgrade(&path).is_err());
         let _=fs::remove_dir_all(root);
     }
