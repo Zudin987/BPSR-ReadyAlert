@@ -21,8 +21,8 @@ fn patch_tracker(out:&Path){
         "discovery duplicate suppression");
 
     replace_once(&mut source,
-        "            let item = self.rule_states.entry(rule.rule_id).or_default();\n            item.count = item.count.saturating_add(1);\n            item.last_seen_unix_ms = now;",
-        "            let item = self.rule_states.entry(rule.rule_id).or_default();\n            let duplicate=item.last_seen_unix_ms>0&&now.saturating_sub(item.last_seen_unix_ms)<=200;\n            if !duplicate{item.count=item.count.saturating_add(1);}\n            item.last_seen_unix_ms = now;",
+        "            let item = self.rule_states.entry(rule.rule_id).or_default();\n            item.count = item.count.saturating_add(1);\n            item.last_seen_unix_ms = now;\n            item.expires_unix_ms = now.saturating_add(i64::from(rule.hold_seconds) * 1000);\n            item.detail = detail;\n        }\n    }\n\n    fn attribute(",
+        "            let item = self.rule_states.entry(rule.rule_id).or_default();\n            let duplicate=item.last_seen_unix_ms>0&&now.saturating_sub(item.last_seen_unix_ms)<=200;\n            if !duplicate{item.count=item.count.saturating_add(1);}\n            item.last_seen_unix_ms = now;\n            item.expires_unix_ms = now.saturating_add(i64::from(rule.hold_seconds) * 1000);\n            item.detail = detail;\n        }\n    }\n\n    fn attribute(",
         "skill event duplicate suppression");
 
     replace_once(&mut source,
