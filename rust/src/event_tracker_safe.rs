@@ -5,10 +5,10 @@ mod legacy {
 }
 
 pub use legacy::{
-    TrackerDisplayRow, TrackerKind, TrackerRule, TrackerScope, TrackerSettings,
-    clear_scene, clear_session, current_settings, observe_attribute, observe_attribute_entity,
-    observe_buff, observe_skill, remove_entity, reset_counts, rows, rule_label, set_local_uid,
-    set_party, sync_buff_instances,
+    DiscoveryRow, TrackerDisplayRow, TrackerKind, TrackerRule, TrackerScope, TrackerSettings,
+    clear_discovery, clear_scene, clear_session, current_settings, discovery_active, discovery_rows,
+    observe_attribute, observe_attribute_entity, observe_buff, observe_skill, remove_entity,
+    reset_counts, rows, rule_label, set_discovery_active, set_local_uid, set_party, sync_buff_instances,
 };
 
 static SETTINGS_PATH: OnceLock<PathBuf> = OnceLock::new();

@@ -16,6 +16,8 @@ mod polish_v1332 {
     include!("chat_archive_polish_v1332.rs");
 }
 
+mod typography { include!("archive_typography.rs"); }
+
 fn replace_once(source: &mut String, from: &str, to: &str, label: &str) -> Result<(), String> {
     let count = source.matches(from).count();
     if count != 1 {
@@ -71,6 +73,7 @@ pub fn generate(dir: &Path) -> Result<PathBuf, String> {
             upgrade_archive_navigation(&path)?;
             ux_v1330::upgrade(&path)?;
             polish_v1332::upgrade(&path)?;
+            typography::upgrade_chat(&path)?;
             Ok(path)
         });
 
@@ -131,6 +134,8 @@ mod tests {
         assert!(html.contains(".brand{padding:17px 16px 12px;border-bottom:1px solid var(--line)}"));
         assert!(html.contains("background:#080f14"));
         assert!(html.contains("background:#1b313a"));
+        assert!(html.contains("readyalert-readable-type"));
+        assert!(html.contains("font-size:1rem"));
         fs::remove_dir_all(dir).unwrap();
     }
 }
