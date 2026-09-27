@@ -175,7 +175,7 @@ impl ChatRuntime {
                 if !wants_tts { continue; }
                 let mut spoken = clean_text(&translated.text, 500);
                 if speech.read_sender_name && !message.sender_name.trim().is_empty() {
-                    spoken = format!("{}. {}", clean_text(&message.sender_name, 80), spoken);
+                    spoken = format!("{}. {}", tts_sender_name(&message.sender_name), spoken);
                 }
                 if spoken.is_empty() { continue; }
                 try_send_tts(
@@ -410,6 +410,12 @@ fn clean_text(text: &str, max: usize) -> String {
     text.replace(|c: char| c == '\r' || c == '\n' || c == '\0', " ").split_whitespace().collect::<Vec<_>>().join(" ").chars().take(max).collect()
 }
 
+fn tts_sender_name(name: &str) -> String {
+    // Some BPSR display names use this decorative marker. It should remain
+    // visible in chat, but Google TTS must not try to pronounce it.
+    clean_text(&name.replace('亗', ""), 80)
+}
+
 fn is_readyalert_chat_log(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|x| x.to_str()) else { return false; };
     let bytes = name.as_bytes();
@@ -460,6 +466,11 @@ mod tests {
 
     #[test] fn sprites() { assert!(is_sprite_only(" <sprite=1> <sprite=100> ")); assert!(!is_sprite_only("hi <sprite=1>")); }
     #[test] fn split_is_bounded() { assert!(split_tts(&"a ".repeat(250),200).iter().all(|x| x.chars().count() <= 200)); }
+    #[test] fn tts_sender_name_ignores_hardcoded_marker() {
+        assert_eq!(tts_sender_name("亗 Champy"), "Champy");
+        assert_eq!(tts_sender_name("亗  Champy 亗"), "Champy");
+        assert_eq!(tts_sender_name("Champy"), "Champy");
+    }
     #[test] fn duplicate_message_id_is_suppressed() {
         let mut d = RecentDedupe::default();
         assert!(d.accept(&message(99, "hello")));

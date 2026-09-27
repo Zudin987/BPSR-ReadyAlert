@@ -18,11 +18,11 @@ const STYLES_AND_SCRIPT: &str = r#"
 .attribute-table .attribute-name{font-weight:650;color:#dfe7ee}.attribute-table .attribute-value{color:#c9d4de;font-variant-numeric:tabular-nums}
 .attribute-table .coverage{color:var(--muted);font-variant-numeric:tabular-nums}
 .attribute-gap td{height:9px;padding:0!important;border:0!important;background:transparent}
-.attribute-row.key-luck .attribute-name{color:#e8c66a;box-shadow:inset 3px 0 #d5aa43;background:rgba(213,170,67,.055)}
-.attribute-row.key-haste .attribute-name{color:#73cbe5;box-shadow:inset 3px 0 #4ba9c5;background:rgba(75,169,197,.055)}
-.attribute-row.key-crit .attribute-name{color:#ef8e94;box-shadow:inset 3px 0 #d66871;background:rgba(214,104,113,.055)}
-.attribute-row.key-mastery .attribute-name{color:#b89ae9;box-shadow:inset 3px 0 #8e70c5;background:rgba(142,112,197,.055)}
-.attribute-row.key-versatility .attribute-name{color:#76d3b3;box-shadow:inset 3px 0 #4eae8d;background:rgba(78,174,141,.055)}
+.attribute-row.key-luck .attribute-name{color:#e8c66a}
+.attribute-row.key-haste .attribute-name{color:#73cbe5}
+.attribute-row.key-crit .attribute-name{color:#ef8e94}
+.attribute-row.key-mastery .attribute-name{color:#b89ae9}
+.attribute-row.key-versatility .attribute-name{color:#76d3b3}
 .attribute-compare{border:1px solid var(--line);border-radius:4px;background:#0e151c;margin:0 0 12px;min-width:0;overflow:hidden;box-shadow:var(--shadow)}
 .attribute-compare-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 11px;border-bottom:1px solid var(--line);background:#101a22}
 .attribute-compare-title{min-width:0}.attribute-compare h3{font-size:13px;margin:0;color:#e7eef5}.attribute-compare h3 span{color:var(--muted);font-weight:600}
@@ -171,6 +171,8 @@ mod tests {
         assert!(text.contains("Before fight"));
         assert!(text.contains("attributeOrder.map(id=>map.get(id))"));
         for marker in ["key-luck","key-haste","key-crit","key-mastery","key-versatility"] { assert!(text.contains(marker)); }
+        assert!(!text.contains("box-shadow:inset 3px"));
+        assert!(!text.contains("background:rgba(213,170,67"));
         assert!(!text.contains("<th>Final</th>"));
         assert!(text.contains("document.addEventListener('change',event=>"));
         assert!(!text.contains("querySelector('#compare-player-select')?.addEventListener"));
