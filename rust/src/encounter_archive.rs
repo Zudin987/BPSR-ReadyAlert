@@ -117,7 +117,7 @@ mod v1315_archive_guard_tests {
         fs::create_dir_all(encounter_store::dir(&root)).unwrap();
         let path = generate(&root).unwrap();
         let html = fs::read_to_string(path).unwrap();
-        for text in ["id=\"hide-misc\"", "../ChatLogs/index.html", "archive-tabs", "bpsr-readyalert.encounter-history.hide-misc", "bpsr-readyalert.encounter-history.filters.v2", "[2,9,17,18,19].includes(playType)", "Benchmark only", "Same player only", "Largest skill damage changes", "raid-roster", "No saved encounter matches the current filters.", "readyalert-encounter-attributes-v1", "Fight average A → B"] {
+        for text in ["id=\"hide-misc\"", "../ChatLogs/index.html", "archive-tabs", "bpsr-readyalert.encounter-history.hide-misc", "bpsr-readyalert.encounter-history.filters.v2", "[2,9,17,18,19].includes(playType)", "Benchmark only", "Same player only", "Largest skill damage changes", "raid-roster", "No saved encounter matches the current filters.", "readyalert-encounter-attributes-v1", "Fighting average A → B"] {
             assert!(html.contains(text), "missing archive feature: {text}");
         }
         assert!(!html.contains("[2,8,9,17,18,19].includes(playType)"));
