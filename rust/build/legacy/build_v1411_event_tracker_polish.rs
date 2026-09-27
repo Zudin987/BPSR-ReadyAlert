@@ -16,23 +16,19 @@ fn patch_tracker(out:&Path){
     let mut source=fs::read_to_string(&path).expect("read v1410 event tracker").replace("\r\n","\n");
 
     replace_once(&mut source,
-r#"pub fn observe_skill(skill_id: i32, source_uid: i64, target_uid: i64) {
-    if let Some(r) = RUNTIME.get() { if let (Ok(settings), Ok(mut s)) = (r.settings.read(), r.state.lock()) {
-        s.skill(&settings, skill_id, source_uid, target_uid, now_ms());
-    } }
-}"#,
-r#"pub fn discover_skill(skill_id:i32,source_uid:i64,target_uid:i64){
-    if skill_id==0{return;}
-    if let Some(r)=RUNTIME.get(){if let Ok(mut s)=r.state.lock(){
-        s.discover_event(TrackerKind::Skill,skill_id,source_uid,target_uid,now_ms());
-    }}
-}
-pub fn observe_skill(skill_id: i32, source_uid: i64, target_uid: i64) {
-    if let Some(r) = RUNTIME.get() { if let (Ok(settings), Ok(mut s)) = (r.settings.read(), r.state.lock()) {
-        s.skill(&settings, skill_id, source_uid, target_uid, now_ms());
-    } }
-}"#,
-        "skill cast discovery API");
+        "        let row=self.discovery.entry((kind,event_id)).or_default();\n        row.count=row.count.saturating_add(1);row.last_seen_unix_ms=now;row.detail=detail;row.suggested_scope=suggested_scope;",
+        "        let row=self.discovery.entry((kind,event_id)).or_default();\n        let duplicate=row.last_seen_unix_ms>0&&now.saturating_sub(row.last_seen_unix_ms)<=200;\n        if !duplicate{row.count=row.count.saturating_add(1);}\n        row.last_seen_unix_ms=now;row.detail=detail;row.suggested_scope=suggested_scope;",
+        "discovery duplicate suppression");
+
+    replace_once(&mut source,
+        "            let item = self.rule_states.entry(rule.rule_id).or_default();\n            item.count = item.count.saturating_add(1);\n            item.last_seen_unix_ms = now;",
+        "            let item = self.rule_states.entry(rule.rule_id).or_default();\n            let duplicate=item.last_seen_unix_ms>0&&now.saturating_sub(item.last_seen_unix_ms)<=200;\n            if !duplicate{item.count=item.count.saturating_add(1);}\n            item.last_seen_unix_ms = now;",
+        "skill event duplicate suppression");
+
+    replace_once(&mut source,
+        "                    row.detail = format!(\"{} • {} hits\", row.detail, item.count);",
+        "                    row.detail = format!(\"{} • {} events\", row.detail, item.count);",
+        "skill tracker event wording");
 
     replace_once(&mut source,
         "        rows.sort_by(|a,b|b.last_seen_unix_ms.cmp(&a.last_seen_unix_ms).then_with(||a.event_id.cmp(&b.event_id)));",
@@ -83,6 +79,20 @@ mod v1411_event_tracker_polish_tests {
     }
 
     #[test]
+    fn rapid_cast_and_hit_are_counted_as_one_event(){
+        let mut state=RuntimeState::default();
+        state.local_uid=42;
+        state.discovery_active=true;
+        let settings=TrackerSettings{rules:vec![TrackerRule{kind:TrackerKind::Skill,event_id:1241,scope:TrackerScope::SelfOnly,..TrackerRule::default()}],..TrackerSettings::default()};
+        state.skill(&settings,1241,42,0,1_000);
+        state.skill(&settings,1241,42,0,1_120);
+        assert_eq!(state.discovery_rows()[0].count,1);
+        let rows=state.rows(&settings,1_130);
+        assert_eq!(rows[0].count,1);
+        assert!(rows[0].detail.contains("events"));
+    }
+
+    #[test]
     fn discovery_prefers_self_events_over_world_noise(){
         let mut state=RuntimeState::default();
         state.local_uid=42;
@@ -106,9 +116,9 @@ fn patch_telemetry(out:&Path){
 r#"            if let Some(skill) = attr_varint(attrs, ATTR_SKILL_ID).map(|value| value as i32) {
                 if let Some((label, duration, priority)) = focused_skill_rule_for_scene(self.current_scene_id, skill) {"#,
 r#"            if let Some(skill) = attr_varint(attrs, ATTR_SKILL_ID).map(|value| value as i32) {
-                // Discovery listens to actual skill activation too, so utility,
+                // Tracked skills and discovery listen to actual skill activation too, so utility,
                 // movement and support skills can be found even with no damage hit.
-                crate::event_tracker::discover_skill(skill, if entity_kind(uuid)==ENTITY_PLAYER{uuid>>16}else{0}, 0);
+                crate::event_tracker::observe_skill(skill, if entity_kind(uuid)==ENTITY_PLAYER{uuid>>16}else{0}, 0);
                 if let Some((label, duration, priority)) = focused_skill_rule_for_scene(self.current_scene_id, skill) {"#,
         "non damage skill discovery");
 
