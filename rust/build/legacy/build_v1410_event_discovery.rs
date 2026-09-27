@@ -37,7 +37,7 @@ fn names(path:&Path,min_windows:usize)->Vec<(i32,String)>{
     let text=fs::read_to_string(path).expect("read discovery name catalog");
     let value:serde_json::Value=serde_json::from_str(&text).expect("parse discovery name catalog");
     let mut rows:Vec<_>=value.as_object().into_iter().flatten().filter_map(|(id,data)|{
-        let id=id.parse::<i32>().ok()?;if id<=0{return None}
+        let raw=id.parse::<u32>().ok()?;if raw==0{return None}let id=raw as i32;
         let name=data.get("Name")?.as_str()?.trim();
         if name.is_empty(){return None}
         Some((id,name.chars().take(80).collect::<String>()))
@@ -127,7 +127,7 @@ struct RuleState {{"#),
         "impl RuntimeState {\n    fn skill(&mut self, settings: &TrackerSettings, skill_id: i32, source: i64, target: i64, now: i64) {",
         r#"impl RuntimeState {
     fn discover_event(&mut self, kind:TrackerKind, event_id:i32, source:i64, target:i64, now:i64) {
-        if !self.discovery_active || event_id<=0 { return; }
+        if !self.discovery_active || (kind==TrackerKind::Skill && event_id==0) || (kind!=TrackerKind::Skill && event_id<=0) { return; }
         let is_self=self.local_uid>0&&(source==self.local_uid||target==self.local_uid);
         let is_party=is_self||(source>0&&self.party_uids.contains(&source))||(target>0&&self.party_uids.contains(&target));
         let suggested_scope=if is_self{TrackerScope::SelfOnly}else if is_party{TrackerScope::Party}else{TrackerScope::Any};
@@ -157,8 +157,8 @@ struct RuleState {{"#),
         "discovery runtime methods");
 
     replace_once(&mut source,
-        "        if !settings.enabled || skill_id <= 0 { return; }",
-        "        if skill_id <= 0 { return; }\n        self.discover_event(TrackerKind::Skill,skill_id,source,target,now);\n        if !settings.enabled { return; }",
+        "        if !settings.enabled || skill_id == 0 { return; }",
+        "        if skill_id == 0 { return; }\n        self.discover_event(TrackerKind::Skill,skill_id,source,target,now);\n        if !settings.enabled { return; }",
         "skill discovery");
 
     replace_once(&mut source,
@@ -221,8 +221,8 @@ mod v1410_event_discovery_tests {
 fn patch_ui(out:&Path){
     let path=out.join("event_tracker_ui_v1160_fixed.rs");
     let mut source=fs::read_to_string(&path).expect("read generated event tracker UI").replace("\r\n","\n");
-    replace_once(&mut source,"const WIDTH: i32 = 760;","const WIDTH: i32 = 920;","tracker window width");
-    replace_once(&mut source,"const HEIGHT: i32 = 600;","const HEIGHT: i32 = 780;","tracker window height");
+    replace_once(&mut source,"const WIDTH: i32 = crate::ui_theme::EVENT_W;","const WIDTH: i32 = 920;","tracker window width");
+    replace_once(&mut source,"const HEIGHT: i32 = crate::ui_theme::EVENT_H + 92;","const HEIGHT: i32 = 780;","tracker window height");
     replace_once(&mut source,
         "const ID_CLOSE: i32 = 6199;",
         r#"const ID_CLOSE: i32 = 6199;
@@ -317,7 +317,7 @@ const LBN_DBLCLK_LOCAL:u16=2;"#,
             if state.working.rules.len()>=64||!save_editor(hwnd,state){return;}
             let rule_id=state.working.next_rule_id();
             state.working.rules.push(TrackerRule{rule_id,..TrackerRule::default()});state.selected=Some(state.working.rules.len()-1);
-            refresh_list(hwnd,state);load_selected(hwnd,state);crate::ui::SetFocus(GetDlgItem(hwnd,ID_EVENT_ID));state.form.reveal_focus(hwnd);
+            refresh_list(hwnd,state);load_selected(hwnd,state);crate::ui::SetFocus(GetDlgItem(hwnd,ID_EVENT_ID));
         }
         ID_REMOVE=>{
             if let Some(index)=state.selected.filter(|i|*i<state.working.rules.len()){
@@ -339,7 +339,9 @@ unsafe fn refresh_discovery(hwnd:HWND,state:&mut UiState){
         let kind=match row.kind{TrackerKind::Buff=>"BUFF",TrackerKind::Skill=>"SKILL",TrackerKind::Attribute=>"ATTR"};
         let name=if row.name.trim().is_empty(){format!("{} {}",row.kind.label(),row.event_id)}else{row.name.clone()};
         let tracked=state.working.rules.iter().any(|r|r.kind==row.kind&&r.event_id==row.event_id);
-        let text=format!("[{kind}] {name}   |   ID {}   |   {}x   |   {}{}",row.event_id,row.count,row.detail,if tracked{"   |   TRACKED"}else{""});
+        let event_id=event_id_text(row.kind,row.event_id);
+        let scope=match row.suggested_scope{TrackerScope::SelfOnly=>"Self",TrackerScope::Party=>"Party",TrackerScope::Any=>"Any"};
+        let text=format!("[{kind}] {name}   |   ID {event_id}   |   {}x   |   {scope}   |   {}{}",row.count,row.detail,if tracked{"   |   TRACKED"}else{""});
         let w=wide(&text);SendMessageW(list,LB_ADDSTRING,0,w.as_ptr() as isize);
     }
     let selected=selected_key.and_then(|key|state.discovered.iter().position(|r|(r.kind,r.event_id)==key)).or_else(||(!state.discovered.is_empty()).then_some(0));
