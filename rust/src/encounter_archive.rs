@@ -5,6 +5,7 @@ mod archive_impl {
 mod ux_v1330 { include!("encounter_archive_ux_v1330.rs"); }
 #[path = "attribute_history_html.rs"]
 mod attribute_history_html;
+mod typography { include!("archive_typography.rs"); }
 
 use crate::encounter_store;
 use std::{fs, os::windows::ffi::OsStrExt, path::{Path, PathBuf}, ptr::null};
@@ -60,6 +61,7 @@ pub fn generate(root: &Path) -> Result<PathBuf, String> {
         upgrade_archive_ui(&path)?;
         ux_v1330::upgrade(&path)?;
         attribute_history_html::upgrade(&path)?;
+        typography::upgrade_encounter(&path)?;
         Ok(path)
     });
     match generated {
@@ -120,6 +122,8 @@ mod v1315_archive_guard_tests {
         }
         assert!(!html.contains("[2,8,9,17,18,19].includes(playType)"));
         assert!(html.contains("value?'1':'0')"));
+        assert!(html.contains("readyalert-readable-type"));
+        assert!(html.contains("font-size:1rem"));
         fs::remove_dir_all(root).unwrap();
     }
 }
