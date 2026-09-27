@@ -68,7 +68,7 @@ mod tests {
     fn encounter_and_chat_use_browser_relative_readable_type() {
         let root=std::env::temp_dir().join(format!("readyalert-type-{}",std::process::id()));
         let _=fs::remove_dir_all(&root);fs::create_dir_all(&root).unwrap();
-        let encounter=root.join("enc.html"),chat=root.join("chat.html");
+        let encounter=root.join("enc.html");\n        let chat=root.join("chat.html");
         fs::write(&encounter,"<html><body>x</body></html>").unwrap();
         fs::write(&chat,"<html><body>x</body></html>").unwrap();
         upgrade_encounter(&encounter).unwrap();upgrade_chat(&chat).unwrap();
