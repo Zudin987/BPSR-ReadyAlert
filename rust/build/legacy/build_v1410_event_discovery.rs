@@ -23,7 +23,7 @@ fn replace_span(source:&mut String,start:&str,end:&str,replacement:&str,label:&s
 fn ps_quote(path:&Path)->String{path.to_string_lossy().replace('\'',"''")}
 
 fn download_catalog(out:&Path,file:&str)->PathBuf{
-    let path=out.join(file.replace('/','_'));
+    let path=out.join(file.replace('/',"_"));
     if !cfg!(windows){fs::write(&path,"{}").expect("write non-Windows discovery catalog");return path;}
     let url=format!("https://raw.githubusercontent.com/Blue-Protocol-Source/BPSR-ZDPS/{ZDPS_COMMIT}/BPSR-ZDPS/Data/{file}");
     let script=format!("$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '{url}' -OutFile '{}'",ps_quote(&path));
