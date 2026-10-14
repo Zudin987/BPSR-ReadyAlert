@@ -150,6 +150,7 @@ fn meter_design(source: &mut String) {
             "WS_POPUP|0x00c00000|0x00080000|0x02000000|WS_THICKFRAME|0x00300000",
             "scrollable settings frame",
         );
+        once(part, "ShowWindow(hwnd,SW_SHOW);SetForegroundWindow(hwnd);crate::ui_modern::dark_titlebar(hwnd);", "ShowWindow(hwnd,SW_SHOW);SetForegroundWindow(hwnd);crate::ui_modern::dark_titlebar(hwnd);(*ptr).form.layout(hwnd);place_design_footer(hwnd);", "settings footer after work-area fit");
     });
     function(source, "refresh_feature_form", |part| {
         let body = part.find('{').expect("settings refresh body") + 1;
@@ -189,6 +190,22 @@ fn meter_design(source: &mut String) {
             "combat-details toolbar title",
         );
     });
+    let mut detail_renderer = String::new();
+    function(source, "paint_detail", |part| {
+        let start = part.find("fill(hdc,&rc,").expect("detail contents start");
+        let end = part
+            .rfind("EndPaint(hwnd,&ps);")
+            .expect("detail contents end");
+        let contents = part[start..end].to_string();
+        part.replace_range(start..end, "draw_detail_contents(hdc,rc,state);");
+        detail_renderer = format!("\nunsafe fn draw_detail_contents(hdc:HDC,rc:RECT,state:&DetailState){{\n{contents}\n}}\n");
+    });
+    function(source, "detail_wnd_proc", |part| {
+        let body = part.find("match msg").expect("detail message switch");
+        let at = body + part[body..].find('{').expect("detail message cases") + 1;
+        part.insert_str(at, "0x0318=>{if !ptr.is_null(){let mut rc:RECT=std::mem::zeroed();GetClientRect(hwnd,&mut rc);draw_detail_contents(wparam as HDC,rc,&*ptr);}0},");
+    });
+    source.push_str(&detail_renderer);
     source.push_str(
         "\ninclude!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/src/notmeter_overlay.rs\"));\n",
     );
@@ -210,6 +227,7 @@ pub fn apply() {
         let path = out.join(name);
         let mut source = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("appearance input {name}: {err}"));
+        source = source.replace("Segoe UI Variable Text", "Segoe UI");
         if name == "feature_overlays_v170_fixed.rs" {
             meter_design(&mut source);
         }

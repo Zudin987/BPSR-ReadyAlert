@@ -349,7 +349,7 @@ unsafe extern "system" fn design_preview_proc(
                     };
                     if state.kind == Kind::Dps {
                         if meter_rows(state).is_empty() {
-                            paint_design_sample(hdc, area);
+                            paint_design_sample(hdc, area, scale);
                         } else {
                             paint_toolbar(hdc, area, state);
                             paint_dps(hdc, area, state);
@@ -373,8 +373,8 @@ unsafe extern "system" fn design_preview_proc(
     }
 }
 
-unsafe fn paint_design_sample(hdc: HDC, rc: RECT) {
-    SelectObject(hdc, dps_cached_font(100, true));
+unsafe fn paint_design_sample(hdc: HDC, rc: RECT, scale: i32) {
+    SelectObject(hdc, dps_cached_font(scale, true));
     SetTextColor(hdc, crate::ui_modern::BPSR_TEXT);
     draw(
         hdc,

@@ -72,8 +72,9 @@ fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain(std::iter::once(0)).
 fn make_font(height: i32, weight: i32) -> usize {
     unsafe {
         // Windows supplies the normal installed CJK/UI fallback chain when the
-        // primary Segoe UI Variable Text face does not contain a glyph.
-        let face = wide("Segoe UI Variable Text");
+        // primary Segoe UI face does not contain a glyph. This face is also
+        // available on Windows 10 and Windows Server, unlike Variable Text.
+        let face = wide("Segoe UI");
         CreateFontW(height, 0, 0, 0, weight, 0, 0, 0, 1, 0, 0, 5, 0, face.as_ptr()) as usize
     }
 }

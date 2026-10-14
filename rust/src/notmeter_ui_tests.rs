@@ -30,9 +30,13 @@ unsafe fn capture_window(hwnd: HWND, output: &std::path::Path) {
     assert_ne!(PrintWindow(hwnd, dc, 2), 0, "native preview capture failed");
     GdiFlush();
     let bytes = std::slice::from_raw_parts(pixels as *const u8, (width * height * 4) as usize);
+    let painted = bytes
+        .chunks_exact(4)
+        .filter(|pixel| pixel[..3] != [0, 0, 0])
+        .count();
     assert!(
-        bytes.iter().any(|value| *value != 0),
-        "native preview is blank"
+        painted > (width * height) as usize / 2,
+        "native preview client area is blank"
     );
     let mut bmp = Vec::with_capacity(54 + bytes.len());
     bmp.extend_from_slice(b"BM");
