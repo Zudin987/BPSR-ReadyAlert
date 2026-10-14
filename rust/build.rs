@@ -5,8 +5,12 @@ mod current {
     pub fn run() { main(); }
 }
 
+#[path = "build/design.rs"]
+mod design;
+
 fn main() {
     current::run();
+    design::apply();
     // Changes to generated sources must originate in checked-in builders.
     println!("cargo:rerun-if-changed=build/legacy");
 }

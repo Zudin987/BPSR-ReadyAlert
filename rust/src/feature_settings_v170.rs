@@ -173,6 +173,7 @@ pub fn format_attr_value(id: i32, value: i64) -> String {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FeatureSettings {
+    pub visual_theme: crate::appearance::VisualTheme,
     pub dps_overlay_enabled: bool,
     pub mechanics_overlay_enabled: bool,
     pub dps: OverlayLayout,
@@ -184,6 +185,7 @@ pub struct FeatureSettings {
 impl Default for FeatureSettings {
     fn default() -> Self {
         Self {
+            visual_theme: crate::appearance::VisualTheme::default(),
             dps_overlay_enabled: true,
             mechanics_overlay_enabled: true,
             dps: OverlayLayout { width: 650, height: 420, collapse_side: "Right".into(), ..OverlayLayout::default() },

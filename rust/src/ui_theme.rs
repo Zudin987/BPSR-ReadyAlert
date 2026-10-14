@@ -3,11 +3,12 @@
 //! this module deliberately defaults to BPSR Dark Glass so any native control
 //! not explicitly specialized still belongs to the same application language.
 use std::{ffi::c_void, ptr::null, sync::{atomic::{AtomicIsize, Ordering}, OnceLock}};
+use crate::appearance::{fill_rect as FillRect, set_text_color as SetTextColor};
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::Gdi::{
-        CreateFontW, CreateSolidBrush, DeleteObject, DrawTextW, FillRect, InvalidateRect,
-        SelectObject, SetBkMode, SetTextColor, HBRUSH, HDC, HFONT, TRANSPARENT,
+        CreateFontW, CreateSolidBrush, DeleteObject, DrawTextW, InvalidateRect,
+        SelectObject, SetBkMode, HBRUSH, HDC, HFONT, TRANSPARENT,
     },
     UI::{
         Controls::DRAWITEMSTRUCT,

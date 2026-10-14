@@ -74,6 +74,7 @@ pub fn generate(dir: &Path) -> Result<PathBuf, String> {
             ux_v1330::upgrade(&path)?;
             polish_v1332::upgrade(&path)?;
             typography::upgrade_chat(&path)?;
+            crate::appearance::upgrade_archive(&path)?;
             Ok(path)
         });
 

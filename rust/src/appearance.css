@@ -1,0 +1,39 @@
+/* The local reports share the native NotMeter-inspired design tokens. */
+:root{color-scheme:dark;--bg:#1d201f;--panel:#242926;--panel2:#2c332e;--line:#404b40;--accent:#becda7;--text:#edf0ea;--muted:#a0ad9d;--shadow:none}
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+.sidebar,.side,.left,.brand,.toolbar,.top,.footer{background:#171b1a;border-color:var(--line)}
+.brand h1,.top h2,.toolbar h2{font-weight:600;letter-spacing:0}
+.local{color:#becda7}.local:before{background:#becda7}
+.archive-tabs{background:#1d201f;border-color:var(--line);border-radius:6px;padding:3px;gap:4px}
+.archive-tabs a{color:#b8c4b4;border-radius:4px}.archive-tabs a:hover{background:#2c332e;color:var(--text)}
+.archive-tabs a.active{background:#354430;color:#edf0ea;box-shadow:inset 0 -2px 0 var(--accent)}
+button,.tool,.control,.search,.enc-filter-control,.compare-insight-select,.date-btn,.archive-filter-btn,.archive-clear-btn{background:#242b26;color:#d7dfd1;border:1px solid #455041;border-radius:5px;box-shadow:none}
+button:hover,.tool:hover,.date-btn:hover{background:#354030;border-color:#899d75}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{color:#798675;background:#242926;border-color:#374035;opacity:.6}
+.primary,.tool.primary,.date-btn.active{background:#becda7;color:#182017;border-color:#becda7}
+.search::placeholder,input::placeholder{color:#97a491}
+.enc{border-radius:6px;border:1px solid transparent;margin:5px 8px;padding:12px;background:#222823}
+.enc:hover{background:#2e372e;border-color:#455041}.enc.selected{background:#303d2c;border-color:#97ae7f;box-shadow:inset 3px 0 0 #becda7}
+.enc-card{background:#222823;border-radius:6px;border-color:#364231}.enc-card:hover{background:#2e372e;border-color:#637357}.enc-card.active{background:#303d2c;border-color:#97ae7f;box-shadow:inset 3px 0 0 #becda7}
+.enc-title{font-weight:600;color:var(--text)}.enc-meta,.enc-stat,.subtitle,.player-sub{color:#b4c1af}
+.metric,.mini,.delta-card,.compare-build,.compare-panel,.compare-insight,.section,.player-detail,.attribute-compare{background:#242926;border-color:#404b40;border-radius:6px;box-shadow:none}
+.metric .k,.mini .label,.delta-card .label,.compare-build .label,.section-head,.table th{color:#a7b69e}
+.metric .v{font-weight:600}.metrics{gap:10px}
+.player{background:#1b211d;border-radius:8px;margin:4px 0;border-color:#3b4836}
+.player:hover{background:#2a3428}.player.active{background:#354430;border-color:#9daf89}
+.player{position:relative;isolation:isolate;overflow:hidden;padding:12px 10px;border-radius:8px;min-height:68px;display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:7px}
+.player::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--fill,0%);background:var(--hue,#6ca66d);opacity:.32;border-radius:8px;z-index:-1;pointer-events:none}
+.player .rank{grid-column:1;grid-row:1/3;align-self:center;color:#ccd9bf}.player-name{grid-column:2;grid-row:1}.player-sub{grid-column:2/4;grid-row:2;margin-top:3px}.player-rate{grid-column:3;grid-row:1;text-align:right;color:#edf0ea;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.player.active::before{opacity:.5}.compare-player{border-radius:6px;background:#202721;border-color:#3d4a36;padding:9px 10px}.compare-player .bar,.compare-player .gauge{border-radius:999px}
+.player-name{font-weight:600;color:#edf0ea}.player .bar,.player-bar,.damage-bar,.compare-player-bar{border-radius:999px;opacity:.65}
+.tab{border-radius:4px;color:#bec9b8;background:transparent;border-color:transparent}.tab.active{background:#354430;color:#edf0ea;border-color:#7c936b}
+.tabs{gap:5px;border-color:#455041;padding-bottom:5px}
+.table th,.table td,.skill-delta-table th,.skill-delta-table td{border-color:#394335;padding:10px 12px}
+.table tr:hover,.skill-delta-table tbody tr:hover{background:#2b352a}
+.pill{border-radius:5px;background:#2a3526;color:#d2dfc4;border-color:#546e48}
+.enc-filter-chip,.enc-active-filter,.active-filter-chip,.quick-filter{background:#2f3b2b;color:#d0debf;border-color:#5b7350;border-radius:4px}
+.message,.day-head{background:#242926;border-color:#3d4939;border-radius:6px}.message-text{color:#edf0ea}
+.channel{background:#354430;border-color:#61784f;color:#d9e6ca}.sender{font-weight:600}
+input[type=checkbox]{accent-color:#becda7}.compare-insight-head{background:#2b332b;border-color:#455041}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:#1d201f}::-webkit-scrollbar-thumb{background:#596953;border-radius:6px}

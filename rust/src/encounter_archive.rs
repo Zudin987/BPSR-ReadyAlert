@@ -62,6 +62,7 @@ pub fn generate(root: &Path) -> Result<PathBuf, String> {
         ux_v1330::upgrade(&path)?;
         attribute_history_html::upgrade(&path)?;
         typography::upgrade_encounter(&path)?;
+        crate::appearance::upgrade_archive(&path)?;
         Ok(path)
     });
     match generated {

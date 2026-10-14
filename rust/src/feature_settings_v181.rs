@@ -84,6 +84,7 @@ pub fn load(paths: &AppPaths) -> FeatureSettings {
         match serde_json::from_str::<FeatureSettings>(&text) {
             Ok(mut value) => {
                 normalize_v1182(&mut value);
+                crate::appearance::set_theme(value.visual_theme);
                 let moved = recover_overlay_bounds(&mut value);
                 if label != "primary" {
                     logging::write(format!("feature settings: recovered from {label}"));
@@ -103,6 +104,7 @@ pub fn load(paths: &AppPaths) -> FeatureSettings {
     }
 
     let mut value = FeatureSettings::default();
+    crate::appearance::set_theme(value.visual_theme);
     normalize_v1182(&mut value);
     recover_overlay_bounds(&mut value);
     if let Err(err) = save(paths, &value) {

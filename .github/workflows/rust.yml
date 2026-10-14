@@ -110,5 +110,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: native-ui-render
-          path: rust/target/ui-qa-render/*.bmp
+          path: |
+            rust/target/ui-qa-render/*.bmp
+            rust/target/ui-qa-render/*.html
           retention-days: 3
